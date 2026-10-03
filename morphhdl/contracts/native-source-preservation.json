@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "ed79986b9c1321e72807b9ce40516656a32e7475"
+      "approved_tree": "b37ffb81c4ab5d6359464c103d048143a3d8cffe"
     },
     {
       "path": "idslpayload/src/main",
@@ -390,6 +390,52 @@
               "side": "approved",
               "text": "ParameterizedBlackBoxGenericRegistry.retain(this, name, value)",
               "count": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ClockDomain.scala",
+      "change": "modified",
+      "classification": "platform-integration-hook",
+      "introduced_by": [
+        "October 3 compiler issue: implicit clock alias synchrony"
+      ],
+      "reason": "Use the existing exact single-driver query when tracing clock aliases, including native ExternalDriverTag top-level pulls. Keep combinational-only traversal; foreign clock crossings remain rejected.",
+      "baseline": {
+        "path": "core/src/main/scala/spinal/core/ClockDomain.scala",
+        "mode": "100644",
+        "blob": "fe19e97c4a164645335b08677a8d46f08959e1fb",
+        "sha256": "5b854f4bb787452467179d6569a3d375eef2b8b972513bdeeda16427260473e1"
+      },
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/ClockDomain.scala",
+        "mode": "100644",
+        "blob": "776d886b54ee18a410366e8824ec6130621a4038",
+        "sha256": "4dc57d0717ecde464637a6685c9a3466198dc90100c2288fb04c4fb1ca45146d"
+      },
+      "edits": [
+        {
+          "id": "clock-external-driver-alias",
+          "kind": "platform-integration",
+          "owner": "spinal.core.ClockDomain.getSyncronous",
+          "reason": "Resolve exact root-scope aliases and native top-level external-driver identities through the established getSingleDriver API; no inferred equality or clock-domain exemption.",
+          "baseline_span": {
+            "start": 10861,
+            "end": 11098,
+            "sha256": "f48d4689635986667d352e08ab463eb59746b8e88d31a5cd6974d767341339ad"
+          },
+          "approved_span": {
+            "start": 10861,
+            "end": 11180,
+            "sha256": "2849659f10cd0d7c911296290740cdaf9b220dbd4740e684857d405b977fc6ea"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "that.getSingleDriver.filter(_.isComb).foreach { driver =>",
+              "count": 1
             }
           ]
         }
@@ -1546,15 +1592,16 @@
         "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence",
         "Increment 59i: combined recursive widening, captures and native saturation geometry",
         "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI",
-        "October 2 user request: opt-in constant aggregates and typed loops"
+        "October 2 user request: opt-in constant aggregates and typed loops",
+        "Compiler issues CA-001/CA-002/CA-003, October 3"
       ],
-      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged. Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence. CDC-WIRE-01 qualification exposes a read-only identity inventory from retained Vec operation and completed-write journals. Visit only the closed compiler-owned record families and their exact native expressions with identity-based cycle suppression, so optional late wrapper planning preserves the publisher's witness slices, carriers and assignment evidence. No native Vec algorithm, journal contents, parameter domain or public layout is changed. Packed-assignment support tracing follows only exact fixed slices, reviewed Bits casts, and same-component directionless combinational intermediates with one root-scope assignment; it stops at the recorded carrier or source identities. Supporting-driver traversal is read-only and cannot relax the publisher's existing proof obligations. The October 2 request adds explicitly opted-in constant geometry retention and exact literal-depth metadata for constant typed-loop Vec operands; no symbolic root or witness domain is fabricated.",
+      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged. Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence. CDC-WIRE-01 qualification exposes a read-only identity inventory from retained Vec operation and completed-write journals. Visit only the closed compiler-owned record families and their exact native expressions with identity-based cycle suppression, so optional late wrapper planning preserves the publisher's witness slices, carriers and assignment evidence. No native Vec algorithm, journal contents, parameter domain or public layout is changed. Packed-assignment support tracing follows only exact fixed slices, reviewed Bits casts, and same-component directionless combinational intermediates with one root-scope assignment; it stops at the recorded carrier or source identities. Supporting-driver traversal is read-only and cannot relax the publisher's existing proof obligations. The October 2 request adds explicitly opted-in constant geometry retention and exact literal-depth metadata for constant typed-loop Vec operands; no symbolic root or witness domain is fabricated. Static writes preserve anonymous literal identity without pinning its width; exact native literal-clone receipts retain normalization lineage. Capture complete static scope paths and enclosing When identities across native switches.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedVec.scala",
         "mode": "100644",
-        "blob": "d4d171577f30d54eade22da141878bdf3d588ad7",
-        "sha256": "6920cbb267980c6bc9da15f0c89883cf332dc6cbcde01f0080c527cffe0b99fb"
+        "blob": "e72c80d4cd976b84183d8a82327f62ad443ed706",
+        "sha256": "a40a4d489c8c7a0fad6c74cb1da8fcf1da6ddd9c10f8c4052c42039c55801d16"
       },
       "edits": []
     },
@@ -3749,7 +3796,8 @@
       "introduced_by": [
         "Increment 57a: typed StreamFifoCC architecture",
         "Increment 60g: scheduler-owned registration lifecycle",
-        "Increment 66: native parameter and RTL readability extensions"
+        "Increment 66: native parameter and RTL readability extensions",
+        "CA-003 exact native literal-clone lineage"
       ],
       "reason": "Preserve structured parameterized-Verilog diagnostics across the inherited Verilog elaboration retry boundary. Expose read-only per-context execution state before any phase runs without altering native phase order or behavior. Mechanically copy immutable named-constant reference tokens through ordinary anonymous carrier propagation and validate exact named-key disjointness before native parallel-case emission. Never fold a symbolic default witness or alter ordinary literal propagation and coverage checks.",
       "baseline": {
@@ -3761,8 +3809,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
         "mode": "100644",
-        "blob": "735b87004ee5f4962148ac9c6d31f3b444d46138",
-        "sha256": "37f626e1cbc9bedb8762f6857dabf676ad2bedf268c1f397cd05c25c3979fb41"
+        "blob": "e8a299b4303923fef19f12b1b198fb6ece0756cd",
+        "sha256": "4dcc4406ca623c42e021d645b2da6c30665ab26a88e540dadb9d11412db5974f"
       },
       "edits": [
         {
@@ -3815,21 +3863,26 @@
           "id": "increment66-phase-3",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.internals.PhaseSimplifyNodes / PhaseCompletSwitchCases",
-          "reason": "Mechanically copy immutable named-constant reference tokens through ordinary anonymous carrier propagation and validate exact named-key disjointness before native parallel-case emission. Never fold a symbolic default witness or alter ordinary literal propagation and coverage checks.",
+          "reason": "Mechanically copy immutable named-constant reference tokens through ordinary anonymous carrier propagation and validate exact named-key disjointness before native parallel-case emission. Never fold a symbolic default witness or alter ordinary literal propagation and coverage checks. Record the exact cloned literal identity for captured static Vec writes without changing native literal propagation.",
           "baseline_span": {
-            "start": 69256,
-            "end": 69256,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            "start": 69188,
+            "end": 69254,
+            "sha256": "2d297e3a20e518404e2541267662c4e43e72d56e45789578743eabf4c754402d"
           },
           "approved_span": {
-            "start": 69558,
-            "end": 69648,
-            "sha256": "70ddb66f11770a5872a967e1cd053a52be5c86275e1494df0ab9175bef47371c"
+            "start": 69490,
+            "end": 69780,
+            "sha256": "7c17f0b9faa2a746c0fcc6692c745d599208da8e5b01097a9355bb8e14d1f115"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "          case DataAssignmentStatement(_, local: TypedLocalUInt.Reference) => local.fresh\n",
+              "text": "case DataAssignmentStatement(_, local: TypedLocalUInt.Reference)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.recordStaticLiteralNormalization(s, e, lit, replacement)",
               "count": 1
             }
           ]
@@ -3845,8 +3898,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 92180,
-            "end": 92221,
+            "start": 92314,
+            "end": 92355,
             "sha256": "7334b71febdeb5b83547e284fe9042e6cd12046a1a82016baf11d06fac1c426e"
           },
           "required_exact_text": [
@@ -3868,8 +3921,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 137344,
-            "end": 137407,
+            "start": 137478,
+            "end": 137541,
             "sha256": "3ffd3c3e02b062888955ce16b876cff12d26e738bbd612c9988d71285271c8a1"
           },
           "required_exact_text": [

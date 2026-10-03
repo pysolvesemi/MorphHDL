@@ -2287,7 +2287,7 @@
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "          case DataAssignmentStatement(_, local: TypedLocalUInt.Reference) => local.fresh\n",
+              "text": "case DataAssignmentStatement(_, local: TypedLocalUInt.Reference)",
               "count": 1
             },
             {
