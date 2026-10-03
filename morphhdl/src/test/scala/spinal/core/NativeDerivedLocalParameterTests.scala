@@ -37,7 +37,7 @@ class NativeDerivedLocalParameterTests extends AnyFunSuite {
     assert(rtl.contains("localparam integer TOTAL_BITS = (DATA_BITS + GENERATION_BITS);"), rtl)
     assert(rtl.contains("parameter integer DATA_BITS = 32"), rtl)
     assert(rtl.contains("parameter integer GENERATION_BITS = 8"), rtl)
-    assert(rtl.contains("[TOTAL_BITS-1:0] dataIn"), rtl)
+    assert(rtl.contains("[(DATA_BITS + GENERATION_BITS)-1:0] dataIn"), rtl)
     assert(!rtl.contains("parameter integer TOTAL_BITS"))
     assert(rtl == emit(Files.createTempDirectory("derived-localparam-repeat-"), split, passes)(body))
     val dut = dir.resolve("RecordLink.v")
@@ -72,6 +72,85 @@ class NativeDerivedLocalParameterTests extends AnyFunSuite {
     run(dir, Seq("iverilog", "-g2001", "-s", "RecordLink", "-o", "strict.vvp", dut.toString))
     run(dir, Seq("verilator", "--lint-only", "--language", "1364-2001", "--top-module", "RecordLink", dut.toString))
     run(dir, Seq("yosys", "-Q", "-p", s"read_verilog $dut; synth -top RecordLink; check -assert"))
+  }
+
+  for (split <- Seq(false, true); preserve <- Seq(false, true))
+    test(s"CA-005 ANSI widths expand nested aliases while body locals survive split=$split preserve=$preserve") {
+      class PortAlias(busBits: ElabInt) extends Component {
+        setDefinitionName("Ca005PortAlias")
+        val busBytes: ElabInt = busBits / 8
+        val keepBits: ElabInt = busBytes + 1
+        val s_keep = in Bits(keepBits bits)
+        val m_keep = out Bits(keepBits bits)
+        val signedIn = in SInt(busBytes bits)
+        val signedOut = out SInt(busBytes bits)
+        val pad = inout(Analog(Bits(busBytes bits)))
+        val bodyWire = Bits(keepBits bits).dontSimplifyIt()
+        bodyWire := s_keep
+        m_keep := bodyWire
+        signedOut := signedIn
+      }
+      val dir = Files.createTempDirectory("ca005-port-alias-")
+      val config = morphhdl.MorphAggregateOptions(SpinalConfig(targetDirectory = dir.toString,
+        oneFilePerComponent = split, headerWithDate = false), preserve, preserve,
+        if(preserve) morphhdl.MorphAggregateOptions.UnpackedArray else morphhdl.MorphAggregateOptions.PackedVector)
+      MorphVerilog(config)(new PortAlias(HdlInt.param("BUS_LOG2_BYTES", 3, 2, 5).asElabInt.pow2 * 8))
+      val dut = dir.resolve("Ca005PortAlias.v")
+      val rtl = new String(Files.readAllBytes(dut), UTF_8)
+      val header = rtl.take(rtl.indexOf(");"))
+      assert(!header.contains("BUS_BYTES") && !header.contains("KEEP_BITS"), rtl)
+      assert(header.contains("BUS_LOG2_BYTES"), rtl)
+      assert(rtl.contains("localparam integer BUS_BYTES") && rtl.contains("KEEP_BITS = (BUS_BYTES + 1)"), rtl)
+      assert(rtl.contains("[KEEP_BITS-1:0] bodyWire"), rtl)
+      for(log <- 2 to 5) {
+        val bits = 1 << log
+        val tb = s"""module tb;
+reg [$bits:0] source; wire [$bits:0] result;
+reg signed [${bits-1}:0] si; wire signed [${bits-1}:0] so;
+wire [${bits-1}:0] pad;
+Ca005PortAlias #(.BUS_LOG2_BYTES($log)) dut(.s_keep(source),.m_keep(result),.signedIn(si),.signedOut(so),.pad(pad));
+Ca005PortAlias default_dut();
+initial begin
+if ($$bits(dut.s_keep) != ${bits+1} || $$bits(dut.pad) != $bits || $$bits(default_dut.s_keep) != 9) $$fatal;
+source={${bits+1}{1'bx}}; si={${bits}{1'bx}}; #1; if(result!==source || so!==si) $$fatal;
+source={${bits+1}{1'bz}}; si={${bits}{1'bz}}; #1; if(result!==source || so!==si) $$fatal;
+source='b1; si=-1; #1; if(result!==source || so!==si) $$fatal;
+$$finish; end
+endmodule"""
+        Files.write(dir.resolve("tb.v"), tb.getBytes(UTF_8))
+        run(dir, Seq("iverilog", "-g2012", "-s", "tb", "-o", "ca005.vvp", dut.toString, "tb.v"))
+        run(dir, Seq("vvp", "ca005.vvp"))
+      }
+      run(dir, Seq("iverilog", "-g2001", "-s", "Ca005PortAlias", "-o", "strict.vvp", dut.toString))
+      run(dir, Seq("verilator", "--lint-only", "--language", "1364-2001", "--top-module", "Ca005PortAlias", dut.toString))
+      run(dir, Seq("yosys", "-Q", "-p", s"read_verilog $dut; synth -top Ca005PortAlias; check -assert"))
+    }
+
+  test("native unsigned arithmetic wrappers retain parameterized widths at larger overrides") {
+    val dir = Files.createTempDirectory("native-wrapper-width-")
+    val rtl = emit(dir, true)(new Component {
+      setDefinitionName("KeepMask")
+      val busBytes: ElabInt = HdlInt.param("BUS_BYTES", 8, 4, 32).asElabInt
+      val keep = in Bits(busBytes bits)
+      val legal = out Bool()
+      val keepWide = keep.asUInt.resize(busBytes + 1)
+      legal := keepWide =/= 0 && (keepWide & (keepWide + 1)) === 0
+    })
+    for (width <- Seq(4, 8, 16, 32)) {
+      val tb = s"""module tb;
+reg [${width-1}:0] keep; wire legal; integer i;
+KeepMask #(.BUS_BYTES($width)) dut(keep,legal);
+initial begin keep=0; #1; if(legal!==0) $$fatal;
+for(i=1;i<=$width;i=i+1) begin keep=({$width{1'b1}} >> ($width-i)); #1; if(legal!==1) $$fatal; end
+for(i=1;i<$width;i=i+1) begin keep=(1 << i); #1; if(legal!==0) $$fatal; end
+$$finish; end
+endmodule"""
+      Files.write(dir.resolve("tb.v"), tb.getBytes(UTF_8))
+      run(dir, Seq("iverilog", "-g2001", "-s", "tb", "-o", "sim", "KeepMask.v", "tb.v"))
+      run(dir, Seq("vvp", "sim"))
+    }
+    run(dir, Seq("verilator", "--lint-only", "--language", "1364-2001", "--top-module", "KeepMask", "KeepMask.v"))
+    run(dir, Seq("yosys", "-Q", "-p", "read_verilog KeepMask.v; chparam -set BUS_BYTES 32 KeepMask; synth -top KeepMask; check -assert"))
   }
 
   test("named calculations preserve dependency order and asymmetric roots") {
@@ -204,7 +283,9 @@ class NativeDerivedLocalParameterTests extends AnyFunSuite {
       val totalBits: ElabInt = a + b * 2
       val din = in Bits(totalBits bits)
       val dout = out Bits(totalBits bits)
-      dout := din
+      val bodyWire = Bits(totalBits bits).dontSimplifyIt()
+      bodyWire := din
+      dout := bodyWire
     })
     val original = "localparam integer TOTAL_BITS = (A + (B * 2));"
     assert(rtl.contains(original), rtl)
@@ -212,7 +293,7 @@ class NativeDerivedLocalParameterTests extends AnyFunSuite {
       |wire [15:0] result;
       |DerivedMutationProbe #(.A(2), .B(7)) dut(16'hac35,result);
       |initial begin
-      |#1; if ($bits(dut.din) != 16 || result !== 16'hac35) $fatal(1,"DERIVED_MUTATION_DETECTED");
+      |#1; if ($bits(dut.din) != 16 || $bits(dut.bodyWire) != 16 || result !== 16'hac35) $fatal(1,"DERIVED_MUTATION_DETECTED");
       |$display("DERIVED_ORACLE_PASS"); $finish;
       |end
       |endmodule
@@ -335,7 +416,7 @@ class NativeDerivedLocalParameterTests extends AnyFunSuite {
       |wire [8:0] result;
       |DerivedSignedOffset #(.A(1),.B(8)) dut(9'h1a5,result);
       |initial begin #1;
-      |if ($bits(dut.din) != 9 || dut.SIGNED_OFFSET != -7 || result !== 9'h1a5) $fatal(1,"signed local arithmetic");
+      |if ($bits(dut.din) != 9 || dut.SIGNED_OFFSET != -7 || dut.TOTAL_BITS != 9 || result !== 9'h1a5) $fatal(1,"signed local arithmetic");
       |$display("SIGNED_LOCAL_PASS"); $finish;
       |end
       |endmodule

@@ -97,8 +97,10 @@ final class MorphHdlSignedDeclarationPolicy private[spinal] (
       reject("scalar range needs its exact native declaration occurrence")
     occurrence.subject match {
       case value: BitVector =>
-        ParameterizedWidth.expressionOf(value).flatMap(expression =>
-          NativeLocalParameters.reference(value.component, expression)).map(name => s"[$name-1:0]")
+        ParameterizedWidth.expressionOf(value).flatMap { expression =>
+          if (occurrence.ansiPort) NativeLocalParameters.reference(value.component, expression).map(_ => s"[(${expression.verilog})-1:0]")
+          else NativeLocalParameters.reference(value.component, expression).map(name => s"[$name-1:0]")
+        }
       case _ => None
     }
   }

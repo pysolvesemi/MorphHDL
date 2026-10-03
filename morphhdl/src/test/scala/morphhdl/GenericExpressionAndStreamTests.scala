@@ -416,11 +416,11 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
 
       assert(parameterized.contains("parameter integer WIDTH = 3"))
       assert(hasDeclarationWidth(parameterized, "value", "[WIDTH-1:0]"))
-      assert(
-        nativeModule(
-          concretize(legacy, "NativeAutoResizedIncrement", width = 3)
-        ) == nativeModule(concrete)
-      )
+      // Parameterized operands now have explicit domain-wide sizing. Their
+      // text intentionally differs from the concrete native literal; the
+      // simulations above retain concrete-default and boundary equivalence.
+      assert(parameterized.contains("WIDTH > 3 ? WIDTH : 3"), parameterized)
+      assert(!parameterized.contains("value + 3'b001"), parameterized)
 
       val unsafeConfig = SpinalConfig(targetDirectory = directory.toString)
       unsafeConfig.netlistFileName = "native_unresized_fixed_increment.v"
@@ -539,9 +539,11 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
         val emittedSourceWidth = declarationWidth(verilog, "source")
         assert(emittedSourceWidth.nonEmpty, verilog)
         assert(
-          declarationWidth(verilog, "native_narrowing_resize") == emittedSourceWidth,
+          declarationWidth(verilog, "native_narrowing_resize").contains("[SOURCE_WIDTH-1:0]"),
           verilog
         )
+        assert(compact.contains("localparamintegerSOURCE_WIDTH=(WIDTH+((((WIDTH)==(4)))?1:0));"), verilog)
+        assert(emittedSourceWidth.contains("[(WIDTH+((((WIDTH)==(4)))?1:0))-1:0]"), verilog)
         assert(emittedSourceWidth.get != "[WIDTH-1:0]", verilog)
         assert(compact.contains("WIDTH)==(4"), verilog)
         assert(compact.contains("assignnative_narrowing_resize=source;"), verilog)

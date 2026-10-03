@@ -19,6 +19,16 @@ import spinal.core._
   * packed declaration ranges. No fixture-specific ParamRTL graph is involved.
   */
 private[internals] object ExternalParameterizedVerilogNativeFallback {
+  /** The native wrapper callback supplies the exact expression identity.
+    * Its range uses the same width inference as ordinary declarations. */
+  private[internals] def expressionRangeResolver(component: Component, pc: PhaseContext): Expression => Option[String] = {
+    val analysis = new Analysis(component, pc, Vector.empty, false)
+    expression => analysis.wrapperRange(expression)
+  }
+  private[internals] def binaryOperandResolver(component: Component, pc: PhaseContext): (ComponentEmitterVerilog, BinaryOperator, Int) => Option[String] = {
+    val analysis = new Analysis(component, pc, Vector.empty, false)
+    (printer, expression, slot) => analysis.binaryOperand(printer, expression, slot)
+  }
   private val eligibleGateFailures = Set(
     "SPINAL-PARAMETERIZED-VERILOG-REGISTER-INIT-UNSUPPORTED",
     "SPINAL-PARAMETERIZED-VERILOG-INITIAL-ASSIGNMENT-UNSUPPORTED",
@@ -140,9 +150,20 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     val widthsByName = groupedWidths.toVector
       .map { case (name, values) => name -> values.head._2 }
       .sortBy { case (name, _) => -name.length }
+    // The retained expression is already expanded from authoritative width
+    // provenance. Body publication aliases are never substituted into ports.
+    val portWidthsByName = (analysis.symbolicDeclarationWidths.map { case (name, expression) =>
+      name -> (if (expression.publicationRender == expression.render) expression.range
+        else s"[${expression.render}-1:0]")
+    } ++ hierarchyWidths).groupBy(_._1).toVector.map { case (name, values) =>
+      name -> values.head._2
+    }.sortBy { case (name, _) => -name.length }
     val rewrittenDeclarations = withHierarchy
       .split("\\n", -1)
-      .map(line => rewriteDeclarationLine(line, widthsByName))
+      .map { line =>
+        val port = "^\\s*(?:\\(\\*.*?\\*\\)\\s*)*(?:input|output|inout)\\b".r.findPrefixOf(line).nonEmpty
+        rewriteDeclarationLine(line, if (port) portWidthsByName else widthsByName)
+      }
       .mkString("\n")
     val rewrittenConstants = rewriteRetainedZeroAssignments(
       component,
@@ -2037,6 +2058,41 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     private val treeStatements = ArrayBuffer.empty[TreeStatement]
     private val widthInference = new WidthInference
 
+    def binaryOperand(printer: ComponentEmitterVerilog, expression: BinaryOperator, slot: Int): Option[String] = synchronized {
+      require(slot == 0 || slot == 1, "binary operand slot must be exact")
+      val operand = if (slot == 0) expression.left else expression.right
+      val (left, right) = widthInference.binaryWidths(expression)
+      val common = widthMax(left, right)
+      if (!common.isSymbolic) return None
+      val count = common.publicationRender
+      operand match {
+        case literal: UIntLiteral if !literal.hasPoison() && literal.value >= 0 =>
+          val bits = math.max(1, literal.value.bitLength)
+          if (common.minimum < bits) None
+          else if (literal.value == 0) Some(s"{($count){1'b0}}")
+          else Some(s"{{(($count) - $bits){1'b0}}, ${bits}'h${literal.value.toString(16)}}")
+        case _: BitVectorLiteral => None
+        case _ =>
+          val own = if (slot == 0) left else right
+          if (equivalentWidthExpression(own, common)) None
+          else Some(s"{{(($count) - (${own.publicationRender})){1'b0}}, ${printer.emitExpression(operand)}}")
+      }
+    }
+
+    def wrapperRange(expression: Expression): Option[String] = synchronized {
+      val width = widthInference.ofExpression(expression)
+      if (!width.isSymbolic) None
+      else {
+        require(width.minimum > 0 && width.maximum <= pc.config.bitVectorWidthMax,
+          "native wrapper width is outside the admitted positive domain")
+        expression match {
+          case value: WidthProvider => require(width.default == value.getWidth, "native wrapper width witness mismatch")
+          case _ => throw new IllegalArgumentException("native wrapper has no packed-width carrier")
+        }
+        Some(width.range)
+      }
+    }
+
     private lazy val exactPackedReadSupportAssignments =
       ParameterizedVerilogVecs.exactPackedReadSupportAssignments(component)
 
@@ -3374,6 +3430,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       def ofExpression(expression: Expression): WidthExpr = {
         expressionCache.getOrElseUpdate(expression, inferExpression(expression))
       }
+      def binaryWidths(expression: BinaryOperator): (WidthExpr, WidthExpr) =
+        operandWidth(expression.left) -> operandWidth(expression.right)
 
       /** Spinal input normalization inserts concrete-witness Resize nodes around
         * operands.  Those nodes are not user-visible resizes and must retain the
@@ -3871,8 +3929,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       minimum: BigInt,
       maximum: BigInt
   ) extends WidthExpr {
+    private def comparisonOperand(value: WidthExpr): String =
+      if (value.precedence <= 50) s"(${value.render})" else value.render
     private val condition =
-      s"${whenTrue.render} ${selection.comparison} ${whenFalse.render}"
+      s"${comparisonOperand(whenTrue)} ${selection.comparison} ${comparisonOperand(whenFalse)}"
     override val parameters: Vector[ElaborationIntegerParameter] =
       (whenTrue.parameters ++ whenFalse.parameters).distinct.sortBy(_.name)
     override val parameterRoots: Vector[ElaborationIntegerParameterRoot] =

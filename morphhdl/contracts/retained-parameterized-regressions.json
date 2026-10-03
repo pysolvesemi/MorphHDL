@@ -1302,6 +1302,10 @@
         "typed custom clones cannot change leaf kinds or widths and concrete clones keep native behavior"
       ],
       "spinal.core.NativeDerivedLocalParameterTests": [
+        "CA-005 ANSI widths expand nested aliases while body locals survive split=false preserve=false",
+        "CA-005 ANSI widths expand nested aliases while body locals survive split=false preserve=true",
+        "CA-005 ANSI widths expand nested aliases while body locals survive split=true preserve=false",
+        "CA-005 ANSI widths expand nested aliases while body locals survive split=true preserve=true",
         "RecordLink uses a native localparam with same-file overrides, split=false, passes=false",
         "RecordLink uses a native localparam with same-file overrides, split=false, passes=true",
         "RecordLink uses a native localparam with same-file overrides, split=true, passes=false",
@@ -1313,6 +1317,7 @@
         "explicit signal collisions are preserved and unused calculations add no parameters",
         "named calculations preserve dependency order and asymmetric roots",
         "names cannot transfer to public expression copies or another component",
+        "native unsigned arithmetic wrappers retain parameterized widths at larger overrides",
         "negative intermediate local parameters preserve signed integer arithmetic",
         "ordinary concrete SpinalVerilog remains parameter-free",
         "restricted branch calculations stay within their generate owner",
@@ -2341,6 +2346,14 @@
         "expression-only snapshots cannot manufacture declaration or unplanned temporary roles",
         "memory templates cannot obtain declaration, expression or temporary occurrence evidence",
         "replay includes typed width domains without depending on parameter or signal spelling"
+      ],
+      "spinal.core.internals.UnpackedDirectReadTests": [
+        "aligned dynamic multi-element reads concatenate array elements and preserve invalid addresses",
+        "direct procedural reads observe blocking writes in the same activation",
+        "multidimensional whole reads retain low-element-first packing without helpers",
+        "symbolic continuous reads slice the packed view without read functions",
+        "symbolic procedural reads retain direct-memory helpers for blocking ordering",
+        "unaligned windows concatenate actual array bits across element boundaries"
       ]
     },
     "morphir": {
@@ -2803,10 +2816,11 @@
     "morphhdl/src/test/scala/morphhdl/ConstantAggregateTests.scala": "3857dfc8a220a698f16a8e96da68503c945786599e1c15c75d7d5516e02b2818",
     "morphhdl/src/test/scala/morphhdl/DerivedWidthContractFixture.scala": "76d8cecf59436f684baac6dea2c09b6c5add58b721dc48daf37162fe882140d9",
     "morphhdl/src/test/scala/morphhdl/ExternalHierarchyBoolLiteralBindingTests.scala": "6aa420f847781a5b979cc4c1b4bf8948461f9575aac3ebb9810524f61ada7d9b",
+    "morphhdl/src/test/scala/morphhdl/FastAggregateLintFixture.scala": "2b39aca93eeda2a2ea0f9f475e010ef5fab59c074aed1fd65ca8379a09ff6ec3",
     "morphhdl/src/test/scala/morphhdl/FormalParameterClonePropagationTests.scala": "3ca7134dae20d0880bfc9df18bb1e4bd0615d21e387439672e2dc830813078c8",
     "morphhdl/src/test/scala/morphhdl/FormalParameterIdentityTests.scala": "3a5c4995ecb87eb31fa3ab672121a88026cec981338bcf1903650687ed565481",
     "morphhdl/src/test/scala/morphhdl/GenerateLaneExpressionExample.scala": "9b26eca4eecedb3ae0f9b850084c436607118c20505519f18e4d7471cace8b90",
-    "morphhdl/src/test/scala/morphhdl/GenericExpressionAndStreamTests.scala": "5b0752426ecfdc1149c33ddeee1f2b2f206fb9719af5055fd15bd13a6d8b0185",
+    "morphhdl/src/test/scala/morphhdl/GenericExpressionAndStreamTests.scala": "f3cb694008910ccce9abd71637542f9bc5d85f18a4fd1953ada53ef4ac556e45",
     "morphhdl/src/test/scala/morphhdl/GenericProcessLoweringTests.scala": "046ba7e5d752b4db52ba189ff8d69d1d024c9cda1656e6e3a7859a54da112e2d",
     "morphhdl/src/test/scala/morphhdl/HierarchyParameterBindingTests.scala": "094106d3151c0328cc85df7593356d9918957359742c9911aaf67bbc399ddcc4",
     "morphhdl/src/test/scala/morphhdl/Increment61CompatibilityCatalog.scala": "5f9f89a4ea2fbd958caa92273718fed6fd8f24de5c7ba0d57335f6b278716910",
@@ -2918,7 +2932,7 @@
     "morphhdl/src/test/scala/spinal/core/NamedFieldPackedAliasTests.scala": "ee84f5bf48533015b56edb22e0f70914d65a0777dada62cd9b5bd46c9fa437b4",
     "morphhdl/src/test/scala/spinal/core/NativeCdcFormalTests.scala": "9e0879e446c0c87caf658381a116572eadcc0bb1acf0313aa76f9e584891b0ad",
     "morphhdl/src/test/scala/spinal/core/NativeCloneShapeContractTests.scala": "f0123b1e976e419bb1217655212e513cbd5ff8e3789d166d948bf92839d304d4",
-    "morphhdl/src/test/scala/spinal/core/NativeDerivedLocalParameterTests.scala": "7e7e79a925cf8e8a2ee084d5c8d382d05bafaa91af0c5d3c2129060c63e29738",
+    "morphhdl/src/test/scala/spinal/core/NativeDerivedLocalParameterTests.scala": "52d1cf8c54376ea452a6a2f602d93b1fa2ec116840265f24a653697797e41393",
     "morphhdl/src/test/scala/spinal/core/NativeExplicitFormalTests.scala": "7d7a118c3b8c3675fb6412ba4d07ff5bdfea6cceee8eaffcf046cd29d5b3b5da",
     "morphhdl/src/test/scala/spinal/core/NativeFormalOwnershipTests.scala": "f365eb53e20d2bfffa0e4bf7e39b6dd4d8ec3cf1e6c40a537aa96575ca811606",
     "morphhdl/src/test/scala/spinal/core/NativeLegalityPresentationTests.scala": "1e8c9093124b8bc0965872fc8b4a410f86e0d91adf063569162b39fde7a31f69",
@@ -3020,6 +3034,7 @@
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionWideningArtifactWriter.scala": "d1eaffde9174f3c756ff8b6c4e614c06fdfaedda289000b405cc5aa005561a74",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionWideningPublicationTests.scala": "35022da5fca2cf139bd43e052b9bc22fa89ed3c99f539c840af9717003a25cfa",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionWidthTransferTests.scala": "47e79d91502d0b1e78245145304779586994ecdd931d39505de08f231d080896",
+    "morphhdl/src/test/scala/spinal/core/internals/UnpackedDirectReadTests.scala": "99050900b82defc5061dbf3136ef0bf720ff29ed67983f483be7f1b3a3ad5869",
     "morphhdl/src/test/scala/spinal/lib/CounterSingleAuthorityParityTests.scala": "9eedbe0f3ce7a457d4c79ab2c9fc3aa1cb02c932436bc76d30d8ada2ca6780f5",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala": "24b185c3ef7939be404500704e955d598c2493ee7c3a1f737d0cf16267d9c362",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrV1Spec.scala": "835224bc5028bc192976dd96e08906add489d4824d328397466a7e4dd7f31493",

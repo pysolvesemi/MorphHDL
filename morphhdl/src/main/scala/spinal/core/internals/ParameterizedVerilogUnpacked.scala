@@ -38,13 +38,14 @@ private[internals] object ParameterizedVerilogUnpacked {
     val byName = shapes.map(x => x.name -> x).toMap
     require(byName.size == shapes.size, "unpacked Vec names must be unique")
     val views = shapes.map(x => x.name -> allocate(x.name + "_packed_view")).toMap
+    val usedViews = mutable.HashSet.empty[String]
     val functions = mutable.LinkedHashMap.empty[(String, String), String]
-    val wiring = mutable.ArrayBuffer.empty[String]
+    val wiring = mutable.LinkedHashMap.empty[String, Vector[String]]
     val seen = mutable.HashSet.empty[String]
     def function(shape: ArrayShape, width: String): String =
       functions.getOrElseUpdate(shape.name -> width, allocate(shape.name + "_read"))
 
-    def readCode(code: String): String = {
+    def readCode(code: String, continuous: Boolean): String = {
       val out = new StringBuilder
       var copied = 0
       val identifiers = "[A-Za-z_][A-Za-z0-9_$]*".r.findAllMatchIn(code).toVector
@@ -53,25 +54,47 @@ private[internals] object ParameterizedVerilogUnpacked {
             ParameterizedVerilogVecs.isSignalReference(code, m.start, m.end)) {
           val shape = byName(m.matched)
           val selection = select(code, m.end, shape.total)
-          // A function reads the actual array in the current procedural order.
-          // Its packed dependency argument also exposes every array bit to
-          // Verilog-2001 always @* sensitivity, including whole-array reads.
+          // Prefer direct array reads so blocking writes remain immediately
+          // visible. Symbolic procedural reads still need the native-memory
+          // helper and its Verilog-2001 sensitivity dependency.
           out.append(code.substring(copied, m.start))
-          val offset = readCode(selection.offset)
+          val offset = readCode(selection.offset, continuous)
           if (normalized(selection.width) == normalized(shape.width) && wordIndex(selection.offset, shape.width).nonEmpty)
             out.append(shape.element(offset))
           else if (normalized(selection.width) == "1") out.append(shape.bit(offset))
           else {
-            val name = function(shape, selection.width)
-            out.append(s"$name($offset, ${views(shape.name)})")
+            val direct = for {
+              width <- constantProduct(selection.width) if width > 0 && width <= 4096
+            } yield {
+              val elements = for {
+                scalar <- constantProduct(shape.width) if scalar > 0 && width % scalar == 0
+                _ <- wordIndex(selection.offset, shape.width)
+              } yield (0 until (width / scalar).toInt).reverse.map { i =>
+                shape.element(if (i == 0) offset else s"($offset) + (${i * scalar})")
+              }
+              val parts = elements.getOrElse((0 until width.toInt).reverse.map { i =>
+                shape.bit(if (i == 0) offset else s"($offset) + $i")
+              })
+              if (parts.size == 1) parts.head else parts.mkString("{", ", ", "}")
+            }
+            direct match {
+              case Some(value) => out.append(value)
+              case None if continuous =>
+                usedViews += shape.name
+                out.append(s"${views(shape.name)}[($offset) +: ${selection.width}]")
+              case None =>
+                usedViews += shape.name
+                val name = function(shape, selection.width)
+                out.append(s"$name($offset, ${views(shape.name)})")
+            }
           }
           copied = selection.end
         }
       }
       out.append(code.substring(copied)).result()
     }
-    def reads(text: String): String =
-      ParameterizedVerilogVecs.mapReferenceCode(text.split("\n", -1).toVector)(readCode).mkString("\n")
+    def reads(text: String, continuous: Boolean = false): String =
+      ParameterizedVerilogVecs.mapReferenceCode(text.split("\n", -1).toVector)(code => readCode(code, continuous)).mkString("\n")
 
     // A field-major whole assignment has a concatenation on its left side.
     // Capture its RHS once, then split using exact retained field widths.
@@ -135,7 +158,7 @@ private[internals] object ParameterizedVerilogUnpacked {
         val signed = Option(m.group(3)).getOrElse("")
         val index = allocate(shape.name + "_pack_index")
         val label = allocate(shape.name + "_pack")
-        wiring ++= Vector(s"  genvar $index;", "  generate",
+        wiring(shape.name) = Vector(s"  genvar $index;", "  generate",
           s"    for ($index = 0; $index < (${shape.total}); $index = $index + 1) begin : $label",
           s"      assign ${views(shape.name)}[$index] = ${shape.bit(index)};",
           "    end", "  endgenerate")
@@ -151,7 +174,7 @@ private[internals] object ParameterizedVerilogUnpacked {
         }
         write match {
           case Some((m, shape, selection, assignment)) =>
-            val rhs = reads(assignment.group(2))
+            val rhs = reads(assignment.group(2), m.group(2) != null)
             val offset = reads(selection.offset)
             val width = selection.width
             val index = allocate(shape.name + "_write_index")
@@ -180,7 +203,7 @@ private[internals] object ParameterizedVerilogUnpacked {
                 s"$indent    ${shape.bit(s"$base + $index")} $op $value[$index];",
                 s"$indent  end", s"${indent}end")
             }
-          case None => Vector(reads(line))
+          case None => Vector(reads(line, line.trim.startsWith("assign ")))
         }
       }
     }
@@ -196,9 +219,14 @@ private[internals] object ParameterizedVerilogUnpacked {
         s"        $functionName[$index] = ${shape.bit(s"$offset + $index")};",
         "    end", "  endfunction")
     }
-    val end = output.indexWhere(_.trim == "endmodule")
+    // Direct reads need neither a packed sensitivity witness nor its wiring.
+    val unusedViews = shapes.filterNot(x => usedViews(x.name)).map(x => views(x.name)).toSet
+    val keptOutput = output.filterNot(line => unusedViews.exists(name => line.trim.endsWith(s"] $name;")))
+    val keptWiring = wiring.iterator.filter { case (name, _) => usedViews(name) }
+      .flatMap(_._2).toVector
+    val end = keptOutput.indexWhere(_.trim == "endmodule")
     require(end >= 0, "unpacked Vec publication requires a module boundary")
-    output.patch(end, helpers ++ wiring, 0).mkString("\n")
+    keptOutput.patch(end, helpers ++ keptWiring, 0).mkString("\n")
   }
 
   private def splitConcatenation(text: String): Vector[String] = {
@@ -229,6 +257,13 @@ private[internals] object ParameterizedVerilogUnpacked {
     if (closesEarly) text else strip(text.substring(1, text.length - 1))
   }
   private def normalized(value: String): String = strip(value.replaceAll("\\s", ""))
+
+  // Only literal products are folded; symbolic widths retain their expressions.
+  private def constantProduct(value: String): Option[BigInt] = {
+    val text = value.replaceAll("[\\s()]", "")
+    if (text.matches("[0-9]+(?:\\*[0-9]+)*")) Some(text.split("\\*").map(BigInt(_)).product)
+    else None
+  }
 
   /** Cancel only a proven outer multiplication by the exact scalar width. */
   private def wordIndex(offset: String, width: String): Option[String] = {

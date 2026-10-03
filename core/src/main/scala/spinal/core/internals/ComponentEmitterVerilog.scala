@@ -90,7 +90,7 @@ class ComponentEmitterVerilog(
     ios.foreach{baseType =>
       val syntax     = s"${emitSyntaxAttributes(baseType.instanceAttributes)}"
       val dir        = s"${emitDirection(baseType)}"
-      val section    = s"${emitType(baseType)}"
+      val section    = s"${emitPortType(baseType)}"
       val name       = s"${baseType.getName()}"
       val comma      = ","
       val EDAcomment = s"${emitCommentAttributes(baseType.instanceAttributes)}"  //like "/* verilator public */"
@@ -238,7 +238,7 @@ class ComponentEmitterVerilog(
             case _ => ""
           }
           val name = component.localNamingScope.allocateName((anonymSignalPrefix + sName).replace('.', '_'))
-          declarations ++= emitExpressionWrap(e, name)
+          declarations ++= emitExpressionWrap(e, name, this)
           wrappedExpressionToName(e) = name
         }
       }
@@ -1674,7 +1674,9 @@ end
   def refImpl(e: BaseType): String = emitReference(e, true)
 
   def operatorImplAsBinaryOperator(verilog: String)(e: BinaryOperator): String = {
-    s"(${emitExpression(e.left)} $verilog ${emitExpression(e.right)})"
+    val left = verilogBase.emitNativeBinaryOperand(this, e, 0).getOrElse(emitExpression(e.left))
+    val right = verilogBase.emitNativeBinaryOperand(this, e, 1).getOrElse(emitExpression(e.right))
+    s"($left $verilog $right)"
   }
 
   private[spinal] def usesVerilogBase(base: VerilogBase): Boolean = verilogBase eq base

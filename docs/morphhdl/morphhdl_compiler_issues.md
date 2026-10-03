@@ -126,3 +126,209 @@ Durable repair evidence is under
 `~/.local/state/morphhdl/compiler-issues-20261003/`. The application replay uses
 unchanged precompiled DUT/generator classes with this checkout's compiler class
 directories, and writes candidates outside the application repository.
+
+## Application RTL retest, 3 October 2026
+
+Retest compiler: `272c185840f6a21bb202088a4408ab74710fb2af`.
+Fresh project Scala compilation and all 31 repeat-generation jobs pass with
+`preserveConstantVecs=true`, `preserveConstantLoops=true`, `vecLayout=UnpackedArray`.
+This includes all 13 previously failed generation jobs. Application unit validation
+is recorded under `display-controller-morphhdl/evidence/aggregate-retest-20261003/`.
+Each failed candidate case is rerun with the same existing unit testbench/profile
+against the supplied `rtl.golden` using the application validation environment.
+
+- [ ] **CA-005 — emitted ANSI port widths reference body-local aliases rejected during RTL compilation.**
+  Generation succeeds deterministically, but the standalone CDC artifact uses
+  `LIVE_RECORD_BITS`, `DDR_RECORD_BITS` and `COUNT_BITS` in its ANSI port list
+  (lines 36, 42 and 46) and declares them as body `localparam integer` values
+  only at lines 101–103. The simulator reports an undefined-variable diagnostic, followed
+  by duplicate-declaration/port-mode errors. The unpacker has the same failure:
+  `s_keep` references `BUS_BYTES` at line 41, declared in the body at line 77.
+  The golden artifacts use the parameter expressions directly in those ports.
+  The corresponding golden unit cases compile and pass; candidate compilation
+  fails before simulation. This is not a failing golden testbench.
+  Representative evidence includes the CDC and unpacker candidate compilation
+  logs and the corresponding passing golden simulation logs  under the retest evidence directory. Raw artifacts are in
+  `generated/cdc/first/DisplayControllerClockResetCdc.v` and
+  `generated/unpacker/first/DisplayControllerDdrPixelUnpackerRgbNormalizer.v`.
+  Exact compile commands, input hashes and profile parameters are recorded in
+  each case's `result.json`. Keep width references valid at the ANSI declaration
+  site without losing native parameter overrides. No emitted candidate or
+  compiler source has been patched to conceal the failure.
+
+  Final affected scope: **14 CDC cases and 9 standalone/reader-chain unpacker
+  cases fail compilation; all 23 corresponding golden cases pass.** The unpacker
+  fixed-product case and complete-top unit case pass with their concrete top
+  hierarchy; that does not qualify the failing standalone parameterized artifacts.
+  A diagnostic control on the same compiler and unchanged DUT Scala, using
+  temporary generator copies with `preserveConstantVecs=false`,
+  `preserveConstantLoops=false`, `vecLayout=PackedVector`, reproduces the same
+  RTL compilation errors for `clock_reset_cdc-depth4-full` and
+  `ddr_pixel_unpacker_rgb_normalizer-bus64_ppc1-full`. Thus this is an emitted-RTL
+  compatibility issue beyond the unpacked-vector setting, not a recurrence of
+  the repaired generation-time CA-001 through CA-004 diagnostics.
+  Control commands, output hashes and unit logs are under
+  `alias-control/`, driven by the generation and simulation control scripts in the retest evidence directory. Those outputs
+  are diagnostic only and do not replace requested-options candidates.
+
+Final application result: **31/31 generation jobs pass deterministically;
+105/128 candidate simulation cases pass, 23 fail compilation, and 23/23 golden
+replays pass.** Of the 90 previously generation-blocked cases, 67 now pass and
+23 are blocked by CA-005 at Verilog compilation. No additional simulation-time
+failure was observed. Timing and DPI PPC1/PPC4, the full top, standalone pipeline,
+all 29 status/counter profiles and the remaining reconstruction/CSC cases pass.
+No golden replay was needed for passing candidate cases.
+
+See the [application retest report](display-controller-morphhdl/evidence/aggregate-retest-20261003/README.md),
+[summary](display-controller-morphhdl/evidence/aggregate-retest-20261003/summary.json),
+and [identity/evidence receipt](display-controller-morphhdl/evidence/aggregate-retest-20261003/receipt.json).
+Production Scala/RTL, golden RTL, compiler sources and the user-selected compiler
+pin were not changed during this retest.
+
+
+### CA-005 — independent reproducer and suggested fix
+
+The independent [reproducer package](display-controller-morphhdl/evidence/ca005-minimal-20261003/README.md)
+uses no display-controller classes, Dan IP, clocks or registers. It includes
+[Scala](display-controller-morphhdl/evidence/ca005-minimal-20261003/Ca005.scala),
+[reduced failing Verilog](display-controller-morphhdl/evidence/ca005-minimal-20261003/broken.v),
+[proposed corrected Verilog](display-controller-morphhdl/evidence/ca005-minimal-20261003/fixed.v),
+and a [self-checking bench](display-controller-morphhdl/evidence/ca005-minimal-20261003/tb.v).
+These are diagnostic examples, not changes to generated production RTL or a compiler patch.
+
+**Minimal Scala trigger** (full runnable generator and both required compiler plugins
+are included in the package):
+
+```scala
+class Ca005PortAlias(busBits: ElabInt) extends Component {
+  val busBytes: ElabInt = busBits / 8
+  val s_keep = in Bits(busBytes bits)
+  val m_keep = out Bits(busBytes bits)
+  val bodyWire = Bits(busBytes bits).dontSimplifyIt()
+  bodyWire := s_keep
+  m_keep := bodyWire
+}
+// Invoke through MorphVerilog with the existing options:
+new Ca005PortAlias(HdlInt.param("BUS_LOG2_BYTES", 3, 2, 5).asElabInt.pow2 * 8)
+```
+
+The compiler emits `BUS_BYTES` in both port widths and defines it after the port
+list. This reproduces with preservation enabled/UnpackedArray and disabled/PackedVector.
+The arithmetic below is reduced for clarity; the unmodified generated reproducer
+retains `(((1 << BUS_LOG2_BYTES) * 8) / 8)` as the localparam expression.
+
+**Failing independent Verilog:**
+
+```verilog
+module Ca005PortAlias #(parameter integer BUS_LOG2_BYTES = 3) (
+  input  wire [BUS_BYTES-1:0] s_keep,
+  output wire [BUS_BYTES-1:0] m_keep
+);
+  localparam integer BUS_BYTES = (1 << BUS_LOG2_BYTES);
+  wire [BUS_BYTES-1:0] bodyWire;
+  assign bodyWire = s_keep;
+  assign m_keep = bodyWire;
+endmodule
+```
+
+The reported compiler diagnostic is `Undefined variable: 'BUS_BYTES'` in the
+port list. This is a demonstrated target-tool compatibility failure; it is
+not a claim that every Verilog tool rejects the pattern. The existing compiler
+`NativeDerivedLocalParameterTests` previously exercised tools that accepted this pattern.
+
+**Recommended output pattern:** expand derived aliases in ANSI port ranges,
+while retaining named localparams for module-body declarations and expressions:
+
+```verilog
+module Ca005PortAlias #(parameter integer BUS_LOG2_BYTES = 3) (
+  input  wire [(1 << BUS_LOG2_BYTES)-1:0] s_keep,
+  output wire [(1 << BUS_LOG2_BYTES)-1:0] m_keep
+);
+  localparam integer BUS_BYTES = (1 << BUS_LOG2_BYTES);
+  wire [BUS_BYTES-1:0] bodyWire;
+  assign bodyWire = s_keep;
+  assign m_keep = bodyWire;
+endmodule
+```
+
+**Observed validation:** the reduced failing example and both actual MorphHDL
+generated examples fail with the same diagnostic in Verilog and SystemVerilog
+modes (six expected failures). The corrected example passes in both modes with
+`BUS_LOG2_BYTES=2,3,4,5` (eight simulations). Every simulation also tests a separate
+unoverridden default instance. Checks cover port widths 4/8/16/32, zeros, ones,
+walking-one data and X/Z propagation. Exact commands, logs and hashes are in the
+reproducer package results.
+This initial evidence validates the proposed output pattern. The compiler repair
+and its separate local evidence are recorded below.
+CA-005 remains unchecked until compiler-generated application artifacts pass.
+
+**Suggested compiler implementation:**
+
+1. Make width publication aware of the *emitted declaration context* (ANSI port
+   versus module body). Do not infer it from a printed identifier or merely from
+   a signal also being used as a child port.
+2. In ANSI ranges, recursively render the authoritative retained width expression
+   in terms of visible public/formal parameters and literals, without module-body
+   localparam references. Preserve exact ownership, formal-to-actual bindings,
+   arithmetic, signedness and full parameter domains. Do not substitute default
+   widths or parse/replace generated text. Nested aliases must expand transitively.
+3. Retain current localparam naming/dependency ordering for body wires, registers,
+   expressions and child instantiations where those declarations are in scope.
+   Do not make derived widths independently overridable public parameters. Moving
+   `localparam` into an ANSI parameter list would require a separately qualified
+   SystemVerilog output policy; it is not the preferred Verilog-2001 fix here.
+4. Relevant reviewed locations at compiler `272c185`: `MorphHdlSignedDeclarationPolicy.scala`
+   `scalarRange` (lines 95–103) unconditionally prefers `NativeLocalParameters.reference`;
+   `VerilogBase.scala` `emitType` (lines 348–351) supplies a generic `ScalarDeclaration`
+   occurrence; `ComponentEmitterVerilog.scala` `emitArchitecture` (line 147) emits
+   native localparams in the body. Also inspect
+   `ExternalParameterizedVerilogNativeFallback.scala` `retained` (line 2893), which
+   sets `publicationReference`, so subsequent range publication cannot reintroduce
+   a body-only alias into a header. `NativeLocalParameters.scala` owns authoritative
+   calculations, name lookup and dependency-ordered declarations. These are change
+   points to review, not a claim that changing one line alone is sufficient.
+5. Extend `NativeDerivedLocalParameterTests` with this independent reproducer and
+   default/boundary overrides, nested aliases, child formals, input/output/inout
+   ranges, signed/unsigned data and both combined/per-component publication.
+   Update assertions that currently require `[TOTAL_BITS-1:0]` in the ANSI port
+   list; continue asserting that the body localparam and its legitimate uses
+   survive. Retain existing Icarus, Verilator and Yosys checks. Include both
+   aggregate-option settings. Finally regenerate the unchanged CDC/unpacker
+   Scala and rerun all 23 previously failing application cases, then the full
+   128-case regression before closing CA-005.
+
+
+### Compiler repair batch, 3 October 2026
+
+The CA-005 compiler repair expands authoritative retained expressions at ANSI
+port declaration sites. Module-body localparams, dependency order, signedness,
+and child actual bindings remain intact. The regression covers nested aliases,
+input/output/inout ranges, signed and unsigned ports, default and boundary
+parameter overrides, and combined/per-component publication with aggregate
+preservation enabled and disabled. Existing mutation controls now also check
+body widths/local values, so moving port widths away from aliases cannot hide
+a corrupted body localparam.
+
+The unpacked-array repair emits direct element/bit concatenations for bounded
+fixed-width reads, including multidimensional reads. Symbolic or large continuous
+reads use a packed-view slice; symbolic procedural reads retain the helper to
+preserve blocking-assignment ordering. Unused packed views are omitted.
+
+Application replay also exposed a native unsigned arithmetic temporary retaining
+its elaboration-default width. The compiler now publishes its retained symbolic
+width and explicitly sizes unsigned operands from the same width authority.
+Nested width selections preserve comparison precedence. A mask-validity
+regression exercises overrides of 4, 8, 16 and 32 bytes; lint also checks the
+smallest, default and largest widths.
+
+All 31 unchanged application generators also pass twice with identical RTL hashes.
+
+Local repair evidence: 66 focused tests (including signed-declaration checks) pass
+on each supported Scala version. Another 16 existing expression/width-safety
+regressions pass on each version, including behavioral comparisons against native
+RTL at default and boundary widths. The lightweight aggregate/ANSI gate passes all
+17 cases on both versions with no warning suppressions. These are local repair
+results, not whole-branch qualification. CA-005 application closure still requires
+the complete application regression; the historical checkbox is not a claim
+that the unmodified failing compiler still remains current. Qualification and
+hourly monitoring remain stopped at the user's request.
