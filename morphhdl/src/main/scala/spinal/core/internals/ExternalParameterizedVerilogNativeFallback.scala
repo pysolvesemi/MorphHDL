@@ -2258,6 +2258,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       // generic declaration-width pass.
       if (parameters.isEmpty && !hasParameterizedHierarchy && !ParameterizedProcess.hasConditionalLoops(component) && !NativeLocalParameters.hasTyped(component) &&
           !ParameterizedVerilogVecs.hasVectors(component) && !ParameterizedVerilogStructural.hasRegions(component) &&
+          !component.children.exists(ParameterizedVerilogVecs.hasVectors) &&
           !ParameterizedVerilogProcesses.hasLoops(component)) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-NO-SYMBOLIC-PORTS",

@@ -634,7 +634,17 @@
         "record arrays preserve packing in ordinary and named field layouts",
         "named field unpacked procedural assignments preserve whole record priority",
         "unpacked child storage keeps packed hierarchy connections",
-        "unit Vec dimensions remain explicit and empty typed loops have no body"
+        "unit Vec dimensions remain explicit and empty typed loops have no body",
+        "CA-001 contextual zero assignments retain native width",
+        "CA-003 static Bool writes survive native literal normalization",
+        "CA-002 constant register Vec writes retain switch control",
+        "CA-004 child formal widths stay in their definition owner",
+        "CA-003 shared literal propagation retains each native clone identity",
+        "CA-003 synchronizer arrays retain common and native CDC attributes",
+        "pulled implicit clock aliases preserve synchrony without allowing foreign clocks",
+        "literal normalization rejects equal-valued replacement outside the native phase",
+        "aggregate attribute reconciliation rejects unrelated per-element differences",
+        "constant-only child aggregates do not require symbolic parent parameters"
       ],
       "morphhdl.CounterSingleAuthorityParityTests": [
         "typed Counter specializations match independent concrete policy matrices"

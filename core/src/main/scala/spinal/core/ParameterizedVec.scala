@@ -219,8 +219,14 @@ private[spinal] final case class ParameterizedVecStaticWrite(
     target: Expression,
     enclosingConditions: Vector[ParameterizedVecWriteCondition],
     assignmentKind: String,
-    sourceLocation: Option[String]
-) extends ParameterizedVecOperation
+    sourceLocation: Option[String],
+    literalSource: Option[Expression],
+    scopePath: Vector[(spinal.core.internals.ScopeStatement, spinal.core.internals.TreeStatement)]
+) extends ParameterizedVecOperation {
+  private[core] var normalizedLiteral: Expression = null
+  private[spinal] def acceptsSource(value: Expression): Boolean =
+    (value eq source) || literalSource.exists(_ eq value) || (value eq normalizedLiteral)
+}
 
 /** Exact per-access native carrier select. Distinct retained select identities
   * keep separate Vec muxes from becoming one backend wrapper solely because
@@ -1440,6 +1446,24 @@ object ParameterizedVec {
     }
   }
 
+  /** Called only by native literal propagation for the exact authored driver.
+    * Keep the replacement identity, never accept an equal-valued foreign node.
+    */
+  private[core] def recordStaticLiteralNormalization(
+      statement: spinal.core.internals.Statement, source: BaseType,
+      literal: spinal.core.internals.Literal, replacement: Expression): Unit = statement match {
+    case assignment: DataAssignmentStatement if assignment.source eq source =>
+      vectorsOf(assignment.finalTarget.component).foreach { vector =>
+        operationsOf(vector).foreach {
+          case write: ParameterizedVecStaticWrite if (write.assignment eq assignment) &&
+              (write.source eq source) && write.literalSource.exists(_ eq literal) =>
+            write.normalizedLiteral = replacement
+          case _ =>
+        }
+      }
+    case _ =>
+  }
+
   private[core] def recordStaticWrite(
       vector: Vec[_],
       elementIndex: Int,
@@ -1471,15 +1495,21 @@ object ParameterizedVec {
       // partially retained aggregate. Publication still requires every exact
       // carrier and validates the captured source identity whenever the Vec
       // survives native simplification.
+      val literalSource = assignment.source match {
+        case value: BaseType if !value.isNamed && !value.isReg && value.hasOnlyOneStatement &&
+            value.head.source.isInstanceOf[spinal.core.internals.Literal] => Some(value.head.source)
+        case _ => None
+      }
       assignment.source match {
         case value: BaseType
-            if !vector.vec.exists(_.asInstanceOf[Data].flatten.exists(_ eq value)) =>
+            if literalSource.isEmpty && !vector.vec.exists(_.asInstanceOf[Data].flatten.exists(_ eq value)) =>
           value.dontSimplifyIt()
         case _ =>
       }
       val operation = ParameterizedVecStaticWrite(elementIndex, elementLeafIndex, selected,
         assignment, assignment.source, assignment.target,
-        capturedConditions(assignment.parentScope), kindName(kind), shape.sourceLocation)
+        capturedConditions(assignment.parentScope, crossSwitch = true), kindName(kind), shape.sourceLocation,
+        literalSource, staticScopePath(assignment.parentScope))
       append(vector, operation)
       operation
     }
@@ -1794,8 +1824,20 @@ object ParameterizedVec {
     capturedConditions(guard.parentScope)
   }
 
+  private def staticScopePath(initial: spinal.core.internals.ScopeStatement):
+      Vector[(spinal.core.internals.ScopeStatement, spinal.core.internals.TreeStatement)] = {
+    val result = ArrayBuffer.empty[(spinal.core.internals.ScopeStatement, spinal.core.internals.TreeStatement)]
+    var scope = initial
+    while (scope != null && scope.parentStatement != null) {
+      result += ((scope, scope.parentStatement))
+      scope = scope.parentStatement.parentScope
+    }
+    result.toVector
+  }
+
   private def capturedConditions(
-      initialScope: spinal.core.internals.ScopeStatement
+      initialScope: spinal.core.internals.ScopeStatement,
+      crossSwitch: Boolean = false
   ): Vector[ParameterizedVecWriteCondition] = {
     val conditions = ArrayBuffer.empty[ParameterizedVecWriteCondition]
     var scope = initialScope
@@ -1811,6 +1853,7 @@ object ParameterizedVec {
           }
           conditions += ParameterizedVecWriteCondition(parent, parent.cond, scope eq parent.whenTrue)
           scope = parent.parentScope
+        case parent: spinal.core.internals.SwitchStatement if crossSwitch => scope = parent.parentScope
         case _ => complete = true // Unsupported ownership remains fail-closed at publication.
       }
     }

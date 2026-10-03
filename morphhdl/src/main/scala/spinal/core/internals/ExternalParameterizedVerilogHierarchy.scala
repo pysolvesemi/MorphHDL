@@ -798,7 +798,11 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
                   actualFormals.flatMap(_.binding.sourceLocation).headOption
                 )
               }
-              explicit
+              // The exact parent connection has already been proved equivalent
+              // to the explicit actual over its complete owned domain. Keep
+              // its expression identity so localparam and helper publication
+              // agree with the parent declaration's width printer.
+              connectionBindings.head
             } else {
               if (connectionBindings.isEmpty) {
                 fail(

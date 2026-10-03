@@ -1,5 +1,14 @@
 # Remaining parameterized increments — local handoff
 
+## Compiler repair hold, 3 October 2026
+
+The user stopped qualification to fix the issues in
+[morphhdl_compiler_issues.md](morphhdl_compiler_issues.md). The local runner and
+hourly monitor are stopped; the timer is disabled. Preserve existing receipts,
+but do not resume qualification or monitoring without user authorization. Focused
+repair tests and application generation replays are separate from qualification.
+The durable repair evidence is `~/.local/state/morphhdl/compiler-issues-20261003/`.
+
 ## Current state: 59i integrated, hardware wire passes retired
 
 The local work branch contains the ancestry-preserving merge `bfed00f992281d83dde20dfabf319d8f1ea0bc57`

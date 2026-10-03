@@ -4047,11 +4047,22 @@ private[internals] object ParameterizedVerilogVecs {
         !exactLeaf.exists(leaf => leaf.value eq write.selected) ||
         (write.assignment.finalTarget ne write.selected) ||
         (write.target ne write.selected) || (write.assignment.target ne write.target) ||
-        (write.assignment.source ne write.source)) {
+        !write.acceptsSource(write.assignment.source)) {
       fail("SPINAL-PARAMETERIZED-VERILOG-VEC-STATIC-WRITE-EVIDENCE-MISMATCH",
-        s"static write of Vec '${plan.name}' changed its exact whole-scalar native target, source or domain-valid element", write.sourceLocation)
+        s"static write of Vec '${plan.name}' changed its exact whole-scalar native target, source or domain-valid element (index=${write.elementIndex}, captured=${write.source}, live=${write.assignment.source}, literal=${write.literalSource})", write.sourceLocation)
     }
-    exactRetainedWriteConditions(plan, write.assignment.parentScope, write.enclosingConditions, write.sourceLocation)
+    var scope = write.assignment.parentScope
+    write.scopePath.foreach { case (expected, parent) =>
+      if ((scope ne expected) || (scope.parentStatement ne parent))
+        fail("SPINAL-PARAMETERIZED-VERILOG-VEC-STATIC-WRITE-EVIDENCE-MISMATCH",
+          "static Vec write changed its authored native scope", write.sourceLocation)
+      scope = parent.parentScope
+    }
+    if (scope ne plan.vector.component.dslBody)
+      fail("SPINAL-PARAMETERIZED-VERILOG-VEC-STATIC-WRITE-EVIDENCE-MISMATCH",
+        "static Vec write changed its authored native owner", write.sourceLocation)
+    exactRetainedWriteConditions(plan, write.assignment.parentScope, write.enclosingConditions, write.sourceLocation,
+      allowSwitch = true)
   }
 
   private def parseOperationAssignments(
@@ -6095,7 +6106,8 @@ private[internals] object ParameterizedVerilogVecs {
       plan: VecPlan,
       initialScope: ScopeStatement,
       captured: Vector[ParameterizedVecWriteCondition],
-      sourceLocation: Option[String]
+      sourceLocation: Option[String],
+      allowSwitch: Boolean = false
   ): Vector[ParameterizedVecWriteCondition] = {
     def unsupported(): Nothing =
       fail("SPINAL-PARAMETERIZED-VERILOG-VEC-DYNAMIC-WRITE-CONTROL-UNSUPPORTED",
@@ -6113,6 +6125,7 @@ private[internals] object ParameterizedVerilogVecs {
             scope = parent.parentScope
           case _ => unsupported()
         }
+        case parent: SwitchStatement if allowSwitch => scope = parent.parentScope
         case _ => unsupported()
       }
     }
@@ -6454,6 +6467,29 @@ private[internals] object ParameterizedVerilogVecs {
     }
   }
 
+  /** A native CDC tag adds async_reg to the first synchronizer stage only.
+    * An aggregate declaration applies that preservation hint to every stage;
+    * retain all common user attributes and reject any other attribute mismatch.
+    */
+  private def aggregateDeclarationSyntax(declarations: Vector[ParsedDeclaration]): Vector[String] = {
+    val original = declarations.map(_.syntax).distinct
+    if (original.size <= 1 || !declarations.forall(d => d.net == "reg" && d.direction.isEmpty)) return original
+    val attribute = """\(\*([^*]*)\*\)""".r
+    val item = """[A-Za-z_][A-Za-z0-9_$]*\s*=\s*(?:"[^"]*"|[0-9]+)""".r
+    def parse(value: String): Option[Vector[String]] = {
+      val groups = attribute.findAllMatchIn(value).toVector
+      if (attribute.replaceAllIn(value, "").trim.nonEmpty) return None
+      val entries = groups.flatMap(_.group(1).split(",").map(_.trim))
+      if (!entries.forall(e => item.pattern.matcher(e).matches())) None else Some(entries)
+    }
+    val parsed = original.map(parse)
+    if (parsed.exists(_.isEmpty)) return original
+    def async(value: String): Boolean = value.replaceAll("\\s", "") == "async_reg=\"true\""
+    val common = parsed.map(_.get.filterNot(async)).distinct
+    if (common.size != 1 || !parsed.exists(_.get.exists(async))) original
+    else Vector("(* " + (common.head :+ "async_reg = \"true\"").mkString(" , ") + " *) ")
+  }
+
   private def collapseDeclaration(
       original: Vector[String],
       plan: VecPlan,
@@ -6479,8 +6515,9 @@ private[internals] object ParameterizedVerilogVecs {
         val selected = plan.leaves.zip(declarations).filter { case (leaf, _) =>
           field.leafIndices.contains(leaf.leafIndex)
         }
+        val fieldSyntax = aggregateDeclarationSyntax(selected.map(_._2))
         val kinds = selected.map { case (_, declaration) =>
-          (declaration.direction, declaration.net, declaration.syntax)
+          (declaration.direction, declaration.net, if (fieldSyntax.size == 1) fieldSyntax.head else declaration.syntax)
         }.distinct
         if (selected.isEmpty || kinds.size != 1) {
           fail("SPINAL-PARAMETERIZED-VERILOG-VEC-FIELD-DECLARATION-KIND-MISMATCH",
@@ -6527,11 +6564,11 @@ private[internals] object ParameterizedVerilogVecs {
       promotedDrivers(driver.lineIndex) = Vector(s"${driver.indentation}$prefix begin",
         s"${driver.indentation}  ${leaf.name} = ${driver.rhs};", s"${driver.indentation}end")
     }
-    val syntax = declarations.map(_.syntax).distinct
+    val syntax = aggregateDeclarationSyntax(declarations)
     if (direction.size != 1 || net.size != 1 || syntax.size != 1) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-VEC-DECLARATION-KIND-MISMATCH",
-        s"Vec '${plan.name}' carrier leaves do not share one direction, net kind and declaration syntax",
+        s"Vec '${plan.name}' carrier leaves do not share one direction, net kind and declaration syntax: ${declarations.map(d => (d.direction, d.net, d.syntax))}",
         plan.sourceLocation
       )
     }
@@ -6554,10 +6591,10 @@ private[internals] object ParameterizedVerilogVecs {
     val last = declarations.find(_.lineIndex == insertion).get
     val declaration = direction.head match {
       case Some(value) =>
-        last.indentation + last.syntax + s"$value ${net.head} ${plan.range} ${plan.name}" +
+        last.indentation + syntax.head + s"$value ${net.head} ${plan.range} ${plan.name}" +
           (if (last.comma) "," else "")
       case None =>
-        last.indentation + last.syntax + s"${net.head} ${plan.range} ${plan.name};"
+        last.indentation + syntax.head + s"${net.head} ${plan.range} ${plan.name};"
     }
     original.zipWithIndex.flatMap { case (line, index) =>
       if (index == insertion) Vector(declaration)
