@@ -36,13 +36,17 @@
       "mode": "100644",
       "sha256": "103918e524d0630a7dea5d98e95033290ee7e8e29e6a66f99bcbc79c28b7f337"
     },
+    ".github/workflows/increment-59b-publication.yml": {
+      "mode": "100644",
+      "sha256": "cc69764a16c3416387a45d7a8e1b1e53e34880517165f67c2fa19b3627ead613"
+    },
     ".github/workflows/increment-59c-named-field-vectors.yml": {
       "mode": "100644",
-      "sha256": "76aac893b5e808d469270852ab9bbd0f06fd7525a44b6bf851b775d6531dbb4b"
+      "sha256": "b613e094e4f8503a387eba3aef0b7bfc41d72f8f8182097d47d021ab6e42eb37"
     },
     ".github/workflows/increment-59d-widening.yml": {
       "mode": "100644",
-      "sha256": "98a89f6e38dc2db46148d4a9ea6b649771a995897d57cca0bd4181ebe9fe9d40"
+      "sha256": "fa58d893f969e187b0adcd26e49785e4d6e5b16919fdb0e016170c0cc0e00c09"
     },
     ".github/workflows/increment-59f-callback-graphs.yml": {
       "mode": "100644",
@@ -58,19 +62,19 @@
     },
     ".github/workflows/increment-59i-combined-closure.yml": {
       "mode": "100644",
-      "sha256": "a86de0ca27939ea94bdd4b269ef1538821c64f992ec198152d41e7bed01cb527"
+      "sha256": "7999acdae207b62f8347ed0aa74fd5361c3ffda450fc538988cf80406966873b"
     },
     ".github/workflows/increment-60c-signed-declarations.yml": {
       "mode": "100644",
-      "sha256": "e7bf223ac874dc90d08c2f6e6460907c97dc85f99186d223c8b0c053bd52fae5"
+      "sha256": "846ccf713d9f5e40f97b5f1f629eb14c73ca85711a3e52c68f1936236b28d3ea"
     },
     ".github/workflows/increment-60d-pure-sint-casts.yml": {
       "mode": "100644",
-      "sha256": "44617558f7ddfc6f9ca8732e98a7f56953273df5c995da4205f11e542dcab7e5"
+      "sha256": "8a2725e4a19d209e3783b268f879b5abf5d735d6503222e9a88525efff50a1f5"
     },
     ".github/workflows/increment-60e-signedness-boundaries.yml": {
       "mode": "100644",
-      "sha256": "3bb6e0225ed2f2831abf5332c0c330b21cc93a55b5c81030c2af0f857147e589"
+      "sha256": "cc4c5442ae4e61a8196655c015e4f5082a42a320efa56bc73dee3ffc4848d6f6"
     },
     ".github/workflows/increment-60f-equivalence-closure.yml": {
       "mode": "100644",
@@ -222,13 +226,33 @@
       "mode": "100644",
       "sha256": "d46cc3c648f7e3c0f5da465378fada8b4f371fb527c0f45a82fb751a7df19a19"
     },
+    "frontend/src/main/scala/morphhdl/frontend/GenerateCaseBuilder.scala": {
+      "mode": "100644",
+      "sha256": "beace57517658b981227d4cc1715b1bdf05ecee079f9a7f369748589ea570e98"
+    },
+    "frontend/src/main/scala/morphhdl/frontend/GenerateIfBuilder.scala": {
+      "mode": "100644",
+      "sha256": "d0da64be84e134e184e39278e828693052b18605fa6178c899cef6cab71ea19b"
+    },
+    "frontend/src/main/scala/morphhdl/frontend/HdlRange.scala": {
+      "mode": "100644",
+      "sha256": "587cca7b111dbfea57feab9406288633fd9d1534bb6d93526184bde3feab0a57"
+    },
     "frontend/src/main/scala/morphhdl/frontend/NaturalSymbolicConditional.scala": {
       "mode": "100644",
       "sha256": "a86c37e204f5a692293357c019d170beb4d7e66b6ed6aa8369ee375ffa5b8b53"
     },
+    "frontend/src/main/scala/morphhdl/frontend/ParamRtlFrontend.scala": {
+      "mode": "100644",
+      "sha256": "6b09569da861d5f45ed090a06d360261a71fa75ed0d655199a5ad78f0c83c512"
+    },
     "frontend/src/main/scala/morphhdl/frontend/package.scala": {
       "mode": "100644",
-      "sha256": "94c38386ae11ad46f597502c6106d4f4a1f74e94a06ffc5c400129d456642a66"
+      "sha256": "debba0489cd7ac345e44ea807ac19feea552a2929c37c4af9d754a857b11b828"
+    },
+    "idslpayload/src/main/scala/spinal/idslplugin/RtlDocumentationRegion.scala": {
+      "mode": "100644",
+      "sha256": "2e97ab7693fda933a02317fdc00840a337a1ece5e8b4dddc2ac9f32df3f25459"
     },
     "idslpayload/src/main/scala/spinal/idslplugin/RtlSourceDoc.scala": {
       "mode": "100644",
@@ -240,7 +264,7 @@
     },
     "idslplugin/src/main/scala/spinal/idslplugin/components/DocumentationTransformer.scala": {
       "mode": "100644",
-      "sha256": "63183884f2f522fe36c91870e4243d644f8d7f656a415ef054412db5f50523e8"
+      "sha256": "1b15b87d7d8c2452e245d228166f40aaef5e8f73fbdd139a083a24b05461ce70"
     },
     "idslplugin/src/main/scala/spinal/idslplugin/components/SourceDocumentation.scala": {
       "mode": "100644",
@@ -252,7 +276,7 @@
     },
     "idslplugin/src/test/scala/spinal/idslplugin/DocumentationPluginTests.scala": {
       "mode": "100644",
-      "sha256": "0eec75d9369deaacecd90dfb4e0fb675cbd0cf231131e71ef47a285523065977"
+      "sha256": "0016bc43b545fbcbbd9dccd10e17aaac560e113dcc8debcdbc06b822be4d19fd"
     },
     "lib/src/main/scala/spinal/lib/Utils.scala": {
       "mode": "100644",
@@ -526,11 +550,11 @@
     },
     "morphhdl/contracts/native-source-preservation.json": {
       "mode": "100644",
-      "sha256": "8e43acdd7bb117061e09c90fba4f2e02d0b88010ae3125efa256e650f8814444"
+      "sha256": "acf4eb2aab3a46971d2a677af3a6953a1cbe367dbb18d1f7334353eecbba4c19"
     },
     "morphhdl/contracts/retained-parameterized-regressions.json": {
       "mode": "100644",
-      "sha256": "5a5937a3163585f3fcb9828c5bb5cd32876aef5f781b8bab088df101fd1c0342"
+      "sha256": "d2a6d30bb2366e93642bf6d551a0ec229445414c1209b2a6cab605a6455edf41"
     },
     "morphhdl/examples/contracts/symbolic_data_shapes.v": {
       "mode": "100644",
@@ -546,7 +570,7 @@
     },
     "morphhdl/scripts/check-increment-59b-publication.py": {
       "mode": "100644",
-      "sha256": "755356ea97963161cdd2c6fdb8189e99d14c787788767e582f9e519096c7acf1"
+      "sha256": "e2f5f59b0faab7a96ad7ef1606baabca52e6d48ef6293d28232d175ec3b43944"
     },
     "morphhdl/scripts/check-increment-59d-widening.py": {
       "mode": "100644",
@@ -582,7 +606,7 @@
     },
     "morphhdl/scripts/check-retained-parameterized-regressions.py": {
       "mode": "100644",
-      "sha256": "ee9136b662515b19b4d293c377f27948e53e680af51e99dba1459d4271a7c4ef"
+      "sha256": "db257694f3af8b934156482632664cb30c17286b253621c1cbc523a278d31d67"
     },
     "morphhdl/scripts/check-typed-layering-ir.py": {
       "mode": "100644",
@@ -594,7 +618,7 @@
     },
     "morphhdl/scripts/run-parameterized-inherited-audit.py": {
       "mode": "100644",
-      "sha256": "cad287f6cd5ab8d6b14dd981229e4617bd334e062880bdc05e8548282ec515ac"
+      "sha256": "ab77bf649db3c0c3b3004db4dea35bdb74245d3019973f627be241545fecc0f8"
     },
     "morphhdl/scripts/test-increment-59i-nested-results.py": {
       "mode": "100644",
@@ -606,7 +630,7 @@
     },
     "morphhdl/scripts/test-parameterized-inherited-audit.py": {
       "mode": "100644",
-      "sha256": "f5474f496b71cd190894ec36915cd5fdf7487f786eb3b6a539abb4988ef7eab1"
+      "sha256": "24f7c95a126599ff5140ceb32858a75793838bb235c5c9741798b64005d28883"
     },
     "morphhdl/src/main/scala/morphhdl/MorphAggregateOptions.scala": {
       "mode": "100644",
