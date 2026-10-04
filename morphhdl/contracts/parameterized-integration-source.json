@@ -62,7 +62,7 @@
     },
     ".github/workflows/increment-59i-combined-closure.yml": {
       "mode": "100644",
-      "sha256": "7999acdae207b62f8347ed0aa74fd5361c3ffda450fc538988cf80406966873b"
+      "sha256": "99b73779edaedfa8de3b50d54a36b91aeccc3b3276345f9ed3d0f473f3524451"
     },
     ".github/workflows/increment-60c-signed-declarations.yml": {
       "mode": "100644",
@@ -618,7 +618,7 @@
     },
     "morphhdl/scripts/run-parameterized-inherited-audit.py": {
       "mode": "100644",
-      "sha256": "ab77bf649db3c0c3b3004db4dea35bdb74245d3019973f627be241545fecc0f8"
+      "sha256": "f64f9f3abf660410835320d7c74e42878cda0ebe4ea0db20947ad9aa60625766"
     },
     "morphhdl/scripts/test-increment-59i-nested-results.py": {
       "mode": "100644",
@@ -630,7 +630,7 @@
     },
     "morphhdl/scripts/test-parameterized-inherited-audit.py": {
       "mode": "100644",
-      "sha256": "24f7c95a126599ff5140ceb32858a75793838bb235c5c9741798b64005d28883"
+      "sha256": "17ac7e4dfe0c036ccb98deb8a2255468e40bb9bc2f4592248a20b4756d3647df"
     },
     "morphhdl/src/main/scala/morphhdl/MorphAggregateOptions.scala": {
       "mode": "100644",
