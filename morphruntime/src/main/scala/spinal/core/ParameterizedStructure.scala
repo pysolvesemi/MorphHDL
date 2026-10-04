@@ -179,6 +179,8 @@ object ParameterizedStructure {
       val sourceLocation: Option[String],
       val affineRead: Option[ElabFiniteAffineVecRead] = None
   ) {
+    private[core] var coverageBridges = Vector.empty[TypedLoopVecBridges.Bridge]
+    private[core] var unitRange: Option[TypedLoopVecRange] = None
     private[core] var registerStorage = Vector.empty[TypedLoopRegisterStorage.Template]
   }
 
@@ -1874,6 +1876,9 @@ object ParameterizedStructure {
 
     if (VerilogAggregateOptions.current.preserveConstantLoops)
       ParameterizedVec.retainConstantLoopOperand(vector)
+    // Anonymous local Vecs need a retained name as well as vital leaves:
+    // native pruning roots explicitly retained declarations by name.
+    if (!vector.isNamed) vector.setWeakName(nextVecAliasName(component) + "_storage")
 
     // The alias itself no longer reads the witnessed carrier in the native
     // graph. Preserve every exact element that the finite selector may reach,
@@ -3705,8 +3710,10 @@ object ParameterizedStructure {
       loop,
       sourceLocation
     )
+    TypedLoopVecRange.retain(loop, coverageCount.orElse(if (requireExactDomain) Some(ElabInt.fromExpression(normalizedCount)) else None))
     TypedLoopAssignmentCoverage.retain(component, loop, coverageCount)
     TypedLoopRegisterStorage.retain(component, loop)
+    TypedLoopVecBridges.retain(component, loop)
   }
 
   def beginPending(

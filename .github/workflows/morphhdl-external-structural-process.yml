@@ -94,6 +94,10 @@ jobs:
             morphhdl.CounterSingleAuthorityParityTests \
             morphhdl.GenerateIndexNamingTests \
             morphhdl.TypedLoopCarrierCoverageTests \
+            morphhdl.ShiftSubrangeAndGrayTests \
+            spinal.core.TypedStagePublicationSafetyTests \
+            morphhdl.GrayStageSharingTests \
+            morphhdl.NativeLibraryReuseTests \
             morphhdl.TypedNestedVecWriteTests \
             spinal.core.TypedLoopRegisterOwnershipTests
           /tmp/morphhdl-mill core[${{ matrix.scala_version }}].testOnly \

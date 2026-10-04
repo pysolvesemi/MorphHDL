@@ -174,34 +174,19 @@ class NativeLibraryReuseTests extends AnyFunSuite {
       assert(hasWidth(parameterized, "gray", "[WIDTH-1:0]"))
       assert(hasWidth(parameterized, "binary", "[WIDTH-1:0]"))
       assert(!parameterized.contains("[32:0]"), parameterized)
-      // Cleanup may replace the decoded carrier with unnamed expression
-      // wrappers. Every retained vector still needs the exact typed geometry;
-      // a witness-width wrapper would truncate the WIDTH=65 specialization.
+      // One logarithmic stage array replaces the former maximum-width chain.
+      // Every scalar carrier still retains WIDTH rather than its witness size.
       val retainedVectorDeclarations =
         """(?m)^\s*(?:wire|reg)\s+\[([^\]]+)\]\s+([A-Za-z_][A-Za-z0-9_$]*)\s*;\s*$""".r
           .findAllMatchIn(parameterized)
-          .map(value => value.group(1).replaceAll("\\s+", "") -> value.group(2))
-          .toVector
-      assert(
-        retainedVectorDeclarations.forall(_._1 == "WIDTH-1:0"),
-        retainedVectorDeclarations.mkString(", ")
-      )
-      val assignments = """(?m)^\s*assign\s+([A-Za-z_][A-Za-z0-9_$]*)\s*=\s*([^;]+);""".r
-        .findAllMatchIn(parameterized).map(value => value.group(1) -> value.group(2)).toMap
-      val reachable = scala.collection.mutable.Set.empty[String]
-      def visit(name: String): Unit = if (reachable.add(name)) {
-        assignments.get(name).foreach { rhs =>
-          "[A-Za-z_][A-Za-z0-9_$]*".r.findAllIn(rhs).foreach(visit)
-        }
-      }
-      visit("binary")
-      val decodedExpressions = reachable.toVector.flatMap(assignments.get).mkString
-        .replaceAll("\\s+", "")
-      assert(decodedExpressions.contains("^") && reachable("gray"), parameterized)
-      Vector(1, 2, 4, 8, 16, 32, 64).foreach { shift =>
-        assert(decodedExpressions.contains(s">>>$shift)"),
-          s"typed fromGray omitted reachable shift-$shift:\n$parameterized")
-      }
+          .map(value => value.group(1).replaceAll("\\s+", "") -> value.group(2)).toVector
+      assert(retainedVectorDeclarations.filterNot(_._2 == "decode_stage").forall(_._1 == "WIDTH-1:0"),
+        retainedVectorDeclarations.mkString(", "))
+      assert(retainedVectorDeclarations.filter(_._2 == "decode_stage").map(_._1) ==
+        Vector("(WIDTH*((clog2(WIDTH,0)+1)))-1:0"), parameterized)
+      assert(parameterized.contains("i < clog2(WIDTH, 0)"), parameterized)
+      assert(parameterized.contains("1 << i") && parameterized.contains(" ^ prefix_shift"), parameterized)
+      assert(parameterized.contains("SELECTED_STAGE_INDEX = clog2(WIDTH, 0)"), parameterized)
 
       val concrete = emitConcrete(
         directory,

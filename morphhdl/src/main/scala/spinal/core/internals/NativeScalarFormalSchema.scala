@@ -26,7 +26,8 @@ private[internals] object NativeScalarFormalSchema {
     geometry ++= ParameterizedProcess.parametersOf(component)
     geometry ++= ParameterizedBlackBoxGenericRegistry.parametersOf(component)
     val values = ExternalParameterizedValueRegistry.valuesOf(component).flatMap(_._2.expression.parameters) ++
-      ParameterizedStructure.parametersOf(component)
+      ParameterizedStructure.parametersOf(component) ++
+      MorphHdlExternalParameterizedVerilog.forwardedParameters(component)
     ExternalFormalParameterRegistry.completeTypedBindingsOf(component).filter { entry =>
       val formal = entry.binding.formal
       values.exists(_ eq formal) && !geometry.exists(_.name == formal.name)

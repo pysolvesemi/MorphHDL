@@ -4479,9 +4479,10 @@
       "introduced_by": [
         "Increment 57a: typed StreamFifoCC architecture",
         "Increment 59b: native balanced-reduction capture boundary",
-        "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup"
+        "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup",
+        "CA-014: native logarithmic Gray stage array"
       ],
-      "reason": "Mechanically retain exact symbolic width through native Gray-code helpers and provide owner-local uncached reset-domain construction for generated CDC bodies while preserving concrete implementations. Route typed Vec counts through the neutral callback boundary while retaining the unchanged generic helper and concrete descriptors. CDC-WIRE-01 marks the five compiler-created symbolic Gray-code packed-geometry carriers with ParameterizedExpressionCarrier instead of user dontSimplifyIt intent. Native simplification still retains them. Optional expression removal requires exact typed geometry proof and cannot remove explicit user protection. Gray encode/decode equations, domain validation, loop topology and concrete paths are unchanged.",
+      "reason": "Retain exact symbolic width through native Gray helpers and owner-local reset domains. Preserve the existing concrete path and typed balanced-reduction dispatch. CA-014 replaces the symbolic decoder's maximum-width prefix carriers with an authenticated Vec of ceil(log2(width))+1 stages and a finite generate loop. Each stage uses the same logarithmic XOR/shift equation; width one has no XOR and a direct connection, including direct four-state propagation. Typed loop indices, power shifts and the constant final-stage selector retain exact native lineage. No emitted RTL is patched and no lint warning is suppressed.",
       "edits": [
         {
           "id": "gray-typed-width-01",
@@ -4500,7 +4501,7 @@
           "id": "gray-typed-width-02",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.fromGray typed decoder",
-          "reason": "Use an exact-domain fixed parallel-prefix decode topology whose shifts remain width-retained. Compiler-owned geometry boundaries keep native carriers retained until optional exact-width expression proof discharges them; explicit user dontSimplifyIt remains separate.",
+          "reason": "Publish the authoritative symbolic Gray prefix network as a parameter-sized stage Vec, with proven affine next-stage writes, an index-owned power-of-two shift, and a bounded constant final-stage read. Preserve logarithmic depth and a zero-iteration width-one specialization.",
           "required_exact_text": [
             {
               "side": "approved",
@@ -4509,7 +4510,22 @@
             },
             {
               "side": "approved",
-              "text": "val maximumWidth = width.maximum",
+              "text": "val count = width.log2Up",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val stages = Vec(UInt(width bits), count + 1)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ElabFiniteRange.foreach(count, \"decode_prefix\")",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "TypedVecStaticSelect(stages, count)",
               "count": 1
             }
           ]

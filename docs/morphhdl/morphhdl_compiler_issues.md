@@ -569,3 +569,62 @@ integration seal must authenticate the exact repaired source, while retained
 historical source controls identify their immutable predecessor separately.
 Remote targeted qualification remains pending this transition and a clean sealed
 candidate. Full CI must wait for all applicable targeted gates on that candidate.
+
+### CA-012–CA-016 repair evidence, 4 October 2026
+
+All five reported compiler changes are implemented and pass focused local
+validation. Exact-head remote qualification remains paused; these results do not
+close whole-branch qualification. The display-controller reference repository,
+its dependency pins and its generated artifacts were not modified.
+
+- **CA-012:** typed unit-stride register tails retain exact range evidence and
+  relocate only their selected lanes. Separately assigned prefix registers keep
+  their native storage. Complete-domain bounds, whole-leaf writes, component and
+  clock ownership, initialization, competing writers and reset lineage remain
+  checked. Initialization and `ASYNC_REG` attributes survive publication.
+- **CA-013:** anonymous retained Vecs receive stable fallback names before native
+  pruning. Proven next-state tail writes receive exact native driver bridges;
+  publication validates and consumes those identities. Missing lanes and
+  overlapping writers still fail native validation. No no-driver diagnostic is
+  disabled.
+- **CA-014:** the symbolic library decoder uses a `ceil(log2(width))+1` stage
+  Vec and a generate loop with index-owned power-of-two shifts. A proven constant
+  selector reads its final stage. Width one has zero XOR iterations and a direct
+  connection, including propagation of `Z`; the four-state regression explicitly
+  checks that requested behavior. Array-dimension arithmetic receives portable
+  helper lowering after unpacked publication. Formal-owned Vec schemas retain
+  symbolic geometry and domains independently of instance witnesses; constant
+  selector expressions remain part of schema comparison.
+- **CA-015:** authenticated symbolic register initializers are emitted before
+  native canonical comparison. Equivalent clocked children share a definition
+  while reset-value, reset-polarity and attribute differences remain distinct.
+- **CA-016:** parameter liveness follows required exact child-formal bindings
+  through intermediate components. Public declarations, wrapper overrides and
+  domain guards use the same retained inventory. Unused parameters do not leave
+  undeclared guard references.
+
+The final focused run passes **149 tests across 14 suites on each of Scala 2.12
+and 2.13**. All twelve original independent generation modes pass against the
+repaired compiler, including both sharing controls and the wrapped scalar case.
+The new retained suites are `ShiftSubrangeAndGrayTests`,
+`TypedStagePublicationSafetyTests`, `GrayStageSharingTests`,
+`ClockedFormalForwardingTests` and `TransitiveScalarFormalTests`.
+
+Coverage includes fixed/symbolic shift chains, depths 2/3/4/8, the 17-element CSR
+case, enable stalls, asynchronous reset, packed/unpacked arrays, zero-stage Gray
+decoding, Gray defaults 1/8/64 and overrides through 64, existing width-65 library
+equivalence, mixed clocked widths 1/5/64, independent clocks, stopped-clock reset,
+reordered instances, two wrapper levels, VALUE overrides 0/7/201/255, combined and
+per-component publication, repeat generation and provenance mutation negatives.
+The source inventory contains 239 suites and 2,455 cases: 71 added, none removed.
+Both affected workflows include the new regression suites.
+
+Simulation uses Icarus Verilog; synthesis and combinational-cycle checks use
+Yosys. Strict Verilog-2001 lint uses Verilator `-Wall`, with no warning waiver.
+For nontrivial Gray stage arrays, a scoped `split_var` configuration requests
+per-element scheduling of the acyclic array; it does not disable `UNOPTFLAT` or
+any other warning. Width-one lint runs without that directive. The reset-only
+independent fixture intentionally leaves its data input unused; its simulation
+and synthesis pass, and that input warning is recorded rather than hidden.
+Filename-aware strict hierarchy lint uses per-component publication; combined
+publication is compiled, simulated and synthesized separately.

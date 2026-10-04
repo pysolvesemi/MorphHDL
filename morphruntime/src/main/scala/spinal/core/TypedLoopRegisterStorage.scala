@@ -52,16 +52,30 @@ private[core] object TypedLoopRegisterStorage {
     val candidates = body.vecIndices.flatMap { selection =>
       selection.result.flatten.toVector.zipWithIndex.flatMap { case (alias, leafIndex) =>
         val writes = body.assignments.filter(_.finalTarget eq alias)
-        val leaves = selection.vector.vec.toVector.map(_.asInstanceOf[Data].flatten(leafIndex))
+        val allLeaves = selection.vector.vec.toVector.map(_.asInstanceOf[Data].flatten(leafIndex))
+        val lower = selection.index.minimum
+        val upper = selection.index.maximum
+        val coversTail = selection.unitRange.exists(_.coversTail)
+        val leaves = if (coversTail) allLeaves.drop(lower.toInt) else allLeaves
         if (writes.isEmpty || !leaves.exists(_.isReg)) Vector.empty
         else {
           if (!writes.forall(_.target eq alias) || !leaves.forall(_.isReg) ||
-              selection.index.minimum != 0 || selection.index.maximum != leaves.size - 1 ||
+              (!coversTail && (lower != 0 || upper != allLeaves.size - 1)) ||
+              upper != allLeaves.size - 1 ||
               !selection.index.generateIndex.contains(loop.indexName) ||
-              leaves.exists(value => value.isIo || (value.parentScope ne component.dslBody)))
+              allLeaves.exists(value => value.isIo || (value.parentScope ne component.dslBody)))
             fail("register relocation requires a complete whole-leaf Vec write in its declaring component")
+          if (coversTail && lower > 0) {
+            allLeaves.take(lower.toInt).foreach { value =>
+              val assignments = statements(value)
+              if (!value.isReg || !assignments.exists(_.isInstanceOf[InitAssignmentStatement]) ||
+                  !assignments.exists(a => a.isInstanceOf[DataAssignmentStatement] && (a.target eq value)) ||
+                  assignments.exists(a => a.target ne value))
+                fail("register subrange requires disjoint whole-leaf scalar prefix writers")
+            }
+          }
           val clock = leaves.head.clockDomain
-          if (clock == null || !leaves.forall(_.clockDomain eq clock))
+          if (clock == null || !allLeaves.forall(_.clockDomain eq clock))
             fail("register lanes must retain one exact native clock domain")
           val initializations = leaves.map { value =>
             statements(value) match {
@@ -126,7 +140,7 @@ private[core] object TypedLoopRegisterStorage {
       blocks.foreach { body => body.vecIndices.foreach { selection =>
         selection.result.flatten.zipWithIndex.foreach { case (alias, ordinal) =>
           if ((alias ne owner.template.alias) && body.assignments.exists(_.finalTarget eq alias) &&
-              selection.vector.vec.exists(element => element.asInstanceOf[Data].flatten.lift(ordinal)
+              selection.vector.vec.slice(selection.index.minimum.toInt, selection.index.maximum.toInt + 1).exists(element => element.asInstanceOf[Data].flatten.lift(ordinal)
                 .exists(leaf => owner.template.lanes.exists(_.value eq leaf))))
             fail("another structural alias also writes relocated register storage")
         }

@@ -270,8 +270,11 @@ object MorphHdlExternalParameterizedVerilog {
               canonicalOf
             )
           } else withStructure
-          ParameterizedVerilogVecs.rewriteUnpacked(component,
+          val withArrays = ParameterizedVerilogVecs.rewriteUnpacked(component,
             TypedBalancedReductionBackend.rewrite(component, withExpressions, pc, canonicalOf), pc)
+          // Array dimensions are published after ordinary expression lowering.
+          // Lower their retained arithmetic through the same portable helper.
+          ExternalParameterizedVerilogNativeFallback.lowerRetainedIntegerHelpers(withArrays, component.definitionName)
         }
         val documented = RtlDocumentation.finishPublication(component, RtlDocumentation.publish(rewritten, ParameterizedVerilogVecs.documentationBindings(component, pc)))
         Some(name -> NativeGenerateIndexNames.publish(component, documented).split("\n", -1).toVector)
@@ -881,7 +884,8 @@ object MorphHdlExternalParameterizedVerilog {
         ParameterizedStructure.parametersOf(component) ++
         ParameterizedProcess.parametersOf(component) ++
         NativeSymbolicLegality.parametersOf(component) ++
-        NativeLocalParameters.typedExpressions(component).flatMap(_.parameters)
+        NativeLocalParameters.typedExpressions(component).flatMap(_.parameters) ++
+        forwardedParameters(component)
     val grouped = values.groupBy(_.name)
     grouped
       .collectFirst {
@@ -895,6 +899,18 @@ object MorphHdlExternalParameterizedVerilog {
       }
     grouped.toVector.map(_._2.head).sortBy(_.name)
   }
+
+  /** Child formals are declaration-owned capabilities, including scalar formals
+    * whose only use is another child binding. Follow only required exact slots;
+    * a matching name or an unused formal does not make a parent parameter live.
+    */
+  private[internals] def forwardedParameters(component: Component): Vector[ElaborationIntegerParameter] =
+    component.children.toVector.flatMap { child =>
+      val required = componentParameters(child)
+      ExternalFormalParameterRegistry.completeTypedBindingsOf(child)
+        .filter(entry => required.exists(_ eq entry.binding.formal))
+        .flatMap(_.binding.actual.parameters)
+    }
 
   private def hasParameterizedMetadata(component: Component): Boolean =
     NativeSymbolicLegality.hasRequirements(component) ||

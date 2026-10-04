@@ -35,8 +35,14 @@ object MorphHdlEmitterParameterNames {
               output: StringBuilder, indentation: String, body: String => Int): Option[Int] =
             NativeConditionalProcessEmitter.scope(printer, tree, scope, output, indentation, body)
           def source(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] =
-            ExternalParameterizedNativeResize.emitNative(printer, assignment)
+            spinal.core.TypedVecStaticSelect.of(printer.component, assignment).map { entry =>
+              ParameterizedVerilogVecs.structuralDynamicSlice(entry.vector, entry.index.expression, 0,
+                entry.index.expression.sourceLocation, readOnly = true, staticIndex = Some(entry.index))
+            }.orElse(spinal.core.TypedLoopPowerShift.renderedIndex(printer.component, assignment)
+              .map { case (source, index) => s"(${printer.emitExpression(source)} >> (1 << $index))" })
+              .orElse(ExternalParameterizedNativeResize.emitNative(printer, assignment))
               .orElse(ExternalParameterizedVerilogNativeFallback.emitNativeValue(printer, assignment))
+              .orElse(ExternalParameterizedVerilogNativeFallback.emitNativeInitializer(printer, assignment))
         })
       }
   }
@@ -113,9 +119,7 @@ final class MorphHdlEmitterParameterNames extends PhaseMisc {
     if (ExternalFormalParameterRegistry.supportsMultipleTypedFormals(component) ||
         component.children.exists(ExternalFormalParameterRegistry.supportsMultipleTypedFormals)) {
       MorphHdlExternalParameterizedVerilog.validateComponentParameterRootInventory(component, includeChildActuals = true)
-      val domains = MorphHdlExternalParameterizedVerilog.componentParameters(component) ++
-        component.children.toVector.flatMap(child => ExternalFormalParameterRegistry.bindingsOf(child)
-          .flatMap(_.actual.parameters))
+      val domains = MorphHdlExternalParameterizedVerilog.componentParameters(component)
       spinal.core.NativeSymbolicLegality.retainDeclarationDomains(component, domains.distinct.sortBy(_.name))
     }
     val names = scala.collection.mutable.HashSet.empty[String]
@@ -145,6 +149,17 @@ final class MorphHdlEmitterParameterNames extends PhaseMisc {
     }
     spinal.core.ExternalParameterizedValueRegistry.valuesOf(component)
       .foreach { case (_, record) => uses += record.expression }
+    val live = new java.util.IdentityHashMap[Statement, java.lang.Boolean]()
+    component.dslBody.walkStatements(statement => live.put(statement, java.lang.Boolean.TRUE))
+    spinal.core.TypedLoopPowerShift.entries(component).foreach { entry =>
+      require(live.containsKey(entry.assignment), "finite power shift lost its native assignment")
+      spinal.core.TypedLoopPowerShift.renderedIndex(component, entry.assignment)
+    }
+    spinal.core.TypedVecStaticSelect.entries(component).foreach { entry =>
+      require(live.containsKey(entry.assignment), "constant Vec selection lost its native assignment")
+      spinal.core.TypedVecStaticSelect.of(component, entry.assignment)
+      uses += entry.index.expression
+    }
     NativeLocalParameters.prepare(component, uses.toVector)
   }
   }

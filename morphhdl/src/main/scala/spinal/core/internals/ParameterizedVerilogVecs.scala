@@ -462,6 +462,33 @@ private[internals] object ParameterizedVerilogVecs {
         }
       }
 
+  /** Module-scope constant reads of a proven complete affine stage array. */
+  private[internals] def exactStaticSelectionLine(component: Component, target: String, line: String): Boolean = {
+    TypedVecStaticSelect.entries(component).exists { entry =>
+      val shape = ParameterizedVec.shapeOf(entry.vector).get
+      val exactName = entry.vector.getName() == target
+      val loops = ParameterizedStructure.regionsOf(component).collect {
+        case loop: ParameterizedStructure.StructuralFor => loop
+      }
+      val owners = loops.flatMap(loop => loop.body.vecIndices.filter(_.vector eq entry.vector)
+        .filter(_.coverageBridges.nonEmpty))
+      val complete = owners.size == 1 && owners.head.unitRange.exists { range =>
+        range.coversTail && range.count.expression.projectionProvenance.forall(p =>
+          range.count.expression.exactDomain.exists(_.universe == p.admitted))
+      } && entry.vector.vec.forall { value =>
+        value.hasOnlyOneStatement && value.head.isInstanceOf[DataAssignmentStatement] &&
+          (value.head.target eq value) && (value.head.parentScope eq component.dslBody)
+      }
+      if (!exactName || !complete) false else {
+        TypedVecStaticSelect.of(component, entry.assignment)
+        val expected = s"assign ${entry.result.getName()} = " +
+          structuralDynamicSlice(entry.vector, entry.index.expression, 0, shape.sourceLocation,
+            readOnly = true, staticIndex = Some(entry.index)) + ";"
+        line.replaceAll("\\s", "") == expected.replaceAll("\\s", "")
+      }
+    }
+  }
+
   /** Render one generate-indexed leaf of an exact retained typed Vec.
     *
     * The caller has already proved finite-range count/depth equality while
@@ -477,7 +504,9 @@ private[internals] object ParameterizedVerilogVecs {
       sourceLocation: Option[String],
       affineRead: Option[ElabFiniteAffineVecRead] = None,
       finiteIndexToken: Option[ElabFiniteIndexToken] = None,
-      readOnly: Boolean = false
+      readOnly: Boolean = false,
+      unitRange: Option[TypedLoopVecRange] = None,
+      staticIndex: Option[ElabInt] = None
   ): String = {
     if (vector == null || selector == null) {
       fail(
@@ -494,20 +523,24 @@ private[internals] object ParameterizedVerilogVecs {
       )
     }
     ElabInt.validateExpression(selector, "structural typed Vec selector")
-    val indexName = selector.generateIndex.getOrElse {
+    val indexName = selector.generateIndex.orElse(staticIndex.map(_ => "")).getOrElse {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-VEC-STRUCTURAL-INDEX-MISSING",
         s"structural typed Vec selector '${selector.verilog}' has no retained generate-index identity",
         sourceLocation.orElse(selector.sourceLocation)
       )
     }
-    val exactSelector = affineRead match {
+    val exactStatic = readOnly && staticIndex.exists(index =>
+      (index.expression eq selector) && selector.generateIndex.isEmpty && index.minimum >= 0 &&
+        ElabBool.projectedTruth(index < ElabInt.fromExpression(shape.depth)) == ElabBool.AlwaysTrue)
+    val exactSelector = exactStatic || unitRange.exists(e => e.matches && (e.selection.vector eq vector) && (e.selection.index eq selector)) || (affineRead match {
       case Some(evidence) => readOnly && finiteIndexToken.exists(token => evidence.matches(vector, selector, token))
       case None =>
         selector.verilog == indexName && selector.parameters.isEmpty &&
           selector.default == 0 && selector.minimum == 0 &&
           selector.maximum == shape.depth.maximum - 1
     }
+    )
     if (!exactSelector || shape.depth.maximum != BigInt(shape.carrierCapacity)) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-VEC-STRUCTURAL-DOMAIN-MISMATCH",
@@ -549,23 +582,25 @@ private[internals] object ParameterizedVerilogVecs {
         }
       }
     }
+    val selectorText = staticIndex.flatMap(_ => NativeLocalParameters.reference(vector.component, selector))
+      .getOrElse(selector.verilog)
     structuralNestedSlice(vector, selector, leafIndex, sourceLocation).foreach { slice =>
       return if (readOnly && isSignedLeaf(shape.elementLeaves(leafIndex))) s"$$signed($slice)" else slice
     }
     val name = requiredVecName(vector, sourceLocation.orElse(shape.sourceLocation))
     namedFieldLayout(vector, shape, name).foreach { layout =>
-      val slice = layout.dynamicSlice(selector.verilog, leafIndex, clampRead = false)
+      val slice = layout.dynamicSlice(selectorText, leafIndex, clampRead = false)
       return if (readOnly && isSignedLeaf(shape.elementLeaves(leafIndex))) s"$$signed($slice)" else slice
     }
     if (shape.elementFields.exists(_.dimensions.nonEmpty)) {
       val slice = ParameterizedVerilogFieldLayout.fromShape(shape, name, render _)
-        .packedDynamicSlice(name, selector.verilog, leafIndex, clampRead = false)
+        .packedDynamicSlice(name, selectorText, leafIndex, clampRead = false)
       return if (readOnly && isSignedLeaf(shape.elementLeaves(leafIndex))) s"$$signed($slice)" else slice
     }
     val elementWidth = renderElementWidth(shape)
     val offset = renderElementOffset(shape, leafIndex)
     val base = addTerms(
-      s"${parenthesize(selector.verilog)} * ${factor(elementWidth)}",
+      s"${parenthesize(selectorText)} * ${factor(elementWidth)}",
       offset
     )
     val slice = s"$name[${parenthesize(base)} +: ${render(shape.elementLeaves(leafIndex).width)}]"
@@ -1540,7 +1575,24 @@ private[internals] object ParameterizedVerilogVecs {
   }
 
   /** Stable logical schema used in native module canonicalization. */
-  def logicalSchema(component: Component): Vector[String] =
+  def logicalSchema(component: Component): Vector[String] = {
+    val owned = NativeWidthFormalSchema.bindings(component)
+    def definitionOwned(expression: ElaborationIntegerExpression): Boolean =
+      expression.parameters.nonEmpty && expression.parameters.forall(p => owned.exists(_.binding.formal eq p))
+    def schema(expression: ElaborationIntegerExpression): ElaborationIntegerExpression = {
+      val normalized = ExternalFormalParameterRegistry.normalizedDefinitionSchema(expression)
+      if (!definitionOwned(expression)) normalized else {
+        ElaborationWidthAuthority.requireAuthoritative(expression, "native Vec definition geometry",
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-WIDTH-AUTHORITY-MISSING")
+        // Schema-only representative: instance witnesses are not part of an
+        // authenticated formal's definition. The symbolic function, complete
+        // domain, native layout and declaration ownership still participate.
+        normalized.copy(default=normalized.minimum,
+          parameters=normalized.parameters.map(p => p.copy(default=p.minimum)))
+      }
+    }
+    def witness(expression: ElaborationIntegerExpression, value: Int): BigInt =
+      if (definitionOwned(expression)) expression.minimum else BigInt(value)
     publicationVectors(component).map { vector =>
       val shape = ParameterizedVec.shapeOf(vector).getOrElse {
         fail(
@@ -1550,15 +1602,13 @@ private[internals] object ParameterizedVerilogVecs {
       }
       val name = requiredVecName(vector, shape.sourceLocation)
       val leaves = shape.elementLeaves.map { leaf =>
-        val width = ExternalFormalParameterRegistry
-          .normalizedDefinitionSchema(leaf.width)
+        val width = schema(leaf.width)
         s"${leaf.path}:${leafTypeSchema(leaf)}:${expressionSchema(width)}"
       }
-      val depth = ExternalFormalParameterRegistry
-        .normalizedDefinitionSchema(shape.depth)
+      val depth = schema(shape.depth)
       val recursivePacking = if (shape.elementLayout.hasNestedVectors)
         ":" + shape.elementLayout.schemaUsing(value => expressionSchema(
-          ExternalFormalParameterRegistry.normalizedDefinitionSchema(value)))
+          schema(value)))
         else ""
       val named = namedFieldLayout(vector, shape, name)
       val recursive = named.orElse {
@@ -1569,16 +1619,19 @@ private[internals] object ParameterizedVerilogVecs {
       val layout = recursive.map { value =>
         value.fields.map { field =>
           val expressions = (shape.depth +: field.retained.geometryExpressions).map { expression =>
-            expressionSchema(ExternalFormalParameterRegistry.normalizedDefinitionSchema(expression))
+            expressionSchema(schema(expression))
           }
-          val axes = field.retained.dimensions.map(axis => s"${axis.witnessDepth}:${axis.carrierCapacity}")
+          val axes = field.retained.dimensions.map(axis => s"${witness(axis.depth, axis.witnessDepth)}:${axis.carrierCapacity}")
           val encodedPath = field.path.map(segment => s"${segment.length}:$segment").mkString("/")
           val indices = field.leafIndices.mkString(",")
           s"${field.name}:$encodedPath:${expressions.mkString("*")}:${axes.mkString("/")}:$indices"
         }.mkString(if (named.nonEmpty) "fields[" else "packed-nested[", "|", "]")
       }.map(value => s":$value").getOrElse("")
-      s"$name:${expressionSchema(depth)}:${shape.witnessDepth}:${shape.carrierCapacity}:${leaves.mkString("|")}$recursivePacking$layout"
+      s"$name:${expressionSchema(depth)}:${witness(shape.depth, shape.witnessDepth)}:${shape.carrierCapacity}:${leaves.mkString("|")}$recursivePacking$layout"
+    }.sorted ++ TypedVecStaticSelect.entries(component).map { entry =>
+      s"constant-index:${entry.vector.getName()}:${expressionSchema(schema(entry.index.expression))}"
     }.sorted
+  }
 
   def rewrite(
       component: Component,

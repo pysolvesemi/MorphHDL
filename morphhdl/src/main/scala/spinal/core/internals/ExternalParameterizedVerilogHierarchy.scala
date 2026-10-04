@@ -1272,29 +1272,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
 
   private def componentParameters(
       component: Component
-  ): Vector[ElaborationIntegerParameter] = {
-    val values =
-      ExternalParameterizedHierarchyResizeWidth.parametersOf(component) ++
-        ParameterizedMemory.parametersOf(component) ++
-        ExternalParameterizedValueRegistry.parametersOf(component) ++
-        ParameterizedBlackBoxGenericRegistry.parametersOf(component) ++
-        ParameterizedVerilogVecs.parametersOf(component) ++
-        ParameterizedStructure.parametersOf(component) ++
-        ParameterizedProcess.parametersOf(component) ++
-        NativeLocalParameters.typedExpressions(component).flatMap(_.parameters)
-    val grouped = values.groupBy(_.name)
-    grouped
-      .collectFirst {
-        case (name, declarations) if declarations.distinct.size != 1 => name
-      }
-      .foreach { name =>
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
-          s"component '${component.definitionName}' has conflicting hierarchy parameter declarations for '$name'"
-        )
-      }
-    grouped.toVector.map(_._2.head).sortBy(_.name)
-  }
+  ): Vector[ElaborationIntegerParameter] =
+    MorphHdlExternalParameterizedVerilog.componentParameters(component)
 
   /** Classify a pulled typed Vec port as one aggregate hierarchy surface.
     *

@@ -886,14 +886,32 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         "{{" + padding + "{1'b" + fill + "}}, " + bits + "'b" +
           initializer.literal.getBitsStringOn(bits, 'x') + "}"
       }
+      val published = nativeInitializerEmissions(component)
+      var nativeEdges = 0
+      component.dslBody.walkLeafStatements {
+        case statement: AssignmentStatement if (statement.finalTarget eq initializer.target) &&
+            published.containsKey(statement) =>
+          if (published.get(statement) != replacement)
+            fail("SPINAL-PARAMETERIZED-VERILOG-CONSTANT-INIT-EMITTED-LINEAGE-MISMATCH",
+              "native initializer publication changed its authenticated value or width", initializer.width.sourceLocation)
+          nativeEdges += 1
+        case _ =>
+      }
+      val nativePattern = ("^(\\s*" + Pattern.quote(initializer.name) +
+        "\\s*(?:<=|=)\\s*)" + Pattern.quote(replacement) + "(;.*)$").r
       var exactEdges = 0
+      var exactNativeEdges = 0
       lines = lines.map {
+        case nativePattern(prefix, suffix) if nativeEdges > 0 =>
+          exactNativeEdges += 1
+          prefix + replacement + suffix
         case pattern(prefix, suffix) =>
           exactEdges += 1
           prefix + replacement + suffix
         case line => line
       }
-      if (authorizedEdges == 0 || exactEdges != authorizedEdges) {
+      if (authorizedEdges == 0 || exactEdges + exactNativeEdges != authorizedEdges ||
+          exactNativeEdges != nativeEdges) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-CONSTANT-INIT-EMITTED-LINEAGE-MISMATCH",
           s"retained-width constant initializer '${initializer.name}' maps to $exactEdges exact emitted witness edges, but the graph authorizes $authorizedEdges exact constant assignments",
@@ -1012,6 +1030,55 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     * component or user signal name is used as a discovery key.
     */
   private object NativeValueEmissions
+  private object NativeInitializerEmissions
+  private def nativeInitializerEmissions(component: Component): IdentityHashMap[AssignmentStatement, String] =
+    component.userCache.getOrElseUpdate(NativeInitializerEmissions,
+      new IdentityHashMap[AssignmentStatement, String]()).asInstanceOf[IdentityHashMap[AssignmentStatement, String]]
+
+  /** Size exact native constant reset edges before native definition comparison.
+    * This preserves the emitter's complete body comparison while removing the
+    * instance width witness from an authenticated explicit-formal declaration.
+    */
+  private[internals] def emitNativeInitializer(printer: ComponentEmitterVerilog,
+      assignment: AssignmentStatement): Option[String] = {
+    val component = printer.component
+    (assignment.target, assignment.source) match {
+      case (target: BitVector, literal: BitVectorLiteral) if (assignment.finalTarget eq target) &&
+          (target.component eq component) && target.isReg && !literal.hasPoison() &&
+          literal.getWidth == target.getBitsWidth &&
+          (literal.getTypeObject.asInstanceOf[AnyRef] eq target.getTypeObject.asInstanceOf[AnyRef]) =>
+        var matchingReset = false
+        target.foreachStatements {
+          case init: InitAssignmentStatement if (init.target eq target) => init.source match {
+            case reset: BitVectorLiteral if !reset.hasPoison() && reset.getWidth == literal.getWidth &&
+                reset.getTypeObject == literal.getTypeObject && reset.getValue() == literal.getValue() =>
+              matchingReset = true
+            case _ =>
+          }
+          case _ =>
+        }
+        val owned = NativeWidthFormalSchema.bindings(component)
+        ParameterizedWidth.expressionOf(target).filter(width => matchingReset && width.parameters.nonEmpty &&
+          width.parameters.forall(p => owned.exists(_.binding.formal eq p))).map { width =>
+          NativePublicationWidth.validate(width, component, target, "native canonical initializer width")
+          if (width.minimum < 1 || width.default != target.getBitsWidth)
+            fail("SPINAL-PARAMETERIZED-VERILOG-CONSTANT-INIT-WIDTH-MISMATCH",
+              "native canonical initializer lost its declaration width", width.sourceLocation)
+          val value = literal.getValue()
+          val fill = if (literal.isSignedKind && value < 0) '1' else '0'
+          val replacement = if (value == 0 || value == -1) "{" + width.verilog + "{1'b" + fill + "}}"
+          else {
+            val bits = literal.minimalValueBitWidth.max(1)
+            val w = width.verilog
+            val padding = if (width.minimum >= bits) s"($w - $bits)" else s"(($w > $bits) ? ($w - $bits) : 0)"
+            "{{" + padding + "{1'b" + fill + "}}, " + bits + "'b" + literal.getBitsStringOn(bits, 'x') + "}"
+          }
+          nativeInitializerEmissions(component).put(assignment, replacement)
+          replacement
+        }
+      case _ => None
+    }
+  }
   private object NativeValueLocalNames
   private def nativeValueEmissions(component: Component): IdentityHashMap[DataAssignmentStatement, java.lang.Boolean] =
     component.userCache.getOrElseUpdate(NativeValueEmissions,

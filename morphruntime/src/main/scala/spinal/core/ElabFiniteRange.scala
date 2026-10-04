@@ -132,6 +132,22 @@ final class ElabFiniteIndex private[core] (
     selected
   }
 
+  /** Library-owned contiguous selection; registration retains its exact range. */
+  private[spinal] def at[T <: Data](vector: Vec[T], offset: Int): T = {
+    require(offset >= 0, "finite Vec offset must be nonnegative")
+    if (expression.generateIndex.isEmpty) return vector(witness + offset)
+    val depth = ParameterizedVec.shapeOf(vector).getOrElse(
+      throw new IllegalArgumentException("finite subrange requires a typed Vec")).depth
+    require(ElabBool.projectedTruth((ElabInt.fromExpression(count) + offset) <=
+      ElabInt.fromExpression(depth)) == ElabBool.AlwaysTrue, "finite subrange exceeds logical Vec depth")
+    val selector = expression.copy(verilog = if(offset == 0) expression.verilog else s"(${expression.verilog} + $offset)",
+      default = expression.default + offset, minimum = expression.minimum + offset,
+      maximum = expression.maximum + offset)
+    ParameterizedStructure.recordVecIndex(vector, vector(witness + offset), selector, token, expression.sourceLocation)
+  }
+
+  private[spinal] def shiftRightPowerOfTwo(source: UInt): UInt = TypedLoopPowerShift(this, source)
+
   /** Read `coefficient * index + offset` from a typed Vec. Every admitted
     * positive loop extent is checked against that same root's logical Vec
     * depth. This deliberately does not grant write-coverage evidence.

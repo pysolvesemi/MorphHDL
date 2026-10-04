@@ -57,7 +57,7 @@ jobs:
       - name: Exercise typed formal binding and hierarchy
         run: >-
           sbt -batch "++${{ matrix.scala_version }}"
-          "morph/testOnly morphhdl.FormalParameterIdentityTests morphhdl.HierarchyParameterBindingTests morphhdl.ScalarFormalReuseTests morphhdl.LibraryDefinitionReuseTests morphhdl.NativeValueSizingTests morphhdl.NativeConstantShiftTests morphhdl.NativeHierarchyWidthBoundaryTests morphhdl.NativeContextualUIntLiteralTests morphhdl.NativeTypedLocalConstantTests morphhdl.NativeNamedFactoryTests spinal.core.NativeDerivedLocalParameterTests"
+          "morph/testOnly morphhdl.FormalParameterIdentityTests morphhdl.HierarchyParameterBindingTests morphhdl.ScalarFormalReuseTests morphhdl.TransitiveScalarFormalTests morphhdl.ClockedFormalForwardingTests morphhdl.GrayStageSharingTests spinal.core.NativeCdcFormalTests morphhdl.LibraryDefinitionReuseTests morphhdl.NativeValueSizingTests morphhdl.NativeConstantShiftTests morphhdl.NativeHierarchyWidthBoundaryTests morphhdl.NativeContextualUIntLiteralTests morphhdl.NativeTypedLocalConstantTests morphhdl.NativeNamedFactoryTests spinal.core.NativeDerivedLocalParameterTests"
       - name: Retain formal reuse and sizing evidence
         if: always()
         uses: actions/upload-artifact@v4

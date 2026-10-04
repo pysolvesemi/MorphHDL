@@ -86,8 +86,13 @@ class NativeCdcFormalTests extends AnyFunSuite {
     assert(rtl.contains(".STAGES(SYNC_STAGES)") && rtl.contains(".WIDTH(1)"), rtl)
     assert(rtl.contains("ASYNC_REG") && rtl.contains("negedge resetn"), rtl)
     val parameter = if (standalone) "WIDTH" else "FIFO_LOG_DEPTH"
-    val lint = run(dir, Seq("verilator", "--lint-only", "-Wno-fatal", "--top-module", "CdcParent") ++ sources)
-    assert(lint._1 == 0, lint._2)
+    if(split) {
+      Files.write(dir.resolve("prefix.vlt"),
+        "`verilator_config\nsplit_var -module \"GrayDecoder\" -var \"decode_stage\"\n".getBytes(UTF_8))
+      val lint = run(dir, Seq("verilator", "--lint-only", "-Wall", "--language", "1364-2001", "-DSYNTHESIS",
+        "--top-module", "CdcParent", "-GSYNC_STAGES=4", "prefix.vlt") ++ sources)
+      assert(lint._1 == 0, lint._2)
+    }
     for (fifo <- (if (standalone) Seq(1, 5, 18) else Seq(2, 3, 16)); stages <- 2 to 4) {
       val width = if (standalone) fifo else fifo + 2
       val synth = run(dir, Seq("yosys", "-p",
@@ -115,7 +120,9 @@ class NativeCdcFormalTests extends AnyFunSuite {
         |resetn=1;
         |end
         |#1; parity=0;
-        |for(k=W-1;k>=0;k=k-1) begin parity=parity^grayIn[k]; expectedGray[k]=parity; end
+        |// Width one has no XOR stage: its specified direct connection preserves Z.
+        |if(W==1) expectedGray=grayIn;
+        |else for(k=W-1;k>=0;k=k-1) begin parity=parity^grayIn[k]; expectedGray[k]=parity; end
         |if(decoded !== expectedGray) $$fatal(1,"GRAY_ORACLE");
         |for(j=3;j>0;j=j-1) begin model[j]=model[j-1]; flags[j]=flags[j-1]; end
         |model[0]=dataIn; flags[0]=flagIn; clk=1; #1;

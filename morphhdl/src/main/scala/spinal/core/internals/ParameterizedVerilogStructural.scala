@@ -946,6 +946,10 @@ private[internals] object ParameterizedVerilogStructural {
       retainedModuleMemoryDeclarationLines ++=
         findDeclarationLine(lines, lane.value.getName(), block.sourceLocation).indices
     }
+    block.vecIndices.flatMap(_.coverageBridges).foreach { bridge =>
+      retainedModuleMemoryDeclarationLines ++=
+        findDeclarationLine(lines, bridge.value.getName(), block.sourceLocation).indices
+    }
     val retainedIndexedMemories = block.memoryIndices
       .map(_.memory)
       .foldLeft(Vector.empty[Mem[_]]) {
@@ -1465,6 +1469,18 @@ private[internals] object ParameterizedVerilogStructural {
             fail("SPINAL-TYPED-LOOP-REGISTER-BRIDGE-MISMATCH",
               "register readback bridge must have exactly one native emitted assignment", plan.block.sourceLocation)
           nativeBody = bridge.replaceAllIn(nativeBody, "")
+        }
+      }
+      plan.block.vecIndices.filter(_.coverageBridges.nonEmpty).foreach { selection =>
+        if (!selection.unitRange.exists(_.coversTail))
+          fail("SPINAL-TYPED-LOOP-VEC-RANGE-MISMATCH", "Vec driver bridge lost its exact range", plan.block.sourceLocation)
+        selection.coverageBridges.foreach { edge =>
+          TypedLoopVecBridges.validate(edge, plan.block, liveStatements)
+          val pattern = ("(?m)^\\s*assign\\s+" + Pattern.quote(edge.value.getName()) +
+            "\\s*=\\s*" + Pattern.quote(edge.alias.getName()) + "\\s*;[ \\t]*$").r
+          if (pattern.findAllIn(nativeBody).size != 1)
+            fail("SPINAL-TYPED-LOOP-VEC-BRIDGE-MISMATCH", "Vec bridge must have one native assignment", plan.block.sourceLocation)
+          nativeBody = pattern.replaceAllIn(nativeBody, "")
         }
       }
       var body = rewriteSlices(
@@ -2495,7 +2511,7 @@ private[internals] object ParameterizedVerilogStructural {
         (selection.affineRead match {
           case Some(evidence) => selection.finiteIndexToken.exists(token =>
             evidence.matches(selection.vector, selection.index, token, Some(owners.head.count)))
-          case None => ElabInt.equivalentExpression(owners.head.count, shape.depth)
+          case None => selection.unitRange.exists(_.matches) || ElabInt.equivalentExpression(owners.head.count, shape.depth)
         })
       }
 
@@ -2506,7 +2522,9 @@ private[internals] object ParameterizedVerilogStructural {
     ): Boolean =
       selection.result.flatten.forall { leaf =>
         val targets = block.assignments.filter(_.finalTarget eq leaf)
-        val sources = block.assignments.count(assignment => expressionContainsIdentity(assignment.source, leaf))
+        val sources = block.assignments.count(assignment =>
+          !selection.coverageBridges.exists(_.assignment eq assignment) &&
+            expressionContainsIdentity(assignment.source, leaf))
         if (write)
           targets.size == 1 && (targets.head.target eq leaf) && sources == 0
         else targets.isEmpty && sources >= 1
@@ -2630,6 +2648,7 @@ private[internals] object ParameterizedVerilogStructural {
               if !capturedIndices(index) &&
                 !deferredPackedReadLines(index) &&
                 !packedReadEvidence.coveredLeafUses((index, target)) &&
+                !ParameterizedVerilogVecs.exactStaticSelectionLine(component, target, lexicalLines(index)) &&
                 !lineDefinesName(lexicalLines(index), target) &&
                 lineReferences(index)(target) =>
             index -> lines(index).trim
@@ -4099,7 +4118,8 @@ private[internals] object ParameterizedVerilogStructural {
             location,
             selection.affineRead,
             selection.finiteIndexToken,
-            readOnly = !writesAlias
+            readOnly = !writesAlias,
+            unitRange = selection.unitRange
           )
           rewritten = replaceName(rewritten, aliasName, target)
           if (containsName(rewritten, aliasName)) {
