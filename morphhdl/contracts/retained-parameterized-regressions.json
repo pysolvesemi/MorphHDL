@@ -618,6 +618,14 @@
         "an explicit SInt to Bits cast resizes with unsigned bit semantics",
         "same witnesses never correlate an independent predicate root with target width"
       ],
+      "morphhdl.CombinationalEventDependencyTests": [
+        "a false generated condition initializes a feedback counter's default",
+        "a masked unknown condition still initializes its combinational default",
+        "acyclic conditional cell chain settles with unpacked=false",
+        "acyclic conditional cell chain settles with unpacked=true",
+        "signed event cells preserve dynamic read views with unpacked=false",
+        "signed event cells preserve dynamic read views with unpacked=true"
+      ],
       "morphhdl.ConstantAggregateTests": [
         "default concrete Vec publication stays flattened",
         "constant Vec ports retain factorized widths",
@@ -670,6 +678,21 @@
         "one declaration identity cannot map a formal slot to two actuals",
         "one formal declaration rejects incompatible explicit domains",
         "one formal declaration rejects incompatible instance defaults"
+      ],
+      "morphhdl.GenerateIndexNamingTests": [
+        "authored i and j ports reserve their identifiers",
+        "nested loops use distinct visible indices unpacked=false shadow=false",
+        "nested loops use distinct visible indices unpacked=false shadow=true",
+        "nested loops use distinct visible indices unpacked=true shadow=false",
+        "nested loops use distinct visible indices unpacked=true shadow=true",
+        "parameter declaration reserves i at all admitted loop bounds unpacked=false",
+        "parameter declaration reserves i at all admitted loop bounds unpacked=true",
+        "sibling repeated labels share one genvar with second bound 3",
+        "sibling repeated labels share one genvar with second bound 4",
+        "single automatic loop publishes i deterministically unpacked=false split=false",
+        "single automatic loop publishes i deterministically unpacked=false split=true",
+        "single automatic loop publishes i deterministically unpacked=true split=false",
+        "single automatic loop publishes i deterministically unpacked=true split=true"
       ],
       "morphhdl.GenericExpressionAndStreamTests": [
         "derived packed widths are proven over the complete parameter domain",
@@ -724,6 +747,49 @@
         "split publication localizes enum constants into their owning component files",
         "split publication preserves a validated bounded recursive owner file",
         "split publication uses one deterministic file per canonical logical component"
+      ],
+      "morphhdl.LibraryDefinitionReuseTests": [
+        "native definition sharing scalar=false equal=false split=false",
+        "native definition sharing scalar=false equal=false split=true",
+        "native definition sharing scalar=false equal=true split=false",
+        "native definition sharing scalar=false equal=true split=true",
+        "native definition sharing scalar=true equal=false split=false",
+        "native definition sharing scalar=true equal=false split=true",
+        "native definition sharing scalar=true equal=true split=false",
+        "native definition sharing scalar=true equal=true split=true",
+        "native symbolic definition includes retained internal and nested widths body=blackbox split=false",
+        "native symbolic definition includes retained internal and nested widths body=blackbox split=true",
+        "native symbolic definition includes retained internal and nested widths body=internal split=false",
+        "native symbolic definition includes retained internal and nested widths body=internal split=true",
+        "native symbolic definition includes retained internal and nested widths body=nested split=false",
+        "native symbolic definition includes retained internal and nested widths body=nested split=true",
+        "same Scala synchronizer with different reset polarity retains separate definitions",
+        "same native bodies with different structural selectors cannot share a definition",
+        "standalone width formal retains supplied default and independent override",
+        "width defaults and overrides preserve independent ports mode=derived body=blackbox split=false",
+        "width defaults and overrides preserve independent ports mode=derived body=blackbox split=true",
+        "width defaults and overrides preserve independent ports mode=derived body=direct split=false",
+        "width defaults and overrides preserve independent ports mode=derived body=direct split=true",
+        "width defaults and overrides preserve independent ports mode=derived body=internal split=false",
+        "width defaults and overrides preserve independent ports mode=derived body=internal split=true",
+        "width defaults and overrides preserve independent ports mode=derived body=nested split=false",
+        "width defaults and overrides preserve independent ports mode=derived body=nested split=true",
+        "width defaults and overrides preserve independent ports mode=literal body=blackbox split=false",
+        "width defaults and overrides preserve independent ports mode=literal body=blackbox split=true",
+        "width defaults and overrides preserve independent ports mode=literal body=direct split=false",
+        "width defaults and overrides preserve independent ports mode=literal body=direct split=true",
+        "width defaults and overrides preserve independent ports mode=literal body=internal split=false",
+        "width defaults and overrides preserve independent ports mode=literal body=internal split=true",
+        "width defaults and overrides preserve independent ports mode=literal body=nested split=false",
+        "width defaults and overrides preserve independent ports mode=literal body=nested split=true",
+        "width defaults and overrides preserve independent ports mode=parameter body=blackbox split=false",
+        "width defaults and overrides preserve independent ports mode=parameter body=blackbox split=true",
+        "width defaults and overrides preserve independent ports mode=parameter body=direct split=false",
+        "width defaults and overrides preserve independent ports mode=parameter body=direct split=true",
+        "width defaults and overrides preserve independent ports mode=parameter body=internal split=false",
+        "width defaults and overrides preserve independent ports mode=parameter body=internal split=true",
+        "width defaults and overrides preserve independent ports mode=parameter body=nested split=false",
+        "width defaults and overrides preserve independent ports mode=parameter body=nested split=true"
       ],
       "morphhdl.MorphCanonicalIrHandoffTests": [
         "bounded capture preserves reflected unnamed and generated name provenance",
@@ -911,6 +977,15 @@
         "unsupported conditional bodies fail closed, mode=4",
         "unsupported conditional bodies fail closed, mode=5"
       ],
+      "morphhdl.NativeConstantShiftTests": [
+        "shrinking native shifts publish explicit slices width=17 shift=1",
+        "shrinking native shifts publish explicit slices width=17 shift=2",
+        "shrinking native shifts publish explicit slices width=71 shift=1",
+        "shrinking native shifts publish explicit slices width=71 shift=2",
+        "shrinking native shifts publish explicit slices width=8 shift=1",
+        "shrinking native shifts publish explicit slices width=8 shift=2",
+        "symbolic shifts retain overrides, compound temporaries and signed comparisons"
+      ],
       "morphhdl.NativeLibraryMigrationFormalEquivalenceTests": [
         "formal witnesses independently cover all legal PIPE_MODE specializations",
         "typed Stream and Flow pipeline controls are formally equivalent with a live mutation control"
@@ -1017,6 +1092,9 @@
         "typed locals remain packed declarations and native case labels, symbolic=false",
         "typed locals remain packed declarations and native case labels, symbolic=true"
       ],
+      "morphhdl.NativeValueSizingTests": [
+        "native values explicitly size direct, anonymous and named constants across 32 bits"
+      ],
       "morphhdl.NaturalSymbolicConditionalTests": [
         "natural else-if emits one source-ordered structural chain",
         "natural symbolic conditionals allow custom generate block labels",
@@ -1078,6 +1156,22 @@
         "conditional blocks inside retained loops keep payload comments inside the selected branch",
         "region comments remain inside reset and clock enable structure",
         "singleton record element documentation retains its element coordinate"
+      ],
+      "morphhdl.ScalarFormalReuseTests": [
+        "incompatible scalar formal domain or body cannot share one forced definition domain=false",
+        "incompatible scalar formal domain or body cannot share one forced definition domain=true",
+        "independent scalar and width defaults share one definition split=false",
+        "independent scalar and width defaults share one definition split=true",
+        "mixed scalar and width formals preserve independent values and widened overrides split=false",
+        "mixed scalar and width formals preserve independent values and widened overrides split=true",
+        "scalar formal reuse preserves independent defaults and overrides mode=different split=false",
+        "scalar formal reuse preserves independent defaults and overrides mode=different split=true",
+        "scalar formal reuse preserves independent defaults and overrides mode=same-actual split=false",
+        "scalar formal reuse preserves independent defaults and overrides mode=same-actual split=true",
+        "scalar formal reuse preserves independent defaults and overrides mode=same-default split=false",
+        "scalar formal reuse preserves independent defaults and overrides mode=same-default split=true",
+        "standalone scalar formal retains its supplied default mixed=false",
+        "standalone scalar formal retains its supplied default mixed=true"
       ],
       "morphhdl.SpinalEnumLocalParameterTests": [
         "MorphVerilog replaces global enum macros with SCREAMING_SNAKE_CASE enum-qualified module-local parameters",
@@ -1147,6 +1241,39 @@
         "typed factories and resize validate before native construction",
         "width attachment rejects incoherent direct-expression bounds",
         "width attachment rejects incoherent witnesses before mutating native data"
+      ],
+      "morphhdl.TypedLoopCarrierCoverageTests": [
+        "asBools retains writable views of the original packed signal",
+        "conditional full typed packing still requires a default",
+        "full typed Vec-to-packed coverage has no latch and preserves byte order",
+        "parameterized Vec packing covers every lane at non-default bounds",
+        "parameterized register copy covers reset enable and hold at boundary overrides structural=false unpacked=false",
+        "parameterized register copy covers reset enable and hold at boundary overrides structural=false unpacked=true",
+        "parameterized register copy covers reset enable and hold at boundary overrides structural=true unpacked=false",
+        "parameterized register copy covers reset enable and hold at boundary overrides structural=true unpacked=true",
+        "partial typed packing remains a latch error including smaller override symbolic=false",
+        "partial typed packing remains a latch error including smaller override symbolic=true",
+        "typed byte mask retains every asBools carrier",
+        "typed initialized register copy preserves reset enable hold and lane order structural=false unpacked=false",
+        "typed initialized register copy preserves reset enable hold and lane order structural=false unpacked=true",
+        "typed initialized register copy preserves reset enable hold and lane order structural=true unpacked=false",
+        "typed initialized register copy preserves reset enable hold and lane order structural=true unpacked=true"
+      ],
+      "morphhdl.TypedNestedVecWriteTests": [
+        "nested aliases retain native missing-driver and latch checks mode=conditional unpacked=false",
+        "nested aliases retain native missing-driver and latch checks mode=conditional unpacked=true",
+        "nested aliases retain native missing-driver and latch checks mode=partial unpacked=false",
+        "nested aliases retain native missing-driver and latch checks mode=partial unpacked=true",
+        "nested aliases retain native missing-driver and latch checks mode=read-only unpacked=false",
+        "nested aliases retain native missing-driver and latch checks mode=read-only unpacked=true",
+        "nested selections retain independent parameter bounds unpacked=false",
+        "nested selections retain independent parameter bounds unpacked=true",
+        "three nested selections preserve singleton axes unpacked=false",
+        "three nested selections preserve singleton axes unpacked=true",
+        "two typed Vec selections preserve every coordinate unpacked=false retainedRow=false",
+        "two typed Vec selections preserve every coordinate unpacked=false retainedRow=true",
+        "two typed Vec selections preserve every coordinate unpacked=true retainedRow=false",
+        "two typed Vec selections preserve every coordinate unpacked=true retainedRow=true"
       ],
       "morphhdl.TypedParameterizedFactoryDirectionTests": [
         "typed packed factories retain short-form input and output dispatch"
@@ -1561,6 +1688,16 @@
         "publication authenticates an otherwise concrete child whose complete inventory was cleared",
         "publication rejects a cleared inventory without restoring it before emission",
         "single-formal registration cannot append to an atomic inventory"
+      ],
+      "spinal.core.TypedLoopRegisterOwnershipTests": [
+        "register loop preserves clock enable and reset configuration syncLow=false",
+        "register loop preserves clock enable and reset configuration syncLow=true",
+        "relocated register storage rejects a changed exact owner mode=bridge",
+        "relocated register storage rejects a changed exact owner mode=clock",
+        "relocated register storage rejects a changed exact owner mode=competing-writer",
+        "relocated register storage rejects a changed exact owner mode=reset",
+        "relocated register storage rejects a changed exact owner mode=selection",
+        "relocated register storage rejects a changed exact owner mode=template"
       ],
       "spinal.core.TypedParameterFrontendProjectionTests": [
         "typed frontend import rejects an active singleton projection"
@@ -2810,6 +2947,7 @@
     "morphhdl/src/test/scala/morphhdl/CapturedAssignmentNormalizationTests.scala": "178f28a885fd7e861f49b48f214358166c59f253f3dd56f15e4f224e67167f01",
     "morphhdl/src/test/scala/morphhdl/CapturedDomainWidthEquivalenceTests.scala": "5ce6ccac05c0f80ce9d476d65dec96692662092d477e3a7479a191d08088be8a",
     "morphhdl/src/test/scala/morphhdl/CaseRoutingContractFixture.scala": "d023ec2012ae83d4a7cbe98ade300da2c638de567261c4f3d859cb2721bd4c03",
+    "morphhdl/src/test/scala/morphhdl/CombinationalEventDependencyTests.scala": "faf34864ff42cd6e3ae4a8da4f3d665970e1574e5fb212852302fe74bf4fcecd",
     "morphhdl/src/test/scala/morphhdl/ComparisonRoutingContractFixture.scala": "3c97bad965df0b5939bcf30bbf5a4da1776ab2e92ffe2cec852f8bb1ba7e4a0d",
     "morphhdl/src/test/scala/morphhdl/ConditionalForwardingContractFixture.scala": "17e178ecd03bad24bdddbe29c98d376be7f51b95eea47b633006dd6d0ceb1b7e",
     "morphhdl/src/test/scala/morphhdl/ConditionalWidthContractFixture.scala": "10492466f4281597a997518d2da81166a1c5998f8dc7fcf327fc0d878612642d",
@@ -2819,6 +2957,7 @@
     "morphhdl/src/test/scala/morphhdl/FastAggregateLintFixture.scala": "2b39aca93eeda2a2ea0f9f475e010ef5fab59c074aed1fd65ca8379a09ff6ec3",
     "morphhdl/src/test/scala/morphhdl/FormalParameterClonePropagationTests.scala": "3ca7134dae20d0880bfc9df18bb1e4bd0615d21e387439672e2dc830813078c8",
     "morphhdl/src/test/scala/morphhdl/FormalParameterIdentityTests.scala": "3a5c4995ecb87eb31fa3ab672121a88026cec981338bcf1903650687ed565481",
+    "morphhdl/src/test/scala/morphhdl/GenerateIndexNamingTests.scala": "e758a45db77bb73269fc6e3dc2ca0ba3219b6b473169c33426d9ff3c8e9b8371",
     "morphhdl/src/test/scala/morphhdl/GenerateLaneExpressionExample.scala": "9b26eca4eecedb3ae0f9b850084c436607118c20505519f18e4d7471cace8b90",
     "morphhdl/src/test/scala/morphhdl/GenericExpressionAndStreamTests.scala": "f3cb694008910ccce9abd71637542f9bc5d85f18a4fd1953ada53ef4ac556e45",
     "morphhdl/src/test/scala/morphhdl/GenericProcessLoweringTests.scala": "046ba7e5d752b4db52ba189ff8d69d1d024c9cda1656e6e3a7859a54da112e2d",
@@ -2830,6 +2969,7 @@
     "morphhdl/src/test/scala/morphhdl/LaneArrayContractFixture.scala": "77ef87334eae392b107353446cd63503890e7befec0479b5dbe481016e64f7bf",
     "morphhdl/src/test/scala/morphhdl/LaneConditionCoverageExample.scala": "814b9c6bc371a91c7a621f287bfa8a3516c23066212ee118d26aa052ded3201e",
     "morphhdl/src/test/scala/morphhdl/LaneReceiverCoverageExample.scala": "76e1f07bf1f7abdceeb60eb5758db1b3df6a225bddac1cae5e9b7a347b6f6f83",
+    "morphhdl/src/test/scala/morphhdl/LibraryDefinitionReuseTests.scala": "71158f74cd532f499780776d4f6c63deeba27712c243f0eec6da995f1d7688aa",
     "morphhdl/src/test/scala/morphhdl/MorphCanonicalIrHandoffTests.scala": "cb84ac7c3897cfc851b22e764fe074b4b438403583833874af41248eecd862b0",
     "morphhdl/src/test/scala/morphhdl/MorphContractFixtureGenerator.scala": "b719cfe3652d259578f742dfd9bc10a77d1e7be2f63047fb7e56ff4576a64f81",
     "morphhdl/src/test/scala/morphhdl/MorphSingleSourceVerilogTests.scala": "9cc9300d3ff39061cc37a57fa06a6e6248b07d2912ba1730e94196e05f20ec64",
@@ -2843,6 +2983,7 @@
     "morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryFormalEquivalenceTests.scala": "ccd4c608111d4fdcfb97b0c1c9cfaa12d7cfd6065074c9c207d426a15bd9a82f",
     "morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryParameterizedOffsetTests.scala": "2eed743b885b9bd95e6f6fd75dc05ff1d6d7d51f666d22e9b0f6f13c2f038ed7",
     "morphhdl/src/test/scala/morphhdl/NativeConditionalProcessTests.scala": "99b03850006bd0879ae4e839112bf47d110ab2555bc5d8c7e9aec4344ee15466",
+    "morphhdl/src/test/scala/morphhdl/NativeConstantShiftTests.scala": "7dd10a7bebfb5fdaf187f073fd49b9901b1a7c9c72515abb4f6fdb527500b958",
     "morphhdl/src/test/scala/morphhdl/NativeLibraryMigrationFormalEquivalenceTests.scala": "f9ae7840d6bbab1f667939214a74bfce05f440d5e9ca04ba52517fbe2c85ef6a",
     "morphhdl/src/test/scala/morphhdl/NativeLibraryMigrationTests.scala": "3be4687d6b8dda5b268f62b2cfbe27953b80d4dbc40133508decb887f0baefd5",
     "morphhdl/src/test/scala/morphhdl/NativeLibraryReuseTests.scala": "790332776d2ba363de9557fc3de556a6fa6cac734c18ed3e5a43c9403abcd223",
@@ -2854,6 +2995,7 @@
     "morphhdl/src/test/scala/morphhdl/NativeSymbolicMemoryTests.scala": "5ab364942154e945a600be2a97c956b6570c8a9b2d567908f035465538ef3de0",
     "morphhdl/src/test/scala/morphhdl/NativeTypedLibraryCallSurfaceTests.scala": "8b7f43dc5edb13bcf97009d913ebdaf27983a99d8828b7bcc3390cf276e3c5a7",
     "morphhdl/src/test/scala/morphhdl/NativeTypedLocalConstantTests.scala": "eee702d03a77016eb5d2c4d6ee0bea337a6ff2e51808beb7e39dc9303145bcd2",
+    "morphhdl/src/test/scala/morphhdl/NativeValueSizingTests.scala": "8940eaa33540c443381a11e4ad12149afd074dbf1884c084ebb436835ddfe034",
     "morphhdl/src/test/scala/morphhdl/NativeWireCompatibility.scala": "d2458caee53ff314df4159e19cc32d7b71bd83ac1b9f271946cd1758f070d346",
     "morphhdl/src/test/scala/morphhdl/NaturalSymbolicConditionalTests.scala": "e7a549fd28136aa2b5b598ad612f7394e15fdeee149179323f0404f79dfc5bb0",
     "morphhdl/src/test/scala/morphhdl/ParameterForwardingContractFixture.scala": "1d81e70b0761d2d5b24179af2b474cac96b66fbf67a913b1c56da0b153031110",
@@ -2865,6 +3007,7 @@
     "morphhdl/src/test/scala/morphhdl/ReduceBalancedTreeNativeContractTests.scala": "7ed02fcf5d40a383a13added7696622df6084a2e2b208967255576e82b981f4b",
     "morphhdl/src/test/scala/morphhdl/RtlDocumentationTests.scala": "02bafabb0282f28b6fc50ef4a2893a82f945ae8b7b1cb7ea96557308c029e853",
     "morphhdl/src/test/scala/morphhdl/RuntimeMuxContractFixture.scala": "0db2014836a7c603af006ef34bdc9ca1571e94ea75c69aeaf9fe8e50d20a4939",
+    "morphhdl/src/test/scala/morphhdl/ScalarFormalReuseTests.scala": "7a77e6ddd068fabe3d6ab10898f1ef0bdeb5a944ac66dae0cb009bc91cc4e239",
     "morphhdl/src/test/scala/morphhdl/SignedDeclarationPublicationTests.scala": "e7da32b0ea6aeb453fead0e5c7cba27ade392cea041abfd2a1ff3b1072502498",
     "morphhdl/src/test/scala/morphhdl/SignednessBoundaryTests.scala": "399180574c71d5ed7e5ea71dfb7520e599329061676e23d8ceaebc8c9b265364",
     "morphhdl/src/test/scala/morphhdl/SignednessCompatibilityTests.scala": "e689e64573c4a3b803388b27f36a8fb7a22c54deba54cf15ae62a7f851bf047a",
@@ -2882,6 +3025,8 @@
     "morphhdl/src/test/scala/morphhdl/TypedCounterAllOnesTests.scala": "25ec50c19e5d7087312071f214a84394daa364fe4d0890141519080e33442d9b",
     "morphhdl/src/test/scala/morphhdl/TypedElaborationControlTests.scala": "e26cb84d0bc7afec1fe631d6005a9bee157dbe354d300dc875d2a06ed5679d78",
     "morphhdl/src/test/scala/morphhdl/TypedElaborationValueTests.scala": "722fb1b5a164fe369ba6dd0a23d856468b1a0fda10ea4d43968f56b8638b92fb",
+    "morphhdl/src/test/scala/morphhdl/TypedLoopCarrierCoverageTests.scala": "c12af9783e92bff6855565618b6e7396937f474dd64cff16cb183690846ce54f",
+    "morphhdl/src/test/scala/morphhdl/TypedNestedVecWriteTests.scala": "d28dbd28742a2923f64ad56a4dbd041953d12ce4f06ff714567d90f4ce5e74aa",
     "morphhdl/src/test/scala/morphhdl/TypedParameterizedFactoryDirectionTests.scala": "dbea6e31d28f6bb290c953d4b85cb1597a7f8488a90457bc6de18dfe3363670f",
     "morphhdl/src/test/scala/morphhdl/TypedParameterizedVecFormalEquivalenceTests.scala": "dfbc5d52e3df8fd41d95f66b94805e40d6a4cd67e76104e12c22bfc1aeb4ae79",
     "morphhdl/src/test/scala/morphhdl/TypedParameterizedVecTests.scala": "e672934797c90fb7cce7b9dbaeca3afd22a65845dc6689e0800564eebe190984",
@@ -2953,6 +3098,7 @@
     "morphhdl/src/test/scala/spinal/core/TypedExactDomainSafetyTests.scala": "48eb7f1a1bc60b63deb987f80ec2c07db83064f43f78522ee1954afd65262550",
     "morphhdl/src/test/scala/spinal/core/TypedFormalCompoundPortTests.scala": "4a69fec2ce2c982b6b3f195357dd39b0fbddff96c11603a60224b65c140147f8",
     "morphhdl/src/test/scala/spinal/core/TypedFormalInventoryTests.scala": "e92b7c0143f40e528b3d59197cbf4d8268555f18e7a5d4d89db57b4cd3ec1513",
+    "morphhdl/src/test/scala/spinal/core/TypedLoopRegisterOwnershipTests.scala": "0ca63fad2ab95ef712e1391b5c4ec85eea18eecec41a45a398ab7997cd07b1e0",
     "morphhdl/src/test/scala/spinal/core/TypedParameterFrontendProjectionTests.scala": "bc253d8c903039870bfbf5437704990145d8b654fc5503511ea0bd75f4b4211a",
     "morphhdl/src/test/scala/spinal/core/TypedParameterizedVecHierarchyFixture.scala": "ff97f312339ab37ffdb8a913da48f2162f1e698fd6f1ff3770c9d8a733fc0631",
     "morphhdl/src/test/scala/spinal/core/TypedParameterizedVecLineageFixture.scala": "91bccbe3066b2bd474ddcdf1c6b4336518450f1445c036262ad1347dac4ee69c",
@@ -3015,7 +3161,7 @@
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedMechanismHardware.scala": "13af1e43623167394d49c4e9d366bc76b02f974a26a9574d3be2a236df644176",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedMechanismTests.scala": "30adf49d0e12fb97e63c5115b76338cb74b7ee5ae0b8d32884265969d10d9a41",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedOwnerArtifactWriter.scala": "ea16593854ecb244921cbf5b95931eac3063ada3b859602751ed1200d35462c4",
-    "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedOwnerTests.scala": "095251388322a46658a83c12b0131ca05611dcb4cad532288849d45ea5f0e701",
+    "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedOwnerTests.scala": "2a95a4ecb2a498af1e2b7350d663f8f652bbf95661db1559e03c3ebee69c34b8",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedResultArtifactWriter.scala": "caa98ebc4341d9bced1bee4521d4606b8fb4e684078c8636bce215413abd7337",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedResultHardware.scala": "a07cc3a809934cbd9dc667b3434de65770f9605fe24b4c519fed40f72fcf268d",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedResultTests.scala": "e7fbd7bd1235afdc27bbc61389e032615fca27e574f55fdae249ff6edcc99204",

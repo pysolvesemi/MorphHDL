@@ -68,6 +68,11 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
+      - name: Require RTL validation tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          for tool in iverilog vvp verilator yosys; do command -v "$tool"; done
       - name: Validate capture, publication and inherited checks
         shell: bash
         run: |
@@ -81,6 +86,11 @@ jobs:
             morphhdl.GenericProcessLoweringTests \
             morphhdl.GenericExpressionAndStreamTests \
             morphhdl.HierarchyParameterBindingTests \
-            morphhdl.MorphSingleSourceVerilogTests
+            morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.CombinationalEventDependencyTests \
+            morphhdl.GenerateIndexNamingTests \
+            morphhdl.TypedLoopCarrierCoverageTests \
+            morphhdl.TypedNestedVecWriteTests \
+            spinal.core.TypedLoopRegisterOwnershipTests
           /tmp/morphhdl-mill core[${{ matrix.scala_version }}].testOnly \
             spinal.core.internals.SpinalVerilogPhasePlanTests

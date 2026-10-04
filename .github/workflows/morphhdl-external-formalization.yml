@@ -49,7 +49,20 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
+      - name: Require RTL validation tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          for tool in iverilog vvp verilator yosys; do command -v "$tool"; done
       - name: Exercise typed formal binding and hierarchy
         run: >-
           sbt -batch "++${{ matrix.scala_version }}"
-          "morph/testOnly morphhdl.FormalParameterIdentityTests morphhdl.HierarchyParameterBindingTests"
+          "morph/testOnly morphhdl.FormalParameterIdentityTests morphhdl.HierarchyParameterBindingTests morphhdl.ScalarFormalReuseTests morphhdl.LibraryDefinitionReuseTests morphhdl.NativeValueSizingTests morphhdl.NativeConstantShiftTests"
+      - name: Retain formal reuse and sizing evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-formal-reuse-${{ matrix.scala_version }}
+          path: morphhdl/target/test-reports
+          if-no-files-found: error
+          retention-days: 30
