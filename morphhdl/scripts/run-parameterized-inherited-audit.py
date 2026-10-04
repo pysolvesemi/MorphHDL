@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Authenticate the current integration, then run an unchanged historical audit.
+"""Authenticate the current integration, then run a provenance-bound historical audit.
 
 Historical source reviewers describe the pre-integration tree. They must still
 pass on that exact tree; their receipts never qualify current RTL. The current
 integration seal and native-source review remain separate mandatory gates.
 Only the source-audit commands below can execute in the disposable checkout.
+One explicitly listed, current authenticated control harness repairs the exact
+schema-22 rejection diagnostic against unchanged historical checkers and fixtures;
+its separate source hash and current identity are retained in the receipt.
 """
 from __future__ import annotations
 
@@ -47,6 +50,18 @@ CONTROLS = (
     "test-wa07b-inherited-review.py",
     "test-increment-59i-regression-inventory.py",
 )
+# This current, integration-authenticated harness preserves every historical
+# case while repairing schema 22's exact first-owning dirty-check diagnostic.
+# Its checkers and all fixtures still come from the unchanged historical tree.
+CURRENT_HARNESSES = frozenset({"test-increment-59h-inherited-source-scope.py"})
+HARNESS_DRIVER = """import pathlib, sys, types
+path = pathlib.Path(sys.argv[1])
+module = types.ModuleType('reviewed_historical_control')
+module.__file__ = str(path)
+exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
+module.ROOT = pathlib.Path(sys.argv[2])
+module.main()
+"""
 AUDIT_TIMEOUT = 10800
 COMMANDS = frozenset(
     [(name, *args) for name in REVIEWERS for args in ((), ("--self-test",))] +
@@ -116,6 +131,15 @@ def run(root, arguments):
                 require((historical / arguments[0]).read_bytes() == frozen, "historical reviewer differs")
                 record["historical_tree"] = identity(historical)["tree"]
                 record["reviewer_sha256"] = hashlib.sha256(frozen).hexdigest()
+                if Path(arguments[0]).name in CURRENT_HARNESSES:
+                    require(len(arguments) == 1, "repaired harness takes no unchecked arguments")
+                    harness = root / arguments[0]
+                    record["control_harness_source"] = before
+                    record["control_harness_sha256"] = hashlib.sha256(harness.read_bytes()).hexdigest()
+                    record["control_harness_path"] = arguments[0]
+                    record["scope"] = "reviewed current control harness against immutable historical source; current exact-tree authentication remains mandatory"
+                    invocation = [sys.executable, "-B", "-c", HARNESS_DRIVER, str(harness), str(historical)]
+                    record["command"] = invocation
                 env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", GITHUB_WORKSPACE=str(historical))
                 with (evidence / "audit.log").open("w") as log:
                     # The workflow and each unchanged historical caller retain

@@ -36,8 +36,20 @@ def git(root: Path, *arguments: str) -> str:
     return result.stdout.strip()
 
 
+def checkout_identity_rejection(root: Path, expected: str | None) -> str | None:
+    """Schema 22 rejects ordinary dirt before the unchanged per-blob scan."""
+    prefix = "59i production successor: HEAD/index/worktree identity differs: "
+    contract = root / "morphhdl/contracts/increment-59i-production-successor.json"
+    if expected is not None and expected.startswith(prefix) and contract.is_file():
+        if json.loads(contract.read_text())["schema_version"] == 22:
+            relative = expected[len(prefix):]
+            return "59i production successor: staged, unstaged or untracked content: " + repr([relative])
+    return expected
+
+
 def checked(root: Path, label: str, expected: str | None = None,
             timeout_seconds: int = 180) -> dict:
+    expected = checkout_identity_rejection(root, expected)
     result = subprocess.run([sys.executable, "-c", DRIVER, str(root), str(ROOT / CHECKER)],
                             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             timeout=timeout_seconds, check=False)

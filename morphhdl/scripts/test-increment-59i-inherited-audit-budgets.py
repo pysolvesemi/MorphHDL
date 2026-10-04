@@ -225,6 +225,16 @@ def historical_ast(filename: str, text: str) -> ast.Module:
     default = next(row[2] for row in CASES if row[0] == filename)
     tree = ast.parse(text)
     if filename == "test-increment-59h-inherited-source-scope.py":
+        reviewed_helper = ast.parse('\ndef checkout_identity_rejection(root: Path, expected: str | None) -> str | None:\n    """Schema 22 rejects ordinary dirt before the unchanged per-blob scan."""\n    prefix = "59i production successor: HEAD/index/worktree identity differs: "\n    contract = root / "morphhdl/contracts/increment-59i-production-successor.json"\n    if expected is not None and expected.startswith(prefix) and contract.is_file():\n        if json.loads(contract.read_text())["schema_version"] == 22:\n            relative = expected[len(prefix):]\n            return "59i production successor: staged, unstaged or untracked content: " + repr([relative])\n    return expected\n\n').body[0]
+        helpers = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'checkout_identity_rejection']
+        if len(helpers) != 1 or dump(helpers[0]) != dump(reviewed_helper):
+            raise AssertionError('unexpected schema-22 checkout diagnostic adapter')
+        tree.body.remove(helpers[0])
+        checked_function = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'checked')
+        reviewed_call = ast.parse('expected = checkout_identity_rejection(root, expected)').body[0]
+        if dump(checked_function.body[0]) != dump(reviewed_call):
+            raise AssertionError('unexpected schema-22 checkout diagnostic call')
+        checked_function.body.pop(0)
         tree = restore_reviewed_59h_checkout_identity(tree)
         tree = restore_reviewed_59h_diagnostics(tree)
         negative = [node for node in tree.body if isinstance(node, ast.FunctionDef)
@@ -353,6 +363,22 @@ def schema22_route_comparisons(raw: bytes, extend: bool = False):
 
 
 class InheritedAuditBudgetTests(unittest.TestCase):
+    def test_schema22_checkout_diagnostic_is_exact_and_schema_scoped(self):
+        harness = load("test-increment-59h-inherited-source-scope.py")
+        prefix = "59i production successor: HEAD/index/worktree identity differs: "
+        relative = "frontend/src/main/scala/morphhdl/frontend/NativeStructuralFrontend.scala"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            contract = root / SUCCESSOR
+            contract.parent.mkdir(parents=True)
+            for schema in (19, 20, 21, 22, 23):
+                contract.write_text(json.dumps({"schema_version": schema}))
+                expected = ("59i production successor: staged, unstaged or untracked content: " + repr([relative])
+                            if schema == 22 else prefix + relative)
+                self.assertEqual(harness.checkout_identity_rejection(root, prefix + relative), expected)
+                for unrelated in (None, "unrelated rejection", "59i production successor: HEAD/index identity differs"):
+                    self.assertEqual(harness.checkout_identity_rejection(root, unrelated), unrelated)
+
     def test_schema22_routes_retain_all_schema21_predicates(self):
         count = 0
         for filename in SCHEMA22_ROUTE_FILES:

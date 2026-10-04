@@ -147,13 +147,12 @@ class IntegratedAuditTests(unittest.TestCase):
             with patch.object(A, "authenticate", return_value=after), self.assertRaises(RuntimeError):
                 A.unchanged(Path("."), before)
 
-    def exercise(self, body, expected_exit):
+    def exercise(self, body, expected_exit, script="morphhdl/scripts/check-increment-61-source-review.py"):
         with tempfile.TemporaryDirectory(prefix="integrated-audit-control-") as directory:
             root = Path(directory)
             subprocess.run(["git", "init", "-q", directory], check=True)
             A.git(root, "config", "user.name", "Source review control")
             A.git(root, "config", "user.email", "source-review@example.invalid")
-            script = "morphhdl/scripts/check-increment-61-source-review.py"
             path = root / script
             path.parent.mkdir(parents=True)
             path.write_text(body)
@@ -184,6 +183,16 @@ class IntegratedAuditTests(unittest.TestCase):
 
     def test_nonzero_historical_control_is_never_a_pass(self):
         self.exercise("raise SystemExit(7)\n", 7)
+
+    def test_reviewed_harness_uses_historical_root_and_retains_failures(self):
+        script = "morphhdl/scripts/test-increment-59h-inherited-source-scope.py"
+        for exit_code in (0, 7):
+            body = ("from pathlib import Path\nROOT = Path(__file__).resolve().parents[2]\n"
+                    "def main():\n"
+                    "    assert ROOT == Path.cwd()\n"
+                    "    assert ROOT != Path(__file__).resolve().parents[2]\n"
+                    "    raise SystemExit(" + str(exit_code) + ")\n")
+            self.exercise(body, exit_code, script=script)
 
 
 if __name__ == "__main__":
