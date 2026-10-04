@@ -43,6 +43,26 @@ def main() -> None:
         results.append(dict(control=name, result='passed', synthesis=result))
         return work, result
 
+    # The mutation must follow the actual signed operand across native helper
+    # naming changes, and still reject absent or ambiguous injection sites.
+    right = 'balanced_2_l2_partial_pair_right'
+    tail_forms = [
+        ('replicated', 'assign extended = {{2{' + right + "[WIDTH-1]}}, " + right + '};\n',
+         "assign extended = {{2{1'b0}}, " + right + '};\n'),
+        ('contextual', 'assign extended = $signed(' + right + ');\n',
+         'assign extended = $unsigned(' + right + ');\n'),
+    ]
+    for name in ('morphhdl_high_bit', '_zz_morphhdl_high_bit_2', 'high_bit', 'high_bit_7'):
+        tail_forms.append((name, 'assign ' + name + ' = ' + right + '[WIDTH-1];\n',
+                           'assign ' + name + " = 1'b0;\n"))
+    for name, source, expected in tail_forms:
+        assert widening.mutate_tail_extension(source) == expected
+        results.append(dict(control='tail-anchor-' + name, result='passed'))
+        reject('ambiguous-tail-' + name, lambda source=source:
+               widening.mutate_tail_extension(source + source))
+    reject('missing-tail', lambda: widening.mutate_tail_extension('assign high_bit_7 = other[4];\n'))
+    reject('mixed-tail-forms', lambda: widening.mutate_tail_extension(tail_forms[0][1] + tail_forms[-1][1]))
+
     zero, zero_result = qualify('Zero',
         'module Zero(input [3:0] a, output [3:0] y); assign y=a; endmodule\n')
     assert zero_result['cells'] == 0 and zero_result['partitioned_native_cells'] == 0

@@ -253,7 +253,7 @@ def mutate_tail_extension(text: str) -> str:
     right = 'balanced_2_l2_partial_pair_right'
     replication = re.compile(r'(\{\{[^{}]*\{)(' + re.escape(right) + r'\[[^\]]+\])(\}\},)')
     context = re.compile(r'(?m)^(\s*assign\s+\w+\s*=\s*)\$signed\(' + re.escape(right) + r'\)(\s*;)')
-    high_bit = re.compile(r'(?m)^(\s*assign\s+\w*morphhdl_high_bit\w*\s*=\s*)' +
+    high_bit = re.compile(r'(?m)^(\s*assign\s+\w*high_bit\w*\s*=\s*)' +
                           re.escape(right) + r'\[[^\n;]*\](\s*;)')
     repeated = list(replication.finditer(text))
     contextual = list(context.finditer(text))
