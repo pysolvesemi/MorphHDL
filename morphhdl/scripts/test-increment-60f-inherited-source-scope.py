@@ -104,6 +104,8 @@ def main() -> None:
             if state == "committed":
                 return "59i production successor: sealed route tree differs from immutable source plus exact seal"
             if state == "uncommitted":
+                if schema == 22:
+                    return "59i production successor: staged, unstaged or untracked content: " + repr([path])
                 return "59i production successor: HEAD/index/worktree identity differs: " + path
             if state == "staged":
                 return "59i production successor: HEAD/index identity differs"

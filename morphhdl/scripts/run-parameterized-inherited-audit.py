@@ -5,7 +5,7 @@ Historical source reviewers describe the pre-integration tree. They must still
 pass on that exact tree; their receipts never qualify current RTL. The current
 integration seal and native-source review remain separate mandatory gates.
 Only the source-audit commands below can execute in the disposable checkout.
-One explicitly listed, current authenticated control harness repairs the exact
+Explicitly listed, current authenticated control harnesses repair the exact
 schema-22 rejection diagnostic against unchanged historical checkers and fixtures;
 its separate source hash and current identity are retained in the receipt.
 """
@@ -53,13 +53,16 @@ CONTROLS = (
 # This current, integration-authenticated harness preserves every historical
 # case while repairing schema 22's exact first-owning dirty-check diagnostic.
 # Its checkers and all fixtures still come from the unchanged historical tree.
-CURRENT_HARNESSES = frozenset({"test-increment-59h-inherited-source-scope.py"})
+CURRENT_HARNESSES = frozenset({"test-increment-59h-inherited-source-scope.py",
+    "test-increment-60f-inherited-source-scope.py"})
 HARNESS_DRIVER = """import pathlib, sys, types
 path = pathlib.Path(sys.argv[1])
 module = types.ModuleType('reviewed_historical_control')
 module.__file__ = str(path)
 exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
 module.ROOT = pathlib.Path(sys.argv[2])
+if path.name == "test-increment-60f-inherited-source-scope.py":
+    module.CHECKER = module.ROOT / "morphhdl/scripts/check-increment-60f-equivalence-closure.py"
 module.main()
 """
 AUDIT_TIMEOUT = 10800
@@ -124,7 +127,13 @@ def run(root, arguments):
     try:
         with tempfile.TemporaryDirectory(prefix="morphhdl-integrated-audit-") as directory:
             historical = Path(directory) / "source"
-            git(root, "worktree", "add", "--detach", str(historical), PREDECESSOR)
+            # Nested immutable auditors create/remove many worktrees. A linked
+            # checkout shares their administrative namespace with concurrent
+            # wrappers, racing Git's worktree allocation/removal. Give each
+            # audit its own metadata while sharing only immutable Git objects.
+            git(root, "clone", "--shared", "--no-checkout", str(root), str(historical))
+            git(historical, "checkout", "--detach", PREDECESSOR)
+            record["git_metadata_isolation"] = "independent clone; shared immutable objects"
             try:
                 require(identity(historical)["head"] == PREDECESSOR, "historical checkout moved")
                 frozen = git(root, "show", PREDECESSOR + ":" + arguments[0])
@@ -154,7 +163,7 @@ def run(root, arguments):
                 if artifacts.exists():
                     shutil.copytree(artifacts, evidence / "historical-target", symlinks=True)
             finally:
-                git(root, "worktree", "remove", "--force", str(historical))
+                shutil.rmtree(historical)
         unchanged(root, before)
         require(result.returncode == 0, "historical audit failed; see " + str(evidence / "audit.log"))
         record["status"] = "pass"

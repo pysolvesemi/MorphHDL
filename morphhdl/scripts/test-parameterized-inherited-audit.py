@@ -181,6 +181,41 @@ class IntegratedAuditTests(unittest.TestCase):
     def test_historical_receipt_is_separate_from_current_identity(self):
         self.exercise("print('historical source control passed')\n", 0)
 
+    def test_nested_audits_have_private_git_metadata(self):
+        self.exercise("""import concurrent.futures, pathlib, subprocess, tempfile
+root = pathlib.Path.cwd()
+def git(*args):
+    return subprocess.check_output(['git', *args], cwd=root, stderr=subprocess.PIPE).decode().strip()
+assert pathlib.Path(git('rev-parse', '--git-common-dir')).resolve() == root / '.git'
+def nested(index):
+    with tempfile.TemporaryDirectory() as directory:
+        checkout = pathlib.Path(directory) / 'source'
+        git('worktree', 'add', '--detach', str(checkout), 'HEAD')
+        assert subprocess.check_output(['git', '-C', str(checkout), 'rev-parse', 'HEAD']).decode().strip() == git('rev-parse', 'HEAD')
+        git('worktree', 'remove', '--force', str(checkout))
+with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+    list(pool.map(nested, range(8)))
+""", 0)
+
+    def test_60f_repair_preserves_every_fixture_and_budget(self):
+        path = 'morphhdl/scripts/test-increment-60f-inherited-source-scope.py'
+        source = (A.ROOT / path).read_text()
+        repair = ('                if schema == 22:\n'
+                  '                    return "59i production successor: staged, unstaged or untracked content: " + repr([path])\n')
+        self.assertEqual(source.count(repair), 1)
+        self.assertEqual(source.replace(repair, '').encode(),
+                         A.git(A.ROOT, 'show', A.PREDECESSOR + ':' + path))
+
+    def test_60f_harness_rebinds_checker_to_immutable_checkout(self):
+        self.exercise("""from pathlib import Path
+ROOT = Path(__file__).resolve().parents[2]
+CHECKER = ROOT / 'morphhdl/scripts/check-increment-60f-equivalence-closure.py'
+def main():
+    assert ROOT == Path.cwd()
+    assert ROOT != Path(__file__).resolve().parents[2]
+    assert CHECKER == ROOT / 'morphhdl/scripts/check-increment-60f-equivalence-closure.py'
+""", 0, script='morphhdl/scripts/test-increment-60f-inherited-source-scope.py')
+
     def test_nonzero_historical_control_is_never_a_pass(self):
         self.exercise("raise SystemExit(7)\n", 7)
 
