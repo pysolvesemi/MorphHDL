@@ -618,7 +618,15 @@
     },
     "morphhdl/scripts/run-parameterized-inherited-audit.py": {
       "mode": "100644",
-      "sha256": "f64f9f3abf660410835320d7c74e42878cda0ebe4ea0db20947ad9aa60625766"
+      "sha256": "711ac2cafe37f3c76b9f0354172d6ac49e7d291e4732e028b51584ad888b88f8"
+    },
+    "morphhdl/scripts/test-increment-59h-inherited-source-scope.py": {
+      "mode": "100644",
+      "sha256": "d7cc73abdf0cab0b370db171e895a8b6f2933d0c6a9e56a907475e62a41d5ed6"
+    },
+    "morphhdl/scripts/test-increment-59i-inherited-audit-budgets.py": {
+      "mode": "100644",
+      "sha256": "dd8e3d85c47afd0fe4fd37752fe0b476df188fac6dd6ab1d211fc537e1f9edc2"
     },
     "morphhdl/scripts/test-increment-59i-nested-results.py": {
       "mode": "100644",
@@ -630,7 +638,7 @@
     },
     "morphhdl/scripts/test-parameterized-inherited-audit.py": {
       "mode": "100644",
-      "sha256": "17ac7e4dfe0c036ccb98deb8a2255468e40bb9bc2f4592248a20b4756d3647df"
+      "sha256": "20b7e105e0474d30042377be305942c7d570b3238a9ac185f2f1ff0dc75aa880"
     },
     "morphhdl/src/main/scala/morphhdl/MorphAggregateOptions.scala": {
       "mode": "100644",
