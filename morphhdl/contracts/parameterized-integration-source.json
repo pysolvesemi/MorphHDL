@@ -574,7 +574,7 @@
     },
     "morphhdl/scripts/check-increment-59d-widening.py": {
       "mode": "100644",
-      "sha256": "0cf656c298e91ca2b790535f64f920943bf06ab1ba1987f86a967d03f09b89fd"
+      "sha256": "7b51ecd2fc8306a33eb059979c7a908d7940fc5f289f4bab0344fb8acbed8952"
     },
     "morphhdl/scripts/check-increment-59f-callback-graphs.py": {
       "mode": "100644",
@@ -619,6 +619,10 @@
     "morphhdl/scripts/run-parameterized-inherited-audit.py": {
       "mode": "100644",
       "sha256": "6d5325d43653e362baf547357aca315240ff1ea222900350719cca4addc6a6d4"
+    },
+    "morphhdl/scripts/test-increment-59d-synthesis.py": {
+      "mode": "100644",
+      "sha256": "6433912d9d0ad32a346077927e88cadb5690e836803a30977d816e61d89237eb"
     },
     "morphhdl/scripts/test-increment-59h-inherited-source-scope.py": {
       "mode": "100644",
