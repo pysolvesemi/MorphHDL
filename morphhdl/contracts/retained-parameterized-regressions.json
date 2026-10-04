@@ -999,6 +999,9 @@
         "typed APB addresses preserve full byte-address decoding and literal parity",
         "typed factory rejects every unsafe admitted address domain"
       ],
+      "morphhdl.NativeBootInitializerTests": [
+        "shared BOOT children initialize and hold exact values under width overrides"
+      ],
       "morphhdl.NativeConditionalProcessTests": [
         "conditional packed loops retain priority and four-state behavior, parameterized=false",
         "conditional packed loops retain priority and four-state behavior, parameterized=true",
@@ -3086,7 +3089,7 @@
     "morphhdl/src/test/scala/morphhdl/LaneConditionCoverageExample.scala": "814b9c6bc371a91c7a621f287bfa8a3516c23066212ee118d26aa052ded3201e",
     "morphhdl/src/test/scala/morphhdl/LaneReceiverCoverageExample.scala": "76e1f07bf1f7abdceeb60eb5758db1b3df6a225bddac1cae5e9b7a347b6f6f83",
     "morphhdl/src/test/scala/morphhdl/LibraryDefinitionReuseTests.scala": "71158f74cd532f499780776d4f6c63deeba27712c243f0eec6da995f1d7688aa",
-    "morphhdl/src/test/scala/morphhdl/MorphCanonicalIrHandoffTests.scala": "cb84ac7c3897cfc851b22e764fe074b4b438403583833874af41248eecd862b0",
+    "morphhdl/src/test/scala/morphhdl/MorphCanonicalIrHandoffTests.scala": "926c694ae355009b94b01aad68fe40f3a07919c26f8db2e47db7fcec403a6634",
     "morphhdl/src/test/scala/morphhdl/MorphContractFixtureGenerator.scala": "b719cfe3652d259578f742dfd9bc10a77d1e7be2f63047fb7e56ff4576a64f81",
     "morphhdl/src/test/scala/morphhdl/MorphSingleSourceVerilogTests.scala": "9cc9300d3ff39061cc37a57fa06a6e6248b07d2912ba1730e94196e05f20ec64",
     "morphhdl/src/test/scala/morphhdl/MorphVerilogTests.scala": "ba19f677b8c7eeb829e4df24bdf8d86ba7e288ad9f2f7d560c574d77228c9ec6",
@@ -3098,7 +3101,8 @@
     "morphhdl/src/test/scala/morphhdl/NamedFieldVecTests.scala": "245134b4b1ccb91375d2b9c2eaa513fb25ac1447acea3741af1074929e5816f0",
     "morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryFormalEquivalenceTests.scala": "ccd4c608111d4fdcfb97b0c1c9cfaa12d7cfd6065074c9c207d426a15bd9a82f",
     "morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryParameterizedOffsetTests.scala": "2eed743b885b9bd95e6f6fd75dc05ff1d6d7d51f666d22e9b0f6f13c2f038ed7",
-    "morphhdl/src/test/scala/morphhdl/NativeConditionalProcessTests.scala": "1f4269a28f21bcb88b7a337fa083e7463a20657d1a737f6111f5ee13bdb7275d",
+    "morphhdl/src/test/scala/morphhdl/NativeBootInitializerTests.scala": "c9f1bd81fd505db30f223e0eae81534765a5d605027bccf41c645aa42e67dcd6",
+    "morphhdl/src/test/scala/morphhdl/NativeConditionalProcessTests.scala": "01d296a8660f4414da80d3293a850e370ad132bd953944dd73c6e145686b025e",
     "morphhdl/src/test/scala/morphhdl/NativeConstantShiftTests.scala": "7dd10a7bebfb5fdaf187f073fd49b9901b1a7c9c72515abb4f6fdb527500b958",
     "morphhdl/src/test/scala/morphhdl/NativeContextualUIntLiteralTests.scala": "5dad06a6cf2b6b2a828aa54821ed1ddb00060bbb3642fe8efb08a2e644421dc6",
     "morphhdl/src/test/scala/morphhdl/NativeHierarchyWidthBoundaryTests.scala": "4e61126e2bea2a2d89ef486e1453ee897836a566896c5d9b83549ff842e78bdf",
@@ -3108,7 +3112,7 @@
     "morphhdl/src/test/scala/morphhdl/NativeNamedFactoryTests.scala": "ff3a75b4edb6ec693a25cb5e5263b44c808c2db74a626c4b9bcd925a8e301f71",
     "morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCCdcProofTests.scala": "83149f16ee4f2db546f9bc07c56a503b6677b48a559def77edb2f153816d5833",
     "morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCFormalEquivalenceTests.scala": "390b632e2a550dee8f1143be3fbe6247376ee073bba2d9b85a5e085defb2cfc4",
-    "morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCParameterizedTests.scala": "0fe96850d61d774b3c061b5c9149bbdea10791aa32bf1f23c7727151e029cc60",
+    "morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCParameterizedTests.scala": "9cb9d06a667dc75ea1da3045e2d5191d26a0e525b425ec9a0cae2c54bb6d5e8b",
     "morphhdl/src/test/scala/morphhdl/NativeStreamFifoFormalEquivalenceTests.scala": "4c294a330990faac10c0958b4c0dc049c7e35be5975cecb17be922e75d6409f0",
     "morphhdl/src/test/scala/morphhdl/NativeSymbolicMemoryTests.scala": "5ab364942154e945a600be2a97c956b6570c8a9b2d567908f035465538ef3de0",
     "morphhdl/src/test/scala/morphhdl/NativeTypedLibraryCallSurfaceTests.scala": "8b7f43dc5edb13bcf97009d913ebdaf27983a99d8828b7bcc3390cf276e3c5a7",
@@ -3118,7 +3122,7 @@
     "morphhdl/src/test/scala/morphhdl/NaturalSymbolicConditionalTests.scala": "e7a549fd28136aa2b5b598ad612f7394e15fdeee149179323f0404f79dfc5bb0",
     "morphhdl/src/test/scala/morphhdl/ParameterForwardingContractFixture.scala": "1d81e70b0761d2d5b24179af2b474cac96b66fbf67a913b1c56da0b153031110",
     "morphhdl/src/test/scala/morphhdl/ParameterizedCounterContractFixture.scala": "14ca6ef96558969bf772a2b4a772d627cfe4b59849b0da4d6925a2f608897be1",
-    "morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala": "b1d07cce951a6f7f84676e2517ec4e916e80dc2ac98c8aa57f5101a6cdc2e1e8",
+    "morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala": "e33da43b156becfde6dc7a1ce996231dae52c034b46d5d1877f0070482dab468",
     "morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala": "0eb60d07a03a73b99a71cac9e52c4bd29ee8c5e9ecca950777e729286c3f404b",
     "morphhdl/src/test/scala/morphhdl/ParameterizedWireContractFixture.scala": "72d5584335a3139ece5b6f936715322b32d8d37d6e5e343e7e9d6128d631fce6",
     "morphhdl/src/test/scala/morphhdl/PureSIntCastTests.scala": "c2d8d0eeaba13d3c41c19b7081c5a011f8030cc2eeb92e23dd2f4ace198b0ef6",

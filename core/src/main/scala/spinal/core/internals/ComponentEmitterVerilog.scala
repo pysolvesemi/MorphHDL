@@ -1170,6 +1170,7 @@ class ComponentEmitterVerilog(
     if(signal.isReg){
       if(signal.clockDomain.config.resetKind == BOOT && signal.hasInit) {
         var initExpression: Literal = null
+        var initStatement: InitAssignmentStatement = null
         var needFunc = false
 
         signal.foreachStatements {
@@ -1189,6 +1190,7 @@ class ComponentEmitterVerilog(
               case that => SpinalError(s"Can't resolve the literal value of $signal init")
             }
 
+            initStatement = s
             initExpression = s match {
               case s : Literal => s
               case _ => findLiteral(s.source)
@@ -1200,7 +1202,8 @@ class ComponentEmitterVerilog(
           ???
         else {
           //          assert(initStatement.parentScope == signal.parentScope)
-          return " = " + emitExpressionNoWrappeForFirstOne(initExpression)
+          return " = " + verilogBase.emitAssignmentSource(this, initStatement)
+            .getOrElse(emitExpressionNoWrappeForFirstOne(initExpression))
         }
       }
     }

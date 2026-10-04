@@ -353,6 +353,8 @@ final class MorphCanonicalIrHandoffTests extends AnyFunSuite {
           val anchored = Bits(width bits).setName("anchored_value").dontSimplifyIt()
           anchored.addAttribute("keep_hierarchy", "yes")
           anchored.addTag(new CommentTag("canonical anchor"))
+          anchored.addTag(new RtlDocTag("located anchor", "explicit", "C:/design/Example.scala:12:7"))
+          anchored.addTag(new RtlDocTag("unlocated anchor", "explicit", "unknown"))
           val output = out(Bits(width bits)).setName("payload_out")
           anchored := B(10, 4 bits)
           output := anchored
@@ -367,12 +369,14 @@ final class MorphCanonicalIrHandoffTests extends AnyFunSuite {
       assert(anchored.attributes.head.name == "keep_hierarchy")
       assert(anchored.attributes.head.value.contains("yes"))
       assert(anchored.attributes.head.kind == AttributeKind.Backend)
-      assert(anchored.comments.map(_.text) == Vector("canonical anchor"))
+      assert(anchored.comments.map(_.text).sorted == Vector("canonical anchor", "located anchor", "unlocated anchor"))
       assert(anchored.observability.complete)
       assert(anchored.observability.preserve)
       assert(anchored.sourceLocation.isEmpty)
       assert(anchored.attributes.forall(_.sourceLocation.isEmpty))
-      assert(anchored.comments.forall(_.sourceLocation.isEmpty))
+      assert(anchored.comments.find(_.text == "canonical anchor").get.sourceLocation.isEmpty)
+      assert(anchored.comments.find(_.text == "located anchor").get.sourceLocation.contains(morphhdl.ir.v1.SourceLocation("C:/design/Example.scala", 12, 7)))
+      assert(anchored.comments.find(_.text == "unlocated anchor").get.sourceLocation.isEmpty)
 
       val literal = module.drivers.map(_.value).collectFirst {
         case value: RtlExpr.Literal => value

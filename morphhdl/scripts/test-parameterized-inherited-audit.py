@@ -18,6 +18,22 @@ SPEC.loader.exec_module(A)
 
 
 class IntegratedAuditTests(unittest.TestCase):
+    def test_historical_anchor_is_the_actual_two_file_seal(self):
+        contract = json.loads(A.git(A.ROOT, "show", A.PREDECESSOR +
+            ":morphhdl/contracts/increment-59i-production-successor.json"))
+        # A historical receipt must authenticate its own exact source and seal,
+        # not a later repair that happens to descend from the same certificate.
+        self.assertNotEqual(A.PREDECESSOR, A.INTEGRATION_PARENT)
+        A.git(A.ROOT, "merge-base", "--is-ancestor", A.PREDECESSOR, A.INTEGRATION_PARENT)
+        changed = A.git(A.ROOT, "diff-tree", "--no-commit-id", "--name-only", "-r", A.PREDECESSOR).decode().splitlines()
+        self.assertEqual(set(changed), {
+            "morphhdl/contracts/increment-59i-production-successor.json",
+            "morphhdl/scripts/check-increment-59i-production-successor.py"})
+        self.assertEqual(A.git(A.ROOT, "rev-parse", A.PREDECESSOR + "^").decode().strip(),
+            contract["source_commit"])
+        self.assertEqual(A.git(A.ROOT, "rev-parse", contract["source_commit"] + "^{tree}").decode().strip(),
+            contract["source_tree"])
+
     def test_workflow_transition_preserves_all_existing_gates(self):
         baseline = "b613b09917155cc29dd2ed00b21656d9559931b9"
         counts = {

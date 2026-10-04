@@ -515,16 +515,16 @@ require(
     "toGray must retain its concrete algorithm and materialize geometry-marked typed shift/XOR carriers",
 )
 require(
-    r"object\s+fromGray.*?val\s+width\s*=\s*widthOfExpr\(gray\).*?if\s*\(width\.isConcrete\).*?List\.fill\(widthOf\(gray\)\).*?requireAuthoritativeIntegerDomain.*?val\s+maximumWidth\s*=\s*width\.maximum.*?var\s+shift\s*=\s*BigInt\(1\).*?while\s*\(shift\s*<\s*maximumWidth\).*?val\s+shiftAmount\s*=\s*shift\.toInt.*?shift\s*=\s*shift\s*<<\s*1",
+    r"object\s+fromGray.*?val\s+width\s*=\s*widthOfExpr\(gray\).*?if\s*\(width\.isConcrete\).*?List\.fill\(widthOf\(gray\)\).*?requireAuthoritativeIntegerDomain.*?val\s+count\s*=\s*width\.log2Up.*?if\s*\(count\.maximum\s*==\s*0\)\s*return\s+gray\.asUInt.*?ElabFiniteRange\.foreach\(count,\s*\"decode_prefix\"\)",
     utils,
     "FROM-GRAY-TYPED-PATH-MISSING",
-    "fromGray must retain the concrete algorithm and derive every typed prefix stage from the authoritative maximum",
+    "fromGray must retain the concrete algorithm and bound its typed prefix loop by the authoritative logarithmic width, with a direct width-one path",
 )
 require(
-    r"var\s+decoded\s*=\s*ParameterizedExpressionCarrier\.retain\(UInt\(width\s+bits\)\).*?val\s+shifted\s*=\s*ParameterizedExpressionCarrier\.retain\(UInt\(width\s+bits\)\).*?val\s+next\s*=\s*ParameterizedExpressionCarrier\.retain\(UInt\(width\s+bits\)\)",
+    r"val\s+stages\s*=\s*Vec\(UInt\(width\s+bits\),\s*count\s*\+\s*1\).*?stages\(0\)\s*:=\s*gray\.asUInt.*?val\s+previous\s*=\s*index\.at\(stages,\s*0\).*?index\.at\(stages,\s*1\)\s*:=\s*previous\s*\^\s*index\.shiftRightPowerOfTwo\(previous\).*?TypedVecStaticSelect\(stages,\s*count\)",
     utils,
     "FROM-GRAY-WIDTH-RETENTION-MISSING",
-    "each typed Gray decode stage must retain the input packed width and compiler geometry marker",
+    "typed Gray stages must retain exact width, count+1 storage, affine stage lineage, exponential shifts and the bounded final-stage selector",
 )
 
 # BufferCC remains the native synchronizer; only mechanical width propagation
@@ -722,10 +722,10 @@ require(
     "focused proof must reject witness-sized BufferCC reset literals",
 )
 require(
-    r"def\s+assertGrayShiftGeometry\s*\(.*?Vector\s*\(\s*1\s*,\s*2\s*,\s*4\s*\).*?Vector\s*\(\s*8\s*,\s*16\s*\).*?!shifts\.exists",
+    r"def\s+assertGrayShiftGeometry\s*\(.*?stageArrays\.size\s*==\s*2.*?indexedShifts\.size\s*==\s*2.*?LegalDepths\.foreach.*?Vector\(1, 2, 4\)\.filter.*?!shifts\.exists\(Vector\(8, 16\)",
     tests,
     "FROM-GRAY-POINTER-STAGE-COVERAGE-MISSING",
-    "focused proof must require shifts 1/2/4 and reject stages above the five-bit pointer maximum",
+    "focused proof must retain two symbolic prefix arrays and loops with exact widths and only the required shifts 1/2/4",
 )
 for code in (
     "SPINAL-STREAM-FIFO-CC-DEPTH-EXACT-DOMAIN-REQUIRED",
@@ -774,10 +774,16 @@ require(
     r"literal\.getWidth\s*==\s*initializer\.literal\.getWidth\s*&&\s*"
     r"literal\.getValue\(\)\s*==\s*initializer\.literal\.getValue\(\)\s*"
     r"case\s+_\s*=>\s*false\s*\}\s*\)\s*=>\s*authorizedEdges\s*\+=\s*1\s*\n"
-    r".*?if\s*\(\s*authorizedEdges\s*==\s*0\s*\|\|\s*exactEdges\s*!=\s*authorizedEdges\s*\)",
+    r".*?if\s*\(\s*authorizedEdges\s*==\s*0\s*\|\|\s*exactEdges\s*\+\s*exactNativeEdges\s*!=\s*authorizedEdges\s*\|\|\s*exactNativeEdges\s*!=\s*nativeEdges\s*\)",
     fallback,
     "RETAINED-ZERO-CARDINALITY-AUTHORITY-MISSING",
     "retained-zero rewriting must carry exact target identity and require emitted/authorized edge cardinality equality",
+)
+require(
+    r"val\s+published\s*=\s*nativeInitializerEmissions\(component\).*?case\s+statement:\s*AssignmentStatement\s+if\s*\(statement\.finalTarget\s+eq\s+initializer\.target\)\s*&&\s*published\.containsKey\(statement\).*?if\s*\(published\.get\(statement\)\s*!=\s*replacement\).*?CONSTANT-INIT-EMITTED-LINEAGE-MISMATCH.*?nativeEdges\s*\+=\s*1",
+    fallback,
+    "RETAINED-ZERO-CARDINALITY-AUTHORITY-MISSING",
+    "already-symbolic initializer replay must retain exact native assignment identity and matching value before contributing to edge cardinality",
 )
 require(
     r"class\s+NativeRetainedZeroCardinalityHarness\s*\(\s*width:\s*HdlInt\s*\).*?Reg\s*\(\s*UInt\s*\(\s*elabWidth\s+bits\s*\)\s*\)\s*init\s*\(\s*0\s*\).*?when\s*\(\s*io\.clear\s*\)\s*\{\s*state\s*:=\s*0",
@@ -1153,7 +1159,7 @@ require(
     "shared-library proof must exercise the ordinary typed fromGray surface",
 )
 require(
-    r"test\s*\(\s*\"native typed fromGray retains every prefix stage through WIDTH 65\"\s*\).*?HdlInt\.param\s*\(\s*\"WIDTH\"\s*,\s*default\s*=\s*33\s*,\s*min\s*=\s*1\s*,\s*max\s*=\s*65\s*\).*?!parameterized\.contains\s*\(\s*\"\[32:0\]\"\s*\).*?Vector\s*\(\s*1\s*,\s*2\s*,\s*4\s*,\s*8\s*,\s*16\s*,\s*32\s*,\s*64\s*\).*?\"\[64:0\]\"",
+    r"test\s*\(\s*\"native typed fromGray retains every prefix stage through WIDTH 65\"\s*\).*?HdlInt\.param\s*\(\s*\"WIDTH\"\s*,\s*default\s*=\s*33\s*,\s*min\s*=\s*1\s*,\s*max\s*=\s*65\s*\).*?!parameterized\.contains\s*\(\s*\"\[32:0\]\"\s*\).*?retainedVectorDeclarations.*?decode_stage.*?clog2\(WIDTH,0\).*?1 << i.*?SELECTED_STAGE_INDEX = clog2\(WIDTH, 0\).*?\"\[64:0\]\"",
     reuse_tests,
     "FROM-GRAY-WIDE-COVERAGE-MISSING",
     "shared-library proof must retain WIDTH 65 typed and concrete Gray-decode evidence",
@@ -1187,9 +1193,6 @@ checker = Path(sys.argv[3]).resolve()
 for helper, declaration, native_type, diagnostic in (
     ("toGray", "val shifted", "UInt", "TO-GRAY-WIDTH-RETENTION-MISSING"),
     ("toGray", "val result", "Bits", "TO-GRAY-WIDTH-RETENTION-MISSING"),
-    ("fromGray", "var decoded", "UInt", "FROM-GRAY-WIDTH-RETENTION-MISSING"),
-    ("fromGray", "val shifted", "UInt", "FROM-GRAY-WIDTH-RETENTION-MISSING"),
-    ("fromGray", "val next", "UInt", "FROM-GRAY-WIDTH-RETENTION-MISSING"),
 ):
     prefix, separator, body = source.partition("object " + helper + " {")
     original = f"{declaration} = ParameterizedExpressionCarrier.retain({native_type}(width bits))"
@@ -1206,6 +1209,26 @@ for helper, declaration, native_type, diagnostic in (
         if result.returncode == 0 or "MORPH-NATIVE-STREAMFIFOCC-" + diagnostic not in result.stderr:
             raise SystemExit("MORPH-NATIVE-STREAMFIFOCC-SELF-TEST-DIAGNOSTIC: " +
                              path.name + " did not reject the missing geometry obligation: " + result.stderr)
+for mutation, original, replacement, diagnostic in (
+    ("stage-width", "Vec(UInt(width bits), count + 1)", "Vec(UInt(width.witness bits), count + 1)", "FROM-GRAY-WIDTH-RETENTION-MISSING"),
+    ("stage-count", "Vec(UInt(width bits), count + 1)", "Vec(UInt(width bits), count)", "FROM-GRAY-WIDTH-RETENTION-MISSING"),
+    ("stage-input", "stages(0) := gray.asUInt", "stages(0) := U(0)", "FROM-GRAY-WIDTH-RETENTION-MISSING"),
+    ("stage-source", "index.at(stages, 0)", "index.at(stages, 1)", "FROM-GRAY-WIDTH-RETENTION-MISSING"),
+    ("stage-target", "index.at(stages, 1) :=", "index.at(stages, 0) :=", "FROM-GRAY-WIDTH-RETENTION-MISSING"),
+    ("stage-shift", "index.shiftRightPowerOfTwo(previous)", "(previous |>> 1)", "FROM-GRAY-WIDTH-RETENTION-MISSING"),
+    ("stage-result", "TypedVecStaticSelect(stages, count)", "TypedVecStaticSelect(stages, count - 1)", "FROM-GRAY-WIDTH-RETENTION-MISSING"),
+    ("stage-bound", "val count = width.log2Up", "val count = width", "FROM-GRAY-TYPED-PATH-MISSING"),
+    ("width-one", "if (count.maximum == 0) return gray.asUInt", "if (count.maximum == 0) return U(0)", "FROM-GRAY-TYPED-PATH-MISSING"),
+):
+    if source.count(original) != 1:
+        raise SystemExit("MORPH-NATIVE-STREAMFIFOCC-SELF-TEST-FIXTURE: missing unique " + original)
+    path = temporary / (mutation + ".scala")
+    path.write_text(source.replace(original, replacement, 1), encoding="utf-8")
+    result = subprocess.run([str(checker), "--check"], text=True, capture_output=True,
+                            env={**os.environ, "MORPHDL_STREAMFIFOCC_UTILS_SOURCE": str(path)})
+    if result.returncode == 0 or "MORPH-NATIVE-STREAMFIFOCC-" + diagnostic not in result.stderr:
+        raise SystemExit("MORPH-NATIVE-STREAMFIFOCC-SELF-TEST-DIAGNOSTIC: " + path.name + ": " + result.stderr)
+
 PY
 
     sed '0,/depth\.isPow2/s//ElabBool.literal(true)/' \
@@ -1378,7 +1401,7 @@ PY
       "$temporary/memory.stderr" ||
       fail SELF-TEST-DIAGNOSTIC 'memory mutation did not report its stable diagnostic'
 
-    sed '0,/exactEdges != authorizedEdges/s//exactEdges != 1/' \
+    sed '0,/exactEdges + exactNativeEdges != authorizedEdges/s//exactEdges + exactNativeEdges != 1/' \
       "$fallback_source" > "$temporary/noncardinal-retained-zero.scala"
     if MORPHDL_STREAMFIFOCC_FALLBACK_SOURCE="$temporary/noncardinal-retained-zero.scala" \
       "$0" --check >"$temporary/cardinality.stdout" 2>"$temporary/cardinality.stderr"; then

@@ -93,7 +93,13 @@ class NativeConditionalProcessTests extends AnyFunSuite {
       val overrides = if (parameterized) s"#(.LANES($lanes),.PIXEL_WIDTH($width))" else ""
       val differential = lanes == 4 && width == 30
       if (differential) {
-        val baseline = java.nio.file.Paths.get("docs/morphhdl/evidence/increment66/baseline/ordinary-loop-native/ConditionalLaneLoop.v")
+        val relative = java.nio.file.Paths.get("docs/morphhdl/evidence/increment66/baseline/ordinary-loop-native/ConditionalLaneLoop.v")
+        val roots = Vector(java.nio.file.Paths.get(""),
+          java.nio.file.Paths.get(getClass.getProtectionDomain.getCodeSource.getLocation.toURI))
+        val baseline = roots.iterator.flatMap(root =>
+          Iterator.iterate(Option(root.toAbsolutePath.normalize))(_.flatMap(p => Option(p.getParent)))
+            .takeWhile(_.nonEmpty).map(_.get.resolve(relative)))
+          .find(Files.isRegularFile(_)).getOrElse(throw new java.nio.file.NoSuchFileException(relative.toString))
         Files.write(dir.resolve("baseline.v"), new String(Files.readAllBytes(baseline), UTF_8)
           .replace("module ConditionalLaneLoop", "module Baseline").getBytes(UTF_8))
       }

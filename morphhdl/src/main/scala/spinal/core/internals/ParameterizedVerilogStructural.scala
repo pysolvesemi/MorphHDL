@@ -1988,11 +1988,23 @@ private[internals] object ParameterizedVerilogStructural {
       if (deepest.size == 1) Some(deepest.head) else None
     }
 
+    // Native declaration order need not be dependency order. Replay until the
+    // exact ownership demands stabilize, bounded by the finite statement set.
+    var previousOwners = Map.empty[Int, ParameterizedStructuralBlock]
+    var remainingPasses = lines.size + 1
+    var changed = true
+    while (changed && remainingPasses > 0) {
+      previousOwners = owners.toMap
+      remainingPasses -= 1
     lines.zipWithIndex.foreach { case (line, index) =>
       val normalized = stripLineComment(line).trim
       DirectContinuousAssignment.findFirstMatchIn(normalized).foreach { statement =>
         val claimed = claims.getOrElse(index, Vector.empty)
-        if (claimed.size > 1 || claimed.isEmpty) {
+        if (claimed.size > 1 || claimed.isEmpty || lines.zipWithIndex.exists { case (candidate, consumerIndex) =>
+          owners.get(consumerIndex).exists(owner => !claimed.exists(_.block eq owner)) &&
+            DirectContinuousAssignment.findFirstMatchIn(stripLineComment(candidate).trim).exists(m =>
+              continuousAssignmentSourceTokens(m.group(3), m.group(1))(statement.group(1)))
+        }) {
           if (proceduralRanges.exists(_.indices.contains(index))) {
             fail(
               "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-CONTINUOUS-ASSIGNMENT-SCOPE-UNSUPPORTED",
@@ -2055,12 +2067,38 @@ private[internals] object ParameterizedVerilogStructural {
           val pathOwner = uniqueMostSpecificOwner(pathCandidates)
           val needsResolution =
             claimed.size > 1 || pathCandidates.nonEmpty
-          if (needsResolution) pathOwner.toVector match {
+          // These exact native edges exist solely for driver checking and are
+          // consumed by finalizePlan after validating their live identities.
+          // An enclosing read of the array is not a demand to hoist a bridge
+          // out of the loop that will replace it with the actual indexed write.
+          val bridgeOwners = plans.filter { plan =>
+            plan.block.vecIndices.exists { selection =>
+              selection.coverageBridges.exists { edge =>
+                edge.value.getName() == target &&
+                  Option(statement.group(2)).forall(_.trim.isEmpty) &&
+                  statement.group(3).trim == edge.alias.getName()
+              }
+            }
+          }
+          if (bridgeOwners.nonEmpty) {
+            if (bridgeOwners.size != 1)
+              fail("SPINAL-TYPED-LOOP-VEC-BRIDGE-MISMATCH",
+                "one native Vec bridge has multiple captured owners", None)
+            owners(index) = bridgeOwners.head.block
+          } else if (needsResolution) pathOwner.toVector match {
             case Vector(owner) =>
               val ownerPath =
                 containmentPathOf(owner.block, containmentPaths)
+              // A compiler-created conversion can consume another helper
+              // without appearing in the authored assignment graph. Retain
+              // demands from already resolved exact native statements too.
+              val resolvedNativeDemands = lines.zipWithIndex.flatMap { case (candidate, consumerIndex) =>
+                DirectContinuousAssignment.findFirstMatchIn(stripLineComment(candidate).trim)
+                  .filter(m => continuousAssignmentSourceTokens(m.group(3), m.group(1))(target))
+                  .flatMap(_ => owners.get(consumerIndex))
+              }.toSet
               val targetDemandOwners = plans.filter { plan =>
-                plan.assignmentEvidence.exists { evidence =>
+                resolvedNativeDemands(plan.block) || plan.assignmentEvidence.exists { evidence =>
                   evidence.sourceNames(target)
                 }
               }
@@ -2192,8 +2230,12 @@ private[internals] object ParameterizedVerilogStructural {
                             .map(_.group(1))
                         )
                     if (!producedName.contains(name)) Vector.empty
-                    else
-                      claims.getOrElse(producerIndex, Vector.empty).distinct match {
+                    else if (moduleScopeLines(producerIndex)) {
+                      moduleScopeProducer = true
+                      Vector.empty
+                    } else
+                      owners.get(producerIndex).map(owner => plans.filter(_.block eq owner))
+                        .getOrElse(claims.getOrElse(producerIndex, Vector.empty).distinct) match {
                         case Vector() =>
                           moduleScopeProducer = true
                           Vector.empty
@@ -2226,7 +2268,8 @@ private[internals] object ParameterizedVerilogStructural {
                 val targetDeclarationIsScalar =
                   targetDeclarationLines match {
                     case Vector(declarationIndex) =>
-                      declarationIsScalar(lines(declarationIndex))
+                      declarationIsScalar(lines(declarationIndex)) ||
+                        declarationIsLiteralOneBit(lines(declarationIndex))
                     case _ => false
                   }
                 val promotionProven =
@@ -2269,7 +2312,9 @@ private[internals] object ParameterizedVerilogStructural {
                     lines,
                     claims,
                     paths,
-                    moduleScopeNames
+                    containmentPaths,
+                    moduleScopeNames,
+                    allowContainingClaims = true
                   ) =>
               leastCommonContainingBlock(
                 claimed.map(_.block),
@@ -2331,6 +2376,10 @@ private[internals] object ParameterizedVerilogStructural {
         }
       }
     }
+      changed = previousOwners != owners.toMap
+    }
+    if (changed) fail("SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-DOMINANCE-UNPROVEN",
+      "native temporary ownership did not reach a finite stable assignment")
     ContinuousAssignmentResolution(
       owners.toMap,
       moduleScopeLines.toSet,
@@ -2347,16 +2396,24 @@ private[internals] object ParameterizedVerilogStructural {
       lines: Vector[String],
       claims: Map[Int, Vector[BlockPlan]],
       paths: Map[ParameterizedStructuralBlock, Vector[AlternativeStep]],
-      moduleScopeNames: Set[String]
+      containmentPaths: Map[ParameterizedStructuralBlock, Vector[ParameterizedStructuralBlock]],
+      moduleScopeNames: Set[String],
+      allowContainingClaims: Boolean = false
   ): Boolean = {
     val claimedBlocks = claimed.map(_.block).toSet
-    val pairwiseExclusive = claimed.combinations(2).forall { pair =>
+    val compatibleClaims = claimed.combinations(2).forall { pair =>
+      val left = containmentPathOf(pair(0).block, containmentPaths)
+      val right = containmentPathOf(pair(1).block, containmentPaths)
+      // An enclosing block also walks the dependencies of its descendants.
+      // Identical declaration/driver claims on that one containment path are
+      // compatible; unrelated overlapping siblings remain forbidden.
+      (allowContainingClaims && (containmentPrefix(left, right) || containmentPrefix(right, left))) ||
       mutuallyExclusive(
         paths.getOrElse(pair(0).block, Vector.empty),
         paths.getOrElse(pair(1).block, Vector.empty)
       )
     }
-    if (!pairwiseExclusive) return false
+    if (!compatibleClaims) return false
 
     def declarationClaims(name: String): Option[Set[ParameterizedStructuralBlock]] = {
       val declarationLines = lines.zipWithIndex.collect {
@@ -2544,6 +2601,18 @@ private[internals] object ParameterizedVerilogStructural {
       val ownerPlan = plans.filter(_.block eq owner)
       if (ownerPlan.size != 1 || consumers.isEmpty) return false
 
+      // A prefix network reads and writes the same Vec in its loop. Its final
+      // static read uses the exact complete-tail proof rather than the older
+      // write-only/read-only full-array bridge rule below.
+      val staticConsumers = consumers.forall { consumer =>
+        val reads = consumer.body.split("\n", -1).toVector
+          .filter(line => verilogConsumedNames(line)(target))
+        reads.nonEmpty && reads.forall(line =>
+          ParameterizedVerilogVecs.exactStaticSelectionLine(
+            component, target, line, Some(consumer.block), Some(owner)))
+      }
+      if (staticConsumers) return true
+
       val writes = owner.vecIndices.filter(selection =>
         ParameterizedVec.shapeOf(selection.vector).nonEmpty &&
           exactSelectionDomain(owner, selection) &&
@@ -2570,10 +2639,14 @@ private[internals] object ParameterizedVerilogStructural {
             exactSelectionDomain(consumer.block, selection) &&
             exactAliasUse(consumer.block, selection, write = false)
         )
-        reads.nonEmpty &&
+        val staticReads = consumer.body.split("\n", -1).toVector
+          .filter(line => verilogConsumedNames(line)(target))
+        val exactStaticReads = staticReads.nonEmpty && staticReads.forall(line =>
+          ParameterizedVerilogVecs.exactStaticSelectionLine(component, target, line, Some(consumer.block)))
+        exactStaticReads || (reads.nonEmpty &&
         reads.size == consumer.block.vecIndices.count(_.vector eq vector) &&
         countName(consumer.body, target) ==
-          reads.flatMap(_.result.flatten).size
+          reads.flatMap(_.result.flatten).size)
       }
     }
 
@@ -2639,7 +2712,7 @@ private[internals] object ParameterizedVerilogStructural {
       ) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-DOMINANCE-UNPROVEN",
-          s"$role structural continuous driver for '$target' at $driverLocation does not dominate ${undominatedConsumers.size} resolved bodies that consume it"
+          s"$role structural continuous driver for '$target' at $driverLocation does not dominate ${undominatedConsumers.size} resolved bodies that consume it; owner=${owner.sourceLocation} ownerReferences=${plans.filter(_.block eq owner).flatMap(_.body.split("\n").filter(containsName(_, target))).mkString("|")} consumers=${undominatedConsumers.flatMap(_.body.split("\n").filter(containsName(_, target))).mkString("|")}"
         )
       }
       lexicalLines.indices
@@ -3595,6 +3668,7 @@ private[internals] object ParameterizedVerilogStructural {
                           lines,
                           lineClaims,
                           paths,
+                          containmentPaths,
                           moduleScopeNames
                         )
                       val provenCommon =
@@ -4981,6 +5055,12 @@ private[internals] object ParameterizedVerilogStructural {
       case PortDeclaration(name) => Some(name)
       case _                     => None
     }
+
+  private def declarationIsLiteralOneBit(value: String): Boolean = {
+    val declaration = stripLeadingVerilogAttributes(stripLineComment(value)).trim
+    standaloneDeclarationName(declaration).nonEmpty &&
+      declaration.matches("wire\\s+(?:signed\\s+)?\\[0\\s*:\\s*0\\]\\s+[A-Za-z_][A-Za-z0-9_$]*\\s*;")
+  }
 
   private def declarationIsScalar(value: String): Boolean = {
     val declaration =

@@ -1,7 +1,7 @@
 package spinal.core
 
 /** Immutable range evidence attached to one registered loop selection. */
-private[core] final class TypedLoopVecRange private[core] (
+private[core] final class TypedLoopVecRange private (
     val selection: ParameterizedStructure.StructuralVecIndex,
     val loop: ParameterizedStructure.StructuralFor,
     val count: ElabInt,
@@ -10,16 +10,23 @@ private[core] final class TypedLoopVecRange private[core] (
   private val selector = selection.index
   private val vector = selection.vector
   private val token = selection.finiteIndexToken
+  private val loopCount = loop.count
+  // Mint both proofs while the authoring branch domain is active. The retained
+  // expression and loop identities below authenticate replay after scope exit.
+  private val bounded =
+    ElabBool.projectedTruth((count + offset) <= ElabInt.fromExpression(depth)) == ElabBool.AlwaysTrue
+  private val completeTail =
+    ElabBool.projectedTruth((count + offset).elabEq(ElabInt.fromExpression(depth))) == ElabBool.AlwaysTrue
   def matches: Boolean =
     (selection.index eq selector) && (selection.vector eq vector) &&
       selection.finiteIndexToken == token && token.nonEmpty &&
       loop.finiteIndexToken == token && loop.body.vecIndices.exists(_ eq selection) &&
+      (loop.count eq loopCount) &&
       ParameterizedVec.shapeOf(vector).exists(_.depth eq depth) &&
       selector.generateIndex.contains(loop.indexName) &&
       TypedLoopVecRange.unitOffset(selector, loop.indexName).contains(offset) &&
-      ElabBool.projectedTruth((count + offset) <= ElabInt.fromExpression(depth)) == ElabBool.AlwaysTrue
-  def coversTail: Boolean = matches &&
-    ElabBool.projectedTruth((count + offset).elabEq(ElabInt.fromExpression(depth))) == ElabBool.AlwaysTrue
+      bounded
+  def coversTail: Boolean = matches && completeTail
 }
 
 private[core] object TypedLoopVecRange {

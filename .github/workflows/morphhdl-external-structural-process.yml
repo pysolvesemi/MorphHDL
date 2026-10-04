@@ -98,6 +98,7 @@ jobs:
             spinal.core.TypedStagePublicationSafetyTests \
             morphhdl.GrayStageSharingTests \
             morphhdl.NativeLibraryReuseTests \
+            morphhdl.NativeStreamFifoCCParameterizedTests \
             morphhdl.TypedNestedVecWriteTests \
             spinal.core.TypedLoopRegisterOwnershipTests
           /tmp/morphhdl-mill core[${{ matrix.scala_version }}].testOnly \

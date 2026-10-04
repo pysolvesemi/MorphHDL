@@ -21,7 +21,11 @@ import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
-PREDECESSOR = "6bb250972f06ca55c9cfbd7100126adad9e81569"
+INTEGRATION_PARENT = "6bb250972f06ca55c9cfbd7100126adad9e81569"
+# The integration parent contains a subsequent compiler repair. Replay the
+# immutable certificate at its actual seal; current authentication covers the
+# complete integration and every later repair, including that parent's delta.
+PREDECESSOR = "9c88f5f75921e28aff329e3cff2d40132315e861"
 GUARD = "morphhdl/scripts/check-parameterized-integration-source.py"
 REVIEWERS = (
     "check-increment-59c-source-review.py",
@@ -74,8 +78,9 @@ def authenticate(root):
     guard = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(guard)
     guard.verify(root)
-    require(PREDECESSOR in guard.PARENTS, "historical audit is not an integration parent")
-    git(root, "merge-base", "--is-ancestor", PREDECESSOR, "HEAD")
+    require(INTEGRATION_PARENT in guard.PARENTS, "historical audit has no authenticated integration parent")
+    git(root, "merge-base", "--is-ancestor", PREDECESSOR, INTEGRATION_PARENT)
+    git(root, "merge-base", "--is-ancestor", INTEGRATION_PARENT, "HEAD")
     return identity(root)
 
 

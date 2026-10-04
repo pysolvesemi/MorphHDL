@@ -23,6 +23,15 @@ object RtlDocumentationOptions {
 final class RtlDocTag(text: String, val origin: String, val location: String,
     val projection: Boolean = false, val aggregate: Data = null) extends CommentTag(text) {
   override def canSymplifyHost: Boolean = true
+  // Decode documentation metadata here; the canonical producer consumes typed
+  // coordinates and never infers hardware semantics from rendered strings.
+  private[spinal] lazy val sourcePosition: Option[(String, Int, Int)] = {
+    val position = "(.*):([0-9]+):([0-9]+)".r
+    location match {
+      case position(path, line, column) => Some((path, line.toInt, column.toInt))
+      case _ => None
+    }
+  }
 }
 
 /** Identity shared by the statements created in a documented region. */

@@ -462,19 +462,36 @@ private[internals] object ParameterizedVerilogVecs {
         }
       }
 
-  /** Module-scope constant reads of a proven complete affine stage array. */
-  private[internals] def exactStaticSelectionLine(component: Component, target: String, line: String): Boolean = {
+  /** Exact constant reads of a proven complete affine stage array, including
+    * reads inside the enclosing authored structural branch. */
+  private[internals] def exactStaticSelectionLine(component: Component, target: String, line: String,
+      consumer: Option[ParameterizedStructuralBlock] = None,
+      producer: Option[ParameterizedStructuralBlock] = None): Boolean = {
+    val compactLine = line.filterNot(_.isWhitespace)
     TypedVecStaticSelect.entries(component).exists { entry =>
+      // This spelling only rejects unrelated statements cheaply; the exact
+      // identity, shape, range and emitted expression are still checked below.
+      if (!compactLine.startsWith(s"assign${entry.result.getName()}=")) false else {
       val shape = ParameterizedVec.shapeOf(entry.vector).get
-      val exactName = entry.vector.getName() == target
-      val loops = ParameterizedStructure.regionsOf(component).collect {
-        case loop: ParameterizedStructure.StructuralFor => loop
-      }
+      val exactName = isExactStructuralAggregateName(entry.vector, target)
+      def collectLoops(regions: Vector[ParameterizedStructure.StructuralRegion]): Vector[ParameterizedStructure.StructuralFor] =
+        regions.flatMap(region => (region match {
+          case loop: ParameterizedStructure.StructuralFor => Vector(loop)
+          case _ => Vector.empty
+        }) ++ region.blocks.flatMap(block => collectLoops(block.regions)))
+      val loops = collectLoops(ParameterizedStructure.regionsOf(component))
       val owners = loops.flatMap(loop => loop.body.vecIndices.filter(_.vector eq entry.vector)
         .filter(_.coverageBridges.nonEmpty))
       val complete = owners.size == 1 && owners.head.unitRange.exists { range =>
-        range.coversTail && range.count.expression.projectionProvenance.forall(p =>
-          range.count.expression.exactDomain.exists(_.universe == p.admitted))
+        range.coversTail && producer.forall(_ eq range.loop.body) && (consumer match {
+          case Some(block) =>
+            block.assignments.exists(_ eq entry.assignment) &&
+              collectLoops(block.regions).exists(_ eq range.loop) &&
+              entry.vector.vec.take(range.offset).forall(value =>
+                block.assignments.exists(_ eq value.head))
+          case None => range.count.expression.projectionProvenance.forall(p =>
+            range.count.expression.exactDomain.exists(_.universe == p.admitted))
+        })
       } && entry.vector.vec.forall { value =>
         value.hasOnlyOneStatement && value.head.isInstanceOf[DataAssignmentStatement] &&
           (value.head.target eq value) && (value.head.parentScope eq component.dslBody)
@@ -484,7 +501,8 @@ private[internals] object ParameterizedVerilogVecs {
         val expected = s"assign ${entry.result.getName()} = " +
           structuralDynamicSlice(entry.vector, entry.index.expression, 0, shape.sourceLocation,
             readOnly = true, staticIndex = Some(entry.index)) + ";"
-        line.replaceAll("\\s", "") == expected.replaceAll("\\s", "")
+        compactLine == expected.filterNot(_.isWhitespace)
+      }
       }
     }
   }
@@ -531,8 +549,8 @@ private[internals] object ParameterizedVerilogVecs {
       )
     }
     val exactStatic = readOnly && staticIndex.exists(index =>
-      (index.expression eq selector) && selector.generateIndex.isEmpty && index.minimum >= 0 &&
-        ElabBool.projectedTruth(index < ElabInt.fromExpression(shape.depth)) == ElabBool.AlwaysTrue)
+      (index.expression eq selector) && selector.generateIndex.isEmpty &&
+        TypedVecStaticSelect.authorizes(vector, index))
     val exactSelector = exactStatic || unitRange.exists(e => e.matches && (e.selection.vector eq vector) && (e.selection.index eq selector)) || (affineRead match {
       case Some(evidence) => readOnly && finiteIndexToken.exists(token => evidence.matches(vector, selector, token))
       case None =>
@@ -2042,12 +2060,10 @@ private[internals] object ParameterizedVerilogVecs {
             ) plan.leaves.filter(_.elementIndex == access.index)
             else Vector.empty
           if (expectedLeaves.exists(leaf => residualReferences(leaf.name) != 0)) {
-            val minimumDepth = ElabInt
-              .projectExpression(
-                plan.shape.depth,
-                "parameterized Vec static-index publication"
-              )
-              .minimum
+            // The retained shape carries the complete authored depth bound.
+            // Publication runs after structural branch contexts have exited;
+            // re-projecting here would incorrectly expand that authoring scope.
+            val minimumDepth = plan.shape.depth.minimum
             if (BigInt(access.index) >= minimumDepth) {
               fail(
                 "SPINAL-PARAMETERIZED-VERILOG-VEC-STATIC-INDEX-EVIDENCE-MISMATCH",
@@ -3617,7 +3633,7 @@ private[internals] object ParameterizedVerilogVecs {
       first.copy(assignments = assignments, paths = values.flatMap(_.paths), decoders = values.flatMap(_.decoders).distinct)
     }
     def selectedStatic(index: Int, leafIndex: Int, selected: BaseType): Unit = {
-      val minimum = ElabInt.projectExpression(owner.shape.depth, "nested static Vec write publication").minimum
+      val minimum = owner.shape.depth.minimum
       if (index < 0 || BigInt(index) >= minimum || !owner.leaves.exists(leaf =>
           leaf.elementIndex == index && leaf.leafIndex == leafIndex && (leaf.value eq selected)))
         invalid("lost its exact domain-valid static selection")
@@ -4294,7 +4310,7 @@ private[internals] object ParameterizedVerilogVecs {
   ): Unit = authoredStaticWrites(operations).foreach { write =>
     requireLiveAssignmentEvidence(Vector(write.assignment), live, "static Vec write", write.sourceLocation)
     val exactLeaf = plan.leaves.find(leaf => leaf.elementIndex == write.elementIndex && leaf.leafIndex == write.elementLeafIndex)
-    val minimum = ElabInt.projectExpression(plan.shape.depth, "static Vec write publication").minimum
+    val minimum = plan.shape.depth.minimum
     if (write.elementIndex < 0 || BigInt(write.elementIndex) >= minimum ||
         !exactLeaf.exists(leaf => leaf.value eq write.selected) ||
         (write.assignment.finalTarget ne write.selected) ||

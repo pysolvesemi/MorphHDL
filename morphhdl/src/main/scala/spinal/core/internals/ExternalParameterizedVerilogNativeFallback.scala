@@ -914,7 +914,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           exactNativeEdges != nativeEdges) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-CONSTANT-INIT-EMITTED-LINEAGE-MISMATCH",
-          s"retained-width constant initializer '${initializer.name}' maps to $exactEdges exact emitted witness edges, but the graph authorizes $authorizedEdges exact constant assignments",
+          s"retained-width constant initializer '${initializer.name}' maps to $exactEdges exact emitted witness edges and $exactNativeEdges native edges (recorded=$nativeEdges), but the graph authorizes $authorizedEdges exact constant assignments",
           initializer.width.sourceLocation
         )
       }
