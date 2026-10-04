@@ -17,12 +17,12 @@
     {
       "path": "idslpayload/src/main",
       "baseline_tree": "e0bc98b5a8e794fc2a3aad64394e92944f5f118d",
-      "approved_tree": "686155cff6f946c2538ddb8235b803603743281f"
+      "approved_tree": "0960f540dd45b65d66f2063800319f171be84b02"
     },
     {
       "path": "idslplugin/src/main",
       "baseline_tree": "1e863053179f6fcc246f86d3e3af1a3ae260f20b",
-      "approved_tree": "6c3c6c2972b9939448e21ddc4bb21af8454ac63d"
+      "approved_tree": "2c8bb56400d2a2b200ec13794542b18b934fa6f9"
     },
     {
       "path": "lib/src/main",
@@ -4766,6 +4766,23 @@
       ]
     },
     {
+      "path": "idslpayload/src/main/scala/spinal/idslplugin/RtlDocumentationRegion.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "PR195 targeted CI layering repair"
+      ],
+      "reason": "Generic StaticAnnotation marks hardware-region methods at the dependency-neutral payload boundary; compiled frontend methods opt in while the low-level plugin remains isolated.",
+      "baseline": null,
+      "approved": {
+        "path": "idslpayload/src/main/scala/spinal/idslplugin/RtlDocumentationRegion.scala",
+        "mode": "100644",
+        "blob": "b8a4a28056b4f11cc78eddf841781dd71524a7a8",
+        "sha256": "2e97ab7693fda933a02317fdc00840a337a1ece5e8b4dddc2ac9f32df3f25459"
+      },
+      "edits": []
+    },
+    {
       "path": "idslpayload/src/main/scala/spinal/idslplugin/RtlSourceDoc.scala",
       "change": "added",
       "classification": "typed-support-file",
@@ -4858,13 +4875,13 @@
       "introduced_by": [
         "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
       ],
-      "reason": "Translate supported annotations and exact hardware DSL call comments to typed identity-preserving runtime metadata calls.",
+      "reason": "Translate supported annotations and exact hardware DSL call comments to typed identity-preserving runtime metadata calls. Recognize frontend-owned hardware control regions through a generic payload annotation; retain core control identities without lower-layer frontend package references.",
       "baseline": null,
       "approved": {
         "path": "idslplugin/src/main/scala/spinal/idslplugin/components/DocumentationTransformer.scala",
         "mode": "100644",
-        "blob": "711c065e6fcf44ad49aad0da44d89be53143ab45",
-        "sha256": "63183884f2f522fe36c91870e4243d644f8d7f656a415ef054412db5f50523e8"
+        "blob": "b777ee714c4a538dc76ef15fcdf7ead3aec1609f",
+        "sha256": "1b15b87d7d8c2452e245d228166f40aaef5e8f73fbdd139a083a24b05461ce70"
       },
       "edits": []
     },
