@@ -48,8 +48,14 @@ jobs:
           mkdir -p "$output"
           git rev-parse HEAD > "$output/head.txt"
           git archive HEAD | gzip > "$output/source.tar.gz"
-          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py
-          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py &
+          review_pid=$!
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test &
+          controls_pid=$!
+          audit_status=0
+          wait "$review_pid" || audit_status=1
+          wait "$controls_pid" || audit_status=1
+          test "$audit_status" -eq 0
           base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)
           git worktree add --detach "$predecessor" "$base"
           trap 'git worktree remove --force "$predecessor"' EXIT

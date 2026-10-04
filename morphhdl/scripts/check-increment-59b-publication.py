@@ -142,10 +142,26 @@ def mutate_pair_operand(text: str) -> str:
 
 
 def mutate_vec_binding(text: str) -> str:
-    pattern = re.compile(r'(?m)^(\s*assign\s+balanced_2_input\s*=\s*)signedIn\s*;')
-    if len(pattern.findall(text)) != 1:
-        raise RuntimeError('one exact signed Vec source binding is required for mutation')
-    return pattern.sub(lambda match: match.group(1) + 'unsignedIn;', text)
+    # Follow only unique, whole-net aliases from the signed reduction input.
+    # Reject expressions, cycles and duplicate drivers; a carrier rename must
+    # not turn the mutation into an unrelated or observation-only change.
+    assignments = re.compile(r'(?m)^(\s*assign\s+([A-Za-z_]\w*)\s*=\s*)([^;]+);')
+    drivers = {}
+    for match in assignments.finditer(text):
+        drivers.setdefault(match.group(2), []).append(match)
+    name, seen = 'balanced_2_input', set()
+    while name != 'signedIn':
+        if name in seen or len(drivers.get(name, [])) != 1:
+            raise RuntimeError('one exact signed Vec source binding is required for mutation')
+        seen.add(name)
+        match = drivers[name][0]
+        source = match.group(3).strip()
+        if not re.fullmatch(r'[A-Za-z_]\w*', source):
+            raise RuntimeError('signed Vec mutation requires whole-net aliases')
+        name = source
+    binding = drivers['balanced_2_input'][0]
+    return text[:binding.start(3)] + 'unsignedIn' + text[binding.end(3):]
+
 
 
 def qualify(root: Path, duplicate: Path, only_case: str | None = None) -> None:

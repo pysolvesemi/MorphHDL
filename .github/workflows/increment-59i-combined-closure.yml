@@ -92,7 +92,7 @@ jobs:
             python3 morphhdl/scripts/run-parameterized-inherited-audit.py "morphhdl/scripts/check-increment-$layer-source-review.py" --self-test > "$output/$layer-source-self-test.log" 2>&1 || { tail -n 100 "$output/$layer-source-self-test.log"; exit 1; }
             python3 morphhdl/scripts/run-parameterized-inherited-audit.py "morphhdl/scripts/check-increment-$layer-source-review.py" > "$output/$layer-source-review.log" 2>&1 || { tail -n 100 "$output/$layer-source-review.log"; exit 1; }
           done
-          python3 morphhdl/scripts/test-increment-59i-capture-review.py
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/test-increment-59i-capture-review.py
           python3 morphhdl/scripts/test-increment-59i-production-successor.py -v > "$output/production-successor-mutations.log" 2>&1 || { tail -n 100 "$output/production-successor-mutations.log"; exit 1; }
           python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-59i-production-successor.py | tee "$output/production-successor-review.log"
           python3 morphhdl/scripts/test-increment-59i-publication-golden.py -v > "$output/publication-golden-mutations.log" 2>&1 || { tail -n 100 "$output/publication-golden-mutations.log"; exit 1; }

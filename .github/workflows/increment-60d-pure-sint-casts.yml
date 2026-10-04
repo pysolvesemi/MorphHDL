@@ -42,8 +42,14 @@ jobs:
           python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test
           mkdir -p target/increment-60d
           git archive HEAD | gzip > target/increment-60d/source.tar.gz
-          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py
-          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py &
+          review_pid=$!
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test &
+          controls_pid=$!
+          audit_status=0
+          wait "$review_pid" || audit_status=1
+          wait "$controls_pid" || audit_status=1
+          test "$audit_status" -eq 0
           predecessor="$GITHUB_WORKSPACE/target/increment-61-predecessor-60d-${{ matrix.scala }}"
           git worktree add --detach "$predecessor" 5a9294363c7b74ae584f1702160fe1f7e468f58a
           trap 'git worktree remove --force "$predecessor"' EXIT

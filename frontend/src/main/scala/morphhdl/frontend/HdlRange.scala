@@ -18,6 +18,7 @@ final class HdlRange private[frontend] (
     new HdlRange(start, end, Some(GenerateNames(label, index)), origin)
   }
 
+  @spinal.idslplugin.RtlDocumentationRegion
   def foreach(body: GenIndex => Unit): Unit =
     try FrontendSession.runRange(this, body)
     catch {

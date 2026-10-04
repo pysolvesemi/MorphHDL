@@ -111,12 +111,14 @@ package object frontend {
     * colliding with the established ParamRtlFrontend.generateIf import.
     */
   implicit final class StructuralGenerateIfOps(private val condition: HdlBool) extends AnyVal {
+    @spinal.idslplugin.RtlDocumentationRegion
     def generateIf(whenTrue: => Unit)(implicit
         file: sourcecode.File,
         line: sourcecode.Line
     ): GenerateIfBuilder =
       startStructuralGenerateIf(condition, None, whenTrue, SourceOrigin.capture)
 
+    @spinal.idslplugin.RtlDocumentationRegion
     def generateIf(
         whenTrueLabel: String,
         whenFalseLabel: String

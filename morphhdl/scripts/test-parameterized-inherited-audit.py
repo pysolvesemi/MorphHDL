@@ -39,7 +39,7 @@ class IntegratedAuditTests(unittest.TestCase):
         counts = {
             "increment-59c-named-field-vectors": 2,
             "increment-59h-nested-owners": 6,
-            "increment-59i-combined-closure": 5,
+            "increment-59i-combined-closure": 6,
             "increment-60c-signed-declarations": 2,
             "increment-60d-pure-sint-casts": 2,
             "increment-60e-signedness-boundaries": 2,
@@ -51,6 +51,15 @@ class IntegratedAuditTests(unittest.TestCase):
                 path = ".github/workflows/" + name + ".yml"
                 source = (A.ROOT / path).read_text()
                 self.assertEqual(source.count("run-parameterized-inherited-audit.py "), count)
+                if name.startswith(('increment-60c-', 'increment-60d-', 'increment-60e-')):
+                    parallel = '          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py &\n          review_pid=$!\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test &\n          controls_pid=$!\n          audit_status=0\n          wait "$review_pid" || audit_status=1\n          wait "$controls_pid" || audit_status=1\n          test "$audit_status" -eq 0\n'
+                    serial = '          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test\n'
+                    self.assertEqual(source.count(parallel), 1)
+                    source = source.replace(parallel, serial)
+                if name == 'increment-59c-named-field-vectors':
+                    documentation = '      - name: Qualify generic documentation region markers on this Scala lane\n        shell: bash\n        run: |\n          set -euo pipefail\n          sbt -batch "++${{ matrix.scala }}" idslplugin/packageBin \\\n            \'idslplugin/testOnly spinal.idslplugin.DocumentationPluginTests\' \\\n            \'morph/testOnly morphhdl.RtlDocumentationTests\'\n          python3 - <<\'PYDOC\'\n          from pathlib import Path\n          import xml.etree.ElementTree as ET\n          for project, suite, count in [(\'idslplugin\', \'spinal.idslplugin.DocumentationPluginTests\', 7),\n                                        (\'morphhdl\', \'morphhdl.RtlDocumentationTests\', 29)]:\n              report = ET.parse(Path(project) / \'target/test-reports\' / (\'TEST-\' + suite + \'.xml\')).getroot()\n              assert int(report.get(\'tests\')) == count, report.attrib\n              assert all(int(report.get(key)) == 0 for key in (\'failures\', \'errors\', \'skipped\')), report.attrib\n          PYDOC\n'
+                    self.assertEqual(source.count(documentation), 1)
+                    source = source.replace(documentation, '')
                 restored = source.replace("morphhdl/scripts/run-parameterized-inherited-audit.py ", "")
                 added = (
                     "          python3 morphhdl/scripts/check-parameterized-integration-source.py\n",
@@ -102,6 +111,11 @@ class IntegratedAuditTests(unittest.TestCase):
             if receipt >= 0:
                 end = new_tail.find("\n  validate:\n", receipt)
                 new_tail = new_tail[:receipt] + (new_tail[end:] if end >= 0 else "")
+            # The post-build bridge review also runs at the authenticated
+            # historical seal; all behavioral gates remain byte-for-byte.
+            new_tail = new_tail.replace(
+                "              import subprocess\n              subprocess.run(['python3', 'morphhdl/scripts/run-parameterized-inherited-audit.py', str(bridge_review)], check=True)",
+                "              import runpy\n              runpy.run_path(str(bridge_review))['verify'](Path.cwd())")
             self.assertEqual(new_tail.rstrip(), old_tail.rstrip())
             for token in ("timeout-minutes:", "runs-on:", "container:", "matrix:"):
                 self.assertEqual([line for line in current.splitlines() if token in line],

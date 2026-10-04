@@ -542,7 +542,8 @@
         "source lexer distinguishes nested comments quoted literals and attachment boundaries",
         "comment-only recompilation updates embedded metadata and requires no runtime source",
         "missing range positions embed a precise automatic capture diagnostic",
-        "precompiled class comments survive source deletion without inheriting to unrelated classes"
+        "precompiled class comments survive source deletion without inheriting to unrelated classes",
+        "precompiled region markers capture comments without frontend package coupling"
       ]
     },
     "morphhdl": {
@@ -3088,7 +3089,7 @@
     "frontend/src/test/scala/morphhdl/frontend/SynchronousStreamM2sPipeFrontendTests.scala": "b25a6a5aeb3e23e0ead0b2a8c787c221f202f843d4f5d87e3c7f50094e3b91d5",
     "frontend/src/test/scala/morphhdl/frontend/TypedParameterFrontendTests.scala": "8eea2da94092bd0fdc712f880f8869bb68b0e5a32a76ead02d81cfa314ac972f",
     "frontend/src/test/scala/morphhdl/frontend/compatibility/SpinalImportCompatibilityTests.scala": "288f982de1dd671c5a6b348e31cbffd5798aa465b8caef47ea7a01e21eb12f14",
-    "idslplugin/src/test/scala/spinal/idslplugin/DocumentationPluginTests.scala": "0eec75d9369deaacecd90dfb4e0fb675cbd0cf231131e71ef47a285523065977",
+    "idslplugin/src/test/scala/spinal/idslplugin/DocumentationPluginTests.scala": "0016bc43b545fbcbbd9dccd10e17aaac560e113dcc8debcdbc06b822be4d19fd",
     "morphhdl/src/test/scala/adversarial/vecfake/SInt.scala": "ed76ab7df5ae95a0f3eb7dd5ce05aca5dbf9f54ee72e067bfff004d79c02671d",
     "morphhdl/src/test/scala/morphhdl/AsynchronousEnabledRegisterContractFixture.scala": "bfe3aa719951fb82431a00211cbcdd7fbf58863016943dfa7910278221c2c9bb",
     "morphhdl/src/test/scala/morphhdl/AsynchronousRegisterContractFixture.scala": "679d2cb571a90115c1734c3b5744cd7f3b04f73ce6be2b7843c553aba1d9c816",

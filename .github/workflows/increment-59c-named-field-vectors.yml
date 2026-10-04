@@ -110,6 +110,22 @@ jobs:
           assert hashlib.sha1((root / 'sbt-launch.jar').read_bytes()).hexdigest() == expected.lower()
           PY
           printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$dir/repositories"
+      - name: Qualify generic documentation region markers on this Scala lane
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch "++${{ matrix.scala }}" idslplugin/packageBin \
+            'idslplugin/testOnly spinal.idslplugin.DocumentationPluginTests' \
+            'morph/testOnly morphhdl.RtlDocumentationTests'
+          python3 - <<'PYDOC'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for project, suite, count in [('idslplugin', 'spinal.idslplugin.DocumentationPluginTests', 7),
+                                        ('morphhdl', 'morphhdl.RtlDocumentationTests', 29)]:
+              report = ET.parse(Path(project) / 'target/test-reports' / ('TEST-' + suite + '.xml')).getroot()
+              assert int(report.get('tests')) == count, report.attrib
+              assert all(int(report.get(key)) == 0 for key in ('failures', 'errors', 'skipped')), report.attrib
+          PYDOC
       - name: Run new and inherited contracts and generate independent native references twice
         shell: bash
         run: |

@@ -119,8 +119,8 @@ jobs:
           bridge_policy_count = 14
           bridge_review = Path('morphhdl/scripts/check-increment-59g-source-review.py')
           if bridge_review.is_file():
-              import runpy
-              runpy.run_path(str(bridge_review))['verify'](Path.cwd())
+              import subprocess
+              subprocess.run(['python3', 'morphhdl/scripts/run-parameterized-inherited-audit.py', str(bridge_review)], check=True)
               bridge_policy_count = 16
           for name, count in [('TypedBalancedReductionPublicationTests',4), ('TypedBalancedReductionCallbackPolicyTests',bridge_policy_count), ('TypedBalancedReductionPublicationSafetyTests',8), ('FiniteAffineVecReadTests',8)]:
               files = list(Path('morphhdl/target').rglob('*' + name + '.xml'))

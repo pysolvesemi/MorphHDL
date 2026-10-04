@@ -8,6 +8,7 @@ final class GenerateIfBuilder private[frontend] (
   private[frontend] def this(token: GenerateIfToken) = this(token, null)
   private[frontend] def this(token: NativeGenerateIfToken) = this(null, token)
 
+  @spinal.idslplugin.RtlDocumentationRegion
   def otherwise(body: => Unit)(implicit
       file: sourcecode.File,
       line: sourcecode.Line

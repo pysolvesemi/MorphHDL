@@ -132,4 +132,32 @@ class DocumentationPluginTests extends AnyFunSuite {
     } finally loader.close()
   }
 
+  test("precompiled region markers capture comments without frontend package coupling") {
+    val runtime = core.replace("var notes = Vector.empty[String]", """var notes = Vector.empty[String]
+      def automaticRegion[T](text: String, scaladoc: Boolean)(body: => T): T = {
+        notes :+= text; body
+      }""")
+    val (library, errors) = compile(runtime + """object IndependentRegions {
+      @spinal.idslplugin.RtlDocumentationRegion
+      def region(body: => Unit): Unit = body
+      def ordinary(body: => Unit): Unit = body
+    }""")
+    assert(errors.isEmpty, errors)
+    Files.delete(library.resolve("Fixture.scala"))
+    val (client, clientErrors) = compile("""object Probe {
+      var calls = 0
+      // Captured region
+      IndependentRegions.region { calls += 1 }
+      // Not a hardware region
+      IndependentRegions.ordinary { calls += 1 }
+      def result = calls.toString + ":" + spinal.core.RtlDocumentation.notes.mkString(",")
+    }""", extra = library.toString)
+    assert(clientErrors.isEmpty, clientErrors)
+    val loader = new URLClassLoader(Array(client.toUri.toURL, library.toUri.toURL), getClass.getClassLoader)
+    try {
+      val cls = loader.loadClass("Probe$")
+      assert(cls.getMethod("result").invoke(cls.getField("MODULE$").get(null)) == "2:Captured region")
+    } finally loader.close()
+  }
+
 }

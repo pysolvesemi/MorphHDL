@@ -22,12 +22,14 @@ private[morphhdl] object ParamRtlFrontend {
   ): FrontendNode[Vector[ModuleItem]] =
     FrontendSession.captureItems(body, SourceOrigin.capture)
 
+  @spinal.idslplugin.RtlDocumentationRegion
   def generateIf(condition: HdlBool)(whenTrue: => Unit)(implicit
       file: sourcecode.File,
       line: sourcecode.Line
   ): GenerateIfBuilder =
     FrontendSession.startGenerateIf(condition, None, whenTrue, SourceOrigin.capture)
 
+  @spinal.idslplugin.RtlDocumentationRegion
   def generateIf(
       condition: HdlBool,
       whenTrueLabel: String,

@@ -43,12 +43,7 @@ class DocumentationTransformer(val global: Global) extends PluginComponent with 
     private val consumed = scala.collection.mutable.HashSet.empty[Int]
     private val regionMethods = Set(
       "spinal.core.when.apply", "spinal.core.WhenContext.elsewhen", "spinal.core.WhenContext.otherwise",
-      "spinal.core.switch.apply", "spinal.core.is.apply", "spinal.core.default.apply",
-      "morphhdl.frontend.HdlRange.foreach",
-      "morphhdl.frontend.StructuralGenerateIfOps.generateIf",
-      "morphhdl.frontend.GenerateIfBuilder.otherwise",
-      "morphhdl.frontend.GenerateCaseBuilder.choice", "morphhdl.frontend.GenerateCaseBuilder.default",
-      "morphhdl.frontend.ParamRtlFrontend.generateIf"
+      "spinal.core.switch.apply", "spinal.core.is.apply", "spinal.core.default.apply"
     )
     private def take(notes: Seq[SourceDocumentation.Comment]): List[SourceDocumentation.Comment] =
       notes.filter(n => n.text.length > 0 && consumed.add(n.start)).toList
@@ -61,7 +56,8 @@ class DocumentationTransformer(val global: Global) extends PluginComponent with 
         localTyper.typed(atPos(value.pos)(call))
       }
     private def hardwareCall(tree: Tree): Boolean = tree match {
-      case value: Apply => value.fun.symbol != null && value.fun.symbol != NoSymbol && regionMethods(value.fun.symbol.fullName)
+      case value: Apply => value.fun.symbol != null && value.fun.symbol != NoSymbol && (regionMethods(value.fun.symbol.fullName) ||
+        value.fun.symbol.annotations.exists(_.atp.typeSymbol.fullName == "spinal.idslplugin.RtlDocumentationRegion"))
       case _ => false
     }
     private def bodyNotes(body: Tree, call: Tree, lambda: Boolean = false): List[SourceDocumentation.Comment] = {
