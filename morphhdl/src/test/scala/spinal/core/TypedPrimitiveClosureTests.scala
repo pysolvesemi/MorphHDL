@@ -534,7 +534,7 @@ class TypedPrimitiveClosureTests extends AnyFunSuite {
       assert(limitVerilog.contains("parameter integer LIMIT = 5"))
       assert(limitCompact.contains("clog2((LIMIT+1),1)"), limitVerilog)
       val upperCarrier =
-        "(?m)^\\s*assign\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*=\\s*\\(LIMIT\\)\\s*;\\s*$".r
+        "(?m)^\\s*assign\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*=\\s*LIMIT\\[\\(clog2\\(\\(LIMIT \\+ 1\\), 1\\)\\)-1:0\\]\\s*;\\s*$".r
           .findFirstMatchIn(limitVerilog)
           .map(_.group(1))
           .getOrElse(fail(s"missing exact retained LIMIT carrier:\n$limitVerilog"))
@@ -1009,7 +1009,7 @@ class TypedPrimitiveClosureTests extends AnyFunSuite {
       val compact = compactWhitespace(verilog)
 
       assert(verilog.contains("module TypedPrimitiveFormalChild #("))
-      assert(verilog.contains("parameter integer CHILD_WIDTH = 8"))
+      assert(verilog.contains("parameter integer CHILD_WIDTH = 1"))
       assert(compact.contains(".CHILD_WIDTH(WIDTH)"), verilog)
       assert(compact.contains("[CHILD_WIDTH-1:0]din"), verilog)
       assert(compact.contains("[WIDTH-1:0]din"), verilog)
@@ -1073,7 +1073,8 @@ class TypedPrimitiveClosureTests extends AnyFunSuite {
 
       assert(access.size == 2, verilog)
       val generated =
-        access.filter(_.contains("finite_Mem_exact_identity_index_"))
+        access.filter(_ == "i")
+      assert(verilog.contains("genvar i;"), verilog)
       assert(generated.size == 1, verilog)
 
       val native = access.filterNot(generated.toSet)
@@ -1109,7 +1110,7 @@ class TypedPrimitiveClosureTests extends AnyFunSuite {
         new FiniteCompositeMem(depth)
       )
       val compact = compactWhitespace(verilog)
-      assert(compact.contains("finite_composite_mem[finite_composite_Mem_identity_index_"), verilog)
+      assert(compact.contains("genvari;") && compact.contains("finite_composite_mem[i]"), verilog)
       assert(!compact.contains("finite_composite_mem[0]"), verilog)
     }
   }

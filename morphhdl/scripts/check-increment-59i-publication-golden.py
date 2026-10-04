@@ -273,8 +273,12 @@ def profile_snapshot(metadata: dict, raw: bytes) -> dict:
         else:
             require(len(params) == len(FORMALS) and {param["name"] for param in params} == set(FORMALS),
                 "formal parameter inventory changed")
+            child = item["module"] == "PublicationGoldenChild"
+            # Explicit width formals have declaration-owned minimum defaults;
+            # the parent's independent defaults still reach every child binding.
+            widths = (1, 1, 1) if child else (5, 3, 7)
             defaults = dict(zip(FORMALS,
-                (5, 3, 7, metadata["default_count"], 1 if item["module"] == "PublicationGoldenChild" else 0)))
+                (*widths, metadata["default_count"], 1 if child else 0)))
             require({param["name"]: integer_default(param["default"]) for param in params} == defaults,
                 "public parameter defaults changed")
     bindings = child_bindings(text, bodies[metadata["module"]]) if metadata["kind"] == "child" else []

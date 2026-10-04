@@ -154,6 +154,14 @@ object ExternalParameterizedNativeGeometry {
       record.width
     }
 
+  private[internals] def ownsAssignment(component: Component,
+      assignment: DataAssignmentStatement): Boolean = storage(component).exists { value =>
+    Option(value.byExpression.get(assignment.source)).exists { record =>
+      if (!valid(component, record)) fail("retained native geometry changed after capture")
+      record.assignment eq assignment
+    }
+  }
+
   private[internals] def withPublicationValidation[A](component: Component)(body: => A): A = {
     val original = storage(component)
     def check(): Unit = {

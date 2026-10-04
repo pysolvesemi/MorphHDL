@@ -26,7 +26,19 @@ private[internals] object NativeWidthFormalSchema {
       }
     } else None
     expression.map { e =>
-      ElaborationWidthAuthority.requireAuthoritative(e, "native definition width",
+      val role = "native definition width"
+      if (value.component ne owner) {
+        // A child's actual belongs to its exact completed parent capture.
+        // Publication cannot reopen that branch as a module-wide domain.
+        def admitted(root: ElaborationIntegerParameterRoot, universe: Set[BigInt]): Set[BigInt] =
+          ParameterizedStructure.exactChildDomainOf(owner, value.component, root, universe,
+            role, e.sourceLocation).values
+        if (ElaborationProductDomain.isRetained(e))
+          ElaborationProductDomain.owner(e, role, e.sourceLocation)(admitted).get
+        else if (ElaborationWidthAuthority.ownerEvaluation(e, role, e.sourceLocation)(admitted).isEmpty)
+          ElabInt.authoritativeIntegerOwnerDomain(e, role,
+            "SPINAL-PARAMETERIZED-VERILOG-FORMAL-WIDTH-AUTHORITY-MISSING")(admitted)
+      } else ElaborationWidthAuthority.requireAuthoritative(e, role,
         "SPINAL-PARAMETERIZED-VERILOG-FORMAL-WIDTH-AUTHORITY-MISSING")
       require(e.default == value.getBitsWidth && e.minimum > 0,
         "native formal declaration/connection must preserve its own width witness")

@@ -101,15 +101,21 @@ class NativeLibraryReuseTests extends AnyFunSuite {
           Vector("WIDTH" -> value), "pipes_legacy_" + value)
       }
 
+      // Only the reviewed operand sizing and condition events differ from
+      // the concrete body; retain exact equality for all other statements.
+      val sizedComparison = "({{((WIDTH > 8 ? WIDTH : 8) - (WIDTH)){1'b0}}, fixedLiteralInput} == {{((WIDTH > 8 ? WIDTH : 8) - 8){1'b0}}, 8'hff})"
+      assert(legacy.contains(sizedComparison), legacy)
       assert(
         module(concretize(legacy, "NativePipes", 8), "NativePipes") ==
           module(concrete, "NativePipes")
+            .replace("(fixedLiteralInput == 8'hff)", sizedComparison)
+            .replace("always @(*)", "always @(stream_m2sPipe_ready or stream_m2sPipe_valid or when_Stream_l682)")
       )
       assert(parameterized.contains("parameter integer WIDTH = 8"))
       Vector("fixedLiteralInput", "streamInPayload", "streamOutPayload", "flowInPayload", "flowOutPayload")
         .foreach(name => assert(hasWidth(parameterized, name, "[WIDTH-1:0]")))
       assert(parameterized.contains("always @(posedge clk)"))
-      assert(parameterized.contains("(fixedLiteralInput == 8'hff)"))
+      assert(parameterized.contains(sizedComparison), parameterized)
       assert(parameterized.contains("streamInReady") && parameterized.contains("streamOutReady"))
       assert(!parameterized.contains("ParamRTL"))
       compileOverride(directory, directory.resolve("native_pipes.v"), "NativePipes")

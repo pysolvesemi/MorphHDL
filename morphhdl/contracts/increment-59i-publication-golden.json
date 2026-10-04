@@ -1630,8 +1630,8 @@
           "module": "PublicationGoldenChild",
           "parameters": [
             {
-              "declaration": "parameter integer COORD_WIDTH = 7",
-              "default": "7",
+              "declaration": "parameter integer COORD_WIDTH = 1",
+              "default": "1",
               "name": "COORD_WIDTH"
             },
             {
@@ -1645,13 +1645,13 @@
               "name": "MODE"
             },
             {
-              "declaration": "parameter integer TAG_WIDTH = 3",
-              "default": "3",
+              "declaration": "parameter integer TAG_WIDTH = 1",
+              "default": "1",
               "name": "TAG_WIDTH"
             },
             {
-              "declaration": "parameter integer WIDTH = 5",
-              "default": "5",
+              "declaration": "parameter integer WIDTH = 1",
+              "default": "1",
               "name": "WIDTH"
             }
           ],
@@ -1695,7 +1695,7 @@
               "unpacked_dimensions": []
             },
             {
-              "declaration": "output reg  [WIDTH-1:0]    selected_key",
+              "declaration": "output reg  [WIDTH-1:0] selected_key",
               "direction": "output",
               "name": "selected_key",
               "packed_dimensions": [
@@ -1706,7 +1706,7 @@
               "unpacked_dimensions": []
             },
             {
-              "declaration": "output reg  [TAG_WIDTH-1:0]    selected_tag",
+              "declaration": "output reg  [TAG_WIDTH-1:0] selected_tag",
               "direction": "output",
               "name": "selected_tag",
               "packed_dimensions": [
@@ -1717,7 +1717,7 @@
               "unpacked_dimensions": []
             },
             {
-              "declaration": "output reg  [COORD_WIDTH-1:0]    selected_x",
+              "declaration": "output reg  [COORD_WIDTH-1:0] selected_x",
               "direction": "output",
               "name": "selected_x",
               "packed_dimensions": [
@@ -1728,7 +1728,7 @@
               "unpacked_dimensions": []
             },
             {
-              "declaration": "output reg  [COORD_WIDTH-1:0]    selected_y",
+              "declaration": "output reg  [COORD_WIDTH-1:0] selected_y",
               "direction": "output",
               "name": "selected_y",
               "packed_dimensions": [
@@ -1739,7 +1739,7 @@
               "unpacked_dimensions": []
             },
             {
-              "declaration": "output reg  [WIDTH-1:0]    delayed_key",
+              "declaration": "output reg  [WIDTH-1:0] delayed_key",
               "direction": "output",
               "name": "delayed_key",
               "packed_dimensions": [
@@ -1750,7 +1750,7 @@
               "unpacked_dimensions": []
             },
             {
-              "declaration": "output reg  [TAG_WIDTH-1:0]    delayed_tag",
+              "declaration": "output reg  [TAG_WIDTH-1:0] delayed_tag",
               "direction": "output",
               "name": "delayed_tag",
               "packed_dimensions": [
@@ -1761,7 +1761,7 @@
               "unpacked_dimensions": []
             },
             {
-              "declaration": "output reg  [COORD_WIDTH-1:0]    delayed_x",
+              "declaration": "output reg  [COORD_WIDTH-1:0] delayed_x",
               "direction": "output",
               "name": "delayed_x",
               "packed_dimensions": [
@@ -1772,7 +1772,7 @@
               "unpacked_dimensions": []
             },
             {
-              "declaration": "output reg  [COORD_WIDTH-1:0]    delayed_y",
+              "declaration": "output reg  [COORD_WIDTH-1:0] delayed_y",
               "direction": "output",
               "name": "delayed_y",
               "packed_dimensions": [
@@ -1820,7 +1820,7 @@
       ],
       "profile": "child-packed",
       "rtl_hash_scope": "full-rtl",
-      "rtl_sha256": "6d7c6fa6882fdfc1fe1f6f8367b7d0cf99867c84d1a5674b1d50f54d0c3e55ef",
+      "rtl_sha256": "f463c8ba6e2b01c84fdecb93a9d7c89f14c1f0b06e21795f69ae3d95e1ff89b1",
       "signed_mode": "default"
     },
     {
@@ -2091,8 +2091,8 @@
           "module": "PublicationGoldenChild",
           "parameters": [
             {
-              "declaration": "parameter integer COORD_WIDTH = 7",
-              "default": "7",
+              "declaration": "parameter integer COORD_WIDTH = 1",
+              "default": "1",
               "name": "COORD_WIDTH"
             },
             {
@@ -2106,13 +2106,13 @@
               "name": "MODE"
             },
             {
-              "declaration": "parameter integer TAG_WIDTH = 3",
-              "default": "3",
+              "declaration": "parameter integer TAG_WIDTH = 1",
+              "default": "1",
               "name": "TAG_WIDTH"
             },
             {
-              "declaration": "parameter integer WIDTH = 5",
-              "default": "5",
+              "declaration": "parameter integer WIDTH = 1",
+              "default": "1",
               "name": "WIDTH"
             }
           ],
@@ -2189,7 +2189,7 @@
               "unpacked_dimensions": []
             },
             {
-              "declaration": "output reg  [WIDTH-1:0]    selected_key",
+              "declaration": "output reg  [WIDTH-1:0] selected_key",
               "direction": "output",
               "name": "selected_key",
               "packed_dimensions": [
@@ -2200,7 +2200,7 @@
               "unpacked_dimensions": []
             },
             {
-              "declaration": "output reg  [TAG_WIDTH-1:0]    selected_tag",
+              "declaration": "output reg  [TAG_WIDTH-1:0] selected_tag",
               "direction": "output",
               "name": "selected_tag",
               "packed_dimensions": [
@@ -2211,7 +2211,7 @@
               "unpacked_dimensions": []
             },
             {
-              "declaration": "output reg  [COORD_WIDTH-1:0]    selected_x",
+              "declaration": "output reg  [COORD_WIDTH-1:0] selected_x",
               "direction": "output",
               "name": "selected_x",
               "packed_dimensions": [
@@ -2222,7 +2222,7 @@
               "unpacked_dimensions": []
             },
             {
-              "declaration": "output reg  [COORD_WIDTH-1:0]    selected_y",
+              "declaration": "output reg  [COORD_WIDTH-1:0] selected_y",
               "direction": "output",
               "name": "selected_y",
               "packed_dimensions": [
@@ -2233,7 +2233,7 @@
               "unpacked_dimensions": []
             },
             {
-              "declaration": "output reg  [WIDTH-1:0]    delayed_key",
+              "declaration": "output reg  [WIDTH-1:0] delayed_key",
               "direction": "output",
               "name": "delayed_key",
               "packed_dimensions": [
@@ -2244,7 +2244,7 @@
               "unpacked_dimensions": []
             },
             {
-              "declaration": "output reg  [TAG_WIDTH-1:0]    delayed_tag",
+              "declaration": "output reg  [TAG_WIDTH-1:0] delayed_tag",
               "direction": "output",
               "name": "delayed_tag",
               "packed_dimensions": [
@@ -2255,7 +2255,7 @@
               "unpacked_dimensions": []
             },
             {
-              "declaration": "output reg  [COORD_WIDTH-1:0]    delayed_x",
+              "declaration": "output reg  [COORD_WIDTH-1:0] delayed_x",
               "direction": "output",
               "name": "delayed_x",
               "packed_dimensions": [
@@ -2266,7 +2266,7 @@
               "unpacked_dimensions": []
             },
             {
-              "declaration": "output reg  [COORD_WIDTH-1:0]    delayed_y",
+              "declaration": "output reg  [COORD_WIDTH-1:0] delayed_y",
               "direction": "output",
               "name": "delayed_y",
               "packed_dimensions": [
@@ -2325,7 +2325,7 @@
       ],
       "profile": "child-fields",
       "rtl_hash_scope": "full-rtl",
-      "rtl_sha256": "7bce5516a8e1f36c2b27438329ebf5ceab2104264fe3ef7a7e57b82ae976c579",
+      "rtl_sha256": "3dea704e90a99b302a0c7c7f2cb9a7d59292a8f38c03628993b3286949979714",
       "signed_mode": "default"
     },
     {

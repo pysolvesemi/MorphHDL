@@ -18,10 +18,11 @@ G = importlib.util.module_from_spec(SPEC)
 exec(compile(SOURCE.read_bytes(), str(SOURCE), "exec"), G.__dict__)
 
 
-def module(name, mode=0, body="  assign result = records;\n", parameters=True, signed=False, width="WIDTH"):
+def module(name, mode=0, body="  assign result = records;\n", parameters=True, signed=False, width="WIDTH",
+        width_defaults=(5, 3, 7)):
     params = ""
     if parameters:
-        values = (5, 3, 7, 5, mode)
+        values = (*width_defaults, 5, mode)
         params = " #(\n" + ",\n".join("  parameter integer " + name + " = " + str(value)
             for name, value in zip(G.FORMALS, values)) + "\n)"
     return ("module " + name + params + " (\n"
@@ -56,7 +57,8 @@ def fixture_rtl(metadata):
         bindings = ",\n".join("    ." + name + "(" + ("((MODE + 1))" if name == "MODE" else name) + ")"
             for name in G.FORMALS)
         body = "  PublicationGoldenChild #(\n" + bindings + "\n  ) child (.clk(clk), .records(records), .result(result));\n"
-        return (module(metadata["module"], body=body) + "\n" + module("PublicationGoldenChild", mode=1)).encode()
+        return (module(metadata["module"], body=body) + "\n" +
+            module("PublicationGoldenChild", mode=1, width_defaults=(1, 1, 1))).encode()
     return module(metadata["module"], body=body, signed=signed).encode()
 
 
@@ -120,6 +122,25 @@ class PublicationGoldenTests(unittest.TestCase):
         self.contract.write_bytes(G.serialized(snapshot))
         self.reject(lambda: G.output_file(self.contract, snapshot, (self.a, self.b), self.contract))
         self.reject(lambda: G.output_file(self.a / "manifest.json", snapshot, (self.a, self.b), None))
+
+    def test_child_definition_defaults_and_parent_actuals_remain_independent(self):
+        for profile in ("child-packed", "child-fields"):
+            original = self.path(profile).read_bytes()
+            for name, witness in (("WIDTH", 5), ("TAG_WIDTH", 3), ("COORD_WIDTH", 7)):
+                with self.subTest(profile=profile, formal=name):
+                    before = ("parameter integer " + name + " = 1").encode()
+                    after = ("parameter integer " + name + " = " + str(witness)).encode()
+                    self.assertEqual(original.count(before), 1)
+                    for root in (self.a, self.b):
+                        self.path(profile, root).write_bytes(original.replace(before, after))
+                    self.reject(detail="public parameter defaults changed")
+                    for root in (self.a, self.b):
+                        self.path(profile, root).write_bytes(original.replace(
+                            ("." + name + "(" + name + ")").encode(),
+                            ("." + name + "(1)").encode()))
+                    self.reject(detail="incorrect generated child actual")
+            for root in (self.a, self.b):
+                self.path(profile, root).write_bytes(original)
 
     def test_fixed_manifest_profile_schema_order_and_metadata_mutations_reject(self):
         for mutation in ("unknown", "missing", "duplicate", "order", "path", "absolute", "layout", "signed", "count-bool", "extra-key"):

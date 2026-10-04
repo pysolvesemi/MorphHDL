@@ -73,7 +73,7 @@ class NativeConditionalProcessTests extends AnyFunSuite {
     MorphVerilog(SpinalConfig(targetDirectory = repeated.toString,
       headerWithDate = false))(new ConditionalLaneLoop(parameterized))
     assert(rtl == new String(Files.readAllBytes(repeated.resolve("ConditionalLaneLoop.v")), UTF_8))
-    val lint = run(dir, Seq("verilator", "--lint-only", "-Wno-fatal", "--top-module", "ConditionalLaneLoop", "ConditionalLaneLoop.v"))
+    val lint = run(dir, Seq("verilator", "--lint-only", "-Wall", "--language", "1364-2001", "-DSYNTHESIS", "--top-module", "ConditionalLaneLoop", "ConditionalLaneLoop.v"))
     assert(lint._1 == 0, lint._2)
     val profiles = if (parameterized) Seq((1,1),(3,7),(4,30)) else Seq((4,30))
     for ((lanes,width) <- profiles) {

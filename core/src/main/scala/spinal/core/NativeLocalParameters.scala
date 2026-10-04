@@ -143,7 +143,18 @@ object NativeLocalParameters {
 
   private def render(owner: Component, expression: ElaborationIntegerExpression,
       definition: Boolean): String = {
-    if (!definition) reference(owner, expression).foreach(value => return value)
+    if (!definition) reference(owner, expression).foreach { value =>
+      // ElabInt arithmetic uses signed 32-bit values. A typed UInt local has a
+      // packed hardware declaration, but its exact retained value remains in
+      // the validated nonnegative Int domain. Size and sign this reference for
+      // elaboration arithmetic without changing its hardware uses or identity.
+      val width = referenceWidth(owner, expression).get
+      val packed = existing(owner).get.bindings.find(_.expression eq origin(expression)).get.packedWidth
+      return if (packed.isEmpty) value
+        else if (width < 32) s"$$signed({{${32-width}{1'b0}},$value})"
+        else if (width == 32) s"$$signed($value)"
+        else s"$$signed($value[31:0])"
+    }
     expression.localCalculation match {
       case Some(Calculation(operator, Vector(left, right)))
           if Set("+", "-", "*", "/", "%").contains(operator) =>
@@ -170,7 +181,9 @@ object NativeLocalParameters {
       val rhs = packed match {
         case Some(width) if expression.parameters.isEmpty && expression.localCalculation.isEmpty => s"${width}'d${expression.default}"
         case Some(width) if sizingName.nonEmpty && width < 32 => s"${sizingName.get}[${width-1}:0]"
-        case Some(width) if sizingName.nonEmpty => s"{{${width-32}{1'b0}},${sizingName.get}}"
+        // The sized operand also fixes the width of a zero-valued parameter
+        // alias under Verilog-2001 constant folding before concatenation.
+        case Some(width) if sizingName.nonEmpty => s"{{${width-32}{1'b0}},(${sizingName.get} | 32'd0)}"
         case _ => render(owner, expression, true)
       }
       intermediate + s"  localparam $kind ${retained.names.get(expression)} = $rhs;\n"

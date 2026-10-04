@@ -8,6 +8,43 @@ import org.scalatest.funsuite.AnyFunSuite
 import scala.sys.process.{Process, ProcessLogger}
 
 class NativeTypedLocalConstantTests extends AnyFunSuite {
+  for (bits <- Seq(1,8,32,64)) test(s"named packed dependencies retain signed Int arithmetic width=$bits") {
+    val dir=Files.createTempDirectory("native-local-arithmetic-")
+    MorphVerilog(SpinalConfig(targetDirectory=dir.toString,headerWithDate=false)) {
+      new Component {
+        setDefinitionName("Top")
+        @dontName val parameter=HdlInt.param("VALUE",1,0,1).asElabInt
+        val first=TypedLocalUInt("FIRST",parameter,bits bits)
+        val second=TypedLocalUInt("SECOND",first.elab+4,8 bits)
+        val divided=TypedLocalUInt("DIVIDED",(first.elab+8) / 2,8 bits)
+        val remainder=TypedLocalUInt("REMAINDER",(first.elab+8) % 3,8 bits)
+        val product=TypedLocalUInt("PRODUCT",(first.elab-8)* -1,8 bits)
+        val incoming=in Bool(); val echo=out Bool(); echo := incoming
+        val raw=out UInt(bits bits)
+        val added,quotient,modulo,multiplied=out UInt(8 bits)
+        raw := first.asUInt; added := second.asUInt; quotient := divided.asUInt
+        modulo := remainder.asUInt; multiplied := product.asUInt
+      }
+    }
+    for(value <- Seq(0,1)) {
+      Files.write(dir.resolve("tb.v"),s"""module tb;
+reg incoming; wire echo; wire [$bits-1:0] raw; wire [7:0] added,quotient,modulo,multiplied;
+Top #(.VALUE($value)) dut(incoming,echo,raw,added,quotient,modulo,multiplied);
+initial begin incoming=1; #1;
+if(echo!==incoming || raw!==$bits'd$value || added!==8'd${value+4} || quotient!==8'd${(value+8)/2} ||
+ modulo!==8'd${(value+8)%3} || multiplied!==8'd${(value-8)* -1}) $$fatal;
+$$finish;end endmodule
+""".getBytes(UTF_8))
+      Seq(Seq("iverilog","-g2001","-s","tb","-o","sim","Top.v","tb.v"),
+        Seq("timeout","10","vvp","sim"),
+        Seq("verilator","--lint-only","-Wall","--language","1364-2001","-DSYNTHESIS","--top-module","Top",s"-GVALUE=$value","Top.v"),
+        Seq("yosys","-Q","-p",s"read_verilog Top.v; chparam -set VALUE $value Top; synth -top Top; check -assert")
+      ).foreach { command =>
+        val (code,log)=Increment66ToolEvidence.run(dir,command)
+        assert(code==0,s"$command failed in $dir\n$log")
+      }
+    }
+  }
   class Decoder(symbolic: Boolean) extends Component {
     @dontName private val base = if (symbolic) HdlInt.param("BASE_WORD",1,0,14).asElabInt * 4 else ElabInt.literal(4)
     val control = TypedLocalUInt("ADDR_CONTROL",base,8 bits)
@@ -79,7 +116,7 @@ class NativeTypedLocalConstantTests extends AnyFunSuite {
     val rtl = new String(Files.readAllBytes(dir.resolve("Decoder.v")),UTF_8)
     assert(rtl.contains("localparam [7:0] ADDR_CONTROL") && rtl.contains("localparam [7:0] ADDR_STATUS"),rtl)
     assert(rtl.contains("ADDR_CONTROL : begin") && rtl.contains("ADDR_STATUS : begin"),rtl)
-    assert(rtl.contains("ADDR_CONTROL + 4"),rtl)
+    assert(rtl.contains("$signed({{24{1'b0}},ADDR_CONTROL}) + 4"),rtl)
     val repeated=Files.createTempDirectory("native-typed-local-repeat-")
     MorphVerilog(SpinalConfig(targetDirectory=repeated.toString,headerWithDate=false))(new Decoder(symbolic))
     assert(rtl==new String(Files.readAllBytes(repeated.resolve("Decoder.v")),UTF_8))
@@ -116,7 +153,12 @@ class NativeTypedLocalConstantTests extends AnyFunSuite {
         |assign selectedStrobes=(writeFire && address==${base*4})?strobes:4'b0;
         |endmodule
         |""".stripMargin.getBytes(UTF_8))
-      assert(run(Seq("verilator","--lint-only","-Wno-fatal","--top-module","Decoder","Decoder.v"))==0,log.toString)
+      val lint=Increment66ToolEvidence.run(dir,Seq("verilator","--lint-only","-Wall","--language","1364-2001","-DSYNTHESIS","--top-module","Decoder") ++ (if(symbolic) Seq(s"-GBASE_WORD=$base") else Nil) ++ Seq("Decoder.v"))
+      if(symbolic && base==0) {
+        // At address zero the authored unsigned less-than output is always
+        // false. Retain this exact warning as reviewed evidence, not clean lint.
+        assert(lint._1!=0 && "%Warning-([A-Z0-9_]+):".r.findAllMatchIn(lint._2).map(_.group(1)).toVector==Vector("UNSIGNED"),lint._2)
+      } else assert(lint._1==0,lint._2)
       val specialize=if(symbolic) s"chparam -set BASE_WORD $base Decoder; " else ""
       assert(run(Seq("yosys","-p",s"read_verilog -DSYNTHESIS Decoder.v; $specialize synth -top Decoder; check -assert"))==0,log.toString)
       assert(run(Seq("yosys","-p",s"read_verilog -DSYNTHESIS Decoder.v oracle.v; $specialize proc; opt; equiv_make oracle Decoder equiv; hierarchy -top equiv; equiv_simple; equiv_status -assert"))==0,log.toString)

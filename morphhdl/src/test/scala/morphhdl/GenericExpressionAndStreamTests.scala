@@ -350,9 +350,10 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
           Vector("WIDTH" -> value), "NativeStreamM2sPipe_legacy_" + value)
       }
 
+      // Compare the native body with the exact added condition dependencies.
       assert(
         nativeModule(concretize(legacy, "NativeStreamM2sPipe", width = 8)) ==
-          nativeModule(concrete)
+          nativeModule(concrete).replace("always @(*)", "always @(piped_ready or piped_valid or when_Stream_l682)")
       )
       assert(parameterized.contains("module NativeStreamM2sPipe #("))
       assert(parameterized.contains("parameter integer WIDTH = 8"))
@@ -416,10 +417,11 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
 
       assert(parameterized.contains("parameter integer WIDTH = 3"))
       assert(hasDeclarationWidth(parameterized, "value", "[WIDTH-1:0]"))
-      // Parameterized operands now have explicit domain-wide sizing. Their
-      // text intentionally differs from the concrete native literal; the
+      // Unsized one follows the typed operand width, not its three-bit
+      // construction witness. Its explicit domain-wide sizing intentionally
+      // differs from the concrete native literal; the
       // simulations above retain concrete-default and boundary equivalence.
-      assert(parameterized.contains("WIDTH > 3 ? WIDTH : 3"), parameterized)
+      assert(parameterized.contains("value + {{((WIDTH) - 1){1'b0}}, 1'h1}"), parameterized)
       assert(!parameterized.contains("value + 3'b001"), parameterized)
 
       val unsafeConfig = SpinalConfig(targetDirectory = directory.toString)
@@ -438,36 +440,27 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
           fail(s"Expected explicit fixed-width crossing failure, received $report")
       }
 
-      val nestedConfig = SpinalConfig(targetDirectory = directory.toString)
-      nestedConfig.netlistFileName = "native_unsized_nested_increment.v"
-      val nestedUnsafe = MorphVerilog.tryGenerate(nestedConfig) {
-        new NativeUnsizedNestedIncrement(width)
-      }
-      nestedUnsafe match {
-        case Left(failure) =>
-          assert(
-            failure.detail.contains(
-              "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH"
-            )
-          )
-        case Right(report) =>
-          fail(s"Expected nested witness-width crossing failure, received $report")
+      // The unsized increment has the value requirement of one bit, even
+      // below a concatenation. Compare each specialization to native concrete
+      // elaboration; explicit fixed-width operands above remain rejected.
+      val nested = emitMorph(directory, "native_unsized_nested_increment.v",
+        new NativeUnsizedNestedIncrement(width))
+      Vector(1, 3, 8).foreach { value =>
+        val native = emitConcrete(concreteDirectory,
+          s"native_unsized_nested_increment_$value.v",
+          new NativeUnsizedNestedIncrement(HdlInt.literal(value)))
+        NativeWireCompatibility.check(directory, nested, native, "NativeUnsizedNestedIncrement",
+          Vector("WIDTH" -> value), "NativeUnsizedNestedIncrement_" + value)
       }
 
-      val reusedConfig = SpinalConfig(targetDirectory = directory.toString)
-      reusedConfig.netlistFileName = "native_reused_auto_resize.v"
-      val reusedUnsafe = MorphVerilog.tryGenerate(reusedConfig) {
-        new NativeReusedAutoResize(width)
-      }
-      reusedUnsafe match {
-        case Left(failure) =>
-          assert(
-            failure.detail.contains(
-              "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH"
-            )
-          )
-        case Right(report) =>
-          fail(s"Expected reused auto-resize provenance failure, received $report")
+      val reused = emitMorph(directory, "native_reused_auto_resize.v",
+        new NativeReusedAutoResize(width))
+      Vector(1, 3, 8).foreach { value =>
+        val native = emitConcrete(concreteDirectory,
+          s"native_reused_auto_resize_$value.v",
+          new NativeReusedAutoResize(HdlInt.literal(value)))
+        NativeWireCompatibility.check(directory, reused, native, "NativeReusedAutoResize",
+          Vector("WIDTH" -> value), "NativeReusedAutoResize_" + value)
       }
     }
   }

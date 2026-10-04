@@ -88,6 +88,10 @@ jobs:
             morphhdl.HierarchyParameterBindingTests \
             morphhdl.MorphSingleSourceVerilogTests \
             morphhdl.CombinationalEventDependencyTests \
+            morphhdl.NativeConditionalProcessTests \
+            spinal.core.TypedPrimitiveClosureTests \
+            morphhdl.TypedCounterAllOnesTests \
+            morphhdl.CounterSingleAuthorityParityTests \
             morphhdl.GenerateIndexNamingTests \
             morphhdl.TypedLoopCarrierCoverageTests \
             morphhdl.TypedNestedVecWriteTests \

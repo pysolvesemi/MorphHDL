@@ -127,11 +127,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     )
     analysis.validate()
 
+    val withoutSelectionWitnesses = NativeConditionalProcessEmitter.removeUnusedSelectionWitnesses(component, verilog)
     val withHeader =
-      if (analysis.parameters.isEmpty) verilog
+      if (analysis.parameters.isEmpty) withoutSelectionWitnesses
       else
         ensureParameterHeader(
-          verilog,
+          withoutSelectionWitnesses,
           component.definitionName,
           analysis.parameters,
           NativeScalarFormalSchema.definitionParameters(component, analysis.parameters)
@@ -946,6 +947,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
               if (assignment.finalTarget eq target) &&
                 (target.component eq component) && target.isComb &&
                 !retainedValues.containsKey(target) &&
+                !ExternalParameterizedNativeGeometry.ownsAssignment(component, assignment) &&
                 target.hasOnlyOneStatement && (target.head eq assignment) &&
                 !literal.hasPoison() &&
                 (literal.getValue() == 0 || (includeUnsignedConstants &&

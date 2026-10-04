@@ -3625,7 +3625,9 @@ private[internals] object ParameterizedVerilogStructural {
         }
         val continuousFamily = if (
           needsConstantDriver &&
-          Set("always @(*) begin", "always @* begin")(normalized.head)
+          (normalized.head == "always @* begin" ||
+            (normalized.head.matches("always @\\([^()]*\\) begin") &&
+              "\\b(?:posedge|negedge)\\b".r.findFirstIn(normalized.head).isEmpty))
         ) {
           val targets = fragmentAssignments.flatMap { case (_, statements) =>
             statements.map(line => blockingWhole.findFirstMatchIn(line).get.group(1))
@@ -3699,7 +3701,8 @@ private[internals] object ParameterizedVerilogStructural {
             if (continuousFamily)
               fragmentAssignments.find { case (plan, _) => plan.block eq claimant.block }
                 .get._2.map(statement => "assign " + statement).mkString("\n")
-            else stripCommonIndent(selected.map(lines).mkString("\n").trim)
+            else NativeConditionalProcessEmitter.restrictFragmentSensitivity(component,
+              stripCommonIndent(selected.map(lines).mkString("\n").trim))
           val plan = current(claimant.block)
           current(claimant.block) = plan.copy(
             body = replaceUniqueProcess(

@@ -525,3 +525,47 @@ localparam/slice assertions and simulation of the default and width overrides.
 The retained inventory now contains 234 suites and 2,379 cases, including all 24
 new cases; the targeted formalization workflow includes both new suites. Full
 branch coverage review and exact-head targeted CI still precede full qualification.
+
+### Qualification repair follow-up, 4 October 2026
+
+The broader local run found and repaired four additional interactions: packed
+named UInt constants now retain signed 32-bit elaboration arithmetic when reused
+by derived expressions; child width formals use their exact captured branch
+domain; split combinational processes retain only their visible event dependencies,
+including pure condition-driver inputs; and native geometry assignments retain
+their registered fill identity instead of being consumed by generic constant
+publication. Exclusively consumed conditional-loop selection witnesses are removed
+only after graph-identity and emitted-reference checks. No ownership, domain,
+latch or dominance diagnostic is suppressed.
+
+The completed local closure queue passed 16 focused tests on Scala 2.12, 723 tests
+across 65 suites on Scala 2.13, and 27 frontend/plugin tests on each version.
+Earlier Scala 2.12 repair reruns cover the other affected suites. The retained
+catalog has 234 suites and 2,384 cases, with five new cases and no removed cases.
+The final queue captured 146 successful lint commands and one expected unsigned
+comparison rejection for an authored zero-bound comparison. Simulation and
+equivalence negative controls remain failures of deliberately invalid candidates,
+not waived positive cases. These results are local repair evidence, not remote
+or whole-branch qualification.
+
+The publication golden review regenerated the immutable `b459aa9b9` child
+profiles and matched both historical checksums. After restoring only the three
+child width defaults for comparison, all 41,775 packed-profile tokens and 42,301
+field-profile tokens match. The intentional current change is declaration-owned
+`WIDTH`, `TAG_WIDTH` and `COORD_WIDTH` defaults of one, plus alignment whitespace.
+Parent defaults, actual bindings and hardware bodies are unchanged. All ten
+current profiles reproduce byte-for-byte across independent generations. Only
+the two child profiles in the reviewed contract change; the checker still binds
+full RTL bytes and rejects incorrect defaults, actual bindings and body changes.
+
+One exploratory event-dependency fixture using ordinary constant-folded shared
+defaults reached a separate pre-existing structural ownership limitation. The
+accepted event regression uses an explicitly retained typed zero value. This
+follow-up does not claim that the ordinary shared-default form is repaired.
+
+CI preflight also exposed an inherited source-review mismatch: the old sealed
+59i reviewer cannot authenticate the later integrated compiler tree. The current
+integration seal must authenticate the exact repaired source, while retained
+historical source controls identify their immutable predecessor separately.
+Remote targeted qualification remains pending this transition and a clean sealed
+candidate. Full CI must wait for all applicable targeted gates on that candidate.

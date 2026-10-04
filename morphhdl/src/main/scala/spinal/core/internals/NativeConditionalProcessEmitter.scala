@@ -33,6 +33,48 @@ private[internals] object NativeConditionalProcessEmitter {
   private def reject(detail: String): Nothing =
     ParameterizedVerilogException.fail("SPINAL-PROCESS-CONDITIONAL-PUBLICATION-MISMATCH", detail, None)
 
+  /** Structural process splitting has already proved the retained statements'
+    * owners. Restrict the native combinational event list to this exact fragment,
+    * including the pure condition-driver dependencies added by condition above.
+    * Otherwise an event alone can reference a declaration in a sibling branch.
+    */
+  def restrictFragmentSensitivity(component: Component, fragment: String): String = {
+    val lines = fragment.split("\n", -1).toVector
+    val header = "^\\s*always @\\(([^()]*)\\) begin\\s*$".r
+    lines.headOption match {
+      case Some(header(events)) if events != "*" &&
+          !events.split("\\s+").exists(word => word == "posedge" || word == "negedge") =>
+        val references = ParameterizedVerilogStructural.verilogReferenceNames(lines.tail.mkString("\n"))
+        val dependencies = scala.collection.mutable.Set.empty[String] ++ references
+        component.dslBody.walkStatements {
+          case statement: WhenStatement => statement.cond match {
+            case value: Bool if references(value.getName()) && !value.isIo && !value.isReg &&
+                (value.component eq component) && value.hasOnlyOneStatement =>
+              value.head match {
+                case assignment: DataAssignmentStatement if (assignment.target eq value) &&
+                    (assignment.parentScope eq value.rootScopeStatement) => assignment.source match {
+                  case _: BinaryOperator | _: UnaryOperator =>
+                    assignment.source.walkExpression {
+                      case base: BaseType => dependencies += base.getName()
+                      case _ =>
+                    }
+                  case _ =>
+                }
+                case _ =>
+              }
+            case _ =>
+          }
+          case _ =>
+        }
+        val retained = events.split("\\s+or\\s+").toVector.filter(event =>
+          ParameterizedVerilogStructural.verilogReferenceNames(event).exists(dependencies))
+        if (retained.isEmpty) reject("split combinational process has no retained event dependencies")
+        (Vector("always @(" + retained.mkString(" or ") + ") begin") ++
+          lines.tail).mkString("\n")
+      case _ => fragment
+    }
+  }
+
   def scope(printer: ComponentEmitterVerilog, tree: TreeStatement, scope: ScopeStatement,
       output: StringBuilder, indentation: String, body: String => Int): Option[Int] = {
     ParameterizedProcess.conditionalLoopsOf(printer.component).find(_.tree eq tree).map { loop =>
@@ -84,6 +126,47 @@ private[internals] object NativeConditionalProcessEmitter {
         else s"$target[$index * ($width) +: $width]"
       }
     }.toVector.headOption
+  }
+
+  /** Only the exact compiler-created, exclusively consumed selection witness
+    * becomes dead when its native when scope is published as a loop. Preserve
+    * any carrier with another native consumer; never discover witnesses by name.
+    */
+  def removeUnusedSelectionWitnesses(component: Component, verilog: String): String = {
+    var lines = verilog.split("\\n", -1).toVector
+    ParameterizedProcess.conditionalLoopsOf(component).foreach { loop =>
+      val value = loop.condition
+      val exactDriver = value.hasOnlyOneStatement && (value.head match {
+        case assignment: DataAssignmentStatement =>
+          (assignment.target eq value) && (assignment.finalTarget eq value) &&
+            (assignment.parentScope eq value.rootScopeStatement) &&
+            (assignment.source eq loop.conditionDriver)
+        case _ => false
+      })
+      var otherUse = false
+      component.dslBody.walkStatements { statement =>
+        if (!(statement eq loop.tree)) statement.walkDrivingExpressions {
+          case expression if expression eq value => otherUse = true
+          case _ =>
+        }
+      }
+      if ((value.component eq component) && !value.isIo && !value.isReg && exactDriver && !otherUse) {
+        val name = java.util.regex.Pattern.quote(value.getName())
+        val declaration = ("^\\s*wire\\s+" + name + ";\\s*$").r
+        val assignment = ("^\\s*assign\\s+" + name + "\\s*=.*;\\s*$").r
+        val reference = ("\\b" + name + "\\b").r
+        val declarations = lines.indices.filter(i => declaration.pattern.matcher(lines(i)).matches())
+        val assignments = lines.indices.filter(i => assignment.pattern.matcher(lines(i)).matches())
+        // A native optimizer can already have removed this declaration. Any
+        // additional emitted reference forbids removal even with graph evidence.
+        if (declarations.size == 1 && assignments.size == 1 &&
+            lines.map(line => reference.findAllIn(line).length).sum == 2) {
+          val removed = (declarations ++ assignments).toSet
+          lines = lines.zipWithIndex.collect { case (line,index) if !removed(index) => line }
+        }
+      }
+    }
+    lines.mkString("\n")
   }
 
   def validate(component: Component): Unit = {
