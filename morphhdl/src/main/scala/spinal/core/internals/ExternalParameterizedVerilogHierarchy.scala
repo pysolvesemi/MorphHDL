@@ -2061,6 +2061,16 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       context: String,
       allowConcreteInternal: Boolean = false
   ): Vector[BindingExpr] = {
+    // Only an authenticated explicit native formal with a constant actual can
+    // validate an otherwise untagged fixed internal parent wire. Keep this
+    // separate from allowConcreteInternal: it does not admit sliced/converted
+    // output adapters, and a witness of a varying actual is never a proof.
+    val fixedFormalActual = if (port.component ne child) None else
+      NativeWidthFormalSchema.portBinding(port).map(_.binding.actual).filter { actual =>
+        actual.parameters.isEmpty && actual.generateIndex.isEmpty &&
+          actual.minimum > 0 && actual.minimum == actual.maximum &&
+          actual.default == actual.minimum && actual.default == BigInt(port.getBitsWidth)
+      }.map(_.default)
     if (port.isInput) {
       assignments.flatMap { assignment =>
         val touches = references(assignment.target, port) || assignment.finalTarget == port
@@ -2071,7 +2081,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
               parent,
               assignment.source,
               context,
-              allowConcreteInternal
+              allowConcreteInternal,
+              fixedFormalActual
             )
           )
         } else {
@@ -2094,7 +2105,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
               parent,
               assignment.finalTarget,
               context,
-              allowConcreteInternal
+              allowConcreteInternal,
+              fixedFormalActual
             )
           )
         } else if (
@@ -2113,7 +2125,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
               parent,
               assignment.target,
               context,
-              allowConcreteInternal
+              allowConcreteInternal,
+              fixedFormalActual
             )
           )
         } else {
@@ -2135,7 +2148,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       parent: Component,
       expression: Expression,
       context: String,
-      allowConcreteInternal: Boolean
+      allowConcreteInternal: Boolean,
+      fixedFormalActual: Option[BigInt]
   ): BindingExpr = expression match {
     case _: BitAssignmentFixed if allowConcreteInternal =>
       LiteralBinding(1)
@@ -2146,7 +2160,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     case value: BitVector if value.component == parent =>
       ExternalParameterizedHierarchyResizeWidth.expressionOf(parent, value) match {
         case Some(expression) => ExpressionBinding(expression)
-        case None if value.isIo || allowConcreteInternal =>
+        case None if value.isIo || allowConcreteInternal ||
+            (value.isFixedWidth && fixedFormalActual.contains(BigInt(value.getBitsWidth))) =>
           LiteralBinding(value.getBitsWidth)
         case None =>
           fail(

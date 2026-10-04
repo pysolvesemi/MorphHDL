@@ -467,3 +467,61 @@ warnings were suppressed and the application lint run is not recorded as an
 unqualified pass. Complete branch lint/coverage inventory, source-review receipts
 and whole-branch qualification remain outstanding. The issue checkboxes stay
 open until their closure evidence is complete.
+
+### CA-011 and generic-application boundary repairs, 4 October 2026
+
+- [ ] **CA-011: literal-width generic children reject explicitly sized internal
+  parent carriers.** The compiler repair is implemented and locally verified;
+  exact-head remote qualification remains pending. `connectionEvidence` now
+  authenticates the child port's retained explicit formal actual. A positive,
+  parameter-free constant actual admits a fixed parent carrier only when both
+  widths match exactly. This does not enable the general concrete-internal
+  adapter path. Varying symbolic actuals cannot borrow an untagged carrier's
+  elaboration width; sliced/expression connections, foreign ownership and
+  mismatched widths remain rejected. Explicit instance parameter bindings remain.
+
+`NativeHierarchyWidthBoundaryTests` covers Bits/UInt/SInt inputs and outputs,
+internal/direct connections, literal and symbolic actuals, independent mixed
+8/16-bit instances, 5/23-bit overrides, one shared child definition, deterministic
+repeat generation and combined/per-component publication. Negative tests retain
+width, connection, ownership and complete-domain slice checks. Simulation and
+synthesis cover both publication formats; strict filename-aware Verilog-2001 lint
+uses per-component publication without warning suppression. All 21 cases pass on
+both Scala versions. The three new contextual-UInt cases also pass on both.
+
+The independent input and output reproducers supplied with CA-011 now generate
+in both direct and internal modes and pass simulation, strict lint and synthesis.
+Both previously passing resize reductions still generate. External application
+sources, dependency pins and golden RTL were not changed.
+
+The frozen generic application additionally exposed two distinct compiler causes:
+
+- Untagged fixed child inputs followed parent-side drivers during width inference,
+  importing a sibling's formal domain into a fixed child declaration. Inference
+  now stops at that explicitly fixed input boundary after retained typed-width
+  authority has been checked. An independent fixed-child reproducer demonstrates
+  the failure; genuinely invalid slices in a child's own formal domain still fail.
+- Native normalization padded unsized UInt literals to the elaboration witness.
+  Common-width UInt arithmetic/comparisons now use an unsized literal's value
+  requirement, while explicit literal widths and symbolic-fill authority remain
+  intact. Direct constant UInt assignments publish their retained target width
+  only after full-domain value-fit and exact assignment/owner checks. Tests cover
+  widths 1/2/4/8/16, carry-preserving rounded averages, left/right literals,
+  comparisons, strict lint, synthesis and invalid-width controls.
+
+The complete frozen source matches the closure snapshot. Fresh generic top, CDC
+and 4:2:0 generation each passes twice with identical output; all 17 selected
+application profiles pass fresh simulation after the final sizing repair. The
+43 reachable module lint runs have no width findings. Eight closures are clean;
+108 unused-signal/bit locations, 14 mixed synchronous/asynchronous reset-use
+locations and two open ready inputs remain recorded for application review.
+This is not a claim of warning-free application lint or whole-branch qualification.
+
+The affected hierarchy/formal/resize/signedness run passed 129 tests per Scala
+version before the final constant-assignment lint repair. Its final affected
+111-test set also passes on both versions (Scala 2.12 evidence spans the focused
+reruns). An outdated retained-value spelling assertion was replaced with exact
+localparam/slice assertions and simulation of the default and width overrides.
+The retained inventory now contains 234 suites and 2,379 cases, including all 24
+new cases; the targeted formalization workflow includes both new suites. Full
+branch coverage review and exact-head targeted CI still precede full qualification.

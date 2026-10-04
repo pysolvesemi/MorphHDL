@@ -171,7 +171,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         rewriteDeclarationLine(line, if (port) portWidthsByName else widthsByName)
       }
       .mkString("\n")
-    val rewrittenConstants = rewriteRetainedZeroAssignments(
+    val rewrittenConstants = rewriteRetainedLiteralAssignments(
       component,
       rewrittenDeclarations,
       nativeSignedLiterals = morphhdl.MorphSignedCasts.isEnabled(pc.config)
@@ -907,11 +907,24 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     * Publish its own symbolic result width, including combinational carriers
     * inside ordinary helper graphs. Only one direct, poison-free literal edge
     * on the exact live typed carrier authorizes an emitted replacement.
+    * This compatibility entry retains the zero-only mutation-test surface.
     */
   private[internals] def rewriteRetainedZeroAssignments(
       component: Component,
       verilog: String,
       nativeSignedLiterals: Boolean = false
+  ): String = rewriteRetainedLiteralAssignments(component, verilog, nativeSignedLiterals, false)
+
+  /** Fit-proven native UInt constants also require a retained-width spelling:
+    * normalization's witness-sized literal must not truncate at a smaller
+    * shared-definition default. The graph and publication-owner checks are
+    * identical to the zero case, and every admitted width must hold the value.
+    */
+  private def rewriteRetainedLiteralAssignments(
+      component: Component,
+      verilog: String,
+      nativeSignedLiterals: Boolean = false,
+      includeUnsignedConstants: Boolean = true
   ): String = {
     // An ElabValue carrier's literal and a finite fold's zero anchor are
     // construction witnesses. Their exact registries own publication.
@@ -934,10 +947,13 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                 (target.component eq component) && target.isComb &&
                 !retainedValues.containsKey(target) &&
                 target.hasOnlyOneStatement && (target.head eq assignment) &&
-                !literal.hasPoison() && literal.getValue() == 0 &&
+                !literal.hasPoison() &&
+                (literal.getValue() == 0 || (includeUnsignedConstants &&
+                  target.isInstanceOf[UInt] && literal.isInstanceOf[UIntLiteral] && literal.getValue() > 0)) &&
                 literal.getWidth == target.getBitsWidth =>
             ParameterizedWidth.expressionOf(target)
-              .filter(_.parameters.nonEmpty).foreach { width =>
+              .filter(width => width.parameters.nonEmpty &&
+                (literal.getValue() == 0 || width.minimum >= math.max(1,literal.getValue().bitLength))).foreach { width =>
                 // Reconstruct only the domain belonging to this exact live
                 // declaration. The same owner check covers one-root projections
                 // and composed width authority without reopening a finished
@@ -966,7 +982,13 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                 lines = lines.map {
                   case exactPattern(prefix, suffix) =>
                     exactEdges += 1
-                    prefix + "{" + width.verilog + "{1'b0}}" + suffix
+                    val value = literal.getValue()
+                    val replacement = if (value == 0) "{" + width.verilog + "{1'b0}}"
+                      else {
+                        val bits = math.max(1,value.bitLength)
+                        s"{{((${width.verilog}) - $bits){1'b0}}, ${bits}'h${value.toString(16)}}"
+                      }
+                    prefix + replacement + suffix
                   case line => line
                 }
                 if (targetEdges != 1 || exactEdges != 1) {
@@ -3475,6 +3497,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         }
 
       private def inferUntaggedBitVector(bitVector: BitVector): WidthExpr = {
+        // A fixed input is a declaration boundary in this module. Its driving
+        // assignment belongs to the parent, whose expressions and child-formal
+        // roots cannot establish widths inside this definition. Explicit typed
+        // port widths have already been resolved by ofBase before this fallback.
+        if ((bitVector.component eq component) && bitVector.isInput && bitVector.isFixedWidth)
+          return WidthLiteral(bitVector.getBitsWidth)
         val fullAssignments = ArrayBuffer.empty[DataAssignmentStatement]
         bitVector.foreachStatements {
           case assignment: DataAssignmentStatement
@@ -3516,8 +3544,35 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       def ofExpression(expression: Expression): WidthExpr = {
         expressionCache.getOrElseUpdate(expression, inferExpression(expression))
       }
-      def binaryWidths(expression: BinaryOperator): (WidthExpr, WidthExpr) =
-        operandWidth(expression.left) -> operandWidth(expression.right)
+      def binaryWidths(expression: BinaryOperator): (WidthExpr, WidthExpr) = {
+        val left = operandWidth(expression.left)
+        val right = operandWidth(expression.right)
+        // Native normalization pads unsized UInt literals to the elaboration
+        // witness. That padding is not an authored width constraint. Recover
+        // only their value requirement in common-width UInt operations; retain
+        // explicit widths, symbolic fills and every non-contextual operation.
+        val contextual = expression match {
+          case _: Operator.UInt.Add | _: Operator.UInt.Sub |
+              _: Operator.UInt.And | _: Operator.UInt.Or | _: Operator.UInt.Xor |
+              _: Operator.UInt.Equal | _: Operator.UInt.EqualSim |
+              _: Operator.UInt.NotEqual | _: Operator.UInt.Smaller |
+              _: Operator.UInt.SmallerOrEqual => true
+          case _ => false
+        }
+        def required(value: Expression, own: WidthExpr, other: WidthExpr): WidthExpr = value match {
+          case literal: UIntLiteral if contextual && other.isSymbolic && other.minimum > 0 &&
+              !literal.hasSpecifiedBitCount && !literal.hasPoison() && literal.value >= 0 &&
+              ExternalParameterizedNativeGeometry.widthOf(component, literal).isEmpty =>
+            WidthLiteral(math.max(1, literal.value.bitLength))
+          case _ => own
+        }
+        required(expression.left, left, right) -> required(expression.right, right, left)
+      }
+
+      private def commonBinaryWidth(expression: BinaryOperator): WidthExpr = {
+        val (left, right) = binaryWidths(expression)
+        widthMax(left, right)
+      }
 
       /** Spinal input normalization inserts concrete-witness Resize nodes around
         * operands.  Those nodes are not user-visible resizes and must retain the
@@ -3548,15 +3603,15 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         case operator: Operator.Bits.Cat =>
           widthAdd(operandWidth(operator.left), operandWidth(operator.right))
         case operator: Operator.BitVector.Add =>
-          widthMax(operandWidth(operator.left), operandWidth(operator.right))
+          commonBinaryWidth(operator)
         case operator: Operator.BitVector.Sub =>
-          widthMax(operandWidth(operator.left), operandWidth(operator.right))
+          commonBinaryWidth(operator)
         case operator: Operator.BitVector.And =>
-          widthMax(operandWidth(operator.left), operandWidth(operator.right))
+          commonBinaryWidth(operator)
         case operator: Operator.BitVector.Or =>
-          widthMax(operandWidth(operator.left), operandWidth(operator.right))
+          commonBinaryWidth(operator)
         case operator: Operator.BitVector.Xor =>
-          widthMax(operandWidth(operator.left), operandWidth(operator.right))
+          commonBinaryWidth(operator)
         case operator: Operator.BitVector.Mul =>
           widthAdd(operandWidth(operator.left), operandWidth(operator.right))
         case operator: Operator.BitVector.Div => operandWidth(operator.left)
@@ -3842,7 +3897,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         if (source.isSymbolic && BigInt(access.hi) >= source.minimum) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-SLICE-DOMAIN-UNSUPPORTED",
-            s"fixed slice ${access.hi} downto ${access.lo} is not valid for the complete symbolic source-width domain '${source.render}' in [${source.minimum}, ${source.maximum}]"
+            s"fixed slice ${access.hi} downto ${access.lo} of ${access.source} in component '${component.definitionName}' is not valid for the complete symbolic source-width domain '${source.render}' in [${source.minimum}, ${source.maximum}]"
           )
         }
         WidthLiteral(access.getWidth)
