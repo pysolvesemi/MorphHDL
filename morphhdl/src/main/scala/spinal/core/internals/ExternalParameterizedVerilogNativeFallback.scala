@@ -1116,7 +1116,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           }
           var name = names.get(assignment)
           if (name == null) {
-            name = component.localNamingScope.allocateName("morphhdl_value")
+            name = component.localNamingScope.allocateName("param_value")
             names.put(assignment, name)
             printer.localparams ++= s"  localparam [31:0] $name = ${expression.verilog};\n"
           }

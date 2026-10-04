@@ -36,7 +36,7 @@ class TypedBalancedReductionCombinedTests extends AnyFunSuite {
         assert(rtl.contains(value), s"missing $value\n$rtl")
       }
       assert(rtl.contains("always @(posedge clk)"), rtl)
-      assert(rtl.contains("morphhdl_balanced_"), rtl)
+      assert(rtl.contains("balanced_"), rtl)
       // A packed static SInt read must keep the native qualifier and native
       // casts for the requested profile; transport itself remains unsigned.
       val qualifier = if (layout == "fields" || signed != "legacy") " signed" else ""
@@ -74,8 +74,8 @@ class TypedBalancedReductionCombinedTests extends AnyFunSuite {
       new BalancedCombinedLabelCollision(HdlInt.param("COUNT", 1, 1, 5), HdlInt.param("MODE", 1, 0, 1))
     }
     val rtl = text(directory.resolve("labels.v"))
-    assert("begin : morphhdl_balanced_1_active_0\\b".r.findAllIn(rtl).size == 1, rtl)
-    assert(rtl.contains("morphhdl_balanced_1_1_active_0"), rtl)
+    assert("begin : balanced_1_active_0\\b".r.findAllIn(rtl).size == 1, rtl)
+    assert(rtl.contains("balanced_1_1_active_0"), rtl)
   }
 
   test("field-preserving interface remains explicit opt-in") {

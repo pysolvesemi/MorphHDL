@@ -107,7 +107,7 @@ private[internals] final class BalancedCombinedLabelCollision(count: HdlInt, mod
   (mode > HdlInt.literal(0)).generateIf("g_outer", "g_other") {
     result := records.reduceBalancedTree((a: BalancedCompositeRecord, b: BalancedCompositeRecord) =>
       Mux(a.key <= b.key, a, b))
-    (count > HdlInt.literal(1)).generateIf("morphhdl_balanced_1_active_0", "g_user_single") {
+    (count > HdlInt.literal(1)).generateIf("balanced_1_active_0", "g_user_single") {
       val marker = UInt(5 bits).setName("user_many").dontSimplifyIt()
       marker := records(0).key
     }.otherwise {

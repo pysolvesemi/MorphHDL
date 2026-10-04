@@ -134,7 +134,7 @@ private[internals] object ParameterizedVerilogFiniteFolds {
   }
 
   private def uniqueLoopName(verilog: String, ordinal: Long): String = {
-    val base = s"morphhdl_finite_fold_index_$ordinal"
+    val base = s"finite_fold_index_$ordinal"
     var value = base
     var suffix = 1
     while (containsName(verilog, value)) {

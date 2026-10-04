@@ -10,7 +10,7 @@ import scala.collection.mutable
   * both ordinary SpinalHDL alternatives for later Verilog generate lowering.
   */
 object ElabControl {
-  private val ElseIfMarkerPrefix = "morphhdl_else_if_"
+  private val ElseIfMarkerPrefix = "else_if_"
   private object GeneratedIfOrdinalStorageKey
 
   private final class GeneratedIfOrdinals {

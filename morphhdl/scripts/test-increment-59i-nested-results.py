@@ -59,7 +59,7 @@ class NestedResultCheckerTests(unittest.TestCase):
         for owner in (1,2):
             for lane in (0,1,2):
                 for field in ('unsigned','signed'):
-                    lines.append(f'selected_samples_{field}[{lane}*U_W +: U_W] = morphhdl_balanced_{owner}_result_leaf_{lane*4+2};')
+                    lines.append(f'selected_samples_{field}[{lane}*U_W +: U_W] = balanced_{owner}_result_leaf_{lane*4+2};')
         text='\n'.join(lines)
         for control in C.CONTROLS:
             self.assertNotEqual(C.mutate(text,control),text)

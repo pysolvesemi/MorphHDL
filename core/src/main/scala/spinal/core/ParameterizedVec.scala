@@ -1636,7 +1636,7 @@ object ParameterizedVec {
       // Native pruning protects a vital scalar only when it is named. Give
       // the exact result aggregate a weak name so nested field ownership still
       // supplies readable leaf names and later user naming remains stronger.
-      result.setName("morphhdl_typed_vec_access_result", weak = true)
+      result.setName("typed_vec_access_result", weak = true)
       result.flatten.foreach(_.dontSimplifyIt().setAsVital())
       val assignments = assignmentStatementsOf(result)
       val selections = assignments.collect { case assignment if assignment.source.isInstanceOf[Multiplexer] =>
@@ -1993,7 +1993,7 @@ object ParameterizedVec {
               // give it the emitted name of an unrelated multi-driver leaf,
               // making the final identity audit ambiguous.
               intermediate
-                .setName("morphhdl_typed_vec_packed_support", weak = true)
+                .setName("typed_vec_packed_support", weak = true)
                 .dontSimplifyIt()
                 .setAsVital()
             }
@@ -2178,7 +2178,7 @@ object ParameterizedVec {
         // generic names so a later user name remains authoritative, while
         // vital and dontSimplify preserve the identity needed by publication.
         carrier
-          .setName("morphhdl_typed_vec_packed_carrier", weak = true)
+          .setName("typed_vec_packed_carrier", weak = true)
           .dontSimplifyIt()
           .setAsVital()
         val result =
@@ -2186,7 +2186,7 @@ object ParameterizedVec {
           else
             carrier
               .resize(logicalWitnessWidth.toInt)
-              .setName("morphhdl_typed_vec_packed_result", weak = true)
+              .setName("typed_vec_packed_result", weak = true)
               .dontSimplifyIt()
               .setAsVital()
         val carrierAssignments = assignmentStatementsOf(carrier)

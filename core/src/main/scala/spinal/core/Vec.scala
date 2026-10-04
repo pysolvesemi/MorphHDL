@@ -381,7 +381,7 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
           // Publication consumes the operation record and original typed
           // address, never this witness implementation detail.
           finalAddress = address.resize(carrierWidth)
-            .setName("morphhdl_typed_vec_read_address", weak = true)
+            .setName("typed_vec_read_address", weak = true)
             .dontSimplifyIt()
             .setAsVital()
         }

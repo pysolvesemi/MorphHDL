@@ -59,7 +59,7 @@ object MorphHdlRecursivePerComponentPublication {
       def freshName(): String = {
         var candidate = ""
         do {
-          candidate = s"__morphhdl_recursive_reference_$sequence"
+          candidate = s"__recursive_reference_$sequence"
           sequence += 1
         } while (
           reserved(candidate.toLowerCase(Locale.ROOT)) ||

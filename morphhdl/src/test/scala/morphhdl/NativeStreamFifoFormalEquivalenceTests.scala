@@ -469,10 +469,10 @@ class NativeStreamFifoFormalEquivalenceTests extends AnyFunSuite {
       assert(candidate.contains("formal_last_push"), candidate)
       assert(candidate.contains("formal_ram_check"), candidate)
       assert(candidate.contains("typed_formal_ram_mask_one"), candidate)
-      assert(candidate.contains("morphhdl_finite_fold_index_"), candidate)
+      assert(candidate.contains("finite_fold_index_"), candidate)
       assert(!candidate.contains("formal_ram_mask_view"), candidate)
       assert(
-        """formal_ram_mask(?:_[0-9]+)?\s*\[\s*stream_fifo_formal_ram_mask_index_[A-Za-z0-9_$]+\s*\+:\s*1\s*\]""".r
+        """formal_ram_mask(?:_[0-9]+)?\s*\[\s*i\s*\+:\s*1\s*\]""".r
           .findFirstIn(candidate)
           .nonEmpty,
         candidate

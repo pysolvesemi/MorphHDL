@@ -13,7 +13,7 @@ private[internals] object NativeScalarFormalSchema {
       case _ =>
     }
     geometry ++= ParameterizedMemory.parametersOf(component)
-    geometry ++= ParameterizedVerilogVecs.parametersOf(component)
+    geometry ++= ParameterizedVec.parametersOf(component)
     def loopParameters(regions: Vector[ParameterizedStructure.StructuralRegion]): Unit =
       regions.foreach { region =>
         region match {
@@ -26,6 +26,7 @@ private[internals] object NativeScalarFormalSchema {
     geometry ++= ParameterizedProcess.parametersOf(component)
     geometry ++= ParameterizedBlackBoxGenericRegistry.parametersOf(component)
     val values = ExternalParameterizedValueRegistry.valuesOf(component).flatMap(_._2.expression.parameters) ++
+      TypedVecStaticSelect.entries(component).flatMap(_.index.expression.parameters) ++
       ParameterizedStructure.parametersOf(component) ++
       MorphHdlExternalParameterizedVerilog.forwardedParameters(component)
     ExternalFormalParameterRegistry.completeTypedBindingsOf(component).filter { entry =>

@@ -467,6 +467,7 @@ object MorphHdlExternalParameterizedVerilog {
       }
     }
 
+    TypedVecStaticSelect.entries(component).foreach(entry => retainInteger(entry.index.expression))
     NativeLocalParameters.typedExpressions(component).foreach(retainInteger)
     ExternalParameterizedValueRegistry.valuesOf(component).foreach { case (_, record) =>
       retainInteger(record.expression)

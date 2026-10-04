@@ -35,6 +35,10 @@ REVIEWERS = (
     "check-increment-61-source-review.py",
 )
 CONTROLS = (
+    "test-increment-59d-inherited-60f-scope.py",
+    "check-increment-59f-source-scope.py",
+    "test-increment-59f-source-scope.py",
+    "test-increment-59g-source-review.py",
     "test-increment-59b-inherited-source-scope.py",
     "test-increment-59h-inherited-source-scope.py",
     "test-increment-60f-inherited-source-scope.py",

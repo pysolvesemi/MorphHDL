@@ -66,7 +66,7 @@ class TypedBalancedReductionCompositeWideningPublicationTests extends AnyFunSuit
     test(s"publish independent widening Bundle leaves: $layout default=$default") {
       val rtl = emit(layout, default)
       Vector("WIDTH", "COUNT", "result_unsignedSum", "result_unsignedProduct",
-        "result_signedSum", "result_signedProduct", "morphhdl_balanced_1_stage_0")
+        "result_signedSum", "result_signedProduct", "balanced_1_stage_0")
         .foreach(token => assert(rtl.contains(token), s"missing $token\n$rtl"))
       if (layout == "fields")
         Vector("values_unsignedSum", "values_unsignedProduct", "values_signedSum",

@@ -4691,7 +4691,7 @@ private[internals] object ParameterizedVerilogStructural {
       value: ParameterizedStructure.StructuralIf,
       plans: Map[ParameterizedStructuralBlock, BlockPlan]
   ): Option[ParameterizedStructure.StructuralIf] = {
-    if (!value.whenFalseLabel.startsWith("morphhdl_else_if_")) return None
+    if (!value.whenFalseLabel.startsWith("else_if_")) return None
     val block = value.whenFalse
     if (plans(block).body.trim.isEmpty && block.regions.size == 1) {
       block.regions.head match {

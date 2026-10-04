@@ -40,10 +40,10 @@ class FiniteAffineVecReadTests extends AnyFunSuite {
     val count = parameter("COUNT", 3, 2, 9)
     val rtl = emit(directory, new PairMinimum(width, count))
     val compact = rtl.replaceAll("\\s+", "")
-    assert(compact.contains("(2*pairs_index_") && compact.contains("+1)"), rtl)
+    assert(compact.contains("(2*i+") && compact.contains("+1)"), rtl)
     assert(compact.contains("$signed(source["), rtl)
     assert(compact.contains("parameterintegerWIDTH=5") && compact.contains("parameterintegerCOUNT=3"), rtl)
-    assert("(?<![A-Za-z0-9_$])morphhdl_structural_vec_alias_[0-9]+".r.findFirstIn(rtl).isEmpty, rtl)
+    assert("(?<![A-Za-z0-9_$])structural_vec_alias_[0-9]+".r.findFirstIn(rtl).isEmpty, rtl)
     if (available("iverilog") && available("vvp")) {
       for (w <- Vector(1, 5, 8); n <- Vector(2, 3, 5, 8, 9)) {
         simulatePairs(directory, w, n)

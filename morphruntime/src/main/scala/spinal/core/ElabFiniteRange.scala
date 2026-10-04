@@ -418,10 +418,10 @@ object ElabFiniteRange {
     storage.nextFoldId += 1
     val ordinal = storage.nextFoldId
     if (Option(source.getName()).forall(_.isEmpty))
-      source.setName(s"morphhdl_finite_fold_source_$ordinal")
+      source.setName(s"finite_fold_source_$ordinal")
     source.dontSimplifyIt()
     val result = UInt(ElabInt.fromExpression(width) bits)
-      .setName(s"morphhdl_finite_count_one_$ordinal")
+      .setName(s"finite_count_one_$ordinal")
     result.dontSimplifyIt()
     val (_, assignments) = ParameterizedVec.captureAssignments(result) {
       result := 0

@@ -19,7 +19,7 @@ import spinal.core._
   */
 private[internals] object ParameterizedVerilogVecs {
   private val PortableIdentifier = "[A-Za-z_][A-Za-z0-9_$]*".r
-  private val SyntheticAggregatePrefix = "morphhdl_typed_vec_"
+  private val SyntheticAggregatePrefix = "typed_vec_"
 
   private final case class Leaf(
       value: BaseType,
@@ -298,7 +298,8 @@ private[internals] object ParameterizedVerilogVecs {
   def parametersOf(
       component: Component
   ): Vector[ElaborationIntegerParameter] =
-    ParameterizedVec.parametersOf(component)
+    ParameterizedVec.parametersOf(component) ++
+      TypedVecStaticSelect.entries(component).flatMap(_.index.expression.parameters)
 
   /** Exact transient concatenation/cast assignments consumed by packed-read
     * publication. Generic width validation may encounter independent roots
@@ -1594,7 +1595,7 @@ private[internals] object ParameterizedVerilogVecs {
 
   /** Stable logical schema used in native module canonicalization. */
   def logicalSchema(component: Component): Vector[String] = {
-    val owned = NativeWidthFormalSchema.bindings(component)
+    val owned = NativeWidthFormalSchema.bindings(component) ++ NativeScalarFormalSchema.bindings(component)
     def definitionOwned(expression: ElaborationIntegerExpression): Boolean =
       expression.parameters.nonEmpty && expression.parameters.forall(p => owned.exists(_.binding.formal eq p))
     def schema(expression: ElaborationIntegerExpression): ElaborationIntegerExpression = {
@@ -2031,6 +2032,36 @@ private[internals] object ParameterizedVerilogVecs {
     // preserves the native same-atom cast decisions after carrier flattening.
     val reconstructedSignedReads = new IdentityHashMap[BaseType, java.lang.Boolean]()
     val structuralNames = structuralRegionNamesOf(component)
+    // A static access used to construct a live generate-index alias is evidence
+    // for that alias only. It cannot also authorize an unrelated raw carrier
+    // reference after the alias has been consumed by structural publication.
+    val structuralBlocks = ArrayBuffer.empty[ParameterizedStructuralBlock]
+    def collectBlocks(block: ParameterizedStructuralBlock): Unit = {
+      structuralBlocks += block
+      block.regions.foreach(_.blocks.foreach(collectBlocks))
+    }
+    ParameterizedStructure.regionsOf(component).foreach(_.blocks.foreach(collectBlocks))
+    val usedAliases = new IdentityHashMap[BaseType, java.lang.Boolean]()
+    val visitedExpressions = new IdentityHashMap[Expression, java.lang.Boolean]()
+    def retainAliasUse(expression: Expression): Unit = {
+      if (expression != null && visitedExpressions.put(expression, java.lang.Boolean.TRUE) == null)
+        expression match {
+          case value: BaseType => usedAliases.put(value, java.lang.Boolean.TRUE)
+          case value => value.foreachExpression(retainAliasUse)
+        }
+    }
+    structuralBlocks.foreach(_.statements.foreach {
+      case assignment: AssignmentStatement =>
+        usedAliases.put(assignment.finalTarget, java.lang.Boolean.TRUE)
+        assignment.foreachExpression(retainAliasUse)
+      case tree: TreeStatement => tree.foreachExpression(retainAliasUse)
+      case _ =>
+    })
+    val consumedStaticAccesses = new IdentityHashMap[ParameterizedVecStaticIndex, java.lang.Boolean]()
+    structuralBlocks.foreach(_.vecIndices.foreach { selection =>
+      if (selection.result.flatten.exists(usedAliases.containsKey))
+        selection.staticAccess.foreach(access => consumedStaticAccesses.put(access, java.lang.Boolean.TRUE))
+    })
     plans.filter(_.projection.isEmpty).foreach { plan =>
       plan.leaves.find(leaf => structuralNames.contains(leaf.name)).foreach { leaf =>
         fail(
@@ -2052,7 +2083,7 @@ private[internals] object ParameterizedVerilogVecs {
         leaf.name -> countReferenceIdentifier(lines, leaf.name)
       }.toMap
       ParameterizedVec.operationsOf(plan.vector).foreach {
-        case access: ParameterizedVecStaticIndex =>
+        case access: ParameterizedVecStaticIndex if !consumedStaticAccesses.containsKey(access) =>
           val expectedLeaves =
             if (
               access.index >= 0 &&
@@ -2713,7 +2744,7 @@ private[internals] object ParameterizedVerilogVecs {
       ExternalParameterizedAutoResize.parametersOf(component) ++
       ParameterizedMemory.parametersOf(component) ++
       ExternalParameterizedValueRegistry.parametersOf(component) ++
-      ParameterizedVec.parametersOf(component) ++
+      parametersOf(component) ++
       ParameterizedStructure.parametersOf(component) ++
       ParameterizedProcess.parametersOf(component) ++
       ExternalFormalParameterRegistry.bindingsOf(component).map(_.formal)
@@ -2815,7 +2846,7 @@ private[internals] object ParameterizedVerilogVecs {
       ExternalParameterizedAutoResize.parametersOf(component) ++
       ParameterizedMemory.parametersOf(component) ++
       ExternalParameterizedValueRegistry.parametersOf(component) ++
-      ParameterizedVec.parametersOf(component) ++
+      parametersOf(component) ++
       ParameterizedStructure.parametersOf(component) ++
       ParameterizedProcess.parametersOf(component) ++
       ExternalFormalParameterRegistry.bindingsOf(component).map(_.formal)
@@ -5346,7 +5377,7 @@ private[internals] object ParameterizedVerilogVecs {
         resultParsed.lineIndex,
         resultParsed.indentation +
           (if (resultParsed.continuous) "assign " else "") +
-          s"$resultName ${resultParsed.operator} ${plan.name};"
+          s"$resultName ${resultParsed.operator} $carrierName;"
       ),
       proof.supportAssignments
     )
@@ -7327,7 +7358,7 @@ private[internals] object ParameterizedVerilogVecs {
         ExternalParameterizedAutoResize.parametersOf(component) ++
         ParameterizedMemory.parametersOf(component) ++
         ExternalParameterizedValueRegistry.parametersOf(component) ++
-        ParameterizedVec.parametersOf(component) ++
+        parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
         ParameterizedProcess.parametersOf(component) ++
         ExternalFormalParameterRegistry.bindingsOf(component).map(_.formal)
@@ -7352,7 +7383,7 @@ private[internals] object ParameterizedVerilogVecs {
       val allocated =
         if (!occupied.contains(preferred)) preferred
         else {
-          val fallback = s"${preferred}_morphhdl_vec"
+          val fallback = s"${preferred}_vec"
           var candidate = fallback
           var suffix = 2
           while (occupied.contains(candidate)) {

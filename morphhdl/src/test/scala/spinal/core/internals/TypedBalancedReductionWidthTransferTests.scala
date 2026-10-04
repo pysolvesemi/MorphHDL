@@ -252,11 +252,11 @@ class TypedBalancedReductionWidthTransferTests extends AnyFunSuite {
         }
         // At COUNT=3 the actual final pair needs nine bits. The distinct full
         // group exists only at COUNT=4, where its guarded template needs eight.
-        assert(anchors("morphhdl_balanced_1_l1_pair_left") == 8)
-        assert(anchors("morphhdl_balanced_1_l1_pair_right") == 8)
-        assert(anchors("morphhdl_balanced_1_l1_partial_pair_left") == 9)
-        assert(anchors("morphhdl_balanced_1_l1_partial_pair_right") == 9)
-        assert(anchors("morphhdl_balanced_1_l1_partial_pair_result") == 9)
+        assert(anchors("balanced_1_l1_pair_left") == 8)
+        assert(anchors("balanced_1_l1_pair_right") == 8)
+        assert(anchors("balanced_1_l1_partial_pair_left") == 9)
+        assert(anchors("balanced_1_l1_partial_pair_right") == 9)
+        assert(anchors("balanced_1_l1_partial_pair_result") == 9)
       }
     }
   }

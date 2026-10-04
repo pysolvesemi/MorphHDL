@@ -22,7 +22,7 @@ object ElabValue {
       )
       .asInstanceOf[GeneratedValueOrdinals]
     ordinals.next += 1
-    s"morphhdl_typed_value_${ordinals.next}"
+    s"typed_value_${ordinals.next}"
   }
 
   private def valueWidthInsufficient(

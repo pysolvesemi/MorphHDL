@@ -818,7 +818,9 @@ class TypedParameterizedVecTests extends AnyFunSuite {
       assertInternalRangeAlgebra(verilog, "packed_read", expected)
 
       val packedReadDriver = continuousAssignmentRhs(verilog, "packed_read")
-      assert(packedReadDriver == "vec_in", verilog)
+      assert(packedReadDriver == "typed_vec_packed_carrier", verilog)
+      assertInternalRangeAlgebra(verilog, packedReadDriver, expected)
+      assert(continuousAssignmentRhs(verilog, packedReadDriver) == "vec_in", verilog)
       val resultDriver = continuousAssignmentRhs(verilog, "result")
       assert(resultDriver.contains("packed_read[0]"), verilog)
       assert(resultDriver.contains("mask"), verilog)

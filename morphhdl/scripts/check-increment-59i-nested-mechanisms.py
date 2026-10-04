@@ -391,7 +391,7 @@ def mutate(rtl: str, profile: dict, control: str) -> str:
         # actual emitted sample assignment.
         pattern = re.compile(r'(?m)^([ \t]*(?:assign[ \t]+)?resultSamples\[\s*\(\s*'
             r'(0|TAG_W|[12]\s*\*\s*TAG_W)\s*\)\s*\+:\s*TAG_W\s*\][ \t]*=(?!=))\s*'
-            r'morphhdl_balanced_(\d+)_result_leaf_([567]);')
+            r'balanced_(\d+)_result_leaf_([567]);')
         anchors = list(pattern.finditer(body))
         offsets = {'0':'5',('1*TAG_W' if profile['layout'] == 'packed' else 'TAG_W'):'6','2*TAG_W':'7'}
         branches = {m[3] for m in anchors}
@@ -535,7 +535,7 @@ def self_test(saturation: bool = False) -> None:
         try: validate_signed_casts(changed)
         except RuntimeError: negatives += 1
         else: raise AssertionError('wrong actual cast cleanup mode accepted')
-    sample_assignments = [f'  resultSamples[({offset}) +: TAG_W] = morphhdl_balanced_{branch}_result_leaf_{leaf};'
+    sample_assignments = [f'  resultSamples[({offset}) +: TAG_W] = balanced_{branch}_result_leaf_{leaf};'
         for branch in (1,2) for offset,leaf in (('0',5),('TAG_W',6),('2 * TAG_W',7))]
     def sample_module(assignments: list[str]) -> str:
         return 'module '+profiles[0]['child_module']+' ();\nif (1 < INNER) begin\n'+\

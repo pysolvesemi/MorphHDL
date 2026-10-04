@@ -536,7 +536,7 @@ object ParameterizedProcess {
       // declarations until MorphHDL relocates them into the generate region.
       state.slices.foreach { slice =>
         slice.result.dontSimplifyIt().setAsVital()
-        slice.result.setName("morphhdl_structural_slice", weak = true)
+        slice.result.setName("structural_slice", weak = true)
       }
       memories.foreach(_.preventAsBlackBox())
 

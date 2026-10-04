@@ -63,22 +63,17 @@ jobs:
         run: |
           set -euo pipefail
           output="$GITHUB_WORKSPACE/target/increment-59g"
-          predecessor="$output/predecessor-source"
           mkdir -p "$output/bootstrap"
           git rev-parse HEAD > "$output/head.txt"
           git archive HEAD | gzip > "$output/source.tar.gz"
-          python3 morphhdl/scripts/check-increment-61-source-review.py
-          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
-          base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)
-          git worktree add --detach "$predecessor" "$base"
-          trap 'git worktree remove --force "$predecessor"' EXIT
-          (
-            cd "$predecessor"
-            python3 morphhdl/scripts/check-increment-59g-source-review.py --self-test
-            python3 morphhdl/scripts/check-increment-59g-source-review.py
-            python3 morphhdl/scripts/test-increment-59g-source-review.py
-            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
-          )
+          python3 morphhdl/scripts/check-parameterized-integration-source.py
+          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-59g-source-review.py --self-test
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-59g-source-review.py
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/test-increment-59g-source-review.py
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
           python3 morphhdl/scripts/check-native-source-preservation.py
           python3 morphhdl/scripts/check-increment-58-retirement.py
           python3 morphhdl/scripts/check-increment-59g-register-bridges.py --self-test
@@ -151,5 +146,14 @@ jobs:
           path: |
             target/increment-59g
             morphhdl/target/test-reports
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Retain inherited source audit receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integrated-source-increment-59g-register-bridges-${{ matrix.scala || 'source' }}-${{ github.run_attempt }}
+          path: target/parameterized-inherited-audits
           if-no-files-found: error
           retention-days: 30

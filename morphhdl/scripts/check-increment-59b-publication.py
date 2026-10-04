@@ -122,7 +122,7 @@ def candidate_contract(text: str) -> None:
         raise RuntimeError('candidate must retain independent WIDTH=5 and singleton COUNT=1 defaults')
     for tree in range(1, 6):
         for level in range(5):
-            if f'morphhdl_balanced_{tree}_active_{level}' not in text:
+            if f'balanced_{tree}_active_{level}' not in text:
                 raise RuntimeError('default singleton incorrectly discarded higher balanced stages')
     if 'genvar' not in text or 'begin : tail' not in text or '+:' not in text:
         raise RuntimeError('missing structural pair loop, odd tail, or packed native input slices')
@@ -131,8 +131,8 @@ def candidate_contract(text: str) -> None:
 def mutate_pair_operand(text: str) -> str:
     # Alter an actual generated pair connection, without an operator-specific
     # handwritten RTL implementation or a mutation only in the observation.
-    left = re.search(r'(?m)^\s*assign\s+(\w*morphhdl_balanced_1_l0_pair_left\w*)\s*=\s*([^;]+);', text)
-    right = re.search(r'(?m)^(\s*assign\s+\w*morphhdl_balanced_1_l0_pair_right\w*\s*=\s*)[^;]+;', text)
+    left = re.search(r'(?m)^\s*assign\s+(\w*balanced_1_l0_pair_left\w*)\s*=\s*([^;]+);', text)
+    right = re.search(r'(?m)^(\s*assign\s+\w*balanced_1_l0_pair_right\w*\s*=\s*)[^;]+;', text)
     if left is None or right is None:
         raise RuntimeError('native pair operand anchors were not retained for mutation')
     result = text[:right.start()] + right.group(1) + left.group(2) + ';' + text[right.end():]
@@ -142,7 +142,7 @@ def mutate_pair_operand(text: str) -> str:
 
 
 def mutate_vec_binding(text: str) -> str:
-    pattern = re.compile(r'(?m)^(\s*assign\s+morphhdl_balanced_2_input\s*=\s*)signedIn\s*;')
+    pattern = re.compile(r'(?m)^(\s*assign\s+balanced_2_input\s*=\s*)signedIn\s*;')
     if len(pattern.findall(text)) != 1:
         raise RuntimeError('one exact signed Vec source binding is required for mutation')
     return pattern.sub(lambda match: match.group(1) + 'unsignedIn;', text)

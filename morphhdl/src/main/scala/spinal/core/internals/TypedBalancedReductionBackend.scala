@@ -444,7 +444,7 @@ object TypedBalancedReductionBackend {
     val lexicalOwner = ParameterizedStructure.currentLexicalOwner("balanced scalar publication")
     val storage = owner.userCache.getOrElseUpdate(StorageKey, new Storage).asInstanceOf[Storage]
     val ordinal = storage.records.size + 1
-    val prefix = s"morphhdl_balanced_$ordinal"
+    val prefix = s"balanced_$ordinal"
     val certificate = TypedBalancedReductionStageReplay.capture(
       vector, op, bridge, native, Some(schema), bridgeUsesNativeVecZero)
     val shape = certificate.captured.shape
@@ -581,7 +581,7 @@ object TypedBalancedReductionBackend {
     // inferred from the element layout or the generated block name.
     val storage = owner.userCache.getOrElseUpdate(StorageKey, new Storage).asInstanceOf[Storage]
     val ordinal = storage.records.size + 1
-    val prefix = s"morphhdl_balanced_$ordinal"
+    val prefix = s"balanced_$ordinal"
     val certificate = TypedBalancedReductionCompositeReplay.capture(
       vector, op, bridge, native, Some(schema), bridgeUsesNativeVecZero)
     val shape = certificate.captured.shape
@@ -861,7 +861,7 @@ object TypedBalancedReductionBackend {
       case stage: ScalarStage => stage
       case _ => fail("TRANSPORT-LAYOUT", "a certified transport changed its scalar/composite stage kind")
     }
-    val base = s"morphhdl_balanced_${record.ordinal}"
+    val base = s"balanced_${record.ordinal}"
     val identifiers = "[A-Za-z_][A-Za-z0-9_$]*".r.findAllIn(current).toSet ++ structuralNames(component)
     def reserved(prefix: String): Vector[String] =
       (0 to stages.size).map(i => prefix + "_stage_" + i).toVector ++
@@ -986,7 +986,7 @@ object TypedBalancedReductionBackend {
       val width = leafWidths(leafIndex).verilog
       s"$source[((($index) * ($stride)) + ($offset)) +: ($width)]"
     }
-    val base = s"morphhdl_balanced_${record.ordinal}"
+    val base = s"balanced_${record.ordinal}"
     val identifiers = "[A-Za-z_][A-Za-z0-9_$]*".r.findAllIn(current).toSet ++ structuralNames(component)
     def reserved(prefix: String): Vector[String] =
       (0 to stages.size).map(i => prefix + "_stage_" + i).toVector ++
@@ -1143,7 +1143,7 @@ object TypedBalancedReductionBackend {
     }
     val width = if (record.shape.elementLeaves.size == 1 && !record.shape.elementLayout.hasNestedVectors)
       record.shape.elementLeaves.head.width.verilog else record.shape.elementWidthVerilog
-    val base = s"morphhdl_balanced_${record.ordinal}"
+    val base = s"balanced_${record.ordinal}"
     val identifiers = "[A-Za-z_][A-Za-z0-9_$]*".r.findAllIn(current).toSet ++ structuralNames(component)
     def reserved(prefix: String): Vector[String] =
       (0 to stages.size).map(i => prefix + "_stage_" + i).toVector ++

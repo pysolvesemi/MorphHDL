@@ -13,7 +13,7 @@ class TypedBalancedReductionNestedMechanismTests extends AnyFunSuite {
       val file = TypedBalancedReductionNestedMechanismArtifacts.directCandidate(root, saturation)
       val rtl = new String(Files.readAllBytes(file), StandardCharsets.UTF_8)
       for (token <- Vector("INNER", "COUNT", "g_first_capture", "g_second_capture",
-        "morphhdl_balanced_", "resultUS", "resultSP", "resultSamples"))
+        "balanced_", "resultUS", "resultSP", "resultSamples"))
         assert(rtl.contains(token), token + "\n" + rtl)
     }
     test(s"nested widening/capture/native-register child emits every layout and signed mode saturation=$saturation") {
@@ -25,7 +25,7 @@ class TypedBalancedReductionNestedMechanismTests extends AnyFunSuite {
         for (module <- Vector(name, name + "_Child"))
           assert(("(?m)^module\\s+" + module + "\\b").r.findAllIn(rtl).size == 1, rtl)
         for (token <- TypedBalancedReductionNestedMechanismArtifacts.parameterNames ++
-          Vector("morphhdl_balanced_", "g_first_capture", "g_second_capture", "resultSamples"))
+          Vector("balanced_", "g_first_capture", "g_second_capture", "resultSamples"))
           assert(rtl.contains(token), token + "\n" + rtl)
         assert(rtl.replaceAll("\\s+", "").contains(".MODE((MODE+1))"), rtl)
         if (layout == "fields") assert(rtl.contains("values_samples"), rtl)

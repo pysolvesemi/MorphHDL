@@ -139,7 +139,7 @@ class TypedBalancedReductionCompositeWideningCaptureTests extends AnyFunSuite {
     assert(Files.isRegularFile(path))
     val rtl = new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
     for (token <- Vector("WIDTH", "BIAS_WIDTH", "FACTOR_WIDTH", "COUNT", "bias", "factor",
-        "result_unsigned", "result_signedProduct", "morphhdl_balanced_"))
+        "result_unsigned", "result_signedProduct", "balanced_"))
       assert(rtl.contains(token), token + " missing\n" + rtl)
   }
 

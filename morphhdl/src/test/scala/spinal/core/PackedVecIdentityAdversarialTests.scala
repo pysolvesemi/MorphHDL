@@ -539,7 +539,7 @@ class PackedVecIdentityAdversarialTests extends AnyFunSuite {
   }
 
   private val FormalRamCheckAggregate =
-    """(?<![A-Za-z0-9_$])(formal_ram_check(?:_[0-9]+_morphhdl_vec)?)(?![A-Za-z0-9_$])""".r
+    """(?<![A-Za-z0-9_$])(formal_ram_check(?:_[0-9]+_vec)?)(?![A-Za-z0-9_$])""".r
 
   private def assertProjectedAggregateDominance(rtl: Path): Unit = {
     val verilog = new String(Files.readAllBytes(rtl), StandardCharsets.UTF_8)
@@ -582,8 +582,8 @@ class PackedVecIdentityAdversarialTests extends AnyFunSuite {
         slices.size == 2 &&
           slices.count(_ == "(0)+:1") == 1 &&
           slices.count(value =>
-            value.contains("stream_fifo_formal_ram_mask_index") &&
-              value.endsWith("+:1")
+            value == "((i)*1)+:1" &&
+              "for\\s*\\(i\\s*=\\s*0;\\s*i\\s*<\\s*DEPTH;\\s*i\\s*=\\s*i\\s*\\+\\s*1\\)".r.findFirstIn(streamFifo).nonEmpty
           ) == 1,
         s"projected Vec aggregate '$name' lost one exact branch slice driver: ${slices.mkString(", ")}\n$streamFifo"
       )

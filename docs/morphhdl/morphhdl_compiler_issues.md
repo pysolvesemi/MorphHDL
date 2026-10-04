@@ -661,3 +661,37 @@ and BOOT regressions. The structural-process workflow includes the new suite.
 The retained catalog now contains 241 suites and 2,468 cases, with no prior cases
 removed. The display-controller repository and its issue checklist were read-only
 references; this repair does not claim a fresh product application retest.
+
+### CA-018 and CA-019 repair evidence, 5 October 2026
+
+- [x] **CA-018 — neutral compiler-generated helper identifiers.** Helper names
+  are allocated from neutral stems, including `param_value`, structural aliases,
+  Vec collision fallbacks and balanced-reduction stages. Existing local naming
+  allocators retain collision handling and deterministic allocation. Internal
+  expression tokens are lowered before publication; provenance comments are
+  unchanged. Generated helper/hierarchy names intentionally change.
+- [x] **CA-019 — public parameter-constant Vec reads.**
+  `ElabVec.select(vector, index)` supports Bool, Bits, UInt and SInt while retaining
+  native type, signedness, width and assignment identity. The complete parameter
+  domain must prove the index in range. Independent index parameters and scalar
+  forwarding through wrappers remain live; hardware UInt indexing is unchanged.
+  See [the public API](parameter-constant-vec-selection.md).
+
+The 17 selector cases cover packed/unpacked layouts, first/interior/last indices,
+widths 1/5/64, depths 2/3/8, every reset-release depth 2..8, stopped-clock reset,
+invalid domains, independent same-name roots, independent hardware indexing and
+three-level scalar forwarding with independent overrides. The naming regression
+checks collisions, repeated expressions, narrowing/widening and repeat generation.
+Positive profiles include Icarus simulation, strict Verilator lint and Yosys
+synthesis. A packed-read bridge now uses its retained exact carrier, avoiding an
+unused-signal warning without removing identity checks. A consumed structural
+static access cannot authorize an unrelated residual scalar carrier.
+
+The final Scala 2.13 run passed 642 tests across 51 suites, followed by the FIFO
+formal-helper generation control. Scala 2.12 passed the affected 145-test repair
+run and final 70-test scalar/selector/provenance run, plus its FIFO helper control.
+The retained inventory contains 243 suites and 2,486 cases; no previous cases
+were removed. Container-only FIFO formal proofs were not run locally. These are
+local repair results; fresh exact-head targeted and full qualification remain
+separate gates. The application repository remains unchanged, and no fresh
+product application retest is claimed.

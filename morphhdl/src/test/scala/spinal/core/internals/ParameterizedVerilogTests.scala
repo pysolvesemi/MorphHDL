@@ -412,8 +412,8 @@ class ParameterizedVerilogTests extends AnyFunSuite {
       val valueAssignment = verilog.split("\n").find(_.matches("\\s*assign\\s+varying_value\\s*=.*"))
         .getOrElse(fail("retained typed value assignment was not published:\n" + verilog))
       assert(valueAssignment.replaceAll("\\s+", "") ==
-        "assignvarying_value=morphhdl_value[(WIDTH)-1:0];", valueAssignment)
-      assert(compact.contains("localparam[31:0]morphhdl_value=(WIDTH-1);"), verilog)
+        "assignvarying_value=param_value[(WIDTH)-1:0];", valueAssignment)
+      assert(compact.contains("localparam[31:0]param_value=(WIDTH-1);"), verilog)
       assert(!valueAssignment.contains("1'b0"), valueAssignment)
       assert(compact.contains("assignzero={WIDTH{1'b0}};"), verilog)
       for (bits <- Seq(1,2,8)) {
@@ -450,10 +450,10 @@ endmodule
       }
       val verilog = read(directory.resolve("TypedZeroWitnessFold.v"))
       val compact = verilog.replaceAll("\\s+", "")
-      assert(compact.contains("for(morphhdl_finite_fold_index_1=0;"), verilog)
-      assert(compact.contains("morphhdl_finite_fold_index_1<WIDTH;"), verilog)
+      assert(compact.contains("for(finite_fold_index_1=0;"), verilog)
+      assert(compact.contains("finite_fold_index_1<WIDTH;"), verilog)
       assert(compact.contains("assignzero={WIDTH{1'b0}};"), verilog)
-      assert(!compact.contains("assignmorphhdl_finite_count_one_1="), verilog)
+      assert(!compact.contains("assignfinite_count_one_1="), verilog)
     }
   }
 

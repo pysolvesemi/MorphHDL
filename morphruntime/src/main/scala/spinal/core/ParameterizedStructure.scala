@@ -1959,7 +1959,7 @@ object ParameterizedStructure {
     val storage = storageOf(component)
     storage.synchronized {
       storage.nextVecAliasId += 1
-      s"morphhdl_structural_vec_alias_${storage.nextVecAliasId}"
+      s"structural_vec_alias_${storage.nextVecAliasId}"
     }
   }
 
@@ -2052,7 +2052,7 @@ object ParameterizedStructure {
           )
         }
         target.setName(
-          s"morphhdl_structural_mem_address_${generateIndex}_${state.memoryIndices.size + 1}"
+          s"structural_mem_address_${generateIndex}_${state.memoryIndices.size + 1}"
         )
         target.setAsVital()
         target.dontSimplifyIt()

@@ -84,6 +84,29 @@ class IntegratedAuditTests(unittest.TestCase):
                 self.assertEqual(restored.encode(), A.git(A.ROOT, "show", baseline + ":" + path),
                     "a trigger, job, command, matrix, proof, timeout or prior receipt changed")
 
+    def test_new_reduction_workflows_preserve_behavioral_steps(self):
+        baseline = "3e535c97d409fbdb0b2c49c33845d1c8cb75ca2e"
+        for name, count in (("increment-59d-widening", 2),
+                            ("increment-59f-callback-graphs", 5),
+                            ("increment-59g-register-bridges", 6)):
+            path = ".github/workflows/" + name + ".yml"
+            current = (A.ROOT / path).read_text()
+            original = A.git(A.ROOT, "show", baseline + ":" + path).decode()
+            self.assertEqual(current.count("run-parameterized-inherited-audit.py "), count)
+            # Only the source-review step and its receipt may differ. Preserve
+            # every later build, simulation, lint, synthesis and artifact step.
+            marker = "      - name: Bootstrap"
+            old_tail = original[original.index(marker):]
+            new_tail = current[current.index(marker):]
+            receipt = new_tail.find("\n      - name: Retain inherited source audit receipts")
+            if receipt >= 0:
+                end = new_tail.find("\n  validate:\n", receipt)
+                new_tail = new_tail[:receipt] + (new_tail[end:] if end >= 0 else "")
+            self.assertEqual(new_tail.rstrip(), old_tail.rstrip())
+            for token in ("timeout-minutes:", "runs-on:", "container:", "matrix:"):
+                self.assertEqual([line for line in current.splitlines() if token in line],
+                                 [line for line in original.splitlines() if token in line])
+
     def test_only_exact_source_commands_are_admitted(self):
         for entry in A.COMMANDS:
             command = ["morphhdl/scripts/" + entry[0], *entry[1:]]

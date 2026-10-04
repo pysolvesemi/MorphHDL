@@ -85,10 +85,10 @@ object ExternalParameterizedNativeGeometry {
                   high.foreach(NativePublicationWidth.validate(_, component, value, "native range high"))
                   low.foreach(NativePublicationWidth.validate(_, component, value, "native range low"))
                   value.dontSimplifyIt().addTag(noBackendCombMerge)
-                  if (!value.isNamed) value.setWeakName("morphhdl_range_source")
+                  if (!value.isNamed) value.setWeakName("range_source")
                 }
                 target.dontSimplifyIt().addTag(noBackendCombMerge)
-                if (!target.isNamed) target.setWeakName("morphhdl_geometry")
+                if (!target.isNamed) target.setWeakName("geometry")
                 captured += Record(assignment, target, assignment.source, source, width, high, low,
                   NativePublicationScope.capture(component, assignment.parentScope),
                   NativePublicationScope.capture(component, target.parentScope),

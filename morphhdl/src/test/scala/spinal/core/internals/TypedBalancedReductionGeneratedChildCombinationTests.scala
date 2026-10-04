@@ -108,7 +108,7 @@ class TypedBalancedReductionGeneratedChildCombinationTests extends AnyFunSuite {
       .findFirstIn(rtl).nonEmpty, rtl)
     Vector("WIDTH", "TAG_WIDTH", "COORD_WIDTH", "COUNT", "MODE",
       "g_minimum", "g_maximum", "g_registered_min", "g_registered_max",
-      "morphhdl_balanced_").foreach(value => assert(rtl.contains(value), value + "\n" + rtl))
+      "balanced_").foreach(value => assert(rtl.contains(value), value + "\n" + rtl))
     assert(!rtl.contains("records_key"), rtl)
     assert(rtl.replaceAll("\\s+", "").contains(".MODE((MODE+1))"), rtl)
   }

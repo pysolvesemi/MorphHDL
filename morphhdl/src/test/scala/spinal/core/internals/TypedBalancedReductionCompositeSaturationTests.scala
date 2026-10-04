@@ -109,7 +109,7 @@ class TypedBalancedReductionCompositeSaturationTests extends AnyFunSuite {
       assert(rtl.contains("WIDTH = 5"), rtl)
       assert(rtl.contains("TAG_WIDTH = 3"), rtl)
       assert(rtl.contains("COUNT = 5"), rtl)
-      assert(rtl.contains("morphhdl_balanced_"), rtl)
+      assert(rtl.contains("balanced_"), rtl)
       assert(rtl.contains("result_value") && rtl.contains("result_tag") && rtl.contains("result_valid"), rtl)
       if (layout == "fields") {
         assert(rtl.contains("values_value") && rtl.contains("values_tag") && rtl.contains("values_valid"), rtl)
@@ -143,7 +143,7 @@ class TypedBalancedReductionCompositeSaturationTests extends AnyFunSuite {
       val rtl = text(directory.resolve(module + ".v"))
       assert(rtl.contains("COUNT = 5"), rtl)
       assert(!rtl.contains("WIDTH = 5") && !rtl.contains("TAG_WIDTH = 3"), rtl)
-      assert(rtl.contains("morphhdl_balanced_") && rtl.contains("generate"), rtl)
+      assert(rtl.contains("balanced_") && rtl.contains("generate"), rtl)
       assert(rtl.contains("result_value") && rtl.contains("result_tag") &&
         rtl.contains("result_valid"), rtl)
       if (layout == "fields") assert(rtl.contains("values_value") &&

@@ -152,7 +152,7 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
     """(?m)^\s*module\s+([A-Za-z_][A-Za-z0-9_$]*)\b""".r
 
   private val FormalRamCheckAggregate =
-    """(?<![A-Za-z0-9_$])(formal_ram_check(?:_[0-9]+_morphhdl_vec)?)(?![A-Za-z0-9_$])""".r
+    """(?<![A-Za-z0-9_$])(formal_ram_check(?:_[0-9]+_vec)?)(?![A-Za-z0-9_$])""".r
 
   private def streamFifoModuleInventory(verilog: String): Vector[String] =
     ModuleDeclaration
@@ -576,7 +576,7 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
         compact.contains("[(clog2((DEPTH+1),1)+1)-1:0]io_wordCount"),
         verilog
       )
-      assert(verilog.contains("morphhdl_finite_fold_index_"), verilog)
+      assert(verilog.contains("finite_fold_index_"), verilog)
       assert(
         "for\\s*\\([^;]+;\\s*[^;]+<\\s*DEPTH\\s*;".r
           .findFirstIn(verilog)
@@ -941,7 +941,7 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
         val verilog = read(rtl)
         assert(verilog.contains("formal_last_push"), verilog)
         assert(verilog.contains("formal_ram_check"), verilog)
-        assert(verilog.contains("morphhdl_finite_fold_index_"), verilog)
+        assert(verilog.contains("finite_fold_index_"), verilog)
         assert(
           "(?m)^\\s*cover\\s*\\(".r.findAllMatchIn(verilog).size == 1,
           verilog
