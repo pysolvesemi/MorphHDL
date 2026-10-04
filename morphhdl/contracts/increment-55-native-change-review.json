@@ -4525,7 +4525,7 @@
             },
             {
               "side": "approved",
-              "text": "TypedVecStaticSelect(stages, count)",
+              "text": "TypedVecStaticSelect(stages, count",
               "count": 1
             }
           ]

@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "526a74538a549d19b733c929aff822b32b8689b3"
+      "approved_tree": "b914a99c69846e41533e83163c1a5d4b2dfd5483"
     },
     {
       "path": "idslpayload/src/main",
@@ -27,7 +27,7 @@
     {
       "path": "lib/src/main",
       "baseline_tree": "76cd20a58e83ff73404632aec84bb03f2dd4dea9",
-      "approved_tree": "901eb72987a7f4f29549da2d6cf2eb14fb453922"
+      "approved_tree": "0abc6e23f97d6c644e6ba763c3962aaeb72e6e73"
     },
     {
       "path": "scalaplugin/src/main",
@@ -1516,15 +1516,16 @@
       "introduced_by": [
         "Increment 64: typed native derived local parameters",
         "Increment 66: native parameter and RTL readability extensions",
-        "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026"
+        "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026",
+        "Qualification closure: named-local arithmetic lint, 4 October 2026"
       ],
-      "reason": "Capture exact typed arithmetic operands and compiler-supplied member hints; select only live exact-owner uses, order declarations by operand identity, reject cycles, reserve collision-safe names, and render native local parameters without introducing proof authority. Restricted structural calculations retain direct expression publication. Component-owned state cannot leak names between generations or owners. Extend the existing component-local dependency graph with explicitly named packed unsigned declarations, exact owner checks, deterministic collision rejection and dependency ordering. Explicit names replace an automatic hint for the same expression; metadata never grants arithmetic authority. Publish explicitly sized typed UInt local constants through compiler-owned 32-bit integer intermediates, preserving exact expression dependencies and signed 32-bit elaboration domains before slicing or extending to the declared packed width.",
+      "reason": "Capture exact typed arithmetic operands and compiler-supplied member hints; select only live exact-owner uses, order declarations by operand identity, reject cycles, reserve collision-safe names, and render native local parameters without introducing proof authority. Restricted structural calculations retain direct expression publication. Component-owned state cannot leak names between generations or owners. Extend the existing component-local dependency graph with explicitly named packed unsigned declarations, exact owner checks, deterministic collision rejection and dependency ordering. Explicit names replace an automatic hint for the same expression; metadata never grants arithmetic authority. Publish explicitly sized typed UInt local constants through compiler-owned 32-bit integer intermediates, preserving exact expression dependencies and signed 32-bit elaboration domains before slicing or extending to the declared packed width. When a packed local is reused by ElabInt arithmetic, publish its exact nonnegative Int-domain value as a signed 32-bit operand: zero-extend narrow declarations, sign the 32-bit view, or select the low 32 bits of a wider zero-extended declaration. Keep ordinary hardware uses packed. Wider local declarations use an explicitly sized 32-bit expression before zero extension, including zero-valued parameter aliases; no lint warning is suppressed and no domain, ownership or dependency validation is bypassed.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/NativeLocalParameters.scala",
         "mode": "100644",
-        "blob": "28f8e3d4269373dcf57cee7f4e60d439f27ef69a",
-        "sha256": "ab9476f76dc940faaa3ef3961818d91a78a95e7deefa46d7678f14161c719724"
+        "blob": "fe6e866d18bf7f65f96ee461d30954af0e3d83c6",
+        "sha256": "751b31fb907b3cdb632c7b6f46b3574e63167276fc6ac9f6a4e6bb900fd1e77d"
       },
       "edits": []
     },
@@ -7591,9 +7592,10 @@
       "introduced_by": [
         "Increment 57a: typed StreamFifoCC architecture",
         "Increment 59b: native balanced-reduction capture boundary",
-        "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup"
+        "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup",
+        "CA-014: native logarithmic Gray stage array"
       ],
-      "reason": "Mechanically retain exact symbolic width through native Gray-code helpers and provide owner-local uncached reset-domain construction for generated CDC bodies while preserving concrete implementations. Route typed Vec counts through the neutral callback boundary while retaining the unchanged generic helper and concrete descriptors. CDC-WIRE-01 marks the five compiler-created symbolic Gray-code packed-geometry carriers with ParameterizedExpressionCarrier instead of user dontSimplifyIt intent. Native simplification still retains them. Optional expression removal requires exact typed geometry proof and cannot remove explicit user protection. Gray encode/decode equations, domain validation, loop topology and concrete paths are unchanged.",
+      "reason": "Retain exact symbolic width through native Gray helpers and owner-local reset domains. Preserve the existing concrete path and typed balanced-reduction dispatch. CA-014 replaces the symbolic decoder's maximum-width prefix carriers with an authenticated Vec of ceil(log2(width))+1 stages and a finite generate loop. Each stage uses the same logarithmic XOR/shift equation; width one has no XOR and a direct connection, including direct four-state propagation. Typed loop indices, power shifts and the constant final-stage selector retain exact native lineage. No emitted RTL is patched and no lint warning is suppressed.",
       "baseline": {
         "path": "lib/src/main/scala/spinal/lib/Utils.scala",
         "mode": "100644",
@@ -7603,8 +7605,8 @@
       "approved": {
         "path": "lib/src/main/scala/spinal/lib/Utils.scala",
         "mode": "100644",
-        "blob": "6eacfe2a24f4a7c67bc9ce0e48a050945fe8bd2d",
-        "sha256": "a1d5bd5fbc0b05dde288bfecef66b98a6704e0baa2110fa37db93744ab3369b8"
+        "blob": "59985d700aee88602a16832a233a9f7b4503b854",
+        "sha256": "ba3a95eb632601df8d111d46d76dedfed320d5f005813b331f81bd0822635ddc"
       },
       "edits": [
         {
@@ -7634,16 +7636,16 @@
           "id": "gray-typed-width-02",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.fromGray typed decoder",
-          "reason": "Use an exact-domain fixed parallel-prefix decode topology whose shifts remain width-retained. Compiler-owned geometry boundaries keep native carriers retained until optional exact-width expression proof discharges them; explicit user dontSimplifyIt remains separate.",
+          "reason": "Publish the authoritative symbolic Gray prefix network as a parameter-sized stage Vec, with proven affine next-stage writes, an index-owned power-of-two shift, and a bounded constant final-stage read. Preserve logarithmic depth and a zero-iteration width-one specialization.",
           "baseline_span": {
             "start": 15543,
-            "end": 15662,
-            "sha256": "fd05626ea3e47c34ac49ff6738e12a7effa28004904bfc7ba05d8c8a3d4b7d63"
+            "end": 15661,
+            "sha256": "14977b71e05f15131daf3a0e1ea43427b035a9d5c86c39a8198d7487e16ccd68"
           },
           "approved_span": {
             "start": 16071,
-            "end": 17530,
-            "sha256": "96ad37150813a75890f042b3e11ef0632ccf1df0f809203b31e79a0a1f26e621"
+            "end": 16954,
+            "sha256": "5a5d726c427b9f8ad30a6881e129773a82d15042f84e8f3626b2c48257b2a507"
           },
           "required_exact_text": [
             {
@@ -7653,7 +7655,22 @@
             },
             {
               "side": "approved",
-              "text": "val maximumWidth = width.maximum",
+              "text": "val count = width.log2Up",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val stages = Vec(UInt(width bits), count + 1)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ElabFiniteRange.foreach(count, \"decode_prefix\")",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "TypedVecStaticSelect(stages, count",
               "count": 1
             }
           ]
@@ -7669,8 +7686,8 @@
             "sha256": "341b699415378ea6cd84a70c50365747c259ef5429fbd661bce45c58d41f7d39"
           },
           "approved_span": {
-            "start": 17537,
-            "end": 17537,
+            "start": 16962,
+            "end": 16962,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "required_exact_text": [
@@ -7692,8 +7709,8 @@
             "sha256": "5ab931831da6fab59a29fc6d654c6271d4a328ca794a01e72d7581f2f28f15e6"
           },
           "approved_span": {
-            "start": 35270,
-            "end": 35628,
+            "start": 34695,
+            "end": 35053,
             "sha256": "806517d9a61e0f54be1a7398885d587acb29235a93c2b6222a9900e20a82746e"
           },
           "required_exact_text": [
@@ -7715,8 +7732,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 45802,
-            "end": 46440,
+            "start": 45227,
+            "end": 45865,
             "sha256": "db8c059ba13becf9a69b765671ab93ca691b57ed43400bd91e280e83572d75a9"
           },
           "required_exact_text": [
@@ -7743,8 +7760,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 47086,
-            "end": 47317,
+            "start": 46511,
+            "end": 46742,
             "sha256": "6a833d45da718dfe77b9c35cb6688f085e3f6eeec59d1f40dd769c77eef44256"
           },
           "required_exact_text": [
