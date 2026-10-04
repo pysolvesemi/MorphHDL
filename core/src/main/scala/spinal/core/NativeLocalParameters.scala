@@ -15,6 +15,7 @@ object NativeLocalParameters {
   private class State {
     val bindings = ArrayBuffer.empty[Binding]
     val names = new IdentityHashMap[ElaborationIntegerExpression, String]()
+    val sizingNames = new IdentityHashMap[ElaborationIntegerExpression, String]()
     val ordered = ArrayBuffer.empty[ElaborationIntegerExpression]
     var prepared = false
   }
@@ -118,12 +119,27 @@ object NativeLocalParameters {
       visited.put(expression, true)
     }
     (uses ++ typedExpressions(owner)).foreach(visit)
+    // Allocate implementation names after all requested local names so a
+    // compiler sizing temporary cannot steal a later explicit declaration.
+    retained.ordered.foreach { expression =>
+      val packed = retained.bindings.find(_.expression eq expression).flatMap(_.packedWidth)
+      if (packed.exists(_ != 32) && (expression.parameters.nonEmpty || expression.localCalculation.nonEmpty))
+        retained.sizingNames.put(expression,
+          owner.localNamingScope.allocateName(retained.names.get(expression) + "_VALUE"))
+    }
     retained.prepared = true
   }
 
   private[spinal] def reference(owner: Component,
       expression: ElaborationIntegerExpression): Option[String] =
     existing(owner).flatMap(value => Option(value.names.get(origin(expression))))
+
+  /** Width of a published local's declaration, not its current value witness. */
+  private[spinal] def referenceWidth(owner: Component,
+      expression: ElaborationIntegerExpression): Option[Int] =
+    existing(owner).filter(value => value.names.containsKey(origin(expression)))
+      .flatMap(_.bindings.find(_.expression eq origin(expression)))
+      .map(_.packedWidth.getOrElse(32))
 
   private def render(owner: Component, expression: ElaborationIntegerExpression,
       definition: Boolean): String = {
@@ -148,7 +164,16 @@ object NativeLocalParameters {
     retained.ordered.map { expression =>
       val packed = retained.bindings.find(_.expression eq expression).flatMap(_.packedWidth)
       val kind = packed.map(width => s"[${width - 1}:0]").getOrElse("integer")
-      s"  localparam $kind ${retained.names.get(expression)} = ${render(owner, expression, true)};\n"
+      val sizingName = Option(retained.sizingNames.get(expression))
+      val intermediate = sizingName.map(name =>
+        s"  localparam [31:0] $name = ${render(owner, expression, true)};\n").getOrElse("")
+      val rhs = packed match {
+        case Some(width) if expression.parameters.isEmpty && expression.localCalculation.isEmpty => s"${width}'d${expression.default}"
+        case Some(width) if sizingName.nonEmpty && width < 32 => s"${sizingName.get}[${width-1}:0]"
+        case Some(width) if sizingName.nonEmpty => s"{{${width-32}{1'b0}},${sizingName.get}}"
+        case _ => render(owner, expression, true)
+      }
+      intermediate + s"  localparam $kind ${retained.names.get(expression)} = $rhs;\n"
     }.mkString
   }.getOrElse("")
 }

@@ -25,6 +25,11 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     val analysis = new Analysis(component, pc, Vector.empty, false)
     expression => analysis.wrapperRange(expression)
   }
+  private[internals] def constantShiftResolver(component: Component, pc: PhaseContext):
+      (ComponentEmitterVerilog, Operator.BitVector.ShiftRightByInt) => Option[String] = {
+    val analysis = new Analysis(component, pc, Vector.empty, false)
+    (printer, expression) => analysis.constantShift(printer, expression)
+  }
   private[internals] def binaryOperandResolver(component: Component, pc: PhaseContext): (ComponentEmitterVerilog, BinaryOperator, Int) => Option[String] = {
     val analysis = new Analysis(component, pc, Vector.empty, false)
     (printer, expression, slot) => analysis.binaryOperand(printer, expression, slot)
@@ -128,7 +133,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         ensureParameterHeader(
           verilog,
           component.definitionName,
-          analysis.parameters
+          analysis.parameters,
+          NativeScalarFormalSchema.definitionParameters(component, analysis.parameters)
         )
 
     val (withHierarchy, hierarchyWidths) = hierarchy.rewrite(withHeader)
@@ -210,7 +216,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
   private def ensureParameterHeader(
       verilog: String,
       definitionName: String,
-      parameters: Vector[ElaborationIntegerParameter]
+      parameters: Vector[ElaborationIntegerParameter],
+      definitionParameters: Vector[ElaborationIntegerParameter]
   ): String = {
     val lines = verilog.split("\n", -1).toVector
     val modulePattern =
@@ -274,8 +281,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         )
       }
 
-    val declarations = parameters.zipWithIndex.map { case (parameter, index) =>
-      val comma = if (index == parameters.size - 1) "" else ","
+    val declarations = definitionParameters.zipWithIndex.map { case (parameter, index) =>
+      val comma = if (index == definitionParameters.size - 1) "" else ","
       s"${indent}  parameter integer ${parameter.name} = ${parameter.default}$comma"
     }
     (
@@ -981,10 +988,55 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     * component or user signal name is used as a discovery key.
     */
   private object NativeValueEmissions
+  private object NativeValueLocalNames
   private def nativeValueEmissions(component: Component): IdentityHashMap[DataAssignmentStatement, java.lang.Boolean] =
     component.userCache.getOrElseUpdate(NativeValueEmissions,
       new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]())
       .asInstanceOf[IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]]
+
+  private def sizedNativeValue(printer: ComponentEmitterVerilog, assignment: DataAssignmentStatement,
+      value: UInt, expression: ElaborationIntegerExpression): String = {
+    val component = printer.component
+    val local = NativeLocalParameters.reference(component, expression)
+    val direct = expression.parameters match {
+      case Vector(parameter) if expression.verilog == parameter.name && expression.generateIndex.isEmpty =>
+        Some(parameter.name -> 32)
+      case _ => None
+    }
+    val reference = local.map(name => name -> NativeLocalParameters.referenceWidth(component, expression).get)
+      .orElse(direct).orElse {
+        // A genvar-dependent expression must stay in its generated scope.
+        // Module parameters and compiler-owned module locals are visible here.
+        if (expression.generateIndex.nonEmpty) None
+        else {
+          val perPrinter = component.userCache.getOrElseUpdate(NativeValueLocalNames,
+            new IdentityHashMap[ComponentEmitterVerilog, IdentityHashMap[DataAssignmentStatement, String]]())
+            .asInstanceOf[IdentityHashMap[ComponentEmitterVerilog, IdentityHashMap[DataAssignmentStatement, String]]]
+          var names = perPrinter.get(printer)
+          if (names == null) {
+            names = new IdentityHashMap[DataAssignmentStatement, String]()
+            perPrinter.put(printer, names)
+          }
+          var name = names.get(assignment)
+          if (name == null) {
+            name = component.localNamingScope.allocateName("morphhdl_value")
+            names.put(assignment, name)
+            printer.localparams ++= s"  localparam [31:0] $name = ${expression.verilog};\n"
+          }
+          Some(name -> 32)
+        }
+      }
+    reference.map { case (name, sourceWidth) =>
+      val width = ParameterizedWidth.expressionOf(value)
+      val text = width.map(_.verilog).getOrElse(value.getBitsWidth.toString)
+      val minimum = width.map(_.minimum).getOrElse(BigInt(value.getBitsWidth))
+      val maximum = width.map(_.maximum).getOrElse(BigInt(value.getBitsWidth))
+      if (minimum == sourceWidth && maximum == sourceWidth) name
+      else if (maximum <= sourceWidth) s"$name[($text)-1:0]"
+      else if (minimum >= sourceWidth) s"{{(($text)-$sourceWidth){1'b0}},$name}"
+      else s"{{((($text)>$sourceWidth)?(($text)-$sourceWidth):0){1'b0}},$name[((($text)<$sourceWidth)?($text):$sourceWidth)-1:0]}"
+    }.getOrElse("(" + expression.verilog + ")")
+  }
 
   /** Publish the authenticated typed value at its exact native assignment.
     * The retained UInt declaration supplies packed width and unsignedness in
@@ -1008,7 +1060,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]())
         validateRetainedValueProjection(component, value, record)
         nativeValueEmissions(component).put(data, java.lang.Boolean.TRUE)
-        "(" + NativeLocalParameters.reference(component, record.expression).getOrElse(record.expression.verilog) + ")"
+        sizedNativeValue(printer, data, value, record.expression)
       }
     case _ => None
   }
@@ -2058,6 +2110,27 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     private val treeStatements = ArrayBuffer.empty[TreeStatement]
     private val widthInference = new WidthInference
 
+    def constantShift(printer: ComponentEmitterVerilog,
+        expression: Operator.BitVector.ShiftRightByInt): Option[String] = synchronized {
+      require(printer.component eq component, "shift width must use its exact component")
+      // Verilog-2001 can slice a native declaration or an existing native
+      // expression wrapper. Compound expressions without such a reference
+      // retain the ordinary printer; never append a select to arbitrary text.
+      def referenceOf(value: Expression): Option[Expression] = value match {
+        case _ if value.isInstanceOf[BaseType] || printer.wrappedExpressionToName.contains(value) => Some(value)
+        case cast: CastBitVectorToBitVector if cast.getWidth == cast.input.getWidth => referenceOf(cast.input)
+        case _ => None
+      }
+      val reference = referenceOf(expression.source)
+      if (reference.isEmpty || expression.shift <= 0) return None
+      val width = widthInference.ofExpression(expression.source)
+      if (width.minimum <= expression.shift || width.default != expression.source.getWidth ||
+          expression.getWidth != expression.source.getWidth - expression.shift) return None
+      val high = if (width.isSymbolic) s"(${width.publicationRender})-1" else (width.default - 1).toString
+      val slice = s"${printer.emitExpression(reference.get)}[$high:${expression.shift}]"
+      Some(if (expression.isInstanceOf[Operator.SInt.ShiftRightByInt]) s"$$signed($slice)" else slice)
+    }
+
     def binaryOperand(printer: ComponentEmitterVerilog, expression: BinaryOperator, slot: Int): Option[String] = synchronized {
       require(slot == 0 || slot == 1, "binary operand slot must be exact")
       val operand = if (slot == 0) expression.left else expression.right
@@ -2065,6 +2138,19 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       val common = widthMax(left, right)
       if (!common.isSymbolic) return None
       val count = common.publicationRender
+      if (operand.getTypeObject == TypeSInt) {
+        val own = if (slot == 0) left else right
+        if (equivalentWidthExpression(own, common)) return None
+        val sign = operand match {
+          case literal: SIntLiteral if !literal.hasPoison() =>
+            if (literal.value < 0) "1'b1" else "1'b0"
+          case _: BitVectorLiteral => return None
+          case _ if operand.isInstanceOf[BaseType] || printer.wrappedExpressionToName.contains(operand) =>
+            s"${printer.emitExpression(operand)}[(${own.publicationRender})-1]"
+          case _ => return None
+        }
+        return Some(s"$$signed({{(($count) - (${own.publicationRender})){$sign}}, ${printer.emitExpression(operand)}})")
+      }
       operand match {
         case literal: UIntLiteral if !literal.hasPoison() && literal.value >= 0 =>
           val bits = math.max(1, literal.value.bitLength)

@@ -357,6 +357,26 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
 
 
 
+  private[internals] def nativeWidthGeneric(parent: Component, blackBox: BlackBox,
+      association: (String, Any), pc: PhaseContext): Option[String] = {
+    val owned = NativeWidthFormalSchema.bindings(parent)
+    val eligible = ParameterizedBlackBoxGenericRegistry.recordsOf(blackBox).collect {
+      case value: ParameterizedBlackBoxIntegerGeneric if value.name == association._1 &&
+          value.expression.parameters.nonEmpty &&
+          value.expression.parameters.forall(p => owned.exists(_.binding.formal eq p)) => value
+    }
+    if (eligible.isEmpty) None
+    else {
+      require((blackBox.parent eq parent) && blackBox.genericElements.exists(_ eq association),
+        "symbolic generic publication needs its exact owning native association")
+      // Reuse the full ownership, domain, port and native-witness validator.
+      val plan = analyzeBlackBoxInstance(parent, blackBox, pc)
+      plan.bindings.find(_._1 == association._1).map { case (_, binding) =>
+        NativeLocalParameters.reference(parent, eligible.head.expression).getOrElse(binding.render)
+      }
+    }
+  }
+
   private def analyzeBlackBoxInstance(
       parent: Component,
       blackBox: BlackBox,
@@ -624,7 +644,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       if (
         actualDirection != expectedDirection ||
         actual.getClass != expected.getClass ||
-        actual.getBitsWidth != expected.getBitsWidth
+        (actual.getBitsWidth != expected.getBitsWidth && !NativeWidthFormalSchema.portCompatible(expected, actual))
       ) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-LAYOUT-MISMATCH",
@@ -687,7 +707,14 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
             definitionName = definitionName,
             instanceName = instanceName
           ))
-          validateParameterBinding(expression, parameter, instanceName, pc, scalar = true)
+          val witnessParameter =
+            if (NativeScalarFormalSchema.bindings(canonical).exists(_.binding.formal eq parameter))
+              NativeScalarFormalSchema.bindings(child).find(_.binding.formal.name == parameter.name)
+                .map(_.binding.formal).getOrElse(fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
+                  "scalar binding lost its exact instance witness declaration"))
+            else parameter
+          validateParameterBinding(expression, witnessParameter, instanceName, pc, scalar = true)
           parameter.name -> expression
         } else {
           parameterPorts.foreach { name =>
@@ -697,7 +724,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
                 s"port '$name' of instance '$instanceName' lost canonical parameter '${parameter.name}'"
               )
             }
-            if (actualSchema != parameter) {
+            if (actualSchema != parameter && !NativeWidthFormalSchema.parameterCompatible(canonical, child, parameter, actualSchema)) {
               fail(
                 "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
                 s"port '$name' of instance '$instanceName' declares parameter '${actualSchema.name}' in [${actualSchema.minimum}, ${actualSchema.maximum}] with default ${actualSchema.default}, but canonical definition '$definitionName' requires '${parameter.name}' in [${parameter.minimum}, ${parameter.maximum}] with default ${parameter.default}"
@@ -751,7 +778,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
               }
               (canonicalFormals ++ actualFormals).foreach { evidence =>
                 val binding = evidence.binding
-                if (binding.formal != parameter) {
+                if (binding.formal != parameter && !NativeWidthFormalSchema.parameterCompatible(canonical, child, parameter, binding.formal)) {
                   fail(
                     "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SCHEMA-CONFLICT",
                     s"formal slot '${binding.formal.name}' does not match canonical child parameter '${parameter.name}' of '$definitionName'",
@@ -819,7 +846,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
               connectionBindings.head
             }
 
-          validateParameterBinding(expression, parameter, instanceName, pc)
+          validateParameterBinding(expression, NativeWidthFormalSchema.witness(canonical, child, parameter), instanceName, pc)
           parameter.name -> expression
         }
       }
@@ -1650,6 +1677,22 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       definitionName: String,
       instanceName: String
   ): BindingExpr = {
+    val scalarCanonical = NativeScalarFormalSchema.bindings(canonical)
+      .filter(_.binding.formal eq parameter)
+    if (scalarCanonical.nonEmpty) {
+      NativeScalarFormalSchema.validateGroup(Vector(canonical, child))
+      val scalarActual = NativeScalarFormalSchema.bindings(child)
+        .filter(_.binding.formal.name == parameter.name)
+      if (scalarCanonical.size != 1 || scalarActual.size != 1)
+        fail("SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
+          "scalar value binding requires exactly one authenticated declaration on each mapped component")
+      val canonicalEvidence = FormalBindingEvidence(scalarCanonical.head.binding,
+        Some(scalarCanonical.head.declarationToken))
+      val actualEvidence = FormalBindingEvidence(scalarActual.head.binding,
+        Some(scalarActual.head.declarationToken))
+      validateMappedFormalIdentity(Vector(canonicalEvidence), Vector(actualEvidence), parameter, instanceName)
+      return ExpressionBinding(ExternalFormalParameterRegistry.normalizedExpression(actualEvidence.binding.actual))
+    }
     val canonicalInventory = ExternalFormalParameterRegistry.completeTypedBindingsOf(canonical)
     val actualInventory = ExternalFormalParameterRegistry.completeTypedBindingsOf(child)
     val canonicalTyped = canonicalInventory.filter(_.binding.formal eq parameter)

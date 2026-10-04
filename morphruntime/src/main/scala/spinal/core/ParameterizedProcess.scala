@@ -223,13 +223,13 @@ object ParameterizedProcess {
         sourceLocation
       )
     }
-    if (state.selection.nonEmpty && state.countProof != null) {
+    if (state.countProof != null && isContiguous(offset, width, state.indexName)) {
       val sourceWidth = ParameterizedWidth.expressionOf(source)
         .getOrElse(ElabInt.literal(source.getBitsWidth).expression)
       val required = state.countProof() * ElabInt.fromExpression(width)
       if (ElabBool.projectedTruth(required <= ElabInt.fromExpression(sourceWidth)) != ElabBool.AlwaysTrue)
         fail("SPINAL-PARAMETERIZED-VERILOG-PROCESS-SLICE-DOMAIN-UNSUPPORTED",
-          "contiguous conditional loop writes exceed the exact target domain", sourceLocation)
+          "contiguous loop slices exceed the exact target domain", sourceLocation)
     } else {
       ParameterizedStructure.validateSliceCompleteDomain(source, offset, width, sourceLocation,
         "SPINAL-PARAMETERIZED-VERILOG-PROCESS-SLICE-DOMAIN-UNSUPPORTED")
@@ -534,7 +534,10 @@ object ParameterizedProcess {
 
       // Structural range bodies must retain inferred memories as native
       // declarations until MorphHDL relocates them into the generate region.
-      state.slices.foreach(_.result.dontSimplifyIt())
+      state.slices.foreach { slice =>
+        slice.result.dontSimplifyIt().setAsVital()
+        slice.result.setName("morphhdl_structural_slice", weak = true)
+      }
       memories.foreach(_.preventAsBlackBox())
 
       val block = new ParameterizedStructuralBlock(
@@ -562,6 +565,10 @@ object ParameterizedProcess {
           count,
           block,
           sourceLocation
+        )
+      else if (state.countProof != null)
+        ParameterizedStructure.registerAnalyzedForWithCoverage(
+          component, label, indexName, count, block, sourceLocation, state.countProof()
         )
       else
         ParameterizedStructure.registerFor(
@@ -681,7 +688,7 @@ object ParameterizedProcess {
     found
   }
 
-  private def matchesTargetSlice(
+  private[core] def matchesTargetSlice(
       assignment: DataAssignmentStatement,
       slice: ParameterizedStructure.StructuralSlice
   ): Boolean = {
@@ -712,12 +719,15 @@ object ParameterizedProcess {
     found
   }
 
-  private def isContiguous(
+  private[core] def isContiguous(
       slice: ParameterizedStructure.StructuralSlice,
       indexName: String
-  ): Boolean = {
-    val offset = compact(stripOuterParentheses(slice.offset.verilog))
-    val width = compact(stripOuterParentheses(slice.width.verilog))
+  ): Boolean = isContiguous(slice.offset, slice.width, indexName)
+
+  private def isContiguous(offsetExpression: ElaborationIntegerExpression,
+      widthExpression: ElaborationIntegerExpression, indexName: String): Boolean = {
+    val offset = compact(stripOuterParentheses(offsetExpression.verilog))
+    val width = compact(stripOuterParentheses(widthExpression.verilog))
     offset == s"$indexName*$width" || offset == s"$width*$indexName"
   }
 

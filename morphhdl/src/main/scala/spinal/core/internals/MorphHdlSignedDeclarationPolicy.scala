@@ -98,7 +98,9 @@ final class MorphHdlSignedDeclarationPolicy private[spinal] (
     occurrence.subject match {
       case value: BitVector =>
         ParameterizedWidth.expressionOf(value).flatMap { expression =>
-          if (occurrence.ansiPort) NativeLocalParameters.reference(value.component, expression).map(_ => s"[(${expression.verilog})-1:0]")
+          if (occurrence.ansiPort && NativeWidthFormalSchema.portBinding(value).nonEmpty)
+            Some(s"[${expression.verilog}-1:0]")
+          else if (occurrence.ansiPort) NativeLocalParameters.reference(value.component, expression).map(_ => s"[(${expression.verilog})-1:0]")
           else NativeLocalParameters.reference(value.component, expression).map(name => s"[$name-1:0]")
         }
       case _ => None

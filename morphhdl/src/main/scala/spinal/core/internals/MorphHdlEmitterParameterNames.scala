@@ -17,6 +17,14 @@ object MorphHdlEmitterParameterNames {
     val names = phases.collectFirst { case phase: MorphHdlEmitterParameterNames => phase }
     phases.collect { case emitter: PhaseVerilog => emitter }.foreach { emitter =>
         emitter.bindAssignmentPublication(new VerilogBase.AssignmentPublicationPolicy {
+          override def constantShift(printer: ComponentEmitterVerilog,
+              expression: Operator.BitVector.ShiftRightByInt): Option[String] =
+            names.flatMap(_.constantShift(printer, expression))
+          override def blackBoxGeneric(printer: ComponentEmitterVerilog, blackBox: spinal.core.BlackBox,
+              association: (String, Any)): Option[String] =
+            names.flatMap(_.blackBoxGeneric(printer, blackBox, association))
+          override def condition(printer: ComponentEmitterVerilog, statement: WhenStatement): Option[String] =
+            NativeConditionalProcessEmitter.condition(printer, statement)
           override def wrapperRange(printer: ComponentEmitterVerilog, expression: Expression): Option[String] =
             names.flatMap(_.wrapperRange(printer, expression))
           override def binaryOperand(printer: ComponentEmitterVerilog, expression: BinaryOperator, slot: Int): Option[String] =
@@ -43,10 +51,33 @@ final class MorphHdlEmitterParameterNames extends PhaseMisc {
   private var context: PhaseContext = null
   private val wrapperRanges = new java.util.IdentityHashMap[spinal.core.Component, Expression => Option[String]]()
   private val binaryOperands = new java.util.IdentityHashMap[spinal.core.Component, (ComponentEmitterVerilog, BinaryOperator, Int) => Option[String]]()
+  private val constantShifts = new java.util.IdentityHashMap[spinal.core.Component,
+    (ComponentEmitterVerilog, Operator.BitVector.ShiftRightByInt) => Option[String]]()
+  private[internals] def constantShift(printer: ComponentEmitterVerilog,
+      expression: Operator.BitVector.ShiftRightByInt): Option[String] = {
+    require(context != null, "shift publication precedes name preparation")
+    val resolver = constantShifts.synchronized {
+      var value = constantShifts.get(printer.component)
+      if (value == null) {
+        value = ExternalParameterizedVerilogNativeFallback.constantShiftResolver(printer.component, context)
+        constantShifts.put(printer.component, value)
+      }
+      value
+    }
+    resolver(printer, expression)
+  }
+  private[internals] def blackBoxGeneric(printer: ComponentEmitterVerilog, blackBox: spinal.core.BlackBox,
+      association: (String, Any)): Option[String] = {
+    require(context != null, "generic publication precedes name preparation")
+    ExternalParameterizedVerilogHierarchy.nativeWidthGeneric(printer.component, blackBox, association, context)
+  }
   private[internals] def binaryOperand(printer: ComponentEmitterVerilog, expression: BinaryOperator, slot: Int): Option[String] = expression match {
     case _: Operator.UInt.Add | _: Operator.UInt.Sub | _: Operator.UInt.And | _: Operator.UInt.Or | _: Operator.UInt.Xor |
         _: Operator.UInt.Equal | _: Operator.UInt.EqualSim | _: Operator.UInt.NotEqual |
-        _: Operator.UInt.Smaller | _: Operator.UInt.SmallerOrEqual =>
+        _: Operator.UInt.Smaller | _: Operator.UInt.SmallerOrEqual |
+        _: Operator.SInt.Add | _: Operator.SInt.Sub | _: Operator.SInt.And | _: Operator.SInt.Or | _: Operator.SInt.Xor |
+        _: Operator.SInt.Equal | _: Operator.SInt.EqualSim | _: Operator.SInt.NotEqual |
+        _: Operator.SInt.Smaller | _: Operator.SInt.SmallerOrEqual =>
       require(context != null, "binary publication precedes name preparation")
       val resolver = binaryOperands.synchronized {
         var value = binaryOperands.get(printer.component)
@@ -60,6 +91,7 @@ final class MorphHdlEmitterParameterNames extends PhaseMisc {
     case _ => None
   }
   private[internals] def wrapperRange(printer: ComponentEmitterVerilog, expression: Expression): Option[String] = expression match {
+    case value: spinal.core.BitVector => NativeWidthFormalSchema.publicationRange(printer.component, value)
     // These native unsigned wrappers are outside signedness publication's
     // intentional scope. Reuse the ordinary width authority, not a witness.
     case _: Operator.UInt.Add | _: Operator.UInt.Sub | _: Operator.UInt.And | _: Operator.UInt.Or | _: Operator.UInt.Xor =>

@@ -451,6 +451,32 @@ private[core] final class ParameterizedVecPackedIdentityRef(
   * native carrier graph with one parameterized packed Verilog-2001 vector.
   */
 object ParameterizedVec {
+  private final class NativeBitViews(val vector: Vec[Bool],
+      val drivers: Vector[(Bool, DataAssignmentStatement, Expression)]) extends SpinalTag {
+    var retained = false
+    override def canSymplifyHost: Boolean = true
+  }
+
+  /** The native asBools factory creates writable extraction views. Remember
+    * those exact drivers without forcing an otherwise unused aggregate into
+    * publication. A retained finite loop consumes this provenance later.
+    */
+  private[core] def recordNativeBitViews(vector: Vec[Bool]): Unit = {
+    val drivers = vector.vec.map { leaf =>
+      val assignments = ArrayBuffer.empty[DataAssignmentStatement]
+      leaf.foreachStatements {
+        case assignment: DataAssignmentStatement => assignments += assignment
+        case _ =>
+      }
+      require(assignments.size == 1 && (assignments.head.target eq leaf),
+        "native bit view requires its exact extraction assignment")
+      (leaf, assignments.head, assignments.head.source)
+    }.toVector
+    // This is Vec factory provenance, not a hardware attribute on each leaf.
+    // MultiData.addTag propagates to leaves and would keep unused views alive.
+    vector.spinalTags += new NativeBitViews(vector, drivers)
+  }
+
   // Only inherited Vec packing algorithms enter this scope. It prevents an
   // inner Vec from publishing an intermediate witness-width wrapper while the
   // enclosing native MultiData algorithm is constructing its audited carrier.
@@ -679,6 +705,22 @@ object ParameterizedVec {
   private[spinal] def retainConstantLoopOperand[T <: Data](vector: Vec[T]): Unit = {
     if (shapeOf(vector).isEmpty && vector.vec.nonEmpty)
       attach(vector, literal(vector.vec.size), vector.vec.size, vector.vec.size, None)
+    vector.getTag(classOf[NativeBitViews]).foreach { views =>
+      if (!views.retained) {
+        require((views.vector eq vector) && views.drivers.size == vector.vec.size,
+          "native bit view provenance changed owner or extent")
+        views.drivers.zipWithIndex.foreach { case ((leaf, assignment, source), index) =>
+          require((vector.vec(index) eq leaf) && (assignment.target eq leaf) &&
+            (assignment.source eq source) && leaf.head == assignment && leaf.hasOnlyOneStatement,
+            "native bit view lost its exact extraction driver")
+          validateStaticIndex(vector, index)
+          recordStaticWrite(vector, index, 0, leaf, source, leaf,
+            Vector(assignment), Vector.empty, DataAssign)
+            .foreach(operation => recordWriteInvocation(vector, leaf, operation))
+        }
+        views.retained = true
+      }
+    }
   }
 
   private def containsSymbolicGeometry(data: Data): Boolean = data match {

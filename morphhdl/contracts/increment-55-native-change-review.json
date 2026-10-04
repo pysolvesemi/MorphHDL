@@ -51,9 +51,10 @@
         "Increment 55: audit concrete compatibility",
         "Increment 59d: generic symbolic result-width provenance and widening reductions",
         "Increment 59e: composite and nested Bundle/Vec reductions",
-        "Increment 59f: certified callback graphs and captured inputs"
+        "Increment 59f: certified callback graphs and captured inputs",
+        "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026"
       ],
-      "reason": "Retain the compatible ElabInt resize overload and mechanically preserve native high-bit, clone and mux width provenance without changing concrete arithmetic or inferred widths.",
+      "reason": "Retain the compatible ElabInt resize overload and mechanically preserve native high-bit, clone and mux width provenance without changing concrete arithmetic or inferred widths. Keep asBools original extract identities and writable bit views; record compiler-owned constant-loop view evidence only under opted-in aggregate preservation.",
       "edits": [
         {
           "id": "bitvector-native-msb-width-01",
@@ -90,6 +91,32 @@
             {
               "side": "approved",
               "text": "SPINAL-ELAB-INT-BITVECTOR-RESIZE-SUBTYPE-UNSUPPORTED",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bitvector-compiler-repair-20261004-4",
+          "kind": "mechanical-propagation",
+          "owner": "core/src/main/scala/spinal/core/BitVector.scala",
+          "reason": "Keep asBools original extract identities and writable bit views; record compiler-owned constant-loop view evidence only under opted-in aggregate preservation.",
+          "required_exact_text": [
+            {
+              "side": "baseline",
+              "text": "    val vec = ArrayBuffer[Bool]()\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bitvector-compiler-repair-20261004-5",
+          "kind": "mechanical-propagation",
+          "owner": "core/src/main/scala/spinal/core/BitVector.scala",
+          "reason": "Keep asBools original extract identities and writable bit views; record compiler-owned constant-loop view evidence only under opted-in aggregate preservation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val vec = ArrayBuffer[Bool]()\n    for (i <- 0 until bitCount) vec += this(i)\n    val result = Vec(vec)\n    if (bitCount > 0 &&\n        (VerilogAggregateOptions.current.preserveConstantVecs || VerilogAggregateOptions.current.preserveConstantLoops) &&\n        ParameterizedWidth.expressionOf(this).forall(_.parameters.isEmpty))\n      ParameterizedVec.recordNativeBitViews(result)\n    result",
               "count": 1
             }
           ]
@@ -832,9 +859,10 @@
       "classification": "typed-support-file",
       "introduced_by": [
         "Increment 64: typed native derived local parameters",
-        "Increment 66: native parameter and RTL readability extensions"
+        "Increment 66: native parameter and RTL readability extensions",
+        "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026"
       ],
-      "reason": "Capture exact typed arithmetic operands and compiler-supplied member hints; select only live exact-owner uses, order declarations by operand identity, reject cycles, reserve collision-safe names, and render native local parameters without introducing proof authority. Restricted structural calculations retain direct expression publication. Component-owned state cannot leak names between generations or owners. Extend the existing component-local dependency graph with explicitly named packed unsigned declarations, exact owner checks, deterministic collision rejection and dependency ordering. Explicit names replace an automatic hint for the same expression; metadata never grants arithmetic authority.",
+      "reason": "Capture exact typed arithmetic operands and compiler-supplied member hints; select only live exact-owner uses, order declarations by operand identity, reject cycles, reserve collision-safe names, and render native local parameters without introducing proof authority. Restricted structural calculations retain direct expression publication. Component-owned state cannot leak names between generations or owners. Extend the existing component-local dependency graph with explicitly named packed unsigned declarations, exact owner checks, deterministic collision rejection and dependency ordering. Explicit names replace an automatic hint for the same expression; metadata never grants arithmetic authority. Publish explicitly sized typed UInt local constants through compiler-owned 32-bit integer intermediates, preserving exact expression dependencies and signed 32-bit elaboration domains before slicing or extending to the declared packed width.",
       "edits": []
     },
     {
@@ -921,9 +949,10 @@
         "Increment 59i: combined recursive widening, captures and native saturation geometry",
         "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI",
         "October 2 user request: opt-in constant aggregates and typed loops",
-        "Compiler issues CA-001/CA-002/CA-003, October 3"
+        "Compiler issues CA-001/CA-002/CA-003, October 3",
+        "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026"
       ],
-      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged. Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence. CDC-WIRE-01 qualification exposes a read-only identity inventory from retained Vec operation and completed-write journals. Visit only the closed compiler-owned record families and their exact native expressions with identity-based cycle suppression, so optional late wrapper planning preserves the publisher's witness slices, carriers and assignment evidence. No native Vec algorithm, journal contents, parameter domain or public layout is changed. Packed-assignment support tracing follows only exact fixed slices, reviewed Bits casts, and same-component directionless combinational intermediates with one root-scope assignment; it stops at the recorded carrier or source identities. Supporting-driver traversal is read-only and cannot relax the publisher's existing proof obligations. The October 2 request adds explicitly opted-in constant geometry retention and exact literal-depth metadata for constant typed-loop Vec operands; no symbolic root or witness domain is fabricated. Static writes preserve anonymous literal identity without pinning its width; exact native literal-clone receipts retain normalization lineage. Capture complete static scope paths and enclosing When identities across native switches.",
+      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged. Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence. CDC-WIRE-01 qualification exposes a read-only identity inventory from retained Vec operation and completed-write journals. Visit only the closed compiler-owned record families and their exact native expressions with identity-based cycle suppression, so optional late wrapper planning preserves the publisher's witness slices, carriers and assignment evidence. No native Vec algorithm, journal contents, parameter domain or public layout is changed. Packed-assignment support tracing follows only exact fixed slices, reviewed Bits casts, and same-component directionless combinational intermediates with one root-scope assignment; it stops at the recorded carrier or source identities. Supporting-driver traversal is read-only and cannot relax the publisher's existing proof obligations. The October 2 request adds explicitly opted-in constant geometry retention and exact literal-depth metadata for constant typed-loop Vec operands; no symbolic root or witness domain is fabricated. Static writes preserve anonymous literal identity without pinning its width; exact native literal-clone receipts retain normalization lineage. Capture complete static scope paths and enclosing When identities across native switches. Retain lazy, exact original bit-view extraction identities on the Vec object, validate before consuming once, and retain constant loop operand shape without changing native read/write semantics.",
       "edits": []
     },
     {
@@ -1779,9 +1808,12 @@
         "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI",
         "Increment 64: typed native derived local parameters",
         "Increment 66: native parameter and RTL readability extensions",
-        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation",
+        "CA-005 ANSI declaration context repair",
+        "Compiler repair: ANSI derived widths and native unsigned temporary/operand sizing",
+        "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026"
       ],
-      "reason": "Retain native symbolic-legality publication and the generation-scoped signed declaration, cast, literal, resize and unsigned-transport callbacks. The typed expression planner controls optional wrapper suppression; every mandatory wrapper present before depth cutting remains, and CDC-WIRE-01 suppresses new depth wrappers only when complete expansion and all receiving widths are proven. Approved unsigned expression slices use a deterministic Verilog-2001 function with the full authoritative source input width and exact constant result range, preserving truncation and four-state semantics. Helper and argument names are allocated in the same namespace after reserving component/width parameter identities, and functions are cached by symbolic width and range. Signed/unknown or otherwise unproven expressions and the ordinary backend keep inherited emission. Qualification repair reserves declaration-local width names without composing finished branch domains, and passes the exact emitter owner when preserving a retained unsigned wrapper's authoritative logical range. All old public wrapper entry points and ordinary backend behavior remain intact. Emit dependency-ordered typed local parameters through the native localparams buffer after the parameterized backend prepares exact live uses. Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative. Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements.",
+      "reason": "Retain native symbolic-legality publication and the generation-scoped signed declaration, cast, literal, resize and unsigned-transport callbacks. The typed expression planner controls optional wrapper suppression; every mandatory wrapper present before depth cutting remains, and CDC-WIRE-01 suppresses new depth wrappers only when complete expansion and all receiving widths are proven. Approved unsigned expression slices use a deterministic Verilog-2001 function with the full authoritative source input width and exact constant result range, preserving truncation and four-state semantics. Helper and argument names are allocated in the same namespace after reserving component/width parameter identities, and functions are cached by symbolic width and range. Signed/unknown or otherwise unproven expressions and the ordinary backend keep inherited emission. Qualification repair reserves declaration-local width names without composing finished branch domains, and passes the exact emitter owner when preserving a retained unsigned wrapper's authoritative logical range. All old public wrapper entry points and ordinary backend behavior remain intact. Emit dependency-ordered typed local parameters through the native localparams buffer after the parameterized backend prepares exact live uses. Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative. Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. CA-005 adds explicit native ANSI-port context while preserving body declaration behavior. Include actual ANSI context and parameter-aware unsigned native temporary/operand publication. Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
       "edits": [
         {
           "id": "componentemitterverilog-comments-01",
@@ -1836,6 +1868,19 @@
           ]
         },
         {
+          "id": "compiler-port-wrapper-componentemitterverilog-5",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "Port",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "symbolic-legality-native-emission-01",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog.emitArchitecture",
@@ -1859,6 +1904,19 @@
           ]
         },
         {
+          "id": "componentemitterverilog-compiler-repair-20261004-7",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": ", this",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "parameterized-unsigned-transport-retained",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
@@ -1872,6 +1930,32 @@
           ]
         },
         {
+          "id": "compiler-port-wrapper-componentemitterverilog-8",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": ", this",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-10",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "wireName.contains('\\'')) \"\" else emitOwnedRange(this, data)\n          .getOrElse(if(data.getBitsWidth == 1) \"\" else s\"[${data.getBitsWidth - 1}:0]\")",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "componentemitterverilog-comments-07",
           "kind": "backend-isolation",
           "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
@@ -1880,6 +1964,32 @@
             {
               "side": "approved",
               "text": "RtlDocumentation.envelope(component, child, commentTagsToString(child, \"  //\")",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-12",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "mitNativeBlackBoxGeneric(this, bb, e).map(e._1 -> _).getOrElse(e",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-13",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": ")",
               "count": 1
             }
           ]
@@ -1937,6 +2047,19 @@
             {
               "side": "approved",
               "text": "val notes = new StringBuilder\n              emitRegionNotes(s, notes, \"  \")\n              logics ++= RtlDocumentation.envelope(component, s, notes.toString)\n              logics ++= s\"  assign ${emitAssignedExpression(s.target)} = ${emitAssignmentSource(s",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-18",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val sensitivity = if (conditionDependenciesAdded) referenceSetSorted().mkString(\" or \") else \"*\"\n          logics ++= s\"  always @($sensitivity",
               "count": 1
             }
           ]
@@ -2012,6 +2135,45 @@
           ]
         },
         {
+          "id": "componentemitterverilog-compiler-repair-20261004-24",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "            def condition = verilogBase.emitNativeWhenCondition(this, treeStatement) match {\n              case Some(value) => conditionDependenciesAdded = true; value\n              case None => emitExpression(treeStatement.cond)\n            }\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-25",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "condition",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-26",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "condition",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "increment66-componentemitterverilog-11",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
@@ -2038,14 +2200,66 @@
           ]
         },
         {
-          "id": "signed-boundary-60e-componentemitterverilog-4",
+          "id": "componentemitterverilog-compiler-repair-20261004-29",
           "kind": "backend-isolation",
-          "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "  private[spinal] def usesVerilogBase(base: VerilogBase): Boolean = verilogBase eq base\n\n  private def emitSignedOperand(parent: Expression, slot: Int, operand: Expression): String = {\n    val emitted = emitExpression(operand)\n    if (verilogBase.canElideSignedCast(this, parent, slot, operand)) emitted\n    else s\"$$signed($emitted)\"\n  }\n\n",
+              "text": "    conditionDependenciesAdded = false\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-30",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  private var conditionDependenciesAdded = false\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-31",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": ", this",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-32",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": ", this",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-33",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative. Retained surrounding reviewed behavior: Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val left = verilogBase.emitNativeBinaryOperand(this, e, 0).getOrElse(emitExpression(e.left))\n    val right = verilogBase.emitNativeBinaryOperand(this, e, 1).getOrElse(emitExpression(e.right))\n    s\"($left $verilog $right)\"\n  }\n\n  private[spinal] def usesVerilogBase(base: VerilogBase): Boolean = verilogBase eq base\n\n  private def emitSignedOperand(parent: Expression, slot: Int, operand: Expression): String = {\n    val emitted = parent match {\n      case binary: BinaryOperator => verilogBase.emitNativeBinaryOperand(this, binary, slot)\n        .getOrElse(emitExpression(operand))\n      case _ => emitExpression(operand)\n    }\n    if (verilogBase.canElideSignedCast(this, parent, slot, operand)) emitted\n    else s\"$$signed($emitted",
               "count": 1
             }
           ]
@@ -2098,6 +2312,19 @@
             {
               "side": "approved",
               "text": "verilogBase.emitSignedResize(this, func).getOrElse ",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-38",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "verilogBase.emitNativeConstantShift(this, e).getOrElse ",
               "count": 1
             }
           ]
@@ -2405,42 +2632,35 @@
         "PR #187 qualification repair: preserve upstream VerilogBase JVM compatibility",
         "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI",
         "Increment 64: typed native derived local parameters",
-        "Increment 66: native parameter and RTL readability extensions"
+        "Increment 66: native parameter and RTL readability extensions",
+        "CA-005 ANSI declaration context repair",
+        "Compiler repair: ANSI derived widths and native unsigned temporary/operand sizing",
+        "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026"
       ],
-      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results. CDC-WIRE-01 qualification preserves the historical two-argument wrapper method and adds an internal owner-checked overload for retained unsigned symbolic carriers. The default backend remains on inherited concrete emission; signed declaration policy ranges retain precedence, with no new state in the historical interface. Add a default-disabled exact-occurrence scalar range callback so the native printer can reference module-local typed constants without changing ordinary concrete emission. Add owner-checked optional assignment/source/target/scope callbacks with storage confined to DeclarationPolicyOwner. Keep the historical interface stateless, preserve existing declaration and signedness hooks, and retain default native printing when no policy applies.",
+      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results. CDC-WIRE-01 qualification preserves the historical two-argument wrapper method and adds an internal owner-checked overload for retained unsigned symbolic carriers. The default backend remains on inherited concrete emission; signed declaration policy ranges retain precedence, with no new state in the historical interface. Add a default-disabled exact-occurrence scalar range callback so the native printer can reference module-local typed constants without changing ordinary concrete emission. Add owner-checked optional assignment/source/target/scope callbacks with storage confined to DeclarationPolicyOwner. Keep the historical interface stateless, preserve existing declaration and signedness hooks, and retain default native printing when no policy applies. CA-005 adds explicit native ANSI-port context while preserving body declaration behavior. Include actual ANSI context and parameter-aware unsigned native temporary/operand publication. Extend the existing optional owner-bound publication policy with concrete default methods for native conditions, ranges, operands, constant shifts and BlackBox generics. Validate exact emitter/instance association identity, retain historical public wrapper entry points and avoid new abstract VerilogBase accessors.",
       "edits": [
         {
-          "id": "increment66-verilogbase-1",
+          "id": "verilogbase-compiler-repair-20261004-1",
           "kind": "backend-isolation",
-          "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Add owner-checked optional assignment/source/target/scope callbacks with storage confined to DeclarationPolicyOwner. Keep the historical interface stateless, preserve existing declaration and signedness hooks, and retain default native printing when no policy applies.",
+          "owner": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
+          "reason": "Extend the existing optional owner-bound publication policy with concrete default methods for native conditions, ranges, operands, constant shifts and BlackBox generics. Validate exact emitter/instance association identity, retain historical public wrapper entry points and avoid new abstract VerilogBase accessors. Retained surrounding reviewed behavior: Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "/** The native printer owns declaration occurrences. No occurrence contains an\n  * emitted identifier, source location or a guessed concrete-width type.\n  */\nobject VerilogBase {\n  sealed trait DeclarationRole\n  case object ScalarDeclaration extends DeclarationRole\n  case object FunctionResultDeclaration extends DeclarationRole\n  case object ExpressionWrapper extends DeclarationRole\n  case object MemoryElementDeclaration extends DeclarationRole\n\n  final class DeclarationOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val subject: AnyRef,\n      val role: DeclarationRole\n  )\n\n  /** Native cast site and the exact object that emitExpression will print.\n    * The reference classification comes from the real native wrapper plan,\n    * never from the resulting Verilog text or a caller-provided signed flag.\n    */\n  final class SignedCastOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val parent: Expression,\n      val slot: Int,\n      val operand: Expression\n  ) {\n    def component: Component = printer.component\n    def isSignedLiteral: Boolean = operand match {\n      case literal: BitVectorLiteral => emitter.literalIsSigned(literal)\n      case _ => false\n    }\n    def referenceRole: Option[DeclarationRole] = {\n      if (printer.wrappedExpressionToName.contains(operand)) Some(ExpressionWrapper)\n      else operand match {\n        case value: BaseType if (value.component eq component) && !value.isSuffix &&\n            !printer.referencesOverrides.contains(value) => Some(ScalarDeclaration)\n        case _ => None\n      }\n    }\n  }\n\n  final class SignedLiteralOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val literal: BitVectorLiteral\n  )\n\n  final class SignedResizeOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val resize: Resize\n  ) {\n    def inputReferenceRole: Option[DeclarationRole] =\n      new SignedCastOccurrence(emitter, printer, resize, 0, resize.input).referenceRole\n    def inputText: String = printer.emitExpression(resize.input)\n  }\n\n  /** Exact native assignment callback for authenticated parameter publication.\n    * Concrete emission has no bound policy and keeps its historical path.\n    */\n  trait AssignmentPublicationPolicy {\n    def source(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String]\n    def target(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] = None\n    def scope(printer: ComponentEmitterVerilog, tree: TreeStatement, scope: ScopeStatement,\n        output: StringBuilder, indentation: String, body: String => Int): Option[Int] = None\n  }\n\n  /** Optional storage owned by the concrete emitter, not by the historical\n    * VerilogBase interface. A field in that interface would add abstract JVM\n    * accessors and break already-compiled implementations. The strong reference\n    * lives exactly as long as its owner; no global or thread-local registry is\n    * involved, even when a policy itself retains the emitter.\n    */\n  private[spinal] trait DeclarationPolicyOwner { self: VerilogBase =>\n    @volatile private var boundPolicy: DeclarationPolicy = null\n    @volatile private var assignmentPolicy: AssignmentPublicationPolicy = null\n    private[VerilogBase] final def assignmentPublication: AssignmentPublicationPolicy = assignmentPolicy\n    private[VerilogBase] final def installAssignmentPublication(policy: AssignmentPublicationPolicy): Unit = synchronized {\n      require(policy != null && assignmentPolicy == null, \"assignment publication must be bound exactly once\")\n      assignmentPolicy = policy\n    }\n\n    private[VerilogBase] final def currentDeclarationPolicy: DeclarationPolicy = boundPolicy\n\n    private[VerilogBase] final def installDeclarationPolicy(policy: DeclarationPolicy): Unit = synchronized {\n      require(policy != null && boundPolicy == null,\n        \"a Verilog declaration policy must be non-null and bound exactly once\")\n      boundPolicy = policy\n    }\n  }\n\n  trait DeclarationPolicy {\n    def signed(occurrence: DeclarationOccurrence): Boolean\n    def wrapperRange(occurrence: DeclarationOccurrence): Option[String]\n    def unsignedTransport(expression: Expression): Boolean\n    def elideSignedCast(occurrence: SignedCastOccurrence): Boolean = false\n    def signedLiteral(occurrence: SignedLiteralOccurrence): Boolean = false\n    def signedResize(occurrence: SignedResizeOccurrence): Option[String] = None\n    def functionRange(occurrence: DeclarationOccurrence): Option[String] = None\n    def scalarRange(occurrence: DeclarationOccurrence): Option[String] = None\n  }\n}\n\n",
+              "text": "/** The native printer owns declaration occurrences. No occurrence contains an\n  * emitted identifier, source location or a guessed concrete-width type.\n  */\nobject VerilogBase {\n  sealed trait DeclarationRole\n  case object ScalarDeclaration extends DeclarationRole\n  case object FunctionResultDeclaration extends DeclarationRole\n  case object ExpressionWrapper extends DeclarationRole\n  case object MemoryElementDeclaration extends DeclarationRole\n\n  final class DeclarationOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val subject: AnyRef,\n      val role: DeclarationRole,\n      val ansiPort: Boolean = false\n  )\n\n  /** Native cast site and the exact object that emitExpression will print.\n    * The reference classification comes from the real native wrapper plan,\n    * never from the resulting Verilog text or a caller-provided signed flag.\n    */\n  final class SignedCastOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val parent: Expression,\n      val slot: Int,\n      val operand: Expression\n  ) {\n    def component: Component = printer.component\n    def isSignedLiteral: Boolean = operand match {\n      case literal: BitVectorLiteral => emitter.literalIsSigned(literal)\n      case _ => false\n    }\n    def referenceRole: Option[DeclarationRole] = {\n      if (printer.wrappedExpressionToName.contains(operand)) Some(ExpressionWrapper)\n      else operand match {\n        case value: BaseType if (value.component eq component) && !value.isSuffix &&\n            !printer.referencesOverrides.contains(value) => Some(ScalarDeclaration)\n        case _ => None\n      }\n    }\n  }\n\n  final class SignedLiteralOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val literal: BitVectorLiteral\n  )\n\n  final class SignedResizeOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val resize: Resize\n  ) {\n    def inputReferenceRole: Option[DeclarationRole] =\n      new SignedCastOccurrence(emitter, printer, resize, 0, resize.input).referenceRole\n    def inputText: String = printer.emitExpression(resize.input)\n  }\n\n  /** Exact native assignment callback for authenticated parameter publication.\n    * Concrete emission has no bound policy and keeps its historical path.\n    */\n  trait AssignmentPublicationPolicy {\n    def constantShift(printer: ComponentEmitterVerilog,\n        expression: Operator.BitVector.ShiftRightByInt): Option[String] = None\n    def blackBoxGeneric(printer: ComponentEmitterVerilog, blackBox: BlackBox,\n        association: (String, Any)): Option[String] = None\n    def condition(printer: ComponentEmitterVerilog, statement: WhenStatement): Option[String] = None\n    def wrapperRange(printer: ComponentEmitterVerilog, expression: Expression): Option[String] = None\n    def binaryOperand(printer: ComponentEmitterVerilog, expression: BinaryOperator, slot: Int): Option[String] = None\n    def source(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String]\n    def target(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] = None\n    def scope(printer: ComponentEmitterVerilog, tree: TreeStatement, scope: ScopeStatement,\n        output: StringBuilder, indentation: String, body: String => Int): Option[Int] = None\n  }\n\n  /** Optional storage owned by the concrete emitter, not by the historical\n    * VerilogBase interface. A field in that interface would add abstract JVM\n    * accessors and break already-compiled implementations. The strong reference\n    * lives exactly as long as its owner; no global or thread-local registry is\n    * involved, even when a policy itself retains the emitter.\n    */\n  private[spinal] trait DeclarationPolicyOwner { self: VerilogBase =>\n    @volatile private var boundPolicy: DeclarationPolicy = null\n    @volatile private var assignmentPolicy: AssignmentPublicationPolicy = null\n    private[VerilogBase] final def assignmentPublication: AssignmentPublicationPolicy = assignmentPolicy\n    private[VerilogBase] final def installAssignmentPublication(policy: AssignmentPublicationPolicy): Unit = synchronized {\n      require(policy != null && assignmentPolicy == null, \"assignment publication must be bound exactly once\")\n      assignmentPolicy = policy\n    }\n\n    private[VerilogBase] final def currentDeclarationPolicy: DeclarationPolicy = boundPolicy\n\n    private[VerilogBase] final def installDeclarationPolicy(policy: DeclarationPolicy): Unit = synchronized {\n      require(policy != null && boundPolicy == null,\n        \"a Verilog declaration policy must be non-null and bound exactly once\")\n      boundPolicy = policy\n    }\n  }\n\n  trait DeclarationPolicy {\n    def signed(occurrence: DeclarationOccurrence): Boolean\n    def wrapperRange(occurrence: DeclarationOccurrence): Option[String]\n    def unsignedTransport(expression: Expression): Boolean\n    def elideSignedCast(occurrence: SignedCastOccurrence): Boolean = false\n    def signedLiteral(occurrence: SignedLiteralOccurrence): Boolean = false\n    def signedResize(occurrence: SignedResizeOccurrence): Option[String] = None\n    def functionRange(occurrence: DeclarationOccurrence): Option[String] = None\n    def scalarRange(occurrence: DeclarationOccurrence): Option[String] = None\n  }\n}\n\n",
               "count": 1
             }
           ]
         },
         {
-          "id": "parameterized-declaration-policy-after-wire-retirement",
+          "id": "verilogbase-compiler-repair-20261004-2",
           "kind": "backend-isolation",
-          "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Retain generation-local signed declaration, assignment and scope publication policies, with native unsigned wrappers by default; remove the unused wire-pass range override.",
+          "owner": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
+          "reason": "Extend the existing optional owner-bound publication policy with concrete default methods for native conditions, ranges, operands, constant shifts and BlackBox generics. Validate exact emitter/instance association identity, retain historical public wrapper entry points and avoid new abstract VerilogBase accessors. Retained surrounding reviewed behavior: Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "private def emitWrapperType(e: Expression): String",
-              "count": 1
-            },
-            {
-              "side": "approved",
-              "text": "if (declarationPolicy == null) return emitType(e)",
-              "count": 1
-            },
-            {
-              "side": "approved",
-              "text": "declarationPolicy.wrapperRange(occurrence).getOrElse(nativeType)",
+              "text": "  import VerilogBase._\n\n  // Concrete default accessors keep old VerilogBase implementations stateless\n  // and unsigned. Only an explicitly policy-capable emitter owns a policy slot.\n  private def declarationPolicy: DeclarationPolicy = this match {\n    case owner: DeclarationPolicyOwner => owner.currentDeclarationPolicy\n    case _ => null\n  }\n\n  private def declarationPolicy_=(policy: DeclarationPolicy): Unit = this match {\n    case owner: DeclarationPolicyOwner => owner.installDeclarationPolicy(policy)\n    case _ => throw new IllegalArgumentException(\n      \"binding a Verilog declaration policy requires DeclarationPolicyOwner\")\n  }\n\n  /** One generation-local opt-in; an ordinary native emitter has no policy. */\n  private[spinal] final def bindDeclarationPolicy(policy: DeclarationPolicy): Unit = {\n    require(policy != null && declarationPolicy == null,\n      \"a Verilog declaration policy must be non-null and bound exactly once\")\n    declarationPolicy = policy\n  }\n\n  private[spinal] final def bindAssignmentPublication(policy: AssignmentPublicationPolicy): Unit = this match {\n    case owner: DeclarationPolicyOwner => owner.installAssignmentPublication(policy)\n    case _ => throw new IllegalArgumentException(\"assignment publication requires a policy-capable emitter\")\n  }\n\n  private[spinal] final def emitNativeConstantShift(printer: ComponentEmitterVerilog,\n      expression: Operator.BitVector.ShiftRightByInt): Option[String] = {\n    require(printer.usesVerilogBase(this), \"constant shift must use its exact native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner => Option(owner.assignmentPublication)\n        .flatMap(_.constantShift(printer, expression))\n      case _ => None\n    }\n  }\n  private[spinal] final def emitNativeBinaryOperand(printer: ComponentEmitterVerilog,\n      expression: BinaryOperator, slot: Int): Option[String] = this match {\n    case owner: DeclarationPolicyOwner =>\n      Option(owner.assignmentPublication).flatMap(_.binaryOperand(printer, expression, slot))\n    case _ => None\n  }\n  private[spinal] final def emitNativeBlackBoxGeneric(printer: ComponentEmitterVerilog,\n      blackBox: BlackBox, association: (String, Any)): Option[String] = {\n    require(printer.usesVerilogBase(this) && (blackBox.parent eq printer.component) &&\n      blackBox.genericElements.exists(_ eq association), \"generic must be its exact native instance association\")\n    this match {\n      case owner: DeclarationPolicyOwner => Option(owner.assignmentPublication)\n        .flatMap(_.blackBoxGeneric(printer, blackBox, association))\n      case _ => None\n    }\n  }\n  private[spinal] final def emitNativeWhenCondition(printer: ComponentEmitterVerilog,\n      statement: WhenStatement): Option[String] = {\n    require(printer.usesVerilogBase(this), \"condition must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner =>\n        Option(owner.assignmentPublication).flatMap(_.condition(printer, statement))\n      case _ => None\n    }\n  }\n  private[spinal] final def emitAssignmentSource(printer: ComponentEmitterVerilog,\n      assignment: AssignmentStatement): Option[String] = {\n    require(printer.usesVerilogBase(this), \"assignment must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.source(printer, assignment)\n      case _ => None\n    }\n  }\n\n  private[spinal] final def emitAssignmentTarget(printer: ComponentEmitterVerilog,\n      assignment: AssignmentStatement): Option[String] = {\n    require(printer.usesVerilogBase(this), \"assignment must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.target(printer, assignment)\n      case _ => None\n    }\n  }\n  private[spinal] final def emitPublicationScope(printer: ComponentEmitterVerilog,\n      tree: TreeStatement, scope: ScopeStatement, output: StringBuilder,\n      indentation: String, body: String => Int): Option[Int] = {\n    require(printer.usesVerilogBase(this), \"scope must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.scope(printer, tree, scope, output, indentation, body)\n      case _ => None\n    }\n  }\n\n  private[spinal] final def hasDeclarationPolicy: Boolean = declarationPolicy != null\n\n  private[spinal] final def needsUnsignedTransport(expression: Expression): Boolean =\n    declarationPolicy != null && declarationPolicy.unsignedTransport(expression)\n\n  private[spinal] final def canElideSignedCast(printer: ComponentEmitterVerilog,\n      parent: Expression, slot: Int, operand: Expression): Boolean = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed cast occurrence must belong to this native emitter\")\n    declarationPolicy != null && declarationPolicy.elideSignedCast(\n      new SignedCastOccurrence(this, printer, parent, slot, operand))\n  }\n\n  private[spinal] final def literalIsSigned(literal: BitVectorLiteral): Boolean =\n    declarationPolicy != null && declarationPolicy.signedLiteral(new SignedLiteralOccurrence(this, literal))\n\n  private[spinal] final def emitSignedResize(printer: ComponentEmitterVerilog,\n      resize: Resize): Option[String] = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed resize occurrence must belong to this native emitter\")\n    if (declarationPolicy == null) None\n    else declarationPolicy.signedResize(new SignedResizeOccurrence(this, printer, resize))\n  }\n\n  private def declarationPrefix(subject: AnyRef, role: DeclarationRole): String =\n    if (declarationPolicy != null && declarationPolicy.signed(\n        new DeclarationOccurrence(this, subject, role))) \"signed \" else \"\"\n\n  private def emitWrapperType(e: Expression): String = {\n    if (declarationPolicy == null) return emitType(e)\n    val nativeType = emitUnqualifiedType(e)\n    val section = {\n      val occurrence = new DeclarationOccurrence(this, e, ExpressionWrapper)\n      declarationPolicy.wrapperRange(occurrence).getOrElse(nativeType)\n    }\n    declarationPrefix(e, ExpressionWrapper) + section\n  }\n\n",
               "count": 1
             }
           ]
@@ -2459,6 +2679,19 @@
           ]
         },
         {
+          "id": "verilogbase-compiler-repair-20261004-4",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
+          "reason": "Extend the existing optional owner-bound publication policy with concrete default methods for native conditions, ranges, operands, constant shifts and BlackBox generics. Validate exact emitter/instance association identity, retain historical public wrapper entry points and avoid new abstract VerilogBase accessors. Retained surrounding reviewed behavior: Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  /** Exact owning printer for late native expression wrappers. */\n  def emitExpressionWrap(e: Expression, name: String, printer: ComponentEmitterVerilog): String = {\n    val signedRange = if (declarationPolicy == null) None else declarationPolicy.wrapperRange(\n      new DeclarationOccurrence(this, e, ExpressionWrapper))\n    if (signedRange.nonEmpty) return emitExpressionWrap(e, name)\n    val range = emitOwnedRange(printer, e)\n    range match {\n      case Some(value) => theme.maintab + expressionAlign(if(e.isInstanceOf[Multiplexer]) \"reg\" else \"wire\",\n        declarationPrefix(e, ExpressionWrapper) + value, name) + \";\\n\"\n      case None => emitExpressionWrap(e, name)\n    }\n  }\n\n  private[spinal] def emitOwnedRange(printer: ComponentEmitterVerilog, e: Expression): Option[String] = {\n    require(printer.usesVerilogBase(this), \"range must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner => Option(owner.assignmentPublication).flatMap(_.wrapperRange(printer, e))\n      case _ => None\n    }\n  }\n\n  def emitType(e: Expression, printer: ComponentEmitterVerilog): String =\n    emitOwnedRange(printer, e).map(declarationPrefix(e, ScalarDeclaration) + _).getOrElse(emitType(e))\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "signed-boundary-60e-verilogbase-4-span-4",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
@@ -2472,14 +2705,14 @@
           ]
         },
         {
-          "id": "signed-boundary-60e-verilogbase-5",
+          "id": "compiler-port-wrapper-verilogbase-6",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Add a default-disabled exact-occurrence scalar range callback so the native printer can reference module-local typed constants without changing ordinary concrete emission.",
+          "reason": "Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "{\n    val range = if (declarationPolicy == null) None else declarationPolicy.scalarRange(\n      new DeclarationOccurrence(this, e, ScalarDeclaration))\n    declarationPrefix(e, ScalarDeclaration) + range.getOrElse(emitUnqualifiedType(e))\n  }\n\n  def emitFunctionType(e: BaseType): String = {\n    val prefix = declarationPrefix(e, FunctionResultDeclaration)\n    val range = if (declarationPolicy == null) None else declarationPolicy.functionRange(\n      new DeclarationOccurrence(this, e, FunctionResultDeclaration))\n    prefix + range.getOrElse(emitUnqualifiedType(e))\n  }\n\n  private def emitUnqualifiedType(e: Expression): String =",
+              "text": "{\n    val range = if (declarationPolicy == null) None else declarationPolicy.scalarRange(\n      new DeclarationOccurrence(this, e, ScalarDeclaration))\n    declarationPrefix(e, ScalarDeclaration) + range.getOrElse(emitUnqualifiedType(e))\n  }\n\n  /** Called at the ANSI declaration site, never for a child-port body wrapper. */\n  def emitPortType(e: Expression): String = {\n    if (declarationPolicy == null) return emitType(e)\n    val range = declarationPolicy.scalarRange(\n      new DeclarationOccurrence(this, e, ScalarDeclaration, ansiPort = true))\n    declarationPrefix(e, ScalarDeclaration) + range.getOrElse(emitUnqualifiedType(e))\n  }\n\n  def emitFunctionType(e: BaseType): String = {\n    val prefix = declarationPrefix(e, FunctionResultDeclaration)\n    val range = if (declarationPolicy == null) None else declarationPolicy.functionRange(\n      new DeclarationOccurrence(this, e, FunctionResultDeclaration))\n    prefix + range.getOrElse(emitUnqualifiedType(e))\n  }\n\n  private def emitUnqualifiedType(e: Expression): String = ",
               "count": 1
             }
           ]

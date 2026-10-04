@@ -165,6 +165,7 @@ object MorphHdlExternalParameterizedVerilog {
       val candidates = candidateBuffer.toVector
       val name = componentName(canonical)
       validateFormalCanonicalGroup(name, candidates)
+      NativeScalarFormalSchema.validateGroup(candidates)
       val schemas = candidates.map(componentSchema).distinct
       if (schemas.size != 1) {
         fail(
@@ -273,7 +274,7 @@ object MorphHdlExternalParameterizedVerilog {
             TypedBalancedReductionBackend.rewrite(component, withExpressions, pc, canonicalOf), pc)
         }
         val documented = RtlDocumentation.finishPublication(component, RtlDocumentation.publish(rewritten, ParameterizedVerilogVecs.documentationBindings(component, pc)))
-        Some(name -> documented.split("\n", -1).toVector)
+        Some(name -> NativeGenerateIndexNames.publish(component, documented).split("\n", -1).toVector)
       } else if (RtlDocumentation.declarationBindings(component).nonEmpty || RtlDocumentation.emissions(component).nonEmpty) {
         val publication = if (pc.config.oneFilePerComponent) splitPublications(name) else consolidated.get
         val block = if (pc.config.oneFilePerComponent) publication.blocks.head else blockByName(name)
@@ -618,7 +619,10 @@ object MorphHdlExternalParameterizedVerilog {
     slotNames.headOption.getOrElse(Set.empty).toVector.sorted.foreach { name =>
       val slots = slotsByCandidate.map(_.find(_.name == name).get)
       val defaults = slots.map(_.formal.default).distinct
-      if (defaults.size != 1) {
+      val nativeWidthDefaults = candidates.zip(slots).forall { case (component, slot) =>
+        NativeWidthFormalSchema.parameterCompatible(candidates.head, component, slots.head.formal, slot.formal)
+      }
+      if (defaults.size != 1 && !nativeWidthDefaults) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-FORMAL-DEFAULT-CONFLICT",
           s"formal slot '$name' of native module '$definitionName' has incompatible defaults ${defaults.sorted.mkString(", ")}",
@@ -835,10 +839,10 @@ object MorphHdlExternalParameterizedVerilog {
           else if (port.isInOut) "inout"
           else "directionless",
         dataClass = port.getClass.getName,
-        concreteWidth = port.getBitsWidth,
-        retained = ParameterizedWidth
+        concreteWidth = NativeWidthFormalSchema.portBinding(port).map(_.binding.formal.minimum.toInt).getOrElse(port.getBitsWidth),
+        retained = NativeWidthFormalSchema.portSchema(port).orElse(ParameterizedWidth
           .expressionOf(port)
-          .map(ExternalFormalParameterRegistry.normalizedDefinitionSchema)
+          .map(ExternalFormalParameterRegistry.normalizedDefinitionSchema))
       )
     }
     val duplicatePorts = ports.groupBy(_.name).collectFirst {
@@ -859,7 +863,7 @@ object MorphHdlExternalParameterizedVerilog {
     }
     ComponentSchema(
       orderedPorts,
-      componentParameters(component),
+      NativeScalarFormalSchema.definitionParameters(component, componentParameters(component)),
       ParameterizedVerilogVecs.logicalSchema(component)
     )
   }

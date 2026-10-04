@@ -330,5 +330,140 @@ RTL at default and boundary widths. The lightweight aggregate/ANSI gate passes a
 17 cases on both versions with no warning suppressions. These are local repair
 results, not whole-branch qualification. CA-005 application closure still requires
 the complete application regression; the historical checkbox is not a claim
-that the unmodified failing compiler still remains current. Qualification and
-hourly monitoring remain stopped at the user's request.
+that the unmodified failing compiler still remains current. Qualification remains paused while the current repair batch is completed. The
+hourly continuation monitor remains enabled and must respect that pause.
+
+### Typed-loop repair batch, 4 October 2026 (in progress)
+
+The following findings were reported against compiler
+`10bcd5011a617190661b6c149ca9b5e0a5850456`, with constant Vec and loop
+preservation enabled. Full qualification is paused while this repair batch is
+being developed. Earlier qualification receipts do not cover these changes.
+
+- [ ] **CA-006: initialized register Vec writes through typed loops lose carrier
+  identities.** Both native finite ranges with an enable inside the body and
+  frontend typed ranges inside an enable reproduce the generation failure.
+  The repair must retain storage, clock, reset, enable and hold behavior for
+  every lane. The separate `asBools` byte-mask reproducer also requires exact
+  carrier provenance; conversion must preserve writable bit-view semantics.
+  Do not suppress residual-reference diagnostics or mark registers unset.
+- [ ] **CA-007: full typed Vec-to-packed coverage reports a false latch.** The
+  local repair retains exact assignment coverage for native latch checking and
+  lowers captured witness writes to their symbolic slice. Constant and
+  parameterized full-coverage tests pass locally; partial constant ranges and
+  smaller parameter overrides still report a latch. Both supported Scala versions pass the focused coverage tests; complete
+  branch qualification remains pending.
+- [ ] **CA-008: automatic generate indices carry unconditional allocation
+  suffixes.** The local implementation separates opaque/internal loop identity
+  from final published names. Available automatic indices begin with `i`, `j`,
+  `k`; independent sibling loops reuse a declaration, while enclosing loops
+  reserve their active indices. Authored identifiers are reserved conservatively
+  across the component to prevent collisions and shadowing. Explicit frontend
+  index names remain unchanged. Generated block labels remain unchanged and
+  distinct. Consequently, hierarchical references to automatic genvar implicit
+  localparams intentionally change from names such as `copy_lanes_index_1_1`
+  to `i`; generate-block paths retain their labels. Initial local tests cover
+  determinism, sibling bounds/repeated labels, port collisions and supported
+  nested loops in packed and unpacked layouts. Focused hierarchy and parameter-override checks also pass on both Scala
+  versions. Application replay and qualification remain pending.
+
+The additional multidimensional finding is now repaired for combinational
+nested finite Vec selections. Exact alias-leaf identities connect each selected
+coordinate to its original aggregate; no generated identifier establishes that
+relationship. Two- and three-dimensional cases pass with packed/unpacked layouts,
+independent row/column parameter overrides and singleton axes. Partial ranges
+and read-only aliases do not authorize missing output drivers. A related
+conditional-write defect was also repaired: written aliases are declared at the
+component scope so native latch checking includes their enclosing conditions.
+Conditional combinational writes without a complete assignment still fail.
+
+- [ ] **CA-009: value-only native scalar formals prevent canonical child reuse
+  across different actual defaults.** Two instances declaring
+  `formalParam(actual, "VALUE", 0, 255)` and materializing that value with
+  `ElabValue.uintLike` fail canonical schema comparison when parent defaults are
+  4 and 9. Same-actual and same-default controls generate. The required result
+  is one shared child definition with independent `.VALUE(A)` and `.VALUE(B)`
+  bindings. Review definition-owned scalar formal schemas separately from
+  instance witnesses; retain exact declaration ownership, domain compatibility
+  and native body checks. Validation must include both controls, independent
+  default/override simulation, mixed scalar/width formals, reversed construction
+  order, deterministic generation and combined/per-component output, with
+  negative domain/body cases. This issue is part of the current repair batch;
+  local scalar-value controls now pass, including mixed scalar/width formals,
+  but complete repair qualification remains pending.
+
+  **Additional structural reproduction:** three instances of the same bit
+  synchronizer use explicit native `SYNC_STAGES` formals with actuals 2, 3 and 4
+  on separate clock/reset pairs. The fixed four-register carrier chain selects
+  its output tap through typed structural conditions. Generation rejects three
+  canonical schemas; the all-depth-2 control shares one definition. Normalizing
+  child clock/reset port names does not resolve the failure. This requires a
+  separate regression from scalar-value materialization, including each
+  instance's reset and selected latency. The local repair now covers authenticated structural selectors as well as
+  value-only formals. Mixed-depth clock/reset and latency tests pass on both
+  Scala versions; complete repair qualification remains pending.
+
+- [ ] **CA-010: explicit native width formals unnecessarily duplicate child
+  definitions when instance defaults differ.** A child with `formalParam(actual,
+  "WIDTH", 1, 64)`, matching parameterized input/output ports and bitwise inversion
+  emits two definitions for actual defaults 8 and 16; equal defaults share one.
+  Preserve independent `.WIDTH(A_WIDTH)` and `.WIDTH(B_WIDTH)` bindings while
+  publishing one deterministic definition. Canonical comparison must use
+  authenticated declaration identity and symbolic native port/body structure;
+  class-name matching or emitted-text deduplication is insufficient. Keep
+  incompatible domains, arithmetic, reset/clock semantics and non-formal
+  construction choices distinct. Validate literal/derived actuals, overrides,
+  instance order, repeat generation, nested modules, BlackBox width bindings,
+  combined/per-component output and the two application video channels. This
+  issue is included in the current repair batch. Local tests cover direct
+  native width formals, internal declarations, nested children and BlackBox
+  width bindings; qualification remains pending.
+
+### Current local repair evidence, 4 October 2026
+
+The repair batch passed 406 focused tests in 26 suites on each of Scala
+2.12.18 and 2.13.12. Coverage includes library sharing and independent instance
+bindings, native value sizing, typed-loop storage/coverage, nested Vec writes,
+generate-index naming, aggregate publication, signedness, documentation and
+adversarial ownership checks. Register mutation controls reject changed clocks,
+reset identities, readback bridges, loop ownership and competing writers. The
+refreshed lightweight aggregate/ANSI lint gate passes all 17 cases on each Scala
+version without warning suppressions. A subsequent standalone-generation control
+found that a root component has no parent binding to restore a normalized formal
+default. Root definitions now retain their supplied defaults; shared child
+schemas still use deterministic definition defaults with explicit instance
+bindings. All 101 affected library/value/formal tests pass on both Scala versions,
+including three new standalone scalar, width and mixed-formal cases with overrides.
+
+Shrinking constant right shifts now publish exact slices of native declarations
+or existing expression wrappers, including width-preserving cast inputs. Source
+ranges use the existing retained-width authority. Signed operands explicitly
+extend to their common symbolic width when overrides change operand sizes.
+Tests cover Bits/UInt/SInt, fixed widths up to 71 bits, compound native temporaries,
+signed comparisons, boundary overrides, strict lint, simulation and synthesis.
+
+All seven original library-sharing minimal generation cases pass, including
+mixed synchronizer depths and unequal scalar/width defaults. Fresh standalone
+CDC output contains one shared video-channel definition; all 14 original CDC
+simulation cases passed using unchanged application sources and benches. The
+subsequent fresh top, CSR and 4:2:0 generation also passes. Focused CSR/top replay
+passes the ten original cases whose commands compile, including the full
+configuration-generation-wrap test.
+
+Five original CSR protocol commands remain invalid: they pass parameters that
+the protocol bench does not declare. Four additional local wrappers apply the
+requested minimum/wide/middle/invalid-buffer DUT parameters, verify each binding,
+and pass the unchanged protocol assertions and stimulus. These additional checks
+do not turn the original invalid commands into passing receipts. The remaining
+`RUN_GENERATION_WRAP` option is a full-bench stimulus option, not a DUT parameter;
+it cannot be silently ignored or transferred to the protocol DUT.
+
+Application lint of the 35 generated modules, with their matching external IP
+and reachable dependencies, reports no width, missing/duplicate-module or
+combinational-loop findings. Six module closures are warning-free. The retained
+review inventory contains 100 unused-signal/bit locations and two open, unused
+ready inputs (`y444_ready` and `y420_ready`) on disabled stream outputs. No
+warnings were suppressed and the application lint run is not recorded as an
+unqualified pass. Complete branch lint/coverage inventory, source-review receipts
+and whole-branch qualification remain outstanding. The issue checkboxes stay
+open until their closure evidence is complete.

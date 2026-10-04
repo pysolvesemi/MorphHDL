@@ -204,7 +204,7 @@ class ComponentEmitterVerilog(
         val noUse = signalNoUse(io)
         val canInline = outSigCanInline(io)
         if (!io.isSuffix && ((io.isVital || !noUse) && !canInline || spinalConfig.emitFullComponentBindings))
-          declarations ++= emitExpressionWrap(io, name)
+          declarations ++= emitExpressionWrap(io, name, this)
         if ((!canInline) || spinalConfig.emitFullComponentBindings)
           referencesOverrides(io) = name
         else
@@ -390,7 +390,8 @@ class ComponentEmitterVerilog(
       if(openSubIo.contains(data)) ""
       else {
         val wireName = emitReference(data, false)
-        val section = if(data.getBitsWidth == 1 || wireName.contains('\'')) "" else  s"[${data.getBitsWidth - 1}:0]"
+        val section = if(wireName.contains('\'')) "" else emitOwnedRange(this, data)
+          .getOrElse(if(data.getBitsWidth == 1) "" else s"[${data.getBitsWidth - 1}:0]")
         referencesOverrides.getOrElse(data, data.getNameElseThrow) match {
           case x: Literal => wireName
           case _ =>  wireName + section
@@ -429,7 +430,7 @@ class ComponentEmitterVerilog(
 
         if (genericFlat.nonEmpty) {
           val ret = genericFlat.map{ e =>
-            e match {
+            emitNativeBlackBoxGeneric(this, bb, e).map(e._1 -> _).getOrElse(e match {
               case (name: String, bt: BaseType)      => name -> s"${emitExpression(bt.getTag(classOf[GenericValue]).get.e)}"
               case (name: String, rs: VerilogValues) => name -> s"${rs.v}"
               case (name: String, s: String)         => name -> s"""\"$s\""""
@@ -438,7 +439,7 @@ class ComponentEmitterVerilog(
               case (name: String, b: Boolean)        => name -> s"${if(b) "1'b1" else "1'b0"}"
               case (name: String, b: BigInt)         => name -> s"${b.toString(16).size*4}'h${b.toString(16)}"
               case _                                 => SpinalError(s"The generic type ${"\""}${e._1} - ${e._2}${"\""} of the blackbox ${"\""}${bb.definitionName}${"\""} is not supported in Verilog")
-            }
+            })
           }
           val namelens = ret.map(_._1.size).max
           val exprlens = ret.map(_._2.size).max
@@ -743,7 +744,8 @@ class ComponentEmitterVerilog(
 
         if (referenceSetSorted().nonEmpty) {
 //          logics ++= s"  always @ (${referenceSetSorted().mkString(" or ")})\n"
-          logics ++= s"  always @(*) begin\n"
+          val sensitivity = if (conditionDependenciesAdded) referenceSetSorted().mkString(" or ") else "*"
+          logics ++= s"  always @($sensitivity) begin\n"
           logics ++= tmp.toString()
           logics ++= "  end\n\n"
         } else {
@@ -897,8 +899,12 @@ class ComponentEmitterVerilog(
           lastWhen = null
         } else treeStatement match {
           case treeStatement: WhenStatement =>
+            def condition = verilogBase.emitNativeWhenCondition(this, treeStatement) match {
+              case Some(value) => conditionDependenciesAdded = true; value
+              case None => emitExpression(treeStatement.cond)
+            }
             if(scopePtr == treeStatement.whenTrue){
-              b ++= s"${tab}if(${emitExpression(treeStatement.cond)}) begin\n"
+              b ++= s"${tab}if(${condition}) begin\n"
             } else if(lastWhen == treeStatement){
               //              if(scopePtr.sizeIsOne && scopePtr.head.isInstanceOf[WhenStatement]){
               //                b ++= s"${tab}if ${emitExpression(treeStatement.cond)} = '1' then\n"
@@ -906,7 +912,7 @@ class ComponentEmitterVerilog(
               b ++= s"${tab}end else begin\n"
               //              }
             } else {
-              b ++= s"${tab}if(!${emitExpression(treeStatement.cond)}) begin\n"
+              b ++= s"${tab}if(!${condition}) begin\n"
             }
             lastWhen = treeStatement
             statementIndex = emitLeafStatements(statements,statementIndex, scopePtr, assignmentKind,b, tab + "  ")
@@ -1053,6 +1059,7 @@ class ComponentEmitterVerilog(
   def referenceSetStart(): Unit ={
     _referenceSetEnabled = true
     _referenceSet.clear()
+    conditionDependenciesAdded = false
   }
 
   def referenceSetStop(): Unit ={
@@ -1077,6 +1084,7 @@ class ComponentEmitterVerilog(
   def referenceSetSorted() = _referenceSet
 
   var _referenceSetEnabled = false
+  private var conditionDependenciesAdded = false
   val _referenceSet        = mutable.LinkedHashSet[String]()
 
   def emitReference(that: DeclarationStatement, sensitive: Boolean): String ={
@@ -1116,7 +1124,7 @@ class ComponentEmitterVerilog(
     val syntax  = s"${emitSyntaxAttributes(baseType.instanceAttributes)}"
     val net     = (if(signalNeedProcess(baseType)) "reg" else "wire") + emitCommentEarlyAttributes(baseType.instanceAttributes)
     val comment = s"${emitCommentAttributes(baseType.instanceAttributes)}"
-    val section = emitType(baseType)
+    val section = emitType(baseType, this)
     s"${theme.maintab}${syntax}${expressionAlign(net, section, name)}${comment};\n"
   }
 
@@ -1151,7 +1159,7 @@ class ComponentEmitterVerilog(
 
   def emitBaseTypeWrap(baseType: BaseType, name: String): String = {
     val net = if(signalNeedProcess(baseType)) "reg" else "wire"
-    val section = emitType(baseType)
+    val section = emitType(baseType, this)
     baseType match {
       case struct: SpinalStruct => s"${theme.maintab}${expressionAlign(section, "", name)};\n"
       case _                    => s"${theme.maintab}${expressionAlign(net, section, name)};\n"
@@ -1682,7 +1690,11 @@ end
   private[spinal] def usesVerilogBase(base: VerilogBase): Boolean = verilogBase eq base
 
   private def emitSignedOperand(parent: Expression, slot: Int, operand: Expression): String = {
-    val emitted = emitExpression(operand)
+    val emitted = parent match {
+      case binary: BinaryOperator => verilogBase.emitNativeBinaryOperand(this, binary, slot)
+        .getOrElse(emitExpression(operand))
+      case _ => emitExpression(operand)
+    }
     if (verilogBase.canElideSignedCast(this, parent, slot, operand)) emitted
     else s"$$signed($emitted)"
   }
@@ -1735,7 +1747,7 @@ end
       emitExpression(func.input)
   }
 
-  def shiftRightByIntImpl(e: Operator.BitVector.ShiftRightByInt): String = {
+  def shiftRightByIntImpl(e: Operator.BitVector.ShiftRightByInt): String = verilogBase.emitNativeConstantShift(this, e).getOrElse {
     s"(${emitExpression(e.source)} >>> ${log2Up(e.shift+1)}'d${e.shift})"
   }
 

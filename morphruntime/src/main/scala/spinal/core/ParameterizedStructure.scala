@@ -178,7 +178,9 @@ object ParameterizedStructure {
       val finiteIndexToken: Option[ElabFiniteIndexToken],
       val sourceLocation: Option[String],
       val affineRead: Option[ElabFiniteAffineVecRead] = None
-  )
+  ) {
+    private[core] var registerStorage = Vector.empty[TypedLoopRegisterStorage.Template]
+  }
 
   /** One exact native asynchronous read selected by a retained generate index.
     * The ordinary Mem port remains authoritative; publication changes only its
@@ -737,32 +739,54 @@ object ParameterizedStructure {
       // structural lowering consumes the retained identity. RHS-only aliases
       // do not grant this exception, and packed/partial alias targets remain
       // subject to the backend's fail-closed whole-leaf validation.
-      state.vecIndices.foreach { access =>
-        val aliasLeaves = access.result.flatten.toVector
-        val aliasPaths = access.result.flattenLocalName.toVector
-        val writtenLeafIndices = aliasLeaves.indices.filter { leafIndex =>
-          assignments.exists(value =>
-            (value.finalTarget eq aliasLeaves(leafIndex)) &&
-              (value.target eq aliasLeaves(leafIndex))
-          )
+      val reachableWrites = new IdentityHashMap[BaseType, java.lang.Boolean]()
+      (assignments ++ nestedBlocks.flatMap(_.assignments)).foreach { assignment =>
+        if (assignment.target eq assignment.finalTarget)
+          reachableWrites.put(assignment.finalTarget, java.lang.Boolean.TRUE)
+      }
+      val capturedSelections = state.vecIndices.toVector ++ nestedBlocks.flatMap(_.vecIndices)
+      val directTargets = assignments.map(_.finalTarget)
+      val relocatedWriteAliases = state.vecIndices.toVector.flatMap(_.result.flatten)
+        .filter(leaf => directTargets.exists(_ eq leaf))
+      relocatedWriteAliases.foreach { leaf =>
+        leaf.removeTag(allowFloating)
+        // A selection constructed inside when() must still be checked against
+        // the enclosing condition. Native latch validation otherwise treats
+        // its declaration as local to the very branch writing it.
+        if (leaf.parentScope ne component.dslBody) {
+          leaf.removeStatementFromScope()
+          component.dslBody.append(leaf)
         }
-        writtenLeafIndices.foreach { leafIndex =>
-          (access.index.minimum.toInt to access.index.maximum.toInt).foreach { elementIndex =>
-            val element = access.vector.vec(elementIndex).asInstanceOf[Data]
-            val leaves = element.flatten.toVector
-            val paths = element.flattenLocalName.toVector
-            if (
-              leaves.size != aliasLeaves.size || paths != aliasPaths ||
-              leaves(leafIndex).getClass != aliasLeaves(leafIndex).getClass ||
-              leaves(leafIndex).getBitsWidth != aliasLeaves(leafIndex).getBitsWidth
-            ) {
-              fail(
-                "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-LAYOUT-MISMATCH",
-                s"structural Vec LHS carrier element $elementIndex no longer matches its exact alias leaf layout",
-                access.sourceLocation.orElse(sourceLocation)
-              )
+      }
+      // Nested selections may write an alias owned by an enclosing capture.
+      // Propagate only exact whole-leaf write identities through the retained
+      // selection graph; floating tags on read aliases are not write evidence.
+      var changed = true
+      while (changed) {
+        changed = false
+        capturedSelections.reverse.foreach { access =>
+          val aliasLeaves = access.result.flatten.toVector
+          val aliasPaths = access.result.flattenLocalName.toVector
+          aliasLeaves.indices.filter(i => reachableWrites.containsKey(aliasLeaves(i))).foreach { leafIndex =>
+            (access.index.minimum.toInt to access.index.maximum.toInt).foreach { elementIndex =>
+              val element = access.vector.vec(elementIndex).asInstanceOf[Data]
+              val leaves = element.flatten.toVector
+              val paths = element.flattenLocalName.toVector
+              if (
+                leaves.size != aliasLeaves.size || paths != aliasPaths ||
+                leaves(leafIndex).getClass != aliasLeaves(leafIndex).getClass ||
+                leaves(leafIndex).getBitsWidth != aliasLeaves(leafIndex).getBitsWidth
+              ) {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-LAYOUT-MISMATCH",
+                  s"structural Vec LHS carrier element $elementIndex no longer matches its exact alias leaf layout",
+                  access.sourceLocation.orElse(sourceLocation)
+                )
+              }
+              leaves(leafIndex).addTag(allowFloating)
+              if (reachableWrites.put(leaves(leafIndex), java.lang.Boolean.TRUE) == null)
+                changed = true
             }
-            leaves(leafIndex).addTag(allowFloating)
           }
         }
       }
@@ -770,7 +794,7 @@ object ParameterizedStructure {
       memoryPorts.foreach(port => port.isVital = true)
 
       val result = new ParameterizedStructuralBlock(
-        statements,
+        statements ++ relocatedWriteAliases.filterNot(leaf => statements.exists(_ eq leaf)),
         declarations,
         assignments,
         memories,
@@ -1847,6 +1871,9 @@ object ParameterizedStructure {
         sourceLocation
       )
     }
+
+    if (VerilogAggregateOptions.current.preserveConstantLoops)
+      ParameterizedVec.retainConstantLoopOperand(vector)
 
     // The alias itself no longer reads the witnessed carrier in the native
     // graph. Preserve every exact element that the finite selector may reach,
@@ -3492,6 +3519,20 @@ object ParameterizedStructure {
     * structural bridge, this path requires a complete exact single-root table
     * before its representative body can be registered.
     */
+  private[core] def registerAnalyzedForWithCoverage(
+      component: Component, label: String, indexName: String,
+      count: ElaborationIntegerExpression, body: ParameterizedStructuralBlock,
+      sourceLocation: Option[String], countProof: ElabInt
+  ): Unit = {
+    val proof = countProof.expression
+    if (proof.verilog != count.verilog || proof.default != count.default ||
+        proof.minimum != count.minimum || proof.maximum != count.maximum || proof.parameters != count.parameters)
+      fail("SPINAL-TYPED-LOOP-COVERAGE-COUNT-MISMATCH",
+        "analyzed loop count changed before its typed coverage proof", sourceLocation)
+    registerForImpl(component, label, indexName, count, body, Some(new ElabFiniteIndexToken()),
+      sourceLocation, requireExactDomain = false, coverageCount = Some(countProof))
+  }
+
   private[spinal] def registerExactFor(
       component: Component,
       label: String,
@@ -3552,7 +3593,8 @@ object ParameterizedStructure {
       finiteIndexToken: Option[ElabFiniteIndexToken],
       sourceLocation: Option[String],
       requireExactDomain: Boolean,
-      requireIssuedOwner: Boolean = false
+      requireIssuedOwner: Boolean = false,
+      coverageCount: Option[ElabInt] = None
   ): Unit = {
     if (
       finiteIndexToken == null ||
@@ -3649,19 +3691,22 @@ object ParameterizedStructure {
     val storage = storageOf(component)
     reserveName(storage, label, "generate label", sourceLocation)
     reserveName(storage, indexName, "generate index", sourceLocation)
-    registerRegion(
-      component,
-      currentCaptureId(component, sourceLocation),
-      StructuralFor(
+    val loop = StructuralFor(
         label,
         indexName,
         normalizedCount,
         body,
         finiteIndexToken,
         sourceLocation
-      ),
+      )
+    registerRegion(
+      component,
+      currentCaptureId(component, sourceLocation),
+      loop,
       sourceLocation
     )
+    TypedLoopAssignmentCoverage.retain(component, loop, coverageCount)
+    TypedLoopRegisterStorage.retain(component, loop)
   }
 
   def beginPending(

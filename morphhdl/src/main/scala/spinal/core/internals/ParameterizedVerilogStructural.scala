@@ -153,6 +153,7 @@ private[internals] object ParameterizedVerilogStructural {
       canonicalOf: Component => Component
   ): String = {
     val regions = ParameterizedStructure.regionsOf(component)
+    TypedLoopRegisterStorage.validateInventory(component, regions)
     if (regions.isEmpty) return verilog
     if (pc.config.isSystemVerilog) {
       fail(
@@ -941,6 +942,10 @@ private[internals] object ParameterizedVerilogStructural {
     val assignmentEvidence = ArrayBuffer.empty[AssignmentEvidence]
     val emittedActualByExpression = new IdentityHashMap[Expression, String]()
     val retainedModuleMemoryDeclarationLines = mutable.HashSet.empty[Int]
+    block.vecIndices.flatMap(_.registerStorage).flatMap(_.lanes).foreach { lane =>
+      retainedModuleMemoryDeclarationLines ++=
+        findDeclarationLine(lines, lane.value.getName(), block.sourceLocation).indices
+    }
     val retainedIndexedMemories = block.memoryIndices
       .map(_.memory)
       .foldLeft(Vector.empty[Mem[_]]) {
@@ -1450,8 +1455,20 @@ private[internals] object ParameterizedVerilogStructural {
   ): BlockPlan = {
     if (plan.body.trim.isEmpty) plan
     else {
+      var nativeBody = plan.body
+      plan.block.vecIndices.flatMap(_.registerStorage).foreach { template =>
+        TypedLoopRegisterStorage.validate(template, plan.block, liveStatements)
+        template.lanes.foreach { lane =>
+          val bridge = ("(?m)^\\s*assign\\s+" + Pattern.quote(lane.value.getName()) +
+            "\\s*=\\s*" + Pattern.quote(template.alias.getName()) + "\\s*;[ \\t]*$").r
+          if (bridge.findAllIn(nativeBody).size != 1)
+            fail("SPINAL-TYPED-LOOP-REGISTER-BRIDGE-MISMATCH",
+              "register readback bridge must have exactly one native emitted assignment", plan.block.sourceLocation)
+          nativeBody = bridge.replaceAllIn(nativeBody, "")
+        }
+      }
       var body = rewriteSlices(
-        plan.body,
+        nativeBody,
         plan.block.slices,
         plan.block.assignments,
         liveStatements,
@@ -3887,13 +3904,42 @@ private[internals] object ParameterizedVerilogStructural {
       val rewrittenRhs =
         if (descendingRewritten != rhs) descendingRewritten
         else indexed.replaceFirstIn(rhs, Matcher.quoteReplacement(replacement))
-      lines
+      val withRead = lines
         .updated(
           lineIndex,
           matched.group(1) + Option(matched.group(2)).getOrElse("") +
             s"$resultName ${matched.group(3)} $rewrittenRhs${matched.group(5)}"
         )
         .mkString("\n")
+      val writes = blockAssignments.filter(value => (value ne slice.assignment) &&
+        ParameterizedProcess.matchesTargetSlice(value, slice))
+      if (writes.isEmpty) withRead
+      else {
+        // The typed source-slice proxy and each actual packed write are
+        // separate native assignments. Lower the proven LHS occurrences too;
+        // changing only the proxy's RHS would repeat the witness byte.
+        val lhs = ("(?m)^([ \\t]*(?:assign[ \\t]+)?)" + source +
+          "\\s*\\[\\s*" + high + "\\s*:\\s*" + low + "\\s*\\](\\s*(?:<=|=))").r
+        if (lhs.findAllMatchIn(withRead).size != writes.size)
+          fail("SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SLICE-WRITE-MISMATCH",
+            s"typed packed slice writes expected ${writes.size} exact native target occurrences, found ${lhs.findAllMatchIn(withRead).size}", slice.sourceLocation)
+        val withWrites = lhs.replaceAllIn(withRead, found =>
+          Matcher.quoteReplacement(found.group(1) + replacement + found.group(2)))
+        val readByBody = blockAssignments.exists(value => (value ne slice.assignment) &&
+          expressionContainsIdentity(value.source, slice.result))
+        if (readByBody) withWrites
+        else {
+          // The exact read proxy was retained through native checks solely to
+          // authenticate this write-only slice. It has no published consumer.
+          val publishedLines = withWrites.split("\\n", -1).toVector
+          val declarations = publishedLines.count(line => standaloneDeclarationName(line).contains(resultName))
+          if (declarations != 1)
+            fail("SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SLICE-WRITE-MISMATCH",
+              "write-only typed slice lost its exact proxy declaration", slice.sourceLocation)
+          publishedLines.filterNot(line => standaloneDeclarationName(line).contains(resultName) ||
+            assignment.findFirstIn(line).nonEmpty).mkString("\n")
+        }
+      }
     }
 
   private def expressionContainsIdentity(

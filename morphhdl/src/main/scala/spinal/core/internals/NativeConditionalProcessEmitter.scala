@@ -6,6 +6,30 @@ import spinal.core._
   * or index witness is used to choose or reconstruct a loop body.
   */
 private[internals] object NativeConditionalProcessEmitter {
+  // A named, combinational Boolean can stay false while its input dependencies
+  // initialize. Register its exact pure driver's dependencies at a condition
+  // occurrence, retaining the named condition and the native if/else syntax.
+  def condition(printer: ComponentEmitterVerilog, statement: WhenStatement): Option[String] = statement.cond match {
+    case value: Bool if !value.isReg && !value.isIo && (value.component eq printer.component) =>
+      val assignments = scala.collection.mutable.ArrayBuffer.empty[DataAssignmentStatement]
+      value.foreachStatements {
+        case assignment: DataAssignmentStatement => assignments += assignment
+        case _ =>
+      }
+      if (assignments.size != 1) None
+      else {
+        val assignment = assignments.head
+        if ((assignment.target ne value) || (assignment.parentScope ne value.rootScopeStatement)) None
+        else assignment.source match {
+          case _: BinaryOperator | _: UnaryOperator =>
+            printer.emitExpression(assignment.source) // collect exact native references
+            Some(printer.emitExpression(value))
+          case _ => None
+        }
+      }
+    case _ => None
+  }
+
   private def reject(detail: String): Nothing =
     ParameterizedVerilogException.fail("SPINAL-PROCESS-CONDITIONAL-PUBLICATION-MISMATCH", detail, None)
 

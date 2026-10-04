@@ -294,6 +294,7 @@ object ElabFiniteRange {
     var nextFoldId = 0L
     val stems = mutable.LinkedHashMap.empty[String, Int]
     val countOnes = mutable.ArrayBuffer.empty[ParameterizedFiniteCountOne]
+    val automaticIndices = new java.util.IdentityHashMap[ElabFiniteIndexToken, String]()
   }
 
   /** Require exhaustive identity-bearing evidence for every symbolic value
@@ -525,6 +526,7 @@ object ElabFiniteRange {
       )
     }
     val names = allocateNames(component, role)
+    storageOf(component).automaticIndices.put(indexToken, names._2)
     val indexExpression = ElaborationIntegerExpression(
       verilog = names._2,
       default = BigInt(0),
@@ -569,6 +571,9 @@ object ElabFiniteRange {
       expression.sourceLocation
     )
   }
+
+  private[spinal] def automaticIndexName(component: Component, token: ElabFiniteIndexToken): Option[String] =
+    Option(storageOf(component).automaticIndices.get(token))
 
   private def allocateNames(
       component: Component,

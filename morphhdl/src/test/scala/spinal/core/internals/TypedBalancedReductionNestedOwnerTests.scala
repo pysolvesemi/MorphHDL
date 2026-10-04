@@ -228,14 +228,14 @@ class TypedBalancedReductionNestedOwnerTests extends AnyFunSuite {
 
   test("finite outer loops retain row indices inside nested reduction branches") {
     val rtl = generate("loop")
-    Vector("ROWS = 1", "row_index_1_1 < ROWS", "begin : g_row", "begin : g_row_xor",
+    Vector("ROWS = 1", "i < ROWS", "begin : g_row", "begin : g_row_xor",
       "begin : g_row_add", "morphhdl_balanced_1", "morphhdl_balanced_2").foreach { expected =>
       assert(rtl.contains(expected), rtl)
     }
-    val rowReads = "(?m)^.*biases\\[[^;\\n]*\\brow_index_[0-9_]+\\b[^;\\n]*;".r.findAllIn(rtl).toVector
+    val rowReads = "(?m)^.*biases\\[[^;\\n]*\\bi\\b[^;\\n]*;".r.findAllIn(rtl).toVector
     assert(rowReads.nonEmpty, "row binding disappeared from packed reduction inputs:\n" + rtl)
     assert(rowReads.exists(_.contains("WIDTH")), rtl)
-    assert("(?m)^.*words\\[[^;\\n]*\\bword_index_[0-9_]+\\b[^;\\n]*;".r.findFirstIn(rtl).nonEmpty, rtl)
+    assert("(?m)^.*words\\[[^;\\n]*\\bj\\b[^;\\n]*;".r.findFirstIn(rtl).nonEmpty, rtl)
   }
 
   test("COUNT case narrowing captures only the admitted native carrier prefix and preserves singleton fallback") {
@@ -354,7 +354,7 @@ class TypedBalancedReductionNestedOwnerTests extends AnyFunSuite {
     assert(rtl.contains("begin : g_child_row"), rtl)
     assert("(?m)^module\\s+BalancedNestedFormalChild\\b".r.findAllIn(rtl).size == 1, rtl)
     assert("(?m)^\\s+BalancedNestedFormalChild\\s*#".r.findAllIn(rtl).size == 1, rtl)
-    assert("(?s)biases\\[[^;]*\\bchild_row_index_[0-9_]+\\b[^;]*WIDTH".r.findFirstIn(rtl).nonEmpty, rtl)
+    assert("(?s)biases\\[[^;]*\\bi\\b[^;]*WIDTH".r.findFirstIn(rtl).nonEmpty, rtl)
     Vector("WIDTH", "COUNT").foreach { parameter =>
       assert(("\\." + parameter + "\\s*\\(\\s*" + parameter + "\\s*\\)").r
         .findAllIn(rtl).size == 1, rtl)
