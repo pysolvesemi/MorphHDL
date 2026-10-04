@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "b914a99c69846e41533e83163c1a5d4b2dfd5483"
+      "approved_tree": "eadcd0ce49a57d92f86959dd76474b9f6b8f83de"
     },
     {
       "path": "idslpayload/src/main",
@@ -1713,13 +1713,13 @@
       "introduced_by": [
         "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
       ],
-      "reason": "Define optional typed documentation metadata, configuration, identity-preserving APIs, exception-safe regions, declaration publication and exact relocation envelopes.",
+      "reason": "Define optional typed documentation metadata, configuration, identity-preserving APIs, exception-safe regions, declaration publication and exact relocation envelopes. Decode optional source coordinates in the metadata owner while preserving valid and malformed location behavior; the canonical producer consumes typed coordinates without parsing source text.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/RtlDocumentation.scala",
         "mode": "100644",
-        "blob": "ef961b18f67c1e04c3ee4dcea1146e2d56c81c0d",
-        "sha256": "b806c1c51ec532f6492294ce39f9a5d367f0ad79070a6c06aa436701886ca776"
+        "blob": "cbe159bf1bcd131eba17f4b7ff605150b05d397f",
+        "sha256": "1155dd13e807bd2729cea78a99472b3223e8de5133fb6272068296c42a933ef6"
       },
       "edits": []
     },
@@ -3046,9 +3046,10 @@
         "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation",
         "CA-005 ANSI declaration context repair",
         "Compiler repair: ANSI derived widths and native unsigned temporary/operand sizing",
-        "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026"
+        "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026",
+        "Qualification repair: authenticated BOOT initializer publication"
       ],
-      "reason": "Retain native symbolic-legality publication and the generation-scoped signed declaration, cast, literal, resize and unsigned-transport callbacks. The typed expression planner controls optional wrapper suppression; every mandatory wrapper present before depth cutting remains, and CDC-WIRE-01 suppresses new depth wrappers only when complete expansion and all receiving widths are proven. Approved unsigned expression slices use a deterministic Verilog-2001 function with the full authoritative source input width and exact constant result range, preserving truncation and four-state semantics. Helper and argument names are allocated in the same namespace after reserving component/width parameter identities, and functions are cached by symbolic width and range. Signed/unknown or otherwise unproven expressions and the ordinary backend keep inherited emission. Qualification repair reserves declaration-local width names without composing finished branch domains, and passes the exact emitter owner when preserving a retained unsigned wrapper's authoritative logical range. All old public wrapper entry points and ordinary backend behavior remain intact. Emit dependency-ordered typed local parameters through the native localparams buffer after the parameterized backend prepares exact live uses. Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative. Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. CA-005 adds explicit native ANSI-port context while preserving body declaration behavior. Include actual ANSI context and parameter-aware unsigned native temporary/operand publication. Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+      "reason": "Retain native symbolic-legality publication and the generation-scoped signed declaration, cast, literal, resize and unsigned-transport callbacks. The typed expression planner controls optional wrapper suppression; every mandatory wrapper present before depth cutting remains, and CDC-WIRE-01 suppresses new depth wrappers only when complete expansion and all receiving widths are proven. Approved unsigned expression slices use a deterministic Verilog-2001 function with the full authoritative source input width and exact constant result range, preserving truncation and four-state semantics. Helper and argument names are allocated in the same namespace after reserving component/width parameter identities, and functions are cached by symbolic width and range. Signed/unknown or otherwise unproven expressions and the ordinary backend keep inherited emission. Qualification repair reserves declaration-local width names without composing finished branch domains, and passes the exact emitter owner when preserving a retained unsigned wrapper's authoritative logical range. All old public wrapper entry points and ordinary backend behavior remain intact. Emit dependency-ordered typed local parameters through the native localparams buffer after the parameterized backend prepares exact live uses. Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative. Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. CA-005 adds explicit native ANSI-port context while preserving body declaration behavior. Include actual ANSI context and parameter-aware unsigned native temporary/operand publication. Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative. Route BOOT initial assignments through the existing default-disabled owner-bound source publication hook, retaining the exact init statement; preserve ordinary literal emission when the hook returns no replacement.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
@@ -3058,8 +3059,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
-        "blob": "ab7b86230f3fb69ade6cbd71bd8ff2d5dcee0afe",
-        "sha256": "c27965aa201b7462ac1aa3982b325e2425a56b55bb72e767ab917d1fae761900"
+        "blob": "ae7971cff76bef61d27d453814256ba03d38e435",
+        "sha256": "10a2f5982e5294e7b75b10f1951ac2563a1c07447e9b7a28c1e13689048d0761"
       },
       "edits": [
         {
@@ -3819,6 +3820,75 @@
           ]
         },
         {
+          "id": "componentemitterverilog-boot-init-20261004-1",
+          "kind": "backend-isolation",
+          "owner": "ComponentEmitterVerilog.getBaseTypeSignalInitBoot",
+          "reason": "Route BOOT initial assignments through the existing default-disabled owner-bound source publication hook, retaining the exact init statement; preserve ordinary literal emission when the hook returns no replacement.",
+          "baseline_span": {
+            "start": 47822,
+            "end": 47822,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 50706,
+            "end": 50764,
+            "sha256": "eba8edacc4c1d2dabaedc3bd41b2d03ae7f1397f6998e33d6d4fb45473394834"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "        var initStatement: InitAssignmentStatement = null\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-boot-init-20261004-2",
+          "kind": "backend-isolation",
+          "owner": "ComponentEmitterVerilog.getBaseTypeSignalInitBoot",
+          "reason": "Route BOOT initial assignments through the existing default-disabled owner-bound source publication hook, retaining the exact init statement; preserve ordinary literal emission when the hook returns no replacement.",
+          "baseline_span": {
+            "start": 48584,
+            "end": 48584,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 51526,
+            "end": 51556,
+            "sha256": "2f76cb5530fec66aa067821b521e1d4220de0bba6c058aef734c5dd4dad22b48"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "            initStatement = s\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-boot-init-20261004-3",
+          "kind": "backend-isolation",
+          "owner": "ComponentEmitterVerilog.getBaseTypeSignalInitBoot",
+          "reason": "Route BOOT initial assignments through the existing default-disabled owner-bound source publication hook, retaining the exact init statement; preserve ordinary literal emission when the hook returns no replacement.",
+          "baseline_span": {
+            "start": 48903,
+            "end": 48951,
+            "sha256": "bcc1ae295e0226637c244b5841cd5caa43896af4545f00b72ae5d9479a1554e3"
+          },
+          "approved_span": {
+            "start": 51875,
+            "end": 52001,
+            "sha256": "85fec5dd172d5b13dfe77d34a4cf3f5cb9d50976039962296ca6425d2ec17b46"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "verilogBase.emitAssignmentSource(this, initStatement)\n            .getOrElse(emitExpressionNoWrappeForFirstOne(initExpression)",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "componentemitterverilog-compiler-repair-20261004-33",
           "kind": "backend-isolation",
           "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
@@ -3829,8 +3899,8 @@
             "sha256": "224f2e0625b2bc43531b17b127daf159ae9fd4063570519957dab3e45aca5a5e"
           },
           "approved_span": {
-            "start": 75872,
-            "end": 76606,
+            "start": 76038,
+            "end": 76772,
             "sha256": "5b1cb27397675b20ebaf1e0f2141d817f2f3820e520db1d789449eb793beed39"
           },
           "required_exact_text": [
@@ -3852,8 +3922,8 @@
             "sha256": "ca47fea6d8fe4bc58f1df50ee7561d0d009b5392895796780e725c8fe9027e70"
           },
           "approved_span": {
-            "start": 76708,
-            "end": 76786,
+            "start": 76874,
+            "end": 76952,
             "sha256": "2081c0d75cf652f45b4fe49b37a2b8d4063bafa35ee2fde26cbfb9129c5c19d5"
           },
           "required_exact_text": [
@@ -3875,8 +3945,8 @@
             "sha256": "5ab9cf83395528e05ec149d6439e8d00a22eb4da89d5e53c19ba9269c966e10b"
           },
           "approved_span": {
-            "start": 76892,
-            "end": 76927,
+            "start": 77058,
+            "end": 77093,
             "sha256": "326bf2045ad9d01e74b5f534adf9fd5b5029b0b8b8d14a0d4083c47e0229a7ad"
           },
           "required_exact_text": [
@@ -3898,8 +3968,8 @@
             "sha256": "89bc1fe93bb1cc8830095ff2a7a90cd0867955fef57f6b6d00f0afdc5de52bd1"
           },
           "approved_span": {
-            "start": 77455,
-            "end": 77490,
+            "start": 77621,
+            "end": 77656,
             "sha256": "e9ebbfd545de2822adbac4c549192adaca12ddcf7fb2e402b382df26c3cf81ca"
           },
           "required_exact_text": [
@@ -3921,8 +3991,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 78110,
-            "end": 78161,
+            "start": 78276,
+            "end": 78327,
             "sha256": "610b6a0d6cab0ce9fc13c6efcd9a54bd25c0b5c24be5f6d734715b0118fc9573"
           },
           "required_exact_text": [
@@ -3944,8 +4014,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 78563,
-            "end": 78618,
+            "start": 78729,
+            "end": 78784,
             "sha256": "af29fb703f43eb5753c8ab99b789e07fce193db9044e4004beacab8820d2da1a"
           },
           "required_exact_text": [
@@ -3967,8 +4037,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 79652,
-            "end": 79715,
+            "start": 79818,
+            "end": 79881,
             "sha256": "6883a57b205d14f99fda4bb6fb61a0b54cb6b2e1cc3bc38d6281dca30b10738f"
           },
           "required_exact_text": [
@@ -3990,8 +4060,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 79779,
-            "end": 79786,
+            "start": 79945,
+            "end": 79952,
             "sha256": "a7e394f7029082eb74696a89f0aa7eb78b10270ba0714adf19d82856a8636f04"
           },
           "required_exact_text": [
@@ -4013,8 +4083,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 79856,
-            "end": 79863,
+            "start": 80022,
+            "end": 80029,
             "sha256": "a7e394f7029082eb74696a89f0aa7eb78b10270ba0714adf19d82856a8636f04"
           },
           "required_exact_text": [
@@ -4036,8 +4106,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 82420,
-            "end": 82480,
+            "start": 82586,
+            "end": 82646,
             "sha256": "f020273bb7525f0220e1be119610447feaaafda59154e2ee21fb712d2f6992aa"
           },
           "required_exact_text": [
