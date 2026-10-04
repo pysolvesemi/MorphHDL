@@ -2802,6 +2802,17 @@
       ]
     },
     {
+      "path": "idslpayload/src/main/scala/spinal/idslplugin/RtlDocumentationRegion.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "PR195 targeted CI layering repair"
+      ],
+      "reason": "Generic StaticAnnotation marks hardware-region methods at the dependency-neutral payload boundary; compiled frontend methods opt in while the low-level plugin remains isolated.",
+      "edits": [],
+      "baseline_path": null
+    },
+    {
       "path": "idslpayload/src/main/scala/spinal/idslplugin/RtlSourceDoc.scala",
       "change": "added",
       "classification": "typed-support-file",
@@ -2857,7 +2868,7 @@
       "introduced_by": [
         "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
       ],
-      "reason": "Translate supported annotations and exact hardware DSL call comments to typed identity-preserving runtime metadata calls.",
+      "reason": "Translate supported annotations and exact hardware DSL call comments to typed identity-preserving runtime metadata calls. Recognize frontend-owned hardware control regions through a generic payload annotation; retain core control identities without lower-layer frontend package references.",
       "baseline_path": null,
       "edits": []
     },
