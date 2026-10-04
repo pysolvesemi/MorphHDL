@@ -37,6 +37,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 morphhdl/scripts/check-parameterized-integration-source.py
+          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test
+          python3 morphhdl/scripts/test-parameterized-inherited-audit.py
           test -x morphhdl/scripts/check-native-streamfifocc-boundary.sh
           test -x morphhdl/scripts/check-native-streamfifocc-width-formal-boundary.sh
           syntax_cache="$(mktemp -d "$RUNNER_TEMP/morphhdl-syntax-cache.XXXXXX")"
@@ -73,7 +76,7 @@ jobs:
              test -L morphhdl/scripts/check-increment-59i-production-successor.py || \
              test -e morphhdl/contracts/increment-59i-production-successor.json || \
              test -L morphhdl/contracts/increment-59i-production-successor.json; then
-            python3 morphhdl/scripts/check-increment-59i-production-successor.py
+            python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-59i-production-successor.py
           fi
 
           candidate_dir="$(mktemp -d)"
@@ -91,3 +94,11 @@ jobs:
               "$candidate_manifest" || true
             exit 1
           fi
+      - name: Retain current and historical source audit receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integrated-source-morphhdl-native-source-guard-guard-${{ matrix.scala || 'source' }}-${{ github.run_attempt }}
+          path: target/parameterized-inherited-audits
+          if-no-files-found: error
+          retention-days: 30

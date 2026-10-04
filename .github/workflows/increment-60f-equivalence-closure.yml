@@ -42,6 +42,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 morphhdl/scripts/check-parameterized-integration-source.py
+          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test
           output="$GITHUB_WORKSPACE/target/increment-60f"
           predecessor="$output/predecessor-source"
           mkdir -p "$output"
@@ -49,13 +51,13 @@ jobs:
           git archive HEAD | gzip > "$output/source.tar.gz"
           python3 morphhdl/scripts/test-increment-60f-source-budget.py
           python3 morphhdl/scripts/test-increment-59i-inherited-audit-budgets.py
-          python3 -B morphhdl/scripts/test-increment-59i-regression-inventory.py
+          python3 -B morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/test-increment-59i-regression-inventory.py
           python3 morphhdl/scripts/test-increment-60f-source-scheduling.py
-          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
-          python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/test-increment-60f-inherited-source-scope.py
           python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --self-test
-          python3 morphhdl/scripts/check-increment-61-source-review.py
-          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test
           base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)
           git worktree add --detach "$predecessor" "$base"
           trap 'git worktree remove --force "$predecessor"' EXIT
@@ -113,6 +115,15 @@ jobs:
         with:
           name: increment-60f-evidence-${{ matrix.scala }}
           path: target/increment-60f
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Retain current and historical source audit receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integrated-source-increment-60f-equivalence-closure-qualify-${{ matrix.scala || 'source' }}-${{ github.run_attempt }}
+          path: target/parameterized-inherited-audits
           if-no-files-found: error
           retention-days: 30
 

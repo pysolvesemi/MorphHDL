@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""Fail-closed controls for the current/historical source audit boundary."""
+import contextlib
+import importlib.util
+import io
+import json
+import re
+from pathlib import Path
+import subprocess
+import tempfile
+import unittest
+from unittest.mock import patch
+
+SOURCE = Path(__file__).with_name("run-parameterized-inherited-audit.py")
+SPEC = importlib.util.spec_from_file_location("integrated_audit", SOURCE)
+A = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(A)
+
+
+class IntegratedAuditTests(unittest.TestCase):
+    def test_workflow_transition_preserves_all_existing_gates(self):
+        baseline = "b613b09917155cc29dd2ed00b21656d9559931b9"
+        counts = {
+            "increment-59c-named-field-vectors": 2,
+            "increment-59h-nested-owners": 6,
+            "increment-59i-combined-closure": 5,
+            "increment-60c-signed-declarations": 2,
+            "increment-60d-pure-sint-casts": 2,
+            "increment-60e-signedness-boundaries": 2,
+            "increment-60f-equivalence-closure": 5,
+            "morphhdl-native-source-guard": 1,
+        }
+        for name, count in counts.items():
+            with self.subTest(workflow=name):
+                path = ".github/workflows/" + name + ".yml"
+                source = (A.ROOT / path).read_text()
+                self.assertEqual(source.count("run-parameterized-inherited-audit.py "), count)
+                restored = source.replace("morphhdl/scripts/run-parameterized-inherited-audit.py ", "")
+                added = (
+                    "          python3 morphhdl/scripts/check-parameterized-integration-source.py\n",
+                    "          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n",
+                )
+                for line in added:
+                    self.assertEqual(restored.count(line), 1)
+                    restored = restored.replace(line, "", 1)
+                if name == "morphhdl-native-source-guard":
+                    line = "          python3 morphhdl/scripts/test-parameterized-inherited-audit.py\n"
+                    self.assertEqual(restored.count(line), 1)
+                    restored = restored.replace(line, "", 1)
+                if name == "increment-59i-combined-closure":
+                    line = "          python3 morphhdl/scripts/check-native-source-preservation.py\n"
+                    self.assertEqual(restored.count(line), 1)
+                    restored = restored.replace(line, "", 1)
+                jobs = ["source", "inherited_source"] if name == "increment-59i-combined-closure" else \
+                    ["source"] if name == "increment-59h-nested-owners" else \
+                    ["guard"] if name == "morphhdl-native-source-guard" else ["qualify"]
+                for job in jobs:
+                    step = ("      - name: Retain current and historical source audit receipts\n"
+                        "        if: always()\n        uses: actions/upload-artifact@v4\n        with:\n"
+                        "          name: integrated-source-" + name + "-" + job +
+                        "-${{ matrix.scala || 'source' }}-${{ github.run_attempt }}\n"
+                        "          path: target/parameterized-inherited-audits\n"
+                        "          if-no-files-found: error\n          retention-days: 30\n\n")
+                    if restored.endswith(step.rstrip()+"\n"):
+                        step = step.rstrip()+"\n"
+                    self.assertEqual(restored.count(step), 1)
+                    restored = restored.replace(step, "", 1)
+                self.assertEqual(restored.encode(), A.git(A.ROOT, "show", baseline + ":" + path),
+                    "a trigger, job, command, matrix, proof, timeout or prior receipt changed")
+
+    def test_only_exact_source_commands_are_admitted(self):
+        for entry in A.COMMANDS:
+            command = ["morphhdl/scripts/" + entry[0], *entry[1:]]
+            self.assertEqual(A.command(command)[2:], command)
+        for command in ([], ["/tmp/check-increment-61-source-review.py"],
+                ["morphhdl/scripts/../scripts/check-increment-61-source-review.py"],
+                ["morphhdl/scripts/check-increment-60f-equivalence-closure.py", "target/rtl"],
+                ["morphhdl/scripts/check-increment-61-source-review.py", "--repo-root", "/tmp"],
+                ["morphhdl/scripts/check-increment-61-source-review.py;true"],
+                ["morphhdl/scripts/check-wa11-boolean-width.py"]):
+            with self.subTest(command=command), self.assertRaises(RuntimeError):
+                A.command(command)
+
+    def test_unreviewed_current_source_prevents_historical_execution(self):
+        with patch.object(A, "authenticate", side_effect=RuntimeError("dirty candidate")), \
+                patch.object(A.subprocess, "run") as run:
+            with self.assertRaisesRegex(RuntimeError, "dirty candidate"):
+                A.run(Path("."), ["morphhdl/scripts/check-increment-61-source-review.py"])
+            run.assert_not_called()
+
+    def test_moving_candidate_cannot_borrow_historical_success(self):
+        before = {"head": "first", "tree": "tree"}
+        for after in ({"head": "second", "tree": "tree"}, {"head": "first", "tree": "other"}):
+            with patch.object(A, "authenticate", return_value=after), self.assertRaises(RuntimeError):
+                A.unchanged(Path("."), before)
+
+    def exercise(self, body, expected_exit):
+        with tempfile.TemporaryDirectory(prefix="integrated-audit-control-") as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", directory], check=True)
+            A.git(root, "config", "user.name", "Source review control")
+            A.git(root, "config", "user.email", "source-review@example.invalid")
+            script = "morphhdl/scripts/check-increment-61-source-review.py"
+            path = root / script
+            path.parent.mkdir(parents=True)
+            path.write_text(body)
+            A.git(root, "add", script)
+            A.git(root, "commit", "-qm", "immutable synthetic audit")
+            before = A.identity(root)
+            with patch.object(A, "PREDECESSOR", before["head"]), \
+                    patch.object(A, "authenticate", return_value=before), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                if expected_exit:
+                    with self.assertRaisesRegex(RuntimeError, "historical audit failed"):
+                        A.run(root, [script])
+                else:
+                    A.run(root, [script])
+            receipts = list((root / "target").rglob("receipt.json"))
+            self.assertEqual(len(receipts), 1)
+            receipt = json.loads(receipts[0].read_text())
+            self.assertEqual(receipt["exit"], expected_exit)
+            self.assertEqual(receipt["current_source"], before)
+            self.assertEqual(receipt["historical_source"], before["head"])
+            self.assertEqual(receipt["status"], "fail" if expected_exit else "pass")
+            self.assertFalse(receipt["rtl_qualification"])
+            self.assertEqual(A.identity(root), before)
+            self.assertEqual(A.git(root, "worktree", "list", "--porcelain").count(b"worktree "), 1)
+
+    def test_historical_receipt_is_separate_from_current_identity(self):
+        self.exercise("print('historical source control passed')\n", 0)
+
+    def test_nonzero_historical_control_is_never_a_pass(self):
+        self.exercise("raise SystemExit(7)\n", 7)
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
