@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "eadcd0ce49a57d92f86959dd76474b9f6b8f83de"
+      "approved_tree": "ded4fd1583dfaba1eaac02666f95aad512fcc049"
     },
     {
       "path": "idslpayload/src/main",
@@ -699,15 +699,16 @@
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
-        "Increment 66: native parameter and RTL readability extensions"
+        "Increment 66: native parameter and RTL readability extensions",
+        "CA-018: user-requested neutral generated helper names"
       ],
-      "reason": "Relocate the existing typed unsigned hardware-value adapter unchanged into core so the public core U overload can delegate without a reverse module dependency.",
+      "reason": "Relocate the existing typed unsigned hardware-value adapter unchanged into core so the public core U overload can delegate without a reverse module dependency. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElabValue.scala",
         "mode": "100644",
-        "blob": "5e6ba17ff1902318071444b2038b265d5630d347",
-        "sha256": "0fcfa49f1529b90a0c96abcaa74aac00842b103aa94c2f148b0b52f15553fb51"
+        "blob": "7f08d7ed40edd512db6c2445140bfef2cffeacba",
+        "sha256": "fe2f847ea2dcb4dd37895368f5467e4ce4ee5948a554acae3fadb7b02193f882"
       },
       "edits": []
     },
@@ -1643,15 +1644,16 @@
         "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI",
         "October 2 user request: opt-in constant aggregates and typed loops",
         "Compiler issues CA-001/CA-002/CA-003, October 3",
-        "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026"
+        "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026",
+        "CA-018: user-requested neutral generated helper names"
       ],
-      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged. Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence. CDC-WIRE-01 qualification exposes a read-only identity inventory from retained Vec operation and completed-write journals. Visit only the closed compiler-owned record families and their exact native expressions with identity-based cycle suppression, so optional late wrapper planning preserves the publisher's witness slices, carriers and assignment evidence. No native Vec algorithm, journal contents, parameter domain or public layout is changed. Packed-assignment support tracing follows only exact fixed slices, reviewed Bits casts, and same-component directionless combinational intermediates with one root-scope assignment; it stops at the recorded carrier or source identities. Supporting-driver traversal is read-only and cannot relax the publisher's existing proof obligations. The October 2 request adds explicitly opted-in constant geometry retention and exact literal-depth metadata for constant typed-loop Vec operands; no symbolic root or witness domain is fabricated. Static writes preserve anonymous literal identity without pinning its width; exact native literal-clone receipts retain normalization lineage. Capture complete static scope paths and enclosing When identities across native switches. Retain lazy, exact original bit-view extraction identities on the Vec object, validate before consuming once, and retain constant loop operand shape without changing native read/write semantics.",
+      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged. Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence. CDC-WIRE-01 qualification exposes a read-only identity inventory from retained Vec operation and completed-write journals. Visit only the closed compiler-owned record families and their exact native expressions with identity-based cycle suppression, so optional late wrapper planning preserves the publisher's witness slices, carriers and assignment evidence. No native Vec algorithm, journal contents, parameter domain or public layout is changed. Packed-assignment support tracing follows only exact fixed slices, reviewed Bits casts, and same-component directionless combinational intermediates with one root-scope assignment; it stops at the recorded carrier or source identities. Supporting-driver traversal is read-only and cannot relax the publisher's existing proof obligations. The October 2 request adds explicitly opted-in constant geometry retention and exact literal-depth metadata for constant typed-loop Vec operands; no symbolic root or witness domain is fabricated. Static writes preserve anonymous literal identity without pinning its width; exact native literal-clone receipts retain normalization lineage. Capture complete static scope paths and enclosing When identities across native switches. Retain lazy, exact original bit-view extraction identities on the Vec object, validate before consuming once, and retain constant loop operand shape without changing native read/write semantics. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedVec.scala",
         "mode": "100644",
-        "blob": "ca26c2ecca5e0cde4b0818e75a692065335d63a7",
-        "sha256": "c2345cdd7436a52d5b7a7f27e6cd11947ee18b8f3ece47e670e8002977bc3f28"
+        "blob": "2891f94f2e643fa9273337c56c1330c249dccdec",
+        "sha256": "fb02a17d575d80e18b7f501e512dc33a305543c47ac18ec892c28a7105f40c43"
       },
       "edits": []
     },
@@ -2039,9 +2041,10 @@
         "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence",
         "Increment 59i: exact composite static-read identity qualification",
         "Increment 59i: combined recursive widening, captures and native saturation geometry",
-        "October 2 user request: opt-in constant aggregates and typed loops"
+        "October 2 user request: opt-in constant aggregates and typed loops",
+        "CA-018: user-requested neutral generated helper names"
       ],
-      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Extend read-only wrapper identity evidence to already-audited recursive Data; native assignment and source-hook behavior remains byte-identical. The October 2 opt-in flag additionally retains exact constant tabulation geometry; disabled native behavior is unchanged.",
+      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Extend read-only wrapper identity evidence to already-audited recursive Data; native assignment and source-hook behavior remains byte-identical. The October 2 opt-in flag additionally retains exact constant tabulation geometry; disabled native behavior is unchanged. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/Vec.scala",
         "mode": "100644",
@@ -2051,8 +2054,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/Vec.scala",
         "mode": "100644",
-        "blob": "bfe1f280879db36da178b871233ff13f17a9f9c8",
-        "sha256": "421ffb5076410ecbca8010b1fafe14d9f511908e7d481f1ff4765555124b3d0c"
+        "blob": "0705d811ba217be6364a273545ea7f269c410273",
+        "sha256": "c3d612c800c4e70ae2719109bc19067d17a69aec5d6b0b4d00307bf3eeef1285"
       },
       "edits": [
         {
@@ -2479,7 +2482,7 @@
           "id": "vec-typed-geometry-11",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec indexed access",
-          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
+          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access. CA-018 uses the neutral typed_vec_read_address stem with the same weak-name allocator and exact native address carrier.",
           "baseline_span": {
             "start": 7568,
             "end": 7568,
@@ -2487,13 +2490,13 @@
           },
           "approved_span": {
             "start": 15361,
-            "end": 15950,
-            "sha256": "c4e88f58cbda7b88b2fd44a4a5e66b174153b48b37692d3f274aa08a63d33556"
+            "end": 15941,
+            "sha256": "3c90f6f3debf71c7b372700823df2bf138691296965d204973a4b53f66c937a8"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "ParameterizedVec.shapeOf",
+              "text": "ParameterizedVec.shapeOf(this) match {\n      case Some(shape) =>\n        val carrierWidth = log2Up(shape.carrierCapacity)\n        if (carrierWidth > 0) {\n          // This resized node belongs only to the finite audited carrier graph.\n          // Publication consumes the operation record and original typed\n          // address, never this witness implementation detail.\n          finalAddress = address.resize(carrierWidth)\n            .setName(\"typed_vec_read_address\", weak = true)\n            .dontSimplifyIt()\n            .setAsVital()\n        }\n      case None =>\n        ",
               "count": 1
             }
           ]
@@ -2509,8 +2512,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 16283,
-            "end": 16297,
+            "start": 16274,
+            "end": 16288,
             "sha256": "21ae17512215b0defc78a4a521717861d0d05736fc66414e117f1924c7c64c98"
           },
           "required_exact_text": [
@@ -2532,8 +2535,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 17163,
-            "end": 17302,
+            "start": 17154,
+            "end": 17293,
             "sha256": "2ba7d0b8ba92065f33fe20598af0256b52d1375acfdf24b92903fc59d1165f93"
           },
           "required_exact_text": [
@@ -2555,8 +2558,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 17586,
-            "end": 17592,
+            "start": 17577,
+            "end": 17583,
             "sha256": "4893f40e3781eb896c82d046a08067a11e35cdf2f1dfaf26fea90b8db6676413"
           },
           "required_exact_text": [
@@ -2578,8 +2581,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 17801,
-            "end": 17884,
+            "start": 17792,
+            "end": 17875,
             "sha256": "8ebe7ef227b0b3338ec745400d40b24dddd2c8f2f767b6923c823d9d7acd7b0f"
           },
           "required_exact_text": [
@@ -2601,8 +2604,8 @@
             "sha256": "46d25627884c64a8cc43f82941586929bb03d85b15090df268cfccc1af43ba84"
           },
           "approved_span": {
-            "start": 18149,
-            "end": 18798,
+            "start": 18140,
+            "end": 18789,
             "sha256": "2305044c31b0ffcd999d5474d3a5d16b260109b2a6cd76806957a8af5f693920"
           },
           "required_exact_text": [
@@ -2624,8 +2627,8 @@
             "sha256": "bc4873241c58715304245f013482dc5bd6ab2bb4cc1cf0ad6f249db6f7d7236f"
           },
           "approved_span": {
-            "start": 18809,
-            "end": 19086,
+            "start": 18800,
+            "end": 19077,
             "sha256": "8814fece3090adf450ba97bfd95e07d8b2f55f7202e537704670d52aeef96ff1"
           },
           "required_exact_text": [
@@ -2647,8 +2650,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 19094,
-            "end": 19177,
+            "start": 19085,
+            "end": 19168,
             "sha256": "58b63cc71b5462bb4fefd3a412676211a042123892a20ccb6961db644d9676f4"
           },
           "required_exact_text": [
@@ -2670,8 +2673,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 19221,
-            "end": 19380,
+            "start": 19212,
+            "end": 19371,
             "sha256": "8bf740e649e967a9ad1f41e31a551909511832bca19abafb8ce9006168b7b193"
           },
           "required_exact_text": [
@@ -2693,8 +2696,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 19557,
-            "end": 19625,
+            "start": 19548,
+            "end": 19616,
             "sha256": "afc0517bccf2cd0434746447e3fb077cd3417b280d4989ed8cf999beff7ff96b"
           },
           "required_exact_text": [
@@ -2716,8 +2719,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 20547,
-            "end": 20622,
+            "start": 20538,
+            "end": 20613,
             "sha256": "cec2541514ccd4475458f40f08b4705066e4cc02d9e1d5c0b9a31f3d4650a79c"
           },
           "required_exact_text": [
@@ -2739,8 +2742,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 20736,
-            "end": 20775,
+            "start": 20727,
+            "end": 20766,
             "sha256": "6d707af76727ddb4f4182cd4a67d87b0ac5b7dd1875e80f897060fec2b74740a"
           },
           "required_exact_text": [
@@ -2762,8 +2765,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 20873,
-            "end": 21209,
+            "start": 20864,
+            "end": 21200,
             "sha256": "98d4dfa6ac6a2bde86b96216d91e99946f2dab7799fea733dc92282a5f3ff101"
           },
           "required_exact_text": [
@@ -2785,8 +2788,8 @@
             "sha256": "68cb46f564ca3eaabbff243723b9faa9e7e6f85836bb646c824ca643375537de"
           },
           "approved_span": {
-            "start": 21638,
-            "end": 21972,
+            "start": 21629,
+            "end": 21963,
             "sha256": "a35d65f983b126b4df6066b4f76235bb213e1b397175b7d0f610aee3d9b8ebe1"
           },
           "required_exact_text": [
@@ -2808,8 +2811,8 @@
             "sha256": "a86a14d83ec0d98f5e0d49e34725e09e92fb8b2395b44973e41a65ede5afc454"
           },
           "approved_span": {
-            "start": 21989,
-            "end": 24461,
+            "start": 21980,
+            "end": 24452,
             "sha256": "1f6be5bd0dd7a43d2608aada17c280ab9dcbfd78f1c7b5908b78237c8e7e013a"
           },
           "required_exact_text": [
@@ -2856,8 +2859,8 @@
             "sha256": "b9adcd4480b5932f33ea586ba0c095798ae2ffc8e81e0003a7502ba16bbc4883"
           },
           "approved_span": {
-            "start": 24791,
-            "end": 24893,
+            "start": 24782,
+            "end": 24884,
             "sha256": "bd11cdb8d1494d4bb60070d160a1d78d0c0bca39eff6dbeba41c503ec925087e"
           },
           "required_exact_text": [
@@ -2879,8 +2882,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 24961,
-            "end": 25104,
+            "start": 24952,
+            "end": 25095,
             "sha256": "1ea1892f1cc19acbe4d66278ced35290af6f69a9c5f9f09ec65d288634f54219"
           },
           "required_exact_text": [
