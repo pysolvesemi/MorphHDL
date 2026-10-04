@@ -39,7 +39,7 @@ class IntegratedAuditTests(unittest.TestCase):
         counts = {
             "increment-59c-named-field-vectors": 2,
             "increment-59h-nested-owners": 6,
-            "increment-59i-combined-closure": 6,
+            "increment-59i-combined-closure": 7,
             "increment-60c-signed-declarations": 2,
             "increment-60d-pure-sint-casts": 2,
             "increment-60e-signedness-boundaries": 2,

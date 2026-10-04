@@ -97,7 +97,7 @@ jobs:
           python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-59i-production-successor.py | tee "$output/production-successor-review.log"
           python3 morphhdl/scripts/test-increment-59i-publication-golden.py -v > "$output/publication-golden-mutations.log" 2>&1 || { tail -n 100 "$output/publication-golden-mutations.log"; exit 1; }
           python3 morphhdl/scripts/test-increment-59i-composite-captures.py
-          python3 morphhdl/scripts/test-increment-59i-review-composition.py -v > "$output/review-composition-tests.log" 2>&1 || { tail -n 100 "$output/review-composition-tests.log"; exit 1; }
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/test-increment-59i-review-composition.py -v > "$output/review-composition-tests.log" 2>&1 || { tail -n 100 "$output/review-composition-tests.log"; exit 1; }
           python3 morphhdl/scripts/check-increment-59i-combined.py --self-test | tee "$output/checker-self-test.log"
           python3 morphhdl/scripts/test-increment-59i-combined.py -v 2>&1 | tee "$output/checker-regressions.log"
           python3 morphhdl/scripts/test-increment-59i-nested-results.py -v 2>&1 | tee "$output/nested-result-checker-tests.log"

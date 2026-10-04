@@ -35,6 +35,7 @@ REVIEWERS = (
     "check-increment-61-source-review.py",
 )
 CONTROLS = (
+    "test-increment-59i-review-composition.py",
     "test-increment-59i-capture-review.py",
     "test-increment-59d-inherited-60f-scope.py",
     "check-increment-59f-source-scope.py",
@@ -50,7 +51,8 @@ AUDIT_TIMEOUT = 10800
 COMMANDS = frozenset(
     [(name, *args) for name in REVIEWERS for args in ((), ("--self-test",))] +
     [(name,) for name in CONTROLS] +
-    [("check-increment-59i-production-successor.py",),
+    [("test-increment-59i-review-composition.py", "-v"),
+     ("check-increment-59i-production-successor.py",),
      ("check-increment-60f-equivalence-closure.py", "--source-only")])
 
 
