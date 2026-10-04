@@ -246,9 +246,14 @@ object MorphHdlExternalParameterizedVerilog {
           else blockByName(name)
         val text = publication.lines.slice(block.start, block.end + 1).mkString("\n")
         val rewritten = withPulledExternalClockInputs(component) {
+          // Validate and size reset edges while the emitter's exact alias
+          // names still exist. Structural publication then authenticates each
+          // registered template before replacing it by its indexed Vec leaf.
+          val withInitializers = ExternalParameterizedVerilogNativeFallback.rewriteRetainedConstantInitializers(
+            component, text, nativeSignedLiterals = morphhdl.MorphSignedCasts.isEnabled(pc.config))
           val withMemories = ParameterizedVerilogMemories.rewrite(
             component,
-            text,
+            withInitializers,
             pc
           )
           val withProcesses = ParameterizedVerilogProcesses.rewrite(
@@ -263,7 +268,7 @@ object MorphHdlExternalParameterizedVerilog {
             canonicalOf
           )
           val withExpressions = if (requiresExpressionHierarchyRewrite(component)) {
-            ExternalParameterizedVerilogNativeFallback.rewrite(
+            ExternalParameterizedVerilogNativeFallback.rewriteAfterInitializers(
               component,
               withStructure,
               pc,

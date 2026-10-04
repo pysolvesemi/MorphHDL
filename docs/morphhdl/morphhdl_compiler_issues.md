@@ -628,3 +628,36 @@ independent fixture intentionally leaves its data input unused; its simulation
 and synthesis pass, and that input warning is recorded rather than hidden.
 Filename-aware strict hierarchy lint uses per-component publication; combined
 publication is compiled, simulated and synthesized separately.
+
+### CA-017 repair evidence, 5 October 2026
+
+- [x] **CA-017 — symbolic-width initialized register Vec reset lineage.**
+  Compiler repair and focused local validation are complete; exact-head remote
+  qualification remains a separate gate. The original independent `fixed`,
+  `direct`, `next` and `full` probes all generate. Before this repair the same
+  source passed only `fixed` on compiler `5376ef77d01d612d50c39cf3ae6dbd62665494af`.
+
+Constant-initializer publication now authenticates and sizes each reset assignment
+on its exact emitted native target before structural relocation replaces the
+register alias with an indexed Vec leaf. The later storage-template, reset,
+clock, bridge, selection and assignment-owner checks remain mandatory. Neither
+initializer cardinality nor emitted-lineage validation is suppressed, and no
+array-element assignment is accepted by an arbitrary text match.
+
+`SymbolicVecInitializerTests` covers nested parameterized children, direct tail
+shifts, next-state arrays and full-depth loads in packed and unpacked layouts.
+Every variant simulates all nine WIDTH 1/5/64 × DEPTH 2/3/8 combinations with an
+independent shift/load scoreboard, asynchronous reset, a stalled reset and enable
+holds. Every profile also passes strict Verilog-2001 Verilator lint and Yosys
+synthesis/checks. Repeat generation is byte-identical; symbolic zero fills and
+`ASYNC_REG` attributes remain present. The six existing register-owner mutations
+are additionally exercised with symbolic width. Existing initializer tests retain
+missing/changed emitted-edge, copied-width, foreign-root and erased-authority
+negative controls.
+
+The affected local run passes **257 tests across 22 suites on each of Scala 2.12
+and 2.13**, including earlier Vec/Gray, FIFO, CDC, hierarchy, signed initializer
+and BOOT regressions. The structural-process workflow includes the new suite.
+The retained catalog now contains 241 suites and 2,468 cases, with no prior cases
+removed. The display-controller repository and its issue checklist were read-only
+references; this repair does not claim a fresh product application retest.

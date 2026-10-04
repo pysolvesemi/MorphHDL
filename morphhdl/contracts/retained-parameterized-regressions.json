@@ -1296,6 +1296,14 @@
         "typed structural predicates reject independent same-name roots across regions",
         "unfinished structural conditionals fail with a stable continuation diagnostic"
       ],
+      "morphhdl.SymbolicVecInitializerTests": [
+        "symbolic initialized Vec reset lineage mode=direct unpacked=false",
+        "symbolic initialized Vec reset lineage mode=direct unpacked=true",
+        "symbolic initialized Vec reset lineage mode=full unpacked=false",
+        "symbolic initialized Vec reset lineage mode=full unpacked=true",
+        "symbolic initialized Vec reset lineage mode=next unpacked=false",
+        "symbolic initialized Vec reset lineage mode=next unpacked=true"
+      ],
       "morphhdl.TransitiveScalarFormalTests": [
         "scalar actual survives every wrapper levels=0 mixed=false split=false",
         "scalar actual survives every wrapper levels=0 mixed=false split=true",
@@ -1803,11 +1811,17 @@
         "register loop preserves clock enable and reset configuration syncLow=false",
         "register loop preserves clock enable and reset configuration syncLow=true",
         "relocated register storage rejects a changed exact owner mode=bridge",
+        "relocated register storage rejects a changed exact owner mode=bridge symbolic-width",
         "relocated register storage rejects a changed exact owner mode=clock",
+        "relocated register storage rejects a changed exact owner mode=clock symbolic-width",
         "relocated register storage rejects a changed exact owner mode=competing-writer",
+        "relocated register storage rejects a changed exact owner mode=competing-writer symbolic-width",
         "relocated register storage rejects a changed exact owner mode=reset",
+        "relocated register storage rejects a changed exact owner mode=reset symbolic-width",
         "relocated register storage rejects a changed exact owner mode=selection",
-        "relocated register storage rejects a changed exact owner mode=template"
+        "relocated register storage rejects a changed exact owner mode=selection symbolic-width",
+        "relocated register storage rejects a changed exact owner mode=template",
+        "relocated register storage rejects a changed exact owner mode=template symbolic-width"
       ],
       "spinal.core.TypedParameterFrontendProjectionTests": [
         "typed frontend import rejects an active singleton projection"
@@ -3140,6 +3154,7 @@
     "morphhdl/src/test/scala/morphhdl/StreamFifoCompatibilityTests.scala": "8413127d7fc637d88ffdc36b9e86cc0a726885b5194b3891d951ee6c223896b4",
     "morphhdl/src/test/scala/morphhdl/StructuralGenerateControlTests.scala": "cda3720f0b52d64131552585bab76fd6233e3fbca7e8092db66ffa98dbb4646a",
     "morphhdl/src/test/scala/morphhdl/SymbolicDataShapesContractFixture.scala": "f9ac5ac237e523f01a8ca7a2f0ed6f88dc4b8da16cbaf2555a3335ab383161e8",
+    "morphhdl/src/test/scala/morphhdl/SymbolicVecInitializerTests.scala": "071828668343fc5ca4df32f4d1396cad23430471f8093506a8cb139d3ea88e6a",
     "morphhdl/src/test/scala/morphhdl/SynchronousEnabledRegisterContractFixture.scala": "94617c61ae05f8e5d75dd805f8aa94a02b6310706c82e66a03878bef3f930c90",
     "morphhdl/src/test/scala/morphhdl/SynchronousRegisterContractFixture.scala": "082f2750a01af4fe7807920d01d9b713674fcefaaa4c703a51d24b253c9452e5",
     "morphhdl/src/test/scala/morphhdl/SynchronousStreamFifoContractFixture.scala": "0ee43976e2f90ebb79b9407bf17f425558932905740adf4c6674cfc20457aafb",
@@ -3222,7 +3237,7 @@
     "morphhdl/src/test/scala/spinal/core/TypedExactDomainSafetyTests.scala": "48eb7f1a1bc60b63deb987f80ec2c07db83064f43f78522ee1954afd65262550",
     "morphhdl/src/test/scala/spinal/core/TypedFormalCompoundPortTests.scala": "4a69fec2ce2c982b6b3f195357dd39b0fbddff96c11603a60224b65c140147f8",
     "morphhdl/src/test/scala/spinal/core/TypedFormalInventoryTests.scala": "e92b7c0143f40e528b3d59197cbf4d8268555f18e7a5d4d89db57b4cd3ec1513",
-    "morphhdl/src/test/scala/spinal/core/TypedLoopRegisterOwnershipTests.scala": "0ca63fad2ab95ef712e1391b5c4ec85eea18eecec41a45a398ab7997cd07b1e0",
+    "morphhdl/src/test/scala/spinal/core/TypedLoopRegisterOwnershipTests.scala": "a591302fd40d2f2a2a3dc34ba0793153a1f49a63012b702155c531e6f29f97f7",
     "morphhdl/src/test/scala/spinal/core/TypedParameterFrontendProjectionTests.scala": "bc253d8c903039870bfbf5437704990145d8b654fc5503511ea0bd75f4b4211a",
     "morphhdl/src/test/scala/spinal/core/TypedParameterizedVecHierarchyFixture.scala": "ff97f312339ab37ffdb8a913da48f2162f1e698fd6f1ff3770c9d8a733fc0631",
     "morphhdl/src/test/scala/spinal/core/TypedParameterizedVecLineageFixture.scala": "91bccbe3066b2bd474ddcdf1c6b4336518450f1445c036262ad1347dac4ee69c",

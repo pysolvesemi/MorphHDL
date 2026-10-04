@@ -7,9 +7,10 @@ import spinal.core.internals._
 import morphhdl.{MorphAggregateOptions, MorphVerilog, Increment66ToolEvidence}
 
 class TypedLoopRegisterOwnershipTests extends AnyFunSuite {
-  private class Top(syncLow: Boolean = false, explicitClock: Boolean = false) extends Component {
-    val x = in Vec(Bits(8 bits),4)
-    val y = out Vec(Bits(8 bits),4)
+  private class Top(syncLow: Boolean = false, explicitClock: Boolean = false, symbolic: Boolean = false) extends Component {
+    @dontName private val width = if(symbolic) morphhdl.frontend.HdlInt.param("WIDTH",8,1,64).asElabInt else ElabInt.literal(8)
+    val x = in Vec(Bits(width bits),4)
+    val y = out Vec(Bits(width bits),4)
     val en = in Bool()
     val clk = if(explicitClock) in Bool() else null
     val rst = if(explicitClock) in Bool() else null
@@ -18,7 +19,7 @@ class TypedLoopRegisterOwnershipTests extends AnyFunSuite {
       config=ClockDomainConfig(resetKind=if(syncLow) SYNC else ASYNC,
         resetActiveLevel=if(syncLow) LOW else HIGH)) else ClockDomain.current
     val area = new ClockingArea(domain) {
-      val values = Vec.fill(4)(Reg(Bits(8 bits)) init 0x5a)
+      val values = Vec.fill(4)(Reg(Bits(width bits)) init (if(symbolic) 0 else 0x5a))
       ElabFiniteRange.foreach(ElabInt.literal(4),"copy_lanes") { i =>
         when(en) { i(values) := i(x) }
       }
@@ -29,8 +30,8 @@ class TypedLoopRegisterOwnershipTests extends AnyFunSuite {
     SpinalConfig(targetDirectory=dir.toString,headerWithDate=false),
     preserveConstantVecs=true,preserveConstantLoops=true,vecLayout=MorphAggregateOptions.UnpackedArray)
 
-  for(mode <- Seq("clock","reset","bridge","selection","template","competing-writer")) {
-    test(s"relocated register storage rejects a changed exact owner mode=$mode") {
+  for(mode <- Seq("clock","reset","bridge","selection","template","competing-writer"); symbolic <- Seq(false,true)) {
+    test(s"relocated register storage rejects a changed exact owner mode=$mode" + (if(symbolic) " symbolic-width" else "")) {
       val dir=Files.createTempDirectory("typed-register-owner-")
       val options=config(dir)
       options.phasesInserters += { phases =>
@@ -55,7 +56,7 @@ class TypedLoopRegisterOwnershipTests extends AnyFunSuite {
           }
         })
       }
-      val error=intercept[Exception] { MorphVerilog(options)(new Top) }
+      val error=intercept[Exception] { MorphVerilog(options)(new Top(symbolic=symbolic)) }
       val messages=Iterator.iterate[Throwable](error)(_.getCause).takeWhile(_!=null)
         .flatMap(e => Option(e.getMessage)).mkString("\n")
       assert(messages.contains("SPINAL-TYPED-LOOP-REGISTER-STORAGE-MISMATCH"),messages)

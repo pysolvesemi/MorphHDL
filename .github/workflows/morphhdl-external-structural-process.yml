@@ -95,6 +95,7 @@ jobs:
             morphhdl.GenerateIndexNamingTests \
             morphhdl.TypedLoopCarrierCoverageTests \
             morphhdl.ShiftSubrangeAndGrayTests \
+            morphhdl.SymbolicVecInitializerTests \
             spinal.core.TypedStagePublicationSafetyTests \
             morphhdl.GrayStageSharingTests \
             morphhdl.NativeLibraryReuseTests \

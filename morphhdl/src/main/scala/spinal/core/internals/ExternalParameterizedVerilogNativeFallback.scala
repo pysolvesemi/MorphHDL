@@ -92,6 +92,17 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       verilog: String,
       pc: PhaseContext,
       canonicalOf: Component => Component
+  ): String = rewriteAfterInitializers(component,
+    rewriteRetainedConstantInitializers(component, verilog,
+      nativeSignedLiterals = morphhdl.MorphSignedCasts.isEnabled(pc.config)), pc, canonicalOf)
+
+  /** Continue expression publication after initializer edges have been checked
+    * and sized on their exact native targets, before structural relocation. */
+  private[internals] def rewriteAfterInitializers(
+      component: Component,
+      verilog: String,
+      pc: PhaseContext,
+      canonicalOf: Component => Component
   ): String = ExternalParameterizedHighBit.withPublicationValidation(component) {
     ExternalParameterizedNativeResize.withPublicationValidation(component) {
       ExternalParameterizedNativeGeometry.withPublicationValidation(component) {
@@ -177,14 +188,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       rewrittenDeclarations,
       nativeSignedLiterals = morphhdl.MorphSignedCasts.isEnabled(pc.config)
     )
-    val rewrittenInitializers = rewriteRetainedConstantInitializers(
-      component,
-      rewrittenConstants,
-      nativeSignedLiterals = morphhdl.MorphSignedCasts.isEnabled(pc.config)
-    )
     val rewrittenValues = rewriteRetainedValueAssignments(
       component,
-      rewrittenInitializers
+      rewrittenConstants
     )
     val rewrittenResizes = rewriteRetainedResizeAssignments(
       component,
