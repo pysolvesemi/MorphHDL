@@ -716,7 +716,7 @@
     },
     "morphhdl/src/main/scala/spinal/core/internals/NativeScalarFormalSchema.scala": {
       "mode": "100644",
-      "sha256": "7821cf2e1a4ae64c2f51f19a6d562965d7f7a29fdd81090f919dfd7cbb9f0ed8"
+      "sha256": "f34af94627b93c0c12cb45537a2b00c81ae42b5bf30037adc083915084e732cc"
     },
     "morphhdl/src/main/scala/spinal/core/internals/NativeWidthFormalSchema.scala": {
       "mode": "100644",
@@ -745,7 +745,7 @@
     },
     "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogVecs.scala": {
       "mode": "100644",
-      "sha256": "115688e2b07a242c47ae6c39f07951ed7d7a9e9915003c805f62652d5a049f7c"
+      "sha256": "3d5721c55ef2dd272a235fa85ffea457454b636c886ac05f0e237a296b6373aa"
     },
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala": {
       "mode": "100644",
