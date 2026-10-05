@@ -1101,6 +1101,17 @@
       "edits": []
     },
     {
+      "path": "core/src/main/scala/spinal/core/TypedVecStaticSelect.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "CA-021: ordinary-import parameter-constant Vec indexing"
+      ],
+      "reason": "Relocate the unchanged authenticated static selector from runtime to core for the ordinary-import extension without a circular dependency or duplicate lowering.",
+      "baseline_path": null,
+      "edits": []
+    },
+    {
       "path": "core/src/main/scala/spinal/core/UInt.scala",
       "change": "modified",
       "classification": "typed-overload",
@@ -1735,20 +1746,26 @@
       "change": "modified",
       "classification": "typed-overload",
       "introduced_by": [
-        "Increment 53d: typed StreamWidthAdapter architecture"
+        "Increment 53d: typed StreamWidthAdapter architecture",
+        "CA-021: ordinary-import parameter-constant Vec indexing"
       ],
-      "reason": "Expose a parameter-preserving counterpart of widthOf for typed native algorithms.",
+      "reason": "Expose parameter-preserving widthOf and scalar Vec indexing while preserving native and frontend structural overload resolution.",
       "baseline_path": "core/src/main/scala/spinal/core/core.scala",
       "edits": [
         {
           "id": "widthofexpr-01",
           "kind": "overload",
-          "owner": "spinal.core.widthOfExpr",
-          "reason": "Add the exact packed-width helper without changing widthOf.",
+          "owner": "spinal.core.widthOfExpr and spinal.core.ElabVecOps",
+          "reason": "Add typed width and Vec selection extensions without changing existing native members; delegate selection to its single authenticated implementation.",
           "required_exact_text": [
             {
               "side": "approved",
               "text": "ElabInt.packedWidthOf",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "TypedVecStaticSelect(vector, index)",
               "count": 1
             }
           ]

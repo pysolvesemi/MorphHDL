@@ -730,3 +730,29 @@ All 252 affected tests across 13 suites pass on Scala 2.13. On Scala 2.12 the
 final rerun. Existing FIFO CDC, scalar forwarding, register-initializer, Vec
 selection, library sharing and ownership-negative coverage remains passing.
 The display-controller repository was used only as a read-only reproducer source.
+
+### CA-021 repair evidence, 5 October 2026
+
+- [x] **CA-021 — ordinary-import parameter-constant Vec indexing.** Compiler
+  repair and local validation are complete. Exact-head remote qualification
+  remains a separate gate; the application repository remains read-only.
+
+`import spinal.core._` now supplies `vector(index: ElabInt)` for scalar
+Bool/Bits/UInt/SInt Vecs. The extension delegates to the existing authenticated
+static selector, relocated unchanged from runtime to core. `ElabVec.select`
+remains compatible. An extension preserves frontend `StructuralVecOps` overload
+resolution without adding a core-to-runtime dependency, extracting a witness or
+converting the selector to hardware UInt. Native Int/Range/UInt accesses and
+structural HdlInt/GenIndex accesses retain their existing semantics.
+
+All 155 affected tests across seven suites pass on Scala 2.12.18 and 2.13.12.
+The new 33-case suite reruns the 17 established selector cases through the
+shorthand and adds 16 byte-identical RTL comparisons with the compatibility API:
+all four scalar types, fixed/symbolic dimensions and packed/unpacked publication,
+with both core and StructuralVecOps imports. Simulation, strict Verilator lint
+and Yosys synthesis/checks cover non-default widths 1/5/64 and depths 2/3/8;
+reset-release scoreboards cover every depth 2..8 including stopped-clock reset.
+Existing typed-loop, affine-access, mixed-depth sharing, initializer-lineage and
+full-domain bounds rejection tests remain passing. The retained inventory now
+contains 245 suites and 2,594 cases; no existing test was removed. Application
+selection migrations and application-specific simulation were not performed.

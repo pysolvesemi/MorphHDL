@@ -98,6 +98,7 @@ jobs:
             morphhdl.SymbolicVecInitializerTests \
             morphhdl.StageDepthFormalSharingTests \
             morphhdl.ElabVecSelectionTests \
+            morphhdl.VecElabIntApplyTests \
             morphhdl.NativeHelperNamingTests \
             spinal.core.TypedStagePublicationSafetyTests \
             morphhdl.GrayStageSharingTests \

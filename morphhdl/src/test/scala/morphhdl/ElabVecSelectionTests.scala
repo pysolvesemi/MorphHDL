@@ -7,6 +7,8 @@ import spinal.core._
 import morphhdl.frontend.{HdlInt, formalParam}
 
 class ElabVecSelectionTests extends AnyFunSuite {
+  protected def select[T <: BaseType](vector: Vec[T], index: ElabInt): T =
+    ElabVec.select(vector, index)
   private class Child(kind: String, widthActual: ElabInt, depthActual: ElabInt) extends Component {
     setDefinitionName("Child")
     @dontName private val width = if(kind == "bool") ElabInt.literal(1) else formalParam(widthActual, "WIDTH", 1, 64)
@@ -21,9 +23,9 @@ class ElabVecSelectionTests extends AnyFunSuite {
     val first, middle, last = out(leaf)
     val parity = out Bool()
     parity := lanes.asBits.xorR
-    first.assignFrom(ElabVec.select(lanes, ElabInt.literal(0)))
-    middle.assignFrom(ElabVec.select(lanes, depth / 2))
-    last.assignFrom(ElabVec.select(lanes, depth - 1))
+    first.assignFrom(select(lanes, ElabInt.literal(0)))
+    middle.assignFrom(select(lanes, depth / 2))
+    last.assignFrom(select(lanes, depth - 1))
   }
   private class Top(kind: String) extends Component {
     @dontName private val width = if(kind == "bool") ElabInt.literal(1) else HdlInt.param("WIDTH", 5, 1, 64).asElabInt
@@ -94,7 +96,7 @@ module tb;$instances initial begin wait($all);$$finish;end endmodule
         stages(0):=True
         import morphhdl.frontend.{HdlIntRangeStart,StructuralVecOps}
         (0 until (depth-1)).named("shift","lane").foreach { i => stages(i+1):=stages(i) }
-        released:=ElabVec.select(stages,depth.asElabInt-1)
+        released:=select(stages,depth.asElabInt-1)
       })
       val rtl=new String(Files.readAllBytes(dir.resolve("Top.v")),UTF_8)
       assert(!rtl.contains("param_value") && !rtl.contains("typed_vec_read_address") && !rtl.contains(" ? "),rtl)
@@ -132,7 +134,7 @@ module tb;$instances initial begin wait($all);$$finish;end endmodule
             case "past-end" => depth
             case "partial-domain" => ElabInt.literal(2)
           }
-          selected:=ElabVec.select(lanes,index)
+          selected:=select(lanes,index)
         })
       }
       val message=Iterator.iterate[Throwable](error)(_.getCause).takeWhile(_!=null).map(_.getMessage).mkString("\n")
@@ -150,7 +152,7 @@ module tb;$instances initial begin wait($all);$$finish;end endmodule
         val lanes=in Vec(UInt(8 bits),8)
         val address=in UInt(3 bits)
         val selected,runtime=out UInt(8 bits)
-        selected:=ElabVec.select(lanes,index)
+        selected:=select(lanes,index)
         runtime:=lanes(address)
       })
       val rtl=new String(Files.readAllBytes(dir.resolve("Top.v")),UTF_8)
@@ -184,7 +186,7 @@ module tb;$instances initial begin wait($all);$$finish;end endmodule
         val parity=out Bool();parity:=extra.xorR
         val lanes=in Vec(UInt(8 bits),8)
         val result=out UInt(8 bits)
-        result:=ElabVec.select(lanes,index)
+        result:=select(lanes,index)
       })
     }
     val message=Iterator.iterate[Throwable](error)(_.getCause).takeWhile(_!=null).map(_.getMessage).mkString("\n")
@@ -199,7 +201,7 @@ module tb;$instances initial begin wait($all);$$finish;end endmodule
       val lanes=in Vec(UInt(8 bits),8)
       val selected=out UInt(8 bits)
       val parity=out Bool()
-      selected:=ElabVec.select(lanes,index)
+      selected:=select(lanes,index)
       parity:=lanes.asBits.xorR
     }
     class Middle(actual: ElabInt) extends Component {
