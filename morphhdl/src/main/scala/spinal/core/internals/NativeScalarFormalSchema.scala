@@ -28,6 +28,10 @@ private[internals] object NativeScalarFormalSchema {
     // A Vec depth is a definition-owned scalar formal even though it controls
     // retained geometry rather than a packed port. Authenticate the exact shape
     // expression; never infer this classification from a native lane count.
+    // Resolve pruning and required publication before asking removed native
+    // declarations for owner evidence. Keep nested and captured Vec identities
+    // in the classification below; publication roots alone omit those shapes.
+    ParameterizedVerilogVecs.publicationVectors(component)
     val vecDepths = ParameterizedVec.retainedVectorsOf(component).flatMap { vector =>
       ParameterizedVec.shapeOf(vector).toVector.map(shape => vector -> shape.depth)
     }

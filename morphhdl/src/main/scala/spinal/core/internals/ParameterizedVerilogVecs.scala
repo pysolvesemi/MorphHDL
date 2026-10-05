@@ -1443,7 +1443,7 @@ private[internals] object ParameterizedVerilogVecs {
     * assignment evidence must never be hidden merely because its aggregate
     * emitted name disappeared.
     */
-  private def publicationVectors(component: Component): Vector[Vec[_]] = {
+  private[internals] def publicationVectors(component: Component): Vector[Vec[_]] = {
     if (component == null) return Vector.empty
     val retained = ParameterizedVec.retainedVectorsOf(component)
     // The completed native invocation journal is independent of the operation
