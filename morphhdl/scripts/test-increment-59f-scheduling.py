@@ -49,6 +49,27 @@ class SchedulingTests(unittest.TestCase):
     def test_original_checkout_and_every_source_audit_command_are_exact(self):
         self.assertEqual(self.source_steps[0], self.old_steps[0])
         original = self.old_steps[1]
+        # The integration authenticates the current candidate independently and
+        # runs these exact historical commands at the immutable predecessor.
+        # Build the closed expected transformation from the pinned baseline;
+        # do not strip wrappers or ignore added/removed workflow commands.
+        prefix = "          set -euo pipefail\n"
+        self.assertEqual(original.count(prefix), 1)
+        original = original.replace(prefix, prefix +
+            "          python3 morphhdl/scripts/check-parameterized-integration-source.py\n"
+            "          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n")
+        for command in (
+            "check-increment-59f-source-scope.py",
+            "test-increment-59f-source-scope.py",
+            "check-increment-60f-equivalence-closure.py --source-only",
+            "test-increment-60f-inherited-source-scope.py",
+            "test-increment-59b-inherited-source-scope.py",
+        ):
+            before = "          python3 morphhdl/scripts/" + command + "\n"
+            after = ("          python3 morphhdl/scripts/run-parameterized-inherited-audit.py "
+                     "morphhdl/scripts/" + command + "\n")
+            self.assertEqual(original.count(before), 1)
+            original = original.replace(before, after)
         current = self.source_steps[1]
         additive = "          python3 morphhdl/scripts/test-increment-59f-scheduling.py\n"
         self.assertEqual(current, original + additive)
