@@ -54,6 +54,28 @@ private[internals] object ParameterizedVerilogMemories {
 
   private final case class LineRange(start: Int, endInclusive: Int)
 
+  /** Publish authenticated declaration geometry before native identity grouping.
+    * Port/topology validation still runs in rewrite; this only removes formal
+    * construction witnesses from the native declaration trace.
+    */
+  def nativeGeometry(component: Component, memory: Mem[_]): Option[(String, String)] = {
+    val owned = NativeWidthFormalSchema.bindings(component).map(_.binding.formal) ++
+      NativeScalarFormalSchema.bindings(component).map(_.binding.formal)
+    ParameterizedMemory.metadataOf(memory).filter { metadata =>
+      (memory.component eq component) && memory.initialContent == null &&
+        memory.getMemSymbolCount() == 1 &&
+        (metadata.elementWidth.parameters ++ metadata.depth.parameters).nonEmpty &&
+        (metadata.elementWidth.parameters ++ metadata.depth.parameters).forall(p => owned.exists(_ eq p))
+    }.map { metadata =>
+      require(metadata.elementWidth.default == memory.getWidth && metadata.depth.default == memory.wordCount,
+        "native memory geometry must match its exact construction witnesses")
+      Seq(metadata.elementWidth, metadata.depth).foreach(e =>
+        ElaborationWidthAuthority.requireAuthoritative(e, "native memory geometry",
+          "SPINAL-PARAMETERIZED-VERILOG-MEMORY-GEOMETRY-AUTHORITY-MISSING"))
+      (s"[${metadata.elementWidth.verilog}-1:0]", s"[0:${metadata.depth.verilog}-1]")
+    }
+  }
+
   def rewrite(component: Component, verilog: String, pc: PhaseContext): String = {
     if (!ParameterizedVerilogMode.isEnabled(pc.config)) return verilog
     val memories = ParameterizedMemory.memoriesOf(component)
@@ -547,8 +569,18 @@ private[internals] object ParameterizedVerilogMemories {
     val readEnable = stableName(read.readEnable, "read enable", source)
     val writeEnable = stableName(write.writeEnable, "write enable", source)
     val writeData = stablePackedName(write.data, "write data", source)
-    val readClock = stableName(read.clockDomain.clock, "memory read clock", source)
-    val writeClock = stableName(write.clockDomain.clock, "memory write clock", source)
+    def localClock(clock: Bool, role: String): String = {
+      val local = if (clock.component eq component) clock else {
+        component.pulledDataCache.get(clock) match {
+          case Some(value: Bool) if (value.component eq component) && value.isInput => value
+          case _ => fail("SPINAL-PARAMETERIZED-VERILOG-MEMORY-CLOCK-OWNER-MISSING",
+            s"$role has no exact native pulled input in its memory component", source)
+        }
+      }
+      stableName(local, role, source)
+    }
+    val readClock = localClock(read.clockDomain.clock, "memory read clock")
+    val writeClock = localClock(write.clockDomain.clock, "memory write clock")
 
     val nonAddressRoles = Vector(
       readClock,
@@ -1087,7 +1119,9 @@ private[internals] object ParameterizedVerilogMemories {
       helperName: String,
       sourceLocation: Option[String]
   ): Vector[String] = {
-    val concreteRange = ("\\[0\\s*:\\s*" + (memory.wordCount - 1) + "\\]").r
+    val concreteRange = nativeGeometry(memory.component, memory)
+      .map { case (_, depth) => Pattern.quote(replacePortableLogName(depth, helperName)).r }
+      .getOrElse(("\\[0\\s*:\\s*" + (memory.wordCount - 1) + "\\]").r)
     val candidates = lines.zipWithIndex.collect {
       case (line, index)
           if containsIdentifier(line, memoryName) &&

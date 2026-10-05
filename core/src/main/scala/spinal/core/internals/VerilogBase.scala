@@ -107,6 +107,7 @@ object VerilogBase {
         expression: Operator.BitVector.ShiftRightByInt): Option[String] = None
     def blackBoxGeneric(printer: ComponentEmitterVerilog, blackBox: BlackBox,
         association: (String, Any)): Option[String] = None
+    def memoryGeometry(printer: ComponentEmitterVerilog, memory: Mem[_]): Option[(String, String)] = None
     def condition(printer: ComponentEmitterVerilog, statement: WhenStatement): Option[String] = None
     def wrapperRange(printer: ComponentEmitterVerilog, expression: Expression): Option[String] = None
     def binaryOperand(printer: ComponentEmitterVerilog, expression: BinaryOperator, slot: Int): Option[String] = None
@@ -308,6 +309,19 @@ trait VerilogBase extends VhdlVerilogBase{
       case Some(value) => theme.maintab + expressionAlign(if(e.isInstanceOf[Multiplexer]) "reg" else "wire",
         declarationPrefix(e, ExpressionWrapper) + value, name) + ";\n"
       case None => emitExpressionWrap(e, name)
+    }
+  }
+
+  def emitExpressionWrap(e: Expression, name: String, nature: String, printer: ComponentEmitterVerilog): String =
+    emitOwnedRange(printer, e).map(range => theme.maintab +
+      expressionAlign(nature, declarationPrefix(e, ExpressionWrapper) + range, name) + ";\n")
+      .getOrElse(emitExpressionWrap(e, name, nature))
+
+  private[spinal] def emitMemoryGeometry(printer: ComponentEmitterVerilog, memory: Mem[_]): Option[(String, String)] = {
+    require(printer.usesVerilogBase(this), "memory must belong to this native emitter")
+    this match {
+      case owner: DeclarationPolicyOwner => Option(owner.assignmentPublication).flatMap(_.memoryGeometry(printer, memory))
+      case _ => None
     }
   }
 

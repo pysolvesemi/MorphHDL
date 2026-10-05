@@ -23,6 +23,8 @@ object MorphHdlEmitterParameterNames {
           override def blackBoxGeneric(printer: ComponentEmitterVerilog, blackBox: spinal.core.BlackBox,
               association: (String, Any)): Option[String] =
             names.flatMap(_.blackBoxGeneric(printer, blackBox, association))
+          override def memoryGeometry(printer: ComponentEmitterVerilog, memory: spinal.core.Mem[_]): Option[(String, String)] =
+            ParameterizedVerilogMemories.nativeGeometry(printer.component, memory)
           override def condition(printer: ComponentEmitterVerilog, statement: WhenStatement): Option[String] =
             NativeConditionalProcessEmitter.condition(printer, statement)
           override def wrapperRange(printer: ComponentEmitterVerilog, expression: Expression): Option[String] =
@@ -98,6 +100,7 @@ final class MorphHdlEmitterParameterNames extends PhaseMisc {
   }
   private[internals] def wrapperRange(printer: ComponentEmitterVerilog, expression: Expression): Option[String] = expression match {
     case value: spinal.core.BitVector => NativeWidthFormalSchema.publicationRange(printer.component, value)
+    case read: spinal.core.MemReadSync => ParameterizedVerilogMemories.nativeGeometry(printer.component, read.mem).map(_._1)
     // Unsigned arithmetic and native Vec mux wrappers use the ordinary width
     // authority before native module identity is compared. Signed wrappers
     // remain owned by the declaration policy. Never use a witness width here.

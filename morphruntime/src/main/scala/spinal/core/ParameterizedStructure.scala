@@ -1536,6 +1536,11 @@ object ParameterizedStructure {
     val retainedWidth = ParameterizedVec
       .packedWidthExpressionOf(source)
       .orElse(ParameterizedWidth.expressionOf(source))
+      // Concrete counts may use an independently proven constant native width.
+      // Never interpret a symbolic loop's construction witness as its geometry.
+      .orElse(if (count.parameters.isEmpty && count.generateIndex.isEmpty)
+        NativeWidthProvenance.widthOf(source).filter(_.parameters.isEmpty)
+      else None)
       .getOrElse {
         fail(
           "SPINAL-ELAB-FINITE-INDEX-BITS-SOURCE-WIDTH-MISSING",

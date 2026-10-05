@@ -80,6 +80,10 @@ jobs:
           /tmp/morphhdl-mill frontend[${{ matrix.scala_version }}].testOnly \
             morphhdl.frontend.HdlIntTests
           /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.FiniteBitsAndRamSharingTests \
+            morphhdl.SharedFiniteLoopControlTests \
+            spinal.core.FiniteBitsIndexTests \
+            spinal.core.FiniteMemIdentityAdversarialTests \
             morphhdl.integration.ExternalSpinalVerilogBaselineTests \
             morphhdl.StructuralGenerateControlTests \
             morphhdl.NaturalSymbolicConditionalTests \

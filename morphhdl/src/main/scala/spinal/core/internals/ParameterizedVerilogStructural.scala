@@ -184,6 +184,7 @@ private[internals] object ParameterizedVerilogStructural {
       .filter(_.dir == in)
       .flatMap(port => Option(port.getName()))
       .toSet
+    val retainedModuleCarriers = uncapturedModuleCarriers(component, allBlocks)
     val scalarOperatorReplay = resolveScalarOperatorReplay(
       component,
       allBlocks,
@@ -260,7 +261,8 @@ private[internals] object ParameterizedVerilogStructural {
         scalarOperatorReplay,
         uniquelyOwnedAssignmentTargets,
         continuousResolution,
-        canonicalOf
+        canonicalOf,
+        retainedModuleCarriers
       )
     }
     val preliminaryPlans =
@@ -918,6 +920,79 @@ private[internals] object ParameterizedVerilogStructural {
     }
   }
 
+  /** Keep original module carriers outside generate capture. Prove their whole
+    * native dependency cone independent of captured declarations/assignments;
+    * names are used only after the identity proof to locate emitted statements.
+    */
+  private def uncapturedModuleCarriers(component: Component,
+      blocks: Vector[ParameterizedStructuralBlock]): Set[String] = {
+    val captured = new IdentityHashMap[Expression, java.lang.Boolean]()
+    blocks.foreach { block =>
+      (block.declarations ++ block.assignments.map(_.finalTarget) ++
+        block.scalarOperators.map(_.result) ++
+        block.vecIndices.flatMap(_.result.flatten) ++
+        block.slices.map(_.result)).foreach(v => captured.put(v, java.lang.Boolean.TRUE))
+    }
+    val live = new IdentityHashMap[Statement, java.lang.Boolean]()
+    component.dslBody.walkStatements(s => live.put(s, java.lang.Boolean.TRUE))
+    val relocatedState = new IdentityHashMap[Expression, java.lang.Boolean]()
+    TypedLoopRegisterStorage.validateInventory(component, ParameterizedStructure.regionsOf(component))
+    blocks.foreach { block => block.vecIndices.flatMap(_.registerStorage).foreach { template =>
+      TypedLoopRegisterStorage.validate(template, block, live)
+      template.lanes.foreach(lane => relocatedState.put(lane.value, java.lang.Boolean.TRUE))
+    }}
+    val checking = new IdentityHashMap[Expression, java.lang.Boolean]()
+    val memo = new IdentityHashMap[Expression, java.lang.Boolean]()
+    def independent(value: Expression): Boolean = {
+      if (value != null && relocatedState.containsKey(value)) return true
+      if (value == null || captured.containsKey(value)) return false
+      if (memo.containsKey(value)) return memo.get(value).booleanValue
+      if (checking.containsKey(value)) return false
+      checking.put(value, java.lang.Boolean.TRUE)
+      val answer: Boolean = value match {
+        case data: BaseType if data.isOutput && (data.component.parent eq component) &&
+            !blocks.exists(_.children.exists(_ eq data.component)) => true
+        case data: BaseType if data.isInput && (data.component.parent eq component) &&
+            !blocks.exists(_.children.exists(_ eq data.component)) =>
+          var ok: Boolean = data.head != null
+          data.foreachStatements {
+            case a: DataAssignmentStatement =>
+              ok = ok && (a.parentScope eq component.dslBody) && independent(a.source)
+            case _ => ok = false
+          }
+          ok
+        case data: BaseType =>
+          (data.component eq component) && (data.parentScope eq component.dslBody) &&
+            (data.isInput || data.isReg || {
+              var ok: Boolean = true
+              data.foreachStatements {
+                case a: DataAssignmentStatement =>
+                  ok = ok && independent(a.source)
+                  var scope = a.parentScope
+                  while (ok && scope != null && (scope ne component.dslBody)) {
+                    if (scope.parentStatement != null)
+                      scope.parentStatement.foreachExpression(e => ok = ok && independent(e))
+                    scope = if (scope.parentStatement == null) null else scope.parentStatement.parentScope
+                  }
+                case _ => ok = false
+              }
+              ok && data.head != null
+            })
+        case _ =>
+          var ok: Boolean = true
+          value.foreachExpression(e => ok = ok && independent(e))
+          ok
+      }
+      checking.remove(value); memo.put(value, java.lang.Boolean.valueOf(answer)); answer
+    }
+    val result = mutable.LinkedHashSet.empty[String]
+    component.dslBody.walkStatements {
+      case value: BaseType if !captured.containsKey(value) && independent(value) => Option(value.getName()).filter(_.nonEmpty).foreach(result += _)
+      case _ =>
+    }
+    result.toSet
+  }
+
   private def planBlock(
       component: Component,
       block: ParameterizedStructuralBlock,
@@ -931,7 +1006,8 @@ private[internals] object ParameterizedVerilogStructural {
       ],
       uniquelyOwnedAssignmentTargets: Set[String],
       continuousResolution: ContinuousAssignmentResolution,
-      canonicalOf: Component => Component
+      canonicalOf: Component => Component,
+      retainedModuleCarriers: Set[String] = Set.empty
   ): BlockPlan = {
     val ranges = ArrayBuffer.empty[LineRange]
     val trackedInternalNames = mutable.LinkedHashSet.empty[String]
@@ -1170,7 +1246,9 @@ private[internals] object ParameterizedVerilogStructural {
         if (
           !ranges.exists(_.indices.contains(index)) &&
           !retainedModuleMemoryDeclarationLines(index) &&
-          !promotedScalarLines(index)
+          !promotedScalarLines(index) &&
+          !standaloneDeclarationName(line).exists(retainedModuleCarriers) &&
+          !DirectContinuousAssignment.findFirstMatchIn(line.trim).exists(m => retainedModuleCarriers(m.group(1)))
         ) {
           val trimmed = line.trim
           val declaration = isDeclarationLine(trimmed)

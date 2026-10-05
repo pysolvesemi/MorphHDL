@@ -164,7 +164,7 @@ class ComponentEmitterVerilog(
         s match {
           case s: MemReadSync  =>
             val name = component.localNamingScope.allocateName(portName)
-            declarations ++= emitExpressionWrap(s, name, "reg")
+            declarations ++= emitExpressionWrap(s, name, "reg", this)
             wrappedExpressionToName(s) = name
           case s: MemReadAsync =>
             val name = component.localNamingScope.allocateName(portName)
@@ -1350,7 +1350,10 @@ class ComponentEmitterVerilog(
       }
       mem.addTag(MemSymbolesTag(mappings))
     }else{
-      declarations ++= s"  ${emitSyntaxAttributes(mem.instanceAttributes(Language.VERILOG))}reg ${emitCommentEarlyAttributes(mem.instanceAttributes(Language.VERILOG))}${emitRange(mem)} ${emitReference(mem,false)} [0:${mem.wordCount - 1}]${emitCommentAttributes(mem.instanceAttributes(Language.VERILOG))};\n"
+      val geometry = verilogBase.emitMemoryGeometry(this, mem)
+      val packedRange = geometry.map(_._1).getOrElse(emitRange(mem))
+      val depthRange = geometry.map(_._2).getOrElse(s"[0:${mem.wordCount - 1}]")
+      declarations ++= s"  ${emitSyntaxAttributes(mem.instanceAttributes(Language.VERILOG))}reg ${emitCommentEarlyAttributes(mem.instanceAttributes(Language.VERILOG))}$packedRange ${emitReference(mem,false)} $depthRange${emitCommentAttributes(mem.instanceAttributes(Language.VERILOG))};\n"
     }
 
     if (mem.initialContent != null) {

@@ -756,3 +756,41 @@ Existing typed-loop, affine-access, mixed-depth sharing, initializer-lineage and
 full-domain bounds rejection tests remain passing. The retained inventory now
 contains 245 suites and 2,594 cases; no existing test was removed. Application
 selection migrations and application-specific simulation were not performed.
+
+### CA-022–CA-024 repair evidence, 5 October 2026
+
+- [x] **CA-022 — finite-loop reads of explicitly typed literal-width Bits.**
+  The finite-index slice recorder accepts authenticated native literal-width
+  provenance for constant loop counts. Symbolic geometry, exact count equality,
+  ownership and full-domain validation remain mandatory.
+- [x] **CA-023 — shared generic memory definitions across different actuals.**
+  Authenticated child-owned memory dimensions and synchronous read-result widths
+  now reach native emission before canonical identity comparison. Exact pulled
+  clock carriers preserve independent child clocks. Concrete, masked and
+  initialized-memory paths retain their existing checks; no emitted-text
+  deduplication or schema bypass is used.
+- [x] **CA-024 — module-scope controls shared with conditional finite loops.**
+  Structural relocation preserves original module carriers after proving their
+  native dependency cones independent of captured iteration-local declarations.
+  Validated relocated register state and uncaptured child port boundaries are
+  handled explicitly. Dominance and register-lineage checks remain enabled.
+
+Compiler repair and local validation are complete; remote qualification remains
+pending. The 291 affected cases pass on Scala 2.12.18 and 2.13.12, including
+focused reruns of two stale genvar-name assertions and one unchanged Gray
+simulation that timed out under concurrent load. No timeout was increased.
+Two new suites add 35 cases covering literal widths 1/3/4, symbolic Bits,
+count/owner negatives, RAM widths 1/10/20/64, literal/derived addresses, reversed
+instances, independent clocks, repeat generation, overrides and memory-semantic
+non-sharing controls. Shared control tests include child port bindings, nested
+conditions, register updates and memory enables. Focused RTL passes Icarus
+scoreboards, strict Verilator lint and Yosys synthesis/checks.
+
+All six original application reproduction modes generate. Same-width,
+mixed-width and symbolic-address RAM modes each publish one child definition.
+The repaired conditional-bank application passes its 12 profile/seed cases under
+Icarus and ordinary Verilator lint. Final regeneration is byte-identical to the
+three generated modules used for those simulations. Application sources and
+benches were read-only; evidence is retained under the local qualification
+checkpoint's `repair-ca022-ca024` directory. No new proprietary-simulator result
+is claimed. The retained regression catalog contains 247 suites and 2,629 cases.
