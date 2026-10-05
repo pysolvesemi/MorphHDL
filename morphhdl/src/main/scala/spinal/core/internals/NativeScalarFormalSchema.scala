@@ -29,17 +29,25 @@ private[internals] object NativeScalarFormalSchema {
     // retained geometry rather than a packed port. Authenticate the exact shape
     // expression; never infer this classification from a native lane count.
     val vecDepths = ParameterizedVec.retainedVectorsOf(component).flatMap { vector =>
-      ParameterizedVec.shapeOf(vector).toVector.map(_.depth)
+      ParameterizedVec.shapeOf(vector).toVector.map(shape => vector -> shape.depth)
     }
     val declarations = ExternalFormalParameterRegistry.completeTypedBindingsOf(component)
     // Admit direct declaration formals here, like native packed-port formals.
-    // Derived branch-owned Vec dimensions retain their existing owner-domain
-    // path; inspecting them here would reopen their completed branch scope.
-    val depthFormals = vecDepths.filter(expression => expression.parameters.size == 1 &&
+    // Derived dimensions retain their existing owner-domain path; direct
+    // formals may also be narrowed by a completed structural branch.
+    val depthFormals = vecDepths.filter { case (_, expression) => expression.parameters.size == 1 &&
       declarations.exists(entry => (entry.binding.formal eq expression.parameters.head) &&
-        expression.verilog == entry.binding.formal.name)).flatMap { expression =>
-      ElaborationWidthAuthority.requireAuthoritative(expression, "native Vec depth formal",
-        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-WIDTH-AUTHORITY-MISSING")
+        expression.verilog == entry.binding.formal.name) }.flatMap { case (vector, expression) =>
+      // Publication runs after structural capture has ended. Authenticate the
+      // depth at every exact native leaf owner, including inactive branches,
+      // rather than reopening its construction scope as a module-wide domain.
+      val leaves = (vector: Data).flatten
+      if (leaves.isEmpty)
+        ParameterizedVerilogException.fail("SPINAL-PARAMETERIZED-VERILOG-FORMAL-WIDTH-AUTHORITY-MISSING",
+          "native Vec depth formal has no exact native declaration owner", expression.sourceLocation)
+      leaves.foreach { leaf =>
+        NativePublicationWidth.validate(expression, component, leaf, "native Vec depth formal")
+      }
       expression.parameters
     }
     val values = ExternalParameterizedValueRegistry.valuesOf(component).flatMap(_._2.expression.parameters) ++

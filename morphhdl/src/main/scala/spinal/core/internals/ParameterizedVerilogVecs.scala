@@ -1598,11 +1598,23 @@ private[internals] object ParameterizedVerilogVecs {
     val owned = NativeWidthFormalSchema.bindings(component) ++ NativeScalarFormalSchema.bindings(component)
     def definitionOwned(expression: ElaborationIntegerExpression): Boolean =
       expression.parameters.nonEmpty && expression.parameters.forall(p => owned.exists(_.binding.formal eq p))
-    def schema(expression: ElaborationIntegerExpression): ElaborationIntegerExpression = {
+    def schema(expression: ElaborationIntegerExpression,
+        vector: Option[Vec[_]] = None): ElaborationIntegerExpression = {
       val normalized = ExternalFormalParameterRegistry.normalizedDefinitionSchema(expression)
       if (!definitionOwned(expression)) normalized else {
-        ElaborationWidthAuthority.requireAuthoritative(expression, "native Vec definition geometry",
-          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-WIDTH-AUTHORITY-MISSING")
+        vector match {
+          case Some(value) =>
+            val leaves = (value: Data).flatten
+            if (leaves.isEmpty)
+              ParameterizedVerilogException.fail("SPINAL-PARAMETERIZED-VERILOG-FORMAL-WIDTH-AUTHORITY-MISSING",
+                "native Vec definition geometry has no exact native declaration owner", expression.sourceLocation)
+            leaves.foreach { leaf =>
+              NativePublicationWidth.validate(expression, component, leaf, "native Vec definition geometry")
+            }
+          case None =>
+            ElaborationWidthAuthority.requireAuthoritative(expression, "native Vec definition geometry",
+              "SPINAL-PARAMETERIZED-VERILOG-FORMAL-WIDTH-AUTHORITY-MISSING")
+        }
         // Schema-only representative: instance witnesses are not part of an
         // authenticated formal's definition. The symbolic function, complete
         // domain, native layout and declaration ownership still participate.
@@ -1621,13 +1633,13 @@ private[internals] object ParameterizedVerilogVecs {
       }
       val name = requiredVecName(vector, shape.sourceLocation)
       val leaves = shape.elementLeaves.map { leaf =>
-        val width = schema(leaf.width)
+        val width = schema(leaf.width, Some(vector))
         s"${leaf.path}:${leafTypeSchema(leaf)}:${expressionSchema(width)}"
       }
-      val depth = schema(shape.depth)
+      val depth = schema(shape.depth, Some(vector))
       val recursivePacking = if (shape.elementLayout.hasNestedVectors)
         ":" + shape.elementLayout.schemaUsing(value => expressionSchema(
-          schema(value)))
+          schema(value, Some(vector))))
         else ""
       val named = namedFieldLayout(vector, shape, name)
       val recursive = named.orElse {
@@ -1638,7 +1650,7 @@ private[internals] object ParameterizedVerilogVecs {
       val layout = recursive.map { value =>
         value.fields.map { field =>
           val expressions = (shape.depth +: field.retained.geometryExpressions).map { expression =>
-            expressionSchema(schema(expression))
+            expressionSchema(schema(expression, Some(vector)))
           }
           val axes = field.retained.dimensions.map(axis => s"${witness(axis.depth, axis.witnessDepth)}:${axis.carrierCapacity}")
           val encodedPath = field.path.map(segment => s"${segment.length}:$segment").mkString("/")
