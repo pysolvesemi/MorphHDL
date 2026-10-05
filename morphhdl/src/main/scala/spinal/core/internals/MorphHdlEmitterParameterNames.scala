@@ -98,9 +98,11 @@ final class MorphHdlEmitterParameterNames extends PhaseMisc {
   }
   private[internals] def wrapperRange(printer: ComponentEmitterVerilog, expression: Expression): Option[String] = expression match {
     case value: spinal.core.BitVector => NativeWidthFormalSchema.publicationRange(printer.component, value)
-    // These native unsigned wrappers are outside signedness publication's
-    // intentional scope. Reuse the ordinary width authority, not a witness.
-    case _: Operator.UInt.Add | _: Operator.UInt.Sub | _: Operator.UInt.And | _: Operator.UInt.Or | _: Operator.UInt.Xor =>
+    // Unsigned arithmetic and native Vec mux wrappers use the ordinary width
+    // authority before native module identity is compared. Signed wrappers
+    // remain owned by the declaration policy. Never use a witness width here.
+    case _: Operator.UInt.Add | _: Operator.UInt.Sub | _: Operator.UInt.And | _: Operator.UInt.Or | _: Operator.UInt.Xor |
+        _: MultiplexerWidthable =>
       require(context != null, "wrapper width publication precedes name preparation")
       val resolver = wrapperRanges.synchronized {
         var value = wrapperRanges.get(printer.component)

@@ -695,3 +695,38 @@ were removed. Container-only FIFO formal proofs were not run locally. These are
 local repair results; fresh exact-head targeted and full qualification remain
 separate gates. The application repository remains unchanged, and no fresh
 product application retest is claimed.
+
+### CA-020 repair evidence, 5 October 2026
+
+- [x] **CA-020 — shared parameter-sized register Vec children with different
+  depth actuals.** Compiler repair and local validation are complete. Exact-head
+  remote qualification and fresh product application retesting are separate gates.
+
+The unchanged independent probe reproduces the reported failure on `cff246cd3`:
+`fixed` and `same` generate; `array`, `explicit` and `dynamic` reject canonical
+schema matching. After repair, all five unchanged modes generate exactly one
+child definition. Direct authenticated Vec-depth formals now participate in the
+definition/actual separation already used for scalar formals. Their definition
+default is normalized while each instance retains its exact actual binding.
+Derived branch-owned dimensions keep their existing domain validation path.
+Native mux wrappers also publish their authenticated symbolic width before native
+module identity comparison, so mixed-width hardware-index reads share correctly.
+Neither fix changes canonical schema checks, merges by class name, specializes
+literal-depth instances or patches generated module names.
+
+`StageDepthFormalSharingTests` adds 74 cases: 64 positive profiles combine
+literal/symbolic actuals, reversed instance order, direct/wrapped children,
+static/hardware-index selection, combined/per-component publication and
+packed/unpacked layouts. Each asserts one shared generic child definition,
+independent depth bindings and byte-identical repeat generation. Independent
+clock scoreboards exercise widths 1/5/64, depths 2/3/4, non-default overrides,
+enable stalls and asynchronous reset while a clock is stopped. Every profile
+passes Icarus simulation and Yosys synthesis/checks; per-component profiles pass
+strict Verilator lint. Ten negative profiles retain separate definitions for
+different reset values, polarity, attributes, logic or domains, with both selectors.
+
+All 252 affected tests across 13 suites pass on Scala 2.13. On Scala 2.12 the
+178 existing cases passed in the affected run and all 74 new cases passed in the
+final rerun. Existing FIFO CDC, scalar forwarding, register-initializer, Vec
+selection, library sharing and ownership-negative coverage remains passing.
+The display-controller repository was used only as a read-only reproducer source.

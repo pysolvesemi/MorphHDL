@@ -2,7 +2,7 @@ package spinal.core.internals
 
 import spinal.core._
 
-/** Definition projection for authenticated scalar values and selection predicates.
+/** Definition projection for authenticated scalar values, selectors and Vec depths.
   * Instance witness records and their exact roots remain untouched.
   */
 private[internals] object NativeScalarFormalSchema {
@@ -25,13 +25,31 @@ private[internals] object NativeScalarFormalSchema {
     loopParameters(ParameterizedStructure.regionsOf(component))
     geometry ++= ParameterizedProcess.parametersOf(component)
     geometry ++= ParameterizedBlackBoxGenericRegistry.parametersOf(component)
+    // A Vec depth is a definition-owned scalar formal even though it controls
+    // retained geometry rather than a packed port. Authenticate the exact shape
+    // expression; never infer this classification from a native lane count.
+    val vecDepths = ParameterizedVec.retainedVectorsOf(component).flatMap { vector =>
+      ParameterizedVec.shapeOf(vector).toVector.map(_.depth)
+    }
+    val declarations = ExternalFormalParameterRegistry.completeTypedBindingsOf(component)
+    // Admit direct declaration formals here, like native packed-port formals.
+    // Derived branch-owned Vec dimensions retain their existing owner-domain
+    // path; inspecting them here would reopen their completed branch scope.
+    val depthFormals = vecDepths.filter(expression => expression.parameters.size == 1 &&
+      declarations.exists(entry => (entry.binding.formal eq expression.parameters.head) &&
+        expression.verilog == entry.binding.formal.name)).flatMap { expression =>
+      ElaborationWidthAuthority.requireAuthoritative(expression, "native Vec depth formal",
+        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-WIDTH-AUTHORITY-MISSING")
+      expression.parameters
+    }
     val values = ExternalParameterizedValueRegistry.valuesOf(component).flatMap(_._2.expression.parameters) ++
       TypedVecStaticSelect.entries(component).flatMap(_.index.expression.parameters) ++
       ParameterizedStructure.parametersOf(component) ++
       MorphHdlExternalParameterizedVerilog.forwardedParameters(component)
-    ExternalFormalParameterRegistry.completeTypedBindingsOf(component).filter { entry =>
+    declarations.filter { entry =>
       val formal = entry.binding.formal
-      values.exists(_ eq formal) && !geometry.exists(_.name == formal.name)
+      (values.exists(_ eq formal) && !geometry.exists(_.name == formal.name)) ||
+        depthFormals.exists(_ eq formal)
     }
   }
 
