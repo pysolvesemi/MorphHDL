@@ -794,3 +794,48 @@ three generated modules used for those simulations. Application sources and
 benches were read-only; evidence is retained under the local qualification
 checkpoint's `repair-ca022-ca024` directory. No new proprietary-simulator result
 is claimed. The retained regression catalog contains 247 suites and 2,629 cases.
+
+### Qualification repairs after CA-022–CA-024, 6 October 2026
+
+The first targeted run exposed a branch-domain regression in native memory
+identity publication: StreamFifo's depth-two-or-greater branch was checked at
+module scope against the wider depth-one-or-greater domain. Restricted branch
+projections now retain their existing scope-aware rewrite; module-owned,
+full-domain memory formals still use the shared-definition path. All 53 cases in
+`ParameterizedStreamFifoDepthTests`, `FiniteBitsAndRamSharingTests` and
+`NativeSymbolicMemoryTests` pass on each supported Scala version, including the
+two failing FIFO cases and the mixed-width memory-sharing regressions.
+
+Historical source-audit qualification also needs a runtime repair. Positive
+review and mutation controls execute sequentially on each signedness runner.
+Private audit worktrees use memory-backed scratch space, and repeated exact
+blob and immutable single-path tree reads use Git's batch protocol. The narrow
+tree formatter is compared with Git for file modes, directories, symlinks,
+gitlinks and missing paths; unsupported forms use the original command.
+Git still supplies every object; no source,
+object content or audit result is substituted from a result cache. The wrapper
+records the current-authenticated transport hashes separately from the unchanged
+historical checker hash and copies that transport into private scratch before
+launch. All historical deadlines remain unchanged, including the 300-second
+recursive check and 180-second negative controls.
+
+The register-bridge negative harness checks a mutated live checkout before
+replaying immutable history. Its full positive audit and all original mutation
+fixtures remain mandatory. The current early checker is authenticated and
+recorded independently; historical receipts never qualify current RTL. Exact
+workflow/fixture preservation controls cover these changes. Fresh remote
+qualification is required for the repaired candidate before full CI can start.
+
+Local timing remains a limitation: the isolated historical certificate completes
+successfully in about 323 seconds on the development laptop, but its enclosing
+300-second gate still times out, including with memory-backed Git metadata.
+The transport and execution changes are a repair candidate, not a claimed timing
+closure. Targeted qualification on the actual CI runner must establish that the
+unchanged deadline is met before full CI is permitted. No old-head success is
+accepted for this candidate.
+
+The 18 transport controls, 15 wrapper controls and 29 budget/fixture-preservation
+controls pass. A focused local filter runs all 22 original bridge mutations and
+requires their precise early rejection; all pass in about 43 seconds total.
+That filter omits the full positive audit and does not claim a full harness pass.
+The unchanged full positive remains mandatory in targeted CI.

@@ -2002,10 +2002,12 @@ def verify(root: Path) -> dict:
     expected = dict(source_tree)
     expected[HELPER] = ("100644", blob(sealed_helper(root, value)))
     expected[CONTRACT] = ("100644", blob(regular(root, CONTRACT)))
-    verify_seal_history(root, value, head, expected)
+    # Reject changed live source before recursively replaying immutable history.
+    # A successful checkout still runs every original history/certificate check.
     permitted = completion_tree(root, value, committed, expected)
     require(committed == permitted, "current tree differs from immutable source plus exact seal")
     verify_checkout(root, committed)
+    verify_seal_history(root, value, head, expected)
     require(revision(root, "HEAD") == head, "HEAD changed during verification")
     return value
 

@@ -64,6 +64,10 @@ private[internals] object ParameterizedVerilogMemories {
     ParameterizedMemory.metadataOf(memory).filter { metadata =>
       (memory.component eq component) && memory.initialContent == null &&
         memory.getMemSymbolCount() == 1 &&
+        // Branch projections are authenticated in their retained scope during
+        // rewrite, not by the module-level native identity publication hook.
+        Seq(metadata.elementWidth, metadata.depth).forall(e =>
+          e.projectionProvenance.forall(p => e.exactDomain.exists(_.universe == p.admitted))) &&
         (metadata.elementWidth.parameters ++ metadata.depth.parameters).nonEmpty &&
         (metadata.elementWidth.parameters ++ metadata.depth.parameters).forall(p => owned.exists(_ eq p))
     }.map { metadata =>

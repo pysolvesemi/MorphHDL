@@ -58,6 +58,7 @@ jobs:
     timeout-minutes: 360
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
+      options: --shm-size=2g
     outputs:
       head: ${{ steps.identity.outputs.head }}
       tree: ${{ steps.identity.outputs.tree }}

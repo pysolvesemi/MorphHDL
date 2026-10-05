@@ -28,6 +28,7 @@ jobs:
         scala: ['2.12.18', '2.13.12']
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
+      options: --shm-size=2g
     env:
       MORPHDL_RUN_TYPED_VEC_FORMAL_EQUIVALENCE: '1'
       MORPHDL_TYPED_VEC_FORMAL_WORKSPACE: /tmp/increment-60e-native-vec-formal
@@ -48,14 +49,10 @@ jobs:
           mkdir -p "$output"
           git rev-parse HEAD > "$output/head.txt"
           git archive HEAD | gzip > "$output/source.tar.gz"
-          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py &
-          review_pid=$!
-          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test &
-          controls_pid=$!
-          audit_status=0
-          wait "$review_pid" || audit_status=1
-          wait "$controls_pid" || audit_status=1
-          test "$audit_status" -eq 0
+          # Immutable recursive audits share this runner's CPU budget. Execute
+          # both unchanged commands sequentially; keep every nested deadline.
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test
           base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)
           git worktree add --detach "$predecessor" "$base"
           trap 'git worktree remove --force "$predecessor"' EXIT

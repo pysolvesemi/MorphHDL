@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Fail-closed controls for the current/historical source audit boundary."""
+import hashlib
+import shutil
 import contextlib
 import importlib.util
 import io
@@ -18,6 +20,18 @@ SPEC.loader.exec_module(A)
 
 
 class IntegratedAuditTests(unittest.TestCase):
+    def test_scratch_rejects_disk_and_insufficient_memory(self):
+        from types import SimpleNamespace
+        good = "1 0 0:1 / /dev/shm rw - tmpfs shm rw\n"
+        for mount, free in ((good.replace("tmpfs", "ext4"), 2**31), (good, 1536*1024*1024-1)):
+            with patch.object(A.Path, "read_text", return_value=mount), \
+                    patch.object(A.shutil, "disk_usage", return_value=SimpleNamespace(free=free)), \
+                    self.assertRaisesRegex(RuntimeError, "audit scratch"):
+                A.scratch_base()
+        with patch.object(A.Path, "read_text", return_value=good), \
+                patch.object(A.shutil, "disk_usage", return_value=SimpleNamespace(free=2**31)):
+            self.assertEqual(A.scratch_base(), Path("/dev/shm"))
+
     def test_historical_anchor_is_the_actual_two_file_seal(self):
         contract = json.loads(A.git(A.ROOT, "show", A.PREDECESSOR +
             ":morphhdl/contracts/increment-59i-production-successor.json"))
@@ -50,12 +64,20 @@ class IntegratedAuditTests(unittest.TestCase):
             with self.subTest(workflow=name):
                 path = ".github/workflows/" + name + ".yml"
                 source = (A.ROOT / path).read_text()
+                scratch_options = "      options: --shm-size=2g\n"
+                self.assertEqual(source.count(scratch_options),
+                    0 if name == "morphhdl-native-source-guard" else
+                    2 if name == "increment-59i-combined-closure" else 1)
+                source = source.replace(scratch_options, "")
                 self.assertEqual(source.count("run-parameterized-inherited-audit.py "), count)
                 if name.startswith(('increment-60c-', 'increment-60d-', 'increment-60e-')):
                     parallel = '          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py &\n          review_pid=$!\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test &\n          controls_pid=$!\n          audit_status=0\n          wait "$review_pid" || audit_status=1\n          wait "$controls_pid" || audit_status=1\n          test "$audit_status" -eq 0\n'
                     serial = '          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test\n'
-                    self.assertEqual(source.count(parallel), 1)
-                    source = source.replace(parallel, serial)
+                    comment = ("          # Immutable recursive audits share this runner's CPU budget. Execute\n"
+                               "          # both unchanged commands sequentially; keep every nested deadline.\n")
+                    self.assertEqual(source.count(comment + serial), 1)
+                    self.assertNotIn(parallel, source)
+                    source = source.replace(comment, "", 1)
                 if name == 'increment-59c-named-field-vectors':
                     documentation = '      - name: Qualify generic documentation region markers on this Scala lane\n        shell: bash\n        run: |\n          set -euo pipefail\n          sbt -batch "++${{ matrix.scala }}" idslplugin/packageBin \\\n            \'idslplugin/testOnly spinal.idslplugin.DocumentationPluginTests\' \\\n            \'morph/testOnly morphhdl.RtlDocumentationTests\'\n          python3 - <<\'PYDOC\'\n          from pathlib import Path\n          import xml.etree.ElementTree as ET\n          for project, suite, count in [(\'idslplugin\', \'spinal.idslplugin.DocumentationPluginTests\', 7),\n                                        (\'morphhdl\', \'morphhdl.RtlDocumentationTests\', 29)]:\n              report = ET.parse(Path(project) / \'target/test-reports\' / (\'TEST-\' + suite + \'.xml\')).getroot()\n              assert int(report.get(\'tests\')) == count, report.attrib\n              assert all(int(report.get(key)) == 0 for key in (\'failures\', \'errors\', \'skipped\')), report.attrib\n          PYDOC\n'
                     self.assertEqual(source.count(documentation), 1)
@@ -70,6 +92,12 @@ class IntegratedAuditTests(unittest.TestCase):
                     restored = restored.replace(line, "", 1)
                 if name == "morphhdl-native-source-guard":
                     line = "          python3 morphhdl/scripts/test-parameterized-inherited-audit.py\n"
+                    self.assertEqual(restored.count(line), 1)
+                    restored = restored.replace(line, "", 1)
+                    line = "          python3 morphhdl/scripts/test-increment-59i-inherited-audit-budgets.py\n"
+                    self.assertEqual(restored.count(line), 1)
+                    restored = restored.replace(line, "", 1)
+                    line = "          python3 morphhdl/scripts/test-audit-git-batch.py\n"
                     self.assertEqual(restored.count(line), 1)
                     restored = restored.replace(line, "", 1)
                 if name == "increment-59i-combined-closure":
@@ -156,7 +184,10 @@ class IntegratedAuditTests(unittest.TestCase):
             path = root / script
             path.parent.mkdir(parents=True)
             path.write_text(body)
-            A.git(root, "add", script)
+            runtime = root / "morphhdl/scripts/audit-runtime"
+            shutil.copytree(SOURCE.with_name("audit-runtime"), runtime,
+                            ignore=shutil.ignore_patterns("__pycache__"))
+            A.git(root, "add", script, str(runtime))
             A.git(root, "commit", "-qm", "immutable synthetic audit")
             before = A.identity(root)
             with patch.object(A, "PREDECESSOR", before["head"]), \
@@ -175,8 +206,39 @@ class IntegratedAuditTests(unittest.TestCase):
             self.assertEqual(receipt["historical_source"], before["head"])
             self.assertEqual(receipt["status"], "fail" if expected_exit else "pass")
             self.assertFalse(receipt["rtl_qualification"])
+            self.assertEqual(receipt["git_transport"]["source"], before)
+            self.assertEqual(receipt["git_transport"]["sha256"], {
+                name: hashlib.sha256((runtime / name).read_bytes()).hexdigest()
+                for name in A.RUNTIME_FILES})
             self.assertEqual(A.identity(root), before)
             self.assertEqual(A.git(root, "worktree", "list", "--porcelain").count(b"worktree "), 1)
+
+    def test_runtime_copy_is_fixed_and_rejects_missing_or_linked_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "source"
+            source = root / "morphhdl/scripts/audit-runtime"
+            source.mkdir(parents=True)
+            for name in A.RUNTIME_FILES:
+                (source/name).write_text("original " + name)
+            first = base / "first"
+            first.mkdir()
+            destination, hashes = A.prepare_runtime(root, first)
+            (source/A.RUNTIME_FILES[0]).write_text("changed")
+            self.assertEqual((destination/A.RUNTIME_FILES[0]).read_text(),
+                             "original " + A.RUNTIME_FILES[0])
+            for mode in ("missing", "linked"):
+                path = source/A.RUNTIME_FILES[0]
+                path.unlink(missing_ok=True)
+                if mode == "linked":
+                    path.symlink_to(destination/A.RUNTIME_FILES[0])
+                scratch = base/mode
+                scratch.mkdir()
+                with self.assertRaisesRegex(RuntimeError, "missing or linked audit runtime"):
+                    A.prepare_runtime(root, scratch)
+
+    def test_runtime_is_installed_in_historical_python(self):
+        self.exercise("import subprocess, audit_git_batch\nassert subprocess.run is audit_git_batch.run\n", 0)
 
     def test_historical_receipt_is_separate_from_current_identity(self):
         self.exercise("print('historical source control passed')\n", 0)
@@ -187,6 +249,8 @@ root = pathlib.Path.cwd()
 def git(*args):
     return subprocess.check_output(['git', *args], cwd=root, stderr=subprocess.PIPE).decode().strip()
 assert pathlib.Path(git('rev-parse', '--git-common-dir')).resolve() == root / '.git'
+assert pathlib.Path(tempfile.gettempdir()) == root.parent
+assert str(root).startswith('/dev/shm/')
 def nested(index):
     with tempfile.TemporaryDirectory() as directory:
         checkout = pathlib.Path(directory) / 'source'

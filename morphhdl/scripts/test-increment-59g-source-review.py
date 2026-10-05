@@ -18,6 +18,13 @@ from pathlib import Path
 spec = importlib.util.spec_from_file_location('closure_scope', sys.argv[2])
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
+if len(sys.argv) == 4:
+    # The authenticated current checker rejects a changed checkout before its
+    # immutable history replay. Never replace the full positive source audit.
+    early_spec = importlib.util.spec_from_file_location('successor_preflight', sys.argv[3])
+    early = importlib.util.module_from_spec(early_spec)
+    early_spec.loader.exec_module(early)
+    early.verify(Path(sys.argv[1]))
 module.source_scope(Path(sys.argv[1]))
 """
 
@@ -33,7 +40,10 @@ def git(root: Path, *args: str) -> str:
 
 def check(root: Path, label: str, expected: str | None = None,
           timeout_seconds: int = 180) -> dict:
-    result = subprocess.run([sys.executable, "-c", DRIVER, str(root), str(ROOT / CHECKER)],
+    invocation = [sys.executable, "-c", DRIVER, str(root), str(ROOT / CHECKER)]
+    if expected is not None and (root / "morphhdl/contracts/increment-59i-production-successor.json").is_file():
+        invocation.append(str(Path(__file__).with_name("check-increment-59i-production-successor.py")))
+    result = subprocess.run(invocation,
                             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             timeout=timeout_seconds, check=False)
     if expected is None:
@@ -222,6 +232,15 @@ def main() -> None:
                     else:
                         git(fixture, "-c", "user.name=59g source fixture", "-c", "user.email=source@example.invalid",
                             "commit", "--no-verify", "-qm", "isolated 59g negative source control")
+                if (ROOT / "morphhdl/contracts/increment-59i-production-successor.json").is_file():
+                    if mutation == "staged":
+                        expected = "59i production successor: HEAD/index identity differs"
+                    elif mutation == "untracked":
+                        expected = "59i production successor: staged, unstaged or untracked content: " + repr([path])
+                    elif mutation == "symlink":
+                        expected = "59i production successor: unsupported immutable mode: " + path
+                    else:
+                        expected = "59i production successor: current tree differs from immutable source plus exact seal"
                 records.append(check(fixture, label, expected))
             finally:
                 git(ROOT, "worktree", "remove", "--force", str(fixture))

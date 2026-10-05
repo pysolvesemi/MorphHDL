@@ -40,6 +40,8 @@ jobs:
           python3 morphhdl/scripts/check-parameterized-integration-source.py
           python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test
           python3 morphhdl/scripts/test-parameterized-inherited-audit.py
+          python3 morphhdl/scripts/test-increment-59i-inherited-audit-budgets.py
+          python3 morphhdl/scripts/test-audit-git-batch.py
           test -x morphhdl/scripts/check-native-streamfifocc-boundary.sh
           test -x morphhdl/scripts/check-native-streamfifocc-width-formal-boundary.sh
           syntax_cache="$(mktemp -d "$RUNNER_TEMP/morphhdl-syntax-cache.XXXXXX")"

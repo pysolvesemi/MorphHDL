@@ -221,8 +221,52 @@ def restore_reviewed_59h_checkout_identity(tree: ast.Module) -> ast.Module:
     return tree
 
 
+def restore_reviewed_59g_preflight(text: str) -> str:
+    """Reverse only the reviewed early-rejection orchestration, not a mutation,
+    result check, budget or original audit command. Keep the old AST digest.
+    """
+    replacements = (
+        (
+            ('if len(sys.argv) == 4:\n'
+             '    # The authenticated current checker rejects a changed checkout before its\n'
+             '    # immutable history replay. Never replace the full positive source audit.\n'
+             "    early_spec = importlib.util.spec_from_file_location('successor_preflight', sys.argv[3])\n"
+             '    early = importlib.util.module_from_spec(early_spec)\n'
+             '    early_spec.loader.exec_module(early)\n'
+             '    early.verify(Path(sys.argv[1]))\n'),
+            (''),
+        ),
+        (
+            ('    invocation = [sys.executable, "-c", DRIVER, str(root), str(ROOT / CHECKER)]\n'
+             '    if expected is not None and (root / "morphhdl/contracts/increment-59i-production-successor.json").is_file():\n'
+             '        invocation.append(str(Path(__file__).with_name("check-increment-59i-production-successor.py")))\n'
+             '    result = subprocess.run(invocation,\n'),
+            ('    result = subprocess.run([sys.executable, "-c", DRIVER, str(root), str(ROOT / CHECKER)],\n'),
+        ),
+        (
+            ('                if (ROOT / "morphhdl/contracts/increment-59i-production-successor.json").is_file():\n'
+             '                    if mutation == "staged":\n'
+             '                        expected = "59i production successor: HEAD/index identity differs"\n'
+             '                    elif mutation == "untracked":\n'
+             '                        expected = "59i production successor: staged, unstaged or untracked content: " + repr([path])\n'
+             '                    elif mutation == "symlink":\n'
+             '                        expected = "59i production successor: unsupported immutable mode: " + path\n'
+             '                    else:\n'
+             '                        expected = "59i production successor: current tree differs from immutable source plus exact seal"\n'),
+            (''),
+        ),
+    )
+    for repaired, original in replacements:
+        if text.count(repaired) != 1:
+            raise AssertionError("59g early-rejection orchestration changed")
+        text = text.replace(repaired, original, 1)
+    return text
+
+
 def historical_ast(filename: str, text: str) -> ast.Module:
     default = next(row[2] for row in CASES if row[0] == filename)
+    if filename == "test-increment-59g-source-review.py":
+        text = restore_reviewed_59g_preflight(text)
     tree = ast.parse(text)
     if filename == "test-increment-59h-inherited-source-scope.py":
         reviewed_helper = ast.parse('\ndef checkout_identity_rejection(root: Path, expected: str | None) -> str | None:\n    """Schema 22 rejects ordinary dirt before the unchanged per-blob scan."""\n    prefix = "59i production successor: HEAD/index/worktree identity differs: "\n    contract = root / "morphhdl/contracts/increment-59i-production-successor.json"\n    if expected is not None and expected.startswith(prefix) and contract.is_file():\n        if json.loads(contract.read_text())["schema_version"] == 22:\n            relative = expected[len(prefix):]\n            return "59i production successor: staged, unstaged or untracked content: " + repr([relative])\n    return expected\n\n').body[0]
@@ -619,6 +663,16 @@ class InheritedAuditBudgetTests(unittest.TestCase):
             except AssertionError:
                 continue
             self.assertNotEqual(hashlib.sha256(dump(value).encode()).hexdigest(), CASES[-1][-1])
+
+    def test_59g_preflight_cannot_hide_or_replace_original_checks(self):
+        name = "test-increment-59g-source-review.py"
+        text = (SCRIPTS / name).read_text()
+        for before, after in (("early.verify(Path(sys.argv[1]))", "pass"),
+                              ("if expected is not None and", "if expected is None and"),
+                              ("current tree differs from immutable source plus exact seal", "any failure")):
+            self.assertIn(before, text)
+            with self.subTest(mutation=before), self.assertRaisesRegex(AssertionError, "early-rejection orchestration changed"):
+                historical_ast(name, text.replace(before, after, 1))
 
     def test_selector_mutations_are_rejected(self):
         for filename, _, _, _, _ in CASES:

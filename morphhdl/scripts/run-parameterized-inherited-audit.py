@@ -7,7 +7,10 @@ integration seal and native-source review remain separate mandatory gates.
 Only the source-audit commands below can execute in the disposable checkout.
 Explicitly listed, current authenticated control harnesses repair the exact
 schema-22 rejection diagnostic against unchanged historical checkers and fixtures;
-its separate source hash and current identity are retained in the receipt.
+their separate source hashes and current identity are retained in the receipt.
+The 59g control additionally uses the reviewed current successor checker to
+reject mutated live source before history replay; clean positive source still
+runs the unchanged historical full audit.
 """
 from __future__ import annotations
 
@@ -52,9 +55,10 @@ CONTROLS = (
 )
 # This current, integration-authenticated harness preserves every historical
 # case while repairing schema 22's exact first-owning dirty-check diagnostic.
-# Its checkers and all fixtures still come from the unchanged historical tree.
+# Fixtures and full positive audits come from the unchanged historical tree.
+# The 59g early-rejection checker is separately current-authenticated below.
 CURRENT_HARNESSES = frozenset({"test-increment-59h-inherited-source-scope.py",
-    "test-increment-60f-inherited-source-scope.py"})
+    "test-increment-60f-inherited-source-scope.py", "test-increment-59g-source-review.py"})
 HARNESS_DRIVER = """import pathlib, sys, types
 path = pathlib.Path(sys.argv[1])
 module = types.ModuleType('reviewed_historical_control')
@@ -113,6 +117,38 @@ def unchanged(root, before):
     require(authenticate(root) == before, "candidate moved during historical audit")
 
 
+def scratch_base():
+    # Deep immutable replay creates many short-lived full checkouts. Keep that
+    # metadata/read workload off the container overlay filesystem; never cache
+    # or replace a checker result, and keep all existing execution deadlines.
+    base = Path("/dev/shm")
+    mounts = Path("/proc/self/mountinfo").read_text().splitlines()
+    require(any(" - tmpfs " in row and len(row.split()) > 4 and
+                row.split()[4] == str(base) for row in mounts),
+        "audit scratch must be a tmpfs mount at /dev/shm")
+    require(shutil.disk_usage(base).free >= 1536 * 1024 * 1024,
+        "audit scratch needs 1536 MiB free; CI containers require --shm-size=2g")
+    return base
+
+
+RUNTIME_FILES = ("audit_git_batch.py", "sitecustomize.py")
+
+
+def prepare_runtime(root, directory):
+    """Freeze the current-authenticated transport outside historical source."""
+    source = root / "morphhdl/scripts/audit-runtime"
+    destination = Path(directory) / "runtime"
+    destination.mkdir()
+    hashes = {}
+    for name in RUNTIME_FILES:
+        path = source / name
+        require(path.is_file() and not path.is_symlink(), "missing or linked audit runtime: " + name)
+        data = path.read_bytes()
+        (destination / name).write_bytes(data)
+        hashes[name] = hashlib.sha256(data).hexdigest()
+    return destination, hashes
+
+
 def run(root, arguments):
     invocation = command(arguments)
     before = authenticate(root)
@@ -125,8 +161,13 @@ def run(root, arguments):
         "rtl_qualification": False, "started_ns": time.time_ns()}
     result = None
     try:
-        with tempfile.TemporaryDirectory(prefix="morphhdl-integrated-audit-") as directory:
+        with tempfile.TemporaryDirectory(prefix="morphhdl-integrated-audit-", dir=scratch_base()) as directory:
             historical = Path(directory) / "source"
+            runtime, hashes = prepare_runtime(root, directory)
+            record["git_transport"] = {"source": before, "sha256": hashes,
+                "mode": "real git cat-file --batch; no object or audit-result cache"}
+            record["scratch_filesystem"] = "tmpfs"
+            record["scratch_path"] = directory
             # Nested immutable auditors create/remove many worktrees. A linked
             # checkout shares their administrative namespace with concurrent
             # wrappers, racing Git's worktree allocation/removal. Give each
@@ -146,10 +187,22 @@ def run(root, arguments):
                     record["control_harness_source"] = before
                     record["control_harness_sha256"] = hashlib.sha256(harness.read_bytes()).hexdigest()
                     record["control_harness_path"] = arguments[0]
+                    if Path(arguments[0]).name == "test-increment-59g-source-review.py":
+                        checker = root / "morphhdl/scripts/check-increment-59i-production-successor.py"
+                        record["control_checker_path"] = str(checker.relative_to(root))
+                        record["control_checker_sha256"] = hashlib.sha256(checker.read_bytes()).hexdigest()
                     record["scope"] = "reviewed current control harness against immutable historical source; current exact-tree authentication remains mandatory"
                     invocation = [sys.executable, "-B", "-c", HARNESS_DRIVER, str(harness), str(historical)]
                     record["command"] = invocation
-                env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", GITHUB_WORKSPACE=str(historical))
+                env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", GITHUB_WORKSPACE=str(historical),
+                    TMPDIR=directory, MORPHHDL_AUDIT_GIT_BATCH="1",
+                    PYTHONPATH=str(runtime) + (os.pathsep + os.environ["PYTHONPATH"]
+                        if os.environ.get("PYTHONPATH") else ""))
+                # Python normally tolerates a failed sitecustomize import. Prove
+                # installation explicitly before attributing a run to this runtime.
+                subprocess.run([sys.executable, "-B", "-c",
+                    "import subprocess, audit_git_batch; assert subprocess.run is audit_git_batch.run"],
+                    cwd=historical, env=env, check=True, timeout=30)
                 with (evidence / "audit.log").open("w") as log:
                     # The workflow and each unchanged historical caller retain
                     # their own timeouts. This outer bound cannot turn a timeout

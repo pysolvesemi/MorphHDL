@@ -16,6 +16,7 @@ import re
 import sys
 import types
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -165,6 +166,18 @@ class ProductionSuccessorTests(unittest.TestCase):
     def append(self, path):
         file = self.root / path
         file.write_bytes(file.read_bytes() + b"\nunreviewed mutation\n")
+
+    def test_live_tree_rejection_precedes_history_replay(self):
+        self.append(self.added)
+        self.commit(self.root, "unreviewed committed source")
+        with patch.object(self.review, "verify_seal_history", side_effect=AssertionError("history ran")) as replay:
+            self.reject(lambda: self.review.verify(self.root), "current tree differs from immutable source plus exact seal")
+            replay.assert_not_called()
+
+    def test_clean_source_keeps_complete_history_replay(self):
+        with patch.object(self.review, "verify_seal_history", wraps=self.review.verify_seal_history) as replay:
+            self.review.verify(self.root)
+            replay.assert_called_once()
 
     def test_exact_live_source_and_historical_predecessor_both_verify(self):
         self.review.verify(self.root)
