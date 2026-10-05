@@ -38,47 +38,47 @@
     },
     ".github/workflows/increment-59b-publication.yml": {
       "mode": "100644",
-      "sha256": "cc69764a16c3416387a45d7a8e1b1e53e34880517165f67c2fa19b3627ead613"
+      "sha256": "42172fba346d2248293d9145715fa7d39682caacd32d13db6affa2a5c81bfd33"
     },
     ".github/workflows/increment-59c-named-field-vectors.yml": {
       "mode": "100644",
-      "sha256": "b613e094e4f8503a387eba3aef0b7bfc41d72f8f8182097d47d021ab6e42eb37"
+      "sha256": "fd0064d9d1b2a7e7de8463320861efff711ed13252114c991f098ed121d4dc0b"
     },
     ".github/workflows/increment-59d-widening.yml": {
       "mode": "100644",
-      "sha256": "fa58d893f969e187b0adcd26e49785e4d6e5b16919fdb0e016170c0cc0e00c09"
+      "sha256": "34fc93c42b8843eccac9e508d35050662397ed29ec9cd95daa7d51f35658ef96"
     },
     ".github/workflows/increment-59f-callback-graphs.yml": {
       "mode": "100644",
-      "sha256": "95790d53b0e36bf7c6d3683054c17922499ca73c5fb5dd7c6fad4c55e8dfc313"
+      "sha256": "c4f54300f94d4644c9c49bd68c365523137bbf5c74c8bd89628adf5825c4ad67"
     },
     ".github/workflows/increment-59g-register-bridges.yml": {
       "mode": "100644",
-      "sha256": "38b0c79d4c9f70051662750726a81fbac5ae349c235e35e21b03e765457c607e"
+      "sha256": "7550f1c2d03df276cef036743159326c3ecc9446ad58dddc8d9dcba0bbc7e9f2"
     },
     ".github/workflows/increment-59h-nested-owners.yml": {
       "mode": "100644",
-      "sha256": "55dc75d98c992d57188e94173a269fb69bf94eb91e8daff289374a408145bbce"
+      "sha256": "0f2f6e3a1649e2f67070ff0b6020192b0f6cb7de345b419bdb8da6a7f8c8e38c"
     },
     ".github/workflows/increment-59i-combined-closure.yml": {
       "mode": "100644",
-      "sha256": "99b73779edaedfa8de3b50d54a36b91aeccc3b3276345f9ed3d0f473f3524451"
+      "sha256": "0ccb2929aae569550d78abf7c8738fb5ef8f2f3c232222e1a9d423195bac5e60"
     },
     ".github/workflows/increment-60c-signed-declarations.yml": {
       "mode": "100644",
-      "sha256": "846ccf713d9f5e40f97b5f1f629eb14c73ca85711a3e52c68f1936236b28d3ea"
+      "sha256": "2fb34523005c768ba82446c36e62ccbc2427ae8d113bbe4e05378d12c1c39080"
     },
     ".github/workflows/increment-60d-pure-sint-casts.yml": {
       "mode": "100644",
-      "sha256": "8a2725e4a19d209e3783b268f879b5abf5d735d6503222e9a88525efff50a1f5"
+      "sha256": "5acf96dd23ebbc719cc031f288173660b7af536889de3ea4826b06828f1afe7b"
     },
     ".github/workflows/increment-60e-signedness-boundaries.yml": {
       "mode": "100644",
-      "sha256": "cc4c5442ae4e61a8196655c015e4f5082a42a320efa56bc73dee3ffc4848d6f6"
+      "sha256": "1c9b320558318e84f9fbca23ff1b59b2b737245364a08ba2972bf9b460861265"
     },
     ".github/workflows/increment-60f-equivalence-closure.yml": {
       "mode": "100644",
-      "sha256": "1dd1889ac92ffb2cc9f824fd2e81fea4ba71473a008cc989a4246a0d8b32fa50"
+      "sha256": "4cca6c90ed36a5b875f019bd64814acbc002d0ab8226f7a2940d22aa6e1d4967"
     },
     ".github/workflows/increment-60g-default-signed-verilog.yml": {
       "mode": "100644",
@@ -100,7 +100,7 @@
     },
     ".github/workflows/morphhdl-native-source-guard.yml": {
       "mode": "100644",
-      "sha256": "e0bf62f41cc8252654f0c712408e1da5467b25ee5dfc6a402e947acd0c658ebb"
+      "sha256": "2d56e9e23c9af9a112732ad780cf6857d76a34a46c2f39f4c641732d5b419bb3"
     },
     ".github/workflows/morphhdl-passes.yml": null,
     ".github/workflows/sequential-source-review-targeted.yml": null,
@@ -212,7 +212,7 @@
     },
     "docs/morphhdl/morphhdl_compiler_issues.md": {
       "mode": "100644",
-      "sha256": "6179a569003d4cbb81cccee74a186a0a282a833fb7dcfac03201e6907d9c6f07"
+      "sha256": "01de010b495ec63de18b4ef7a53284bc040ae1c74fe254a381adb219842f7c93"
     },
     "docs/morphhdl/native-spinal-source-preservation-audit.md": {
       "mode": "100644",
@@ -572,6 +572,14 @@
       "mode": "100644",
       "sha256": "b9a6fa929edeec0e4779d330d7b43bc1e048236a14d30792a24eebb83df542f3"
     },
+    "morphhdl/scripts/audit-runtime/audit_git_batch.py": {
+      "mode": "100644",
+      "sha256": "609b949c65bd43a9f0489175ce46db9e05f8368d327eacf4cf860ee0213e36c2"
+    },
+    "morphhdl/scripts/audit-runtime/sitecustomize.py": {
+      "mode": "100644",
+      "sha256": "24a08e4cf6fb6db478feb2cf2f2f6ea75c36d6ffb2b9e66d2f3d59ab44aa7d9f"
+    },
     "morphhdl/scripts/check-fast-aggregate-lint.py": {
       "mode": "100644",
       "sha256": "9ec8b696e7dc4e48d22b51fdee42c22bfcf22fd24164c424026a783663a05a5b"
@@ -604,6 +612,10 @@
       "mode": "100644",
       "sha256": "b2fa6fd94451397233e35d1cd40e732dad88470e8a6caa88907350eac2e3152b"
     },
+    "morphhdl/scripts/check-increment-59i-production-successor.py": {
+      "mode": "100644",
+      "sha256": "6c0c482aaa0e2223f893e2b7245bfb52dea0dcbd206fa96d6771d57233565d94"
+    },
     "morphhdl/scripts/check-increment-59i-publication-golden.py": {
       "mode": "100644",
       "sha256": "b958d9b5a6b424d24027eff1ea666ec2d76d0090ba71e24f62ddd34ff8e54708"
@@ -630,7 +642,11 @@
     },
     "morphhdl/scripts/run-parameterized-inherited-audit.py": {
       "mode": "100644",
-      "sha256": "6d5325d43653e362baf547357aca315240ff1ea222900350719cca4addc6a6d4"
+      "sha256": "745b4c1a95ef829da01c35156b8c58445df0c8fa66ea5a2b59a98bd7d52d3413"
+    },
+    "morphhdl/scripts/test-audit-git-batch.py": {
+      "mode": "100644",
+      "sha256": "1201c4262b0d9e7590544b3d9c1f53add01014d22421ed877635fd36498a364d"
     },
     "morphhdl/scripts/test-increment-59d-synthesis.py": {
       "mode": "100644",
@@ -640,17 +656,25 @@
       "mode": "100644",
       "sha256": "d50e949a0a03259e01434f3496fad62ececdb75d586e4a82b4f82bcbca4d8fdb"
     },
+    "morphhdl/scripts/test-increment-59g-source-review.py": {
+      "mode": "100644",
+      "sha256": "b47511da6e95c258d253b2e34346141d6a1366e0cea04dc0f05b37c6b384e593"
+    },
     "morphhdl/scripts/test-increment-59h-inherited-source-scope.py": {
       "mode": "100644",
       "sha256": "d7cc73abdf0cab0b370db171e895a8b6f2933d0c6a9e56a907475e62a41d5ed6"
     },
     "morphhdl/scripts/test-increment-59i-inherited-audit-budgets.py": {
       "mode": "100644",
-      "sha256": "dd8e3d85c47afd0fe4fd37752fe0b476df188fac6dd6ab1d211fc537e1f9edc2"
+      "sha256": "db3e6c677e003816928cbcd3de789c43f9d6f98276edea260e6b2b946695dcb6"
     },
     "morphhdl/scripts/test-increment-59i-nested-results.py": {
       "mode": "100644",
       "sha256": "875e3dddcaa67f5ddbfb60d5a5398af28bd19d3fa3d3a08b3352e908baf5fa28"
+    },
+    "morphhdl/scripts/test-increment-59i-production-successor.py": {
+      "mode": "100644",
+      "sha256": "0006c70f0d2cd3237f1779f57149e3d1031b700452a192178fdf86b955c6d5f5"
     },
     "morphhdl/scripts/test-increment-59i-publication-golden.py": {
       "mode": "100644",
@@ -662,7 +686,7 @@
     },
     "morphhdl/scripts/test-parameterized-inherited-audit.py": {
       "mode": "100644",
-      "sha256": "a2aa6f82d8d08edcade16a9904c10a21d5d3d8015d88b989ef827afb50f1d965"
+      "sha256": "f2e44dae7aeb7dd099d92cbd6a8650e5691a2a1b975ab8780986115bec22e6f5"
     },
     "morphhdl/src/main/scala/morphhdl/MorphAggregateOptions.scala": {
       "mode": "100644",
@@ -741,7 +765,7 @@
     },
     "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala": {
       "mode": "100644",
-      "sha256": "9ccde9a9d83cfd5542f6e30683ab7c31e203a6ad5ef366d98e233f78bcb72e42"
+      "sha256": "8c70fea0f492a56bf4b563e28d75eb94a6b7ca6d453ef69a6c641821407eb934"
     },
     "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogProcesses.scala": {
       "mode": "100644",
