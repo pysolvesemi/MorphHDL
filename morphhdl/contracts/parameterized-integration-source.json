@@ -62,7 +62,7 @@
     },
     ".github/workflows/increment-59i-combined-closure.yml": {
       "mode": "100644",
-      "sha256": "08d836ab7858dc787fb46ff56d3ac879ac2e0bd5c7516dd7919f0cfa797778f6"
+      "sha256": "50363a3b1bc228894ce73b056f7fd6882f21dcb35c479941d787aee1163db7b9"
     },
     ".github/workflows/increment-60c-signed-declarations.yml": {
       "mode": "100644",
@@ -221,6 +221,10 @@
     "docs/morphhdl/fast-aggregate-lint.md": {
       "mode": "100644",
       "sha256": "568a8874bc111a426fe995b4d54b24b6e14db898fd1135c486e3247adb83f8dd"
+    },
+    "docs/morphhdl/increment-59i-publication-golden-successor.md": {
+      "mode": "100644",
+      "sha256": "6290518f33908e818764d44bd0964c5b26043d0d21f942eb42818d61ea4fb6c6"
     },
     "docs/morphhdl/morphhdl_compiler_issues.md": {
       "mode": "100644",
@@ -650,7 +654,7 @@
     },
     "morphhdl/scripts/check-increment-59i-publication-golden.py": {
       "mode": "100644",
-      "sha256": "b958d9b5a6b424d24027eff1ea666ec2d76d0090ba71e24f62ddd34ff8e54708"
+      "sha256": "d19f89f0877171ba2b53a13326874120b4cb185ad89ab822e24fc90e840e2c80"
     },
     "morphhdl/scripts/check-native-streamfifocc-boundary.sh": {
       "mode": "100755",
@@ -722,7 +726,7 @@
     },
     "morphhdl/scripts/test-increment-59i-publication-golden.py": {
       "mode": "100644",
-      "sha256": "d419a878f180f4b49b3002f97c3692b8d4eca3401f38bc41d442233feba332e2"
+      "sha256": "0e7f4fcc1a033c6ce704e4d60d4e7cfe78bb46b29452c306384041dc9cb28013"
     },
     "morphhdl/scripts/test-increment-60f-inherited-source-scope.py": {
       "mode": "100644",
