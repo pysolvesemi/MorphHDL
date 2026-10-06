@@ -1,5 +1,5 @@
 {
-  "authorization": "User requested merging 59i into the work branch and deleting deprecated hardware wire passes and roadmap; WA-11 remains parameterized-Verilog work. User additionally requested opt-in constant Vec and typed-loop retention, internal unpacked arrays with packed ports, preserved dimension factors and synthesis-owned storage inference. User additionally requested the comments API roadmap: explicit annotation/fluent/region documentation, opt-in source-comment capture and generated-comment-only local validation, with CI and monitoring kept paused. User then stopped whole-branch qualification to repair the reported compiler issues: contextual Vec literals, static switch scopes, native literal clone lineage, synchronizer array attributes, formal/actual width publication, implicit clock aliases and concrete-parent aggregate admission. The user explicitly resumed whole-branch qualification on 2 October 2026, superseding that pause. Qualification repairs admit exact fresh-hardware documentation attachments, preserve native post-retirement fixture carriers and reconcile the complete retained regression inventory. On 3 October the user stopped qualification again and requested direct unpacked-array reads, a lightweight lint gate, and CA-005 ANSI-port width expansion with body aliases preserved. The user requested vendor-neutral repair documentation. On 4 October the user added CA-006 through CA-010 and requested all current compiler issues be repaired before restarting qualification. The reviewed batch repairs typed-loop carrier/reset/enable ownership and packed coverage, nested combinational Vec identities and conditional scope, concise genvar publication, scalar/width formal definition sharing, standalone formal defaults, exact constant shifts, symbolic signed operand sizing and combinational event dependencies. Regression inventory and affected targeted workflows include the new cases. The user then requested CA-011 literal-actual internal carrier repairs and resumed qualification on 4 October 2026. The reviewed continuation preserves exact child actual authority, stops fixed child-input inference at ownership boundaries, and sizes retained unsized UInt values without borrowing witness widths. Local qualification additionally repairs signed Int-domain arithmetic through packed named locals, exact child-scope width publication, split-process event dependencies and native geometry registry ownership. The publication contract intentionally adopts canonical child width defaults while retaining parent actual bindings and strict full-RTL hashes. The user subsequently requested CA-012 through CA-016 repairs: authenticated affine Vec subranges and driver coverage, logarithmic Gray stage arrays, symbolic register definition sharing, and transitive scalar binding liveness. Focused regressions and workflow enrollment are retained. Historical source audits run unchanged at the integration parent while the current exact integration seal and native review remain mandatory independent gates; historical receipts are never current RTL qualification. On 4 October the user resumed qualification through completion. Qualification proceeds through targeted CI before full CI; no old-head result qualifies repaired source.",
+  "authorization": "User requested merging 59i into the work branch and deleting deprecated hardware wire passes and roadmap; WA-11 remains parameterized-Verilog work. User additionally requested opt-in constant Vec and typed-loop retention, internal unpacked arrays with packed ports, preserved dimension factors and synthesis-owned storage inference. User additionally requested the comments API roadmap: explicit annotation/fluent/region documentation, opt-in source-comment capture and generated-comment-only local validation, with CI and monitoring kept paused. User then stopped whole-branch qualification to repair the reported compiler issues: contextual Vec literals, static switch scopes, native literal clone lineage, synchronizer array attributes, formal/actual width publication, implicit clock aliases and concrete-parent aggregate admission. The user explicitly resumed whole-branch qualification on 2 October 2026, superseding that pause. Qualification repairs admit exact fresh-hardware documentation attachments, preserve native post-retirement fixture carriers and reconcile the complete retained regression inventory. On 3 October the user stopped qualification again and requested direct unpacked-array reads, a lightweight lint gate, and CA-005 ANSI-port width expansion with body aliases preserved. The user requested vendor-neutral repair documentation. On 4 October the user added CA-006 through CA-010 and requested all current compiler issues be repaired before restarting qualification. The reviewed batch repairs typed-loop carrier/reset/enable ownership and packed coverage, nested combinational Vec identities and conditional scope, concise genvar publication, scalar/width formal definition sharing, standalone formal defaults, exact constant shifts, symbolic signed operand sizing and combinational event dependencies. Regression inventory and affected targeted workflows include the new cases. The user then requested CA-011 literal-actual internal carrier repairs and resumed qualification on 4 October 2026. The reviewed continuation preserves exact child actual authority, stops fixed child-input inference at ownership boundaries, and sizes retained unsized UInt values without borrowing witness widths. Local qualification additionally repairs signed Int-domain arithmetic through packed named locals, exact child-scope width publication, split-process event dependencies and native geometry registry ownership. The publication contract intentionally adopts canonical child width defaults while retaining parent actual bindings and strict full-RTL hashes. The user subsequently requested CA-012 through CA-016 repairs: authenticated affine Vec subranges and driver coverage, logarithmic Gray stage arrays, symbolic register definition sharing, and transitive scalar binding liveness. Focused regressions and workflow enrollment are retained. The user revised qualification policy on 6 October 2026: authenticate the current exact integration seal and required historical certificate commit/tree/manifest identities and ancestry once per candidate, without recursively executing historical programs. Frozen evidence remains immutable and current regression, proof, native-source and rejection gates remain mandatory; historical results do not qualify current RTL. On 4 October the user resumed qualification through completion. Qualification proceeds through targeted CI before full CI; no old-head result qualifies repaired source.",
   "basis": "bfed00f992281d83dde20dfabf319d8f1ea0bc57",
   "basis_tree": "67204ea39fb995d66f782da19f3c80dd11b6f832",
   "files": {
@@ -38,47 +38,47 @@
     },
     ".github/workflows/increment-59b-publication.yml": {
       "mode": "100644",
-      "sha256": "42172fba346d2248293d9145715fa7d39682caacd32d13db6affa2a5c81bfd33"
+      "sha256": "3796114c4d1c2bf48c138212ebd1c2b93192b37fb62b1575bacfc34b013c986d"
     },
     ".github/workflows/increment-59c-named-field-vectors.yml": {
       "mode": "100644",
-      "sha256": "fd0064d9d1b2a7e7de8463320861efff711ed13252114c991f098ed121d4dc0b"
+      "sha256": "e296104884aa730fa23d38ef4d24692aff509a374aef0556e392e806ea67221a"
     },
     ".github/workflows/increment-59d-widening.yml": {
       "mode": "100644",
-      "sha256": "34fc93c42b8843eccac9e508d35050662397ed29ec9cd95daa7d51f35658ef96"
+      "sha256": "133b8360ce4b5789e5b448a29a33ac8007f62ac2de2d59f0ae88c628e0e7f143"
     },
     ".github/workflows/increment-59f-callback-graphs.yml": {
       "mode": "100644",
-      "sha256": "c4f54300f94d4644c9c49bd68c365523137bbf5c74c8bd89628adf5825c4ad67"
+      "sha256": "f37f6b44097ccad2337c038e82eb621344e7453c1354858f85008a9ce176d04f"
     },
     ".github/workflows/increment-59g-register-bridges.yml": {
       "mode": "100644",
-      "sha256": "7550f1c2d03df276cef036743159326c3ecc9446ad58dddc8d9dcba0bbc7e9f2"
+      "sha256": "59bd23eb7e3221f8bb77ee1d9a6b27b33da8af980c1b67be9d5279f8eb04bd12"
     },
     ".github/workflows/increment-59h-nested-owners.yml": {
       "mode": "100644",
-      "sha256": "0f2f6e3a1649e2f67070ff0b6020192b0f6cb7de345b419bdb8da6a7f8c8e38c"
+      "sha256": "d5c54c0d533b61d13dd6e6df434ca2f3cf8dde15a023739ade4eae8f88880b2f"
     },
     ".github/workflows/increment-59i-combined-closure.yml": {
       "mode": "100644",
-      "sha256": "0ccb2929aae569550d78abf7c8738fb5ef8f2f3c232222e1a9d423195bac5e60"
+      "sha256": "08d836ab7858dc787fb46ff56d3ac879ac2e0bd5c7516dd7919f0cfa797778f6"
     },
     ".github/workflows/increment-60c-signed-declarations.yml": {
       "mode": "100644",
-      "sha256": "2fb34523005c768ba82446c36e62ccbc2427ae8d113bbe4e05378d12c1c39080"
+      "sha256": "7cf3c3fce61463d578570feecf0c10f201f367a6bd159a7d3a60d1cc0aea02d9"
     },
     ".github/workflows/increment-60d-pure-sint-casts.yml": {
       "mode": "100644",
-      "sha256": "5acf96dd23ebbc719cc031f288173660b7af536889de3ea4826b06828f1afe7b"
+      "sha256": "05cce03d17b434cf8efe23f65efae3a2aaf6cf7cae725a682f9d93074c22bf3e"
     },
     ".github/workflows/increment-60e-signedness-boundaries.yml": {
       "mode": "100644",
-      "sha256": "1c9b320558318e84f9fbca23ff1b59b2b737245364a08ba2972bf9b460861265"
+      "sha256": "fe07e3d85d03517e6396567ebdfea47f412f60d775cc0baab057d76dbd9eba68"
     },
     ".github/workflows/increment-60f-equivalence-closure.yml": {
       "mode": "100644",
-      "sha256": "4cca6c90ed36a5b875f019bd64814acbc002d0ab8226f7a2940d22aa6e1d4967"
+      "sha256": "659eb7dc845f7c468bde49202c498d6abb5389db9cb02ff97643be29fea1c68b"
     },
     ".github/workflows/increment-60g-default-signed-verilog.yml": {
       "mode": "100644",
@@ -100,7 +100,7 @@
     },
     ".github/workflows/morphhdl-native-source-guard.yml": {
       "mode": "100644",
-      "sha256": "2d56e9e23c9af9a112732ad780cf6857d76a34a46c2f39f4c641732d5b419bb3"
+      "sha256": "8133f8423d35ef02cb4a954365b5a46d96dedf96ed6065ffbc29fb205e790110"
     },
     ".github/workflows/morphhdl-passes.yml": null,
     ".github/workflows/sequential-source-review-targeted.yml": null,
@@ -108,6 +108,10 @@
     ".github/workflows/wa11-symbolic-boolean-width.yml": {
       "mode": "100644",
       "sha256": "8d08a127125690ce09e3b62522cef1aed43ad3da8f9d2a6321c8f5aabd92ac21"
+    },
+    "AGENTS.md": {
+      "mode": "100644",
+      "sha256": "484830205d078a279d2c51bbfb7565b57626caa6d163ad266284079bcdecdbc4"
     },
     "build.mill": {
       "mode": "100644",
@@ -174,6 +178,10 @@
       "mode": "100644",
       "sha256": "4dcc4406ca623c42e021d645b2da6c30665ab26a88e540dadb9d11412db5974f"
     },
+    "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala": {
+      "mode": "100644",
+      "sha256": "376e9de6689f4dd4ee318882f18f04557daa7b9afb28573968a278aafd3b4d1f"
+    },
     "core/src/main/scala/spinal/core/internals/Statement.scala": {
       "mode": "100644",
       "sha256": "857cb03073aa1c1017ce02dc87c9ba1aaec7821f9c87366d7b16212eb563e9c6"
@@ -202,6 +210,10 @@
       "mode": "100644",
       "sha256": "704a4c908765661dbee1cd4cedc70e326281f7959a6635e79bb26e28f1be2000"
     },
+    "docs/morphhdl/current-head-provenance-policy.md": {
+      "mode": "100644",
+      "sha256": "11f2c133e065ffa2f61f8e11c8df71a071f532458f29b96a8f9643aad0a84a96"
+    },
     "docs/morphhdl/evidence/increment66/README.md": {
       "mode": "100644",
       "sha256": "ebceaed983e8f9905d06e482233caf7b2e43e939f3d1864591def9e3d0fff088"
@@ -212,7 +224,7 @@
     },
     "docs/morphhdl/morphhdl_compiler_issues.md": {
       "mode": "100644",
-      "sha256": "01de010b495ec63de18b4ef7a53284bc040ae1c74fe254a381adb219842f7c93"
+      "sha256": "c50223fbe918b43ff1304bd85bd471e778cbfc49d836d74ea72106fa671ce901"
     },
     "docs/morphhdl/native-spinal-source-preservation-audit.md": {
       "mode": "100644",
@@ -540,6 +552,14 @@
     "morphhdl-passes/wa09-named-expression-and-name-preference.md": null,
     "morphhdl-passes/wa10-general-expression-inlining.md": null,
     "morphhdl-passes/wa11-boolean-width-normalization.md": null,
+    "morphhdl/contracts/candidate-provenance-workflow-migration.json": {
+      "mode": "100644",
+      "sha256": "d6e983f0ce527b6a86b5517df8bdc55a429a3be4fea82ea8afeb24b1a5ee673f"
+    },
+    "morphhdl/contracts/candidate-provenance.json": {
+      "mode": "100644",
+      "sha256": "aa1e6ffde1b53f0f56130f3f02be548a69cfc1414161a69d4cfd10145f1586da"
+    },
     "morphhdl/contracts/increment-53g-production-retirement.contract": {
       "mode": "100644",
       "sha256": "930ba7b427b260c1aa2623d56f1059e5f23f1c6d2f9e8e2c261d99d489b37538"
@@ -562,11 +582,11 @@
     },
     "morphhdl/contracts/native-source-preservation.json": {
       "mode": "100644",
-      "sha256": "547b50cbe46c115edc9ffecb16aff3c9b373f589e80783adc6d5fbacce600982"
+      "sha256": "2f6727ded8639b2c901f0da83129a1375d265ef7f5cf7a68646f232544b692f6"
     },
     "morphhdl/contracts/retained-parameterized-regressions.json": {
       "mode": "100644",
-      "sha256": "e2c8c01e8521697f00ae24d805c0511bf72f30f99891bd89760f9c74f2e4edfb"
+      "sha256": "3b10e52cb415dbc2aeec788b21ca95d9f34b0bc2d8d567964a03e347b937ad3a"
     },
     "morphhdl/examples/contracts/symbolic_data_shapes.v": {
       "mode": "100644",
@@ -579,6 +599,18 @@
     "morphhdl/scripts/audit-runtime/sitecustomize.py": {
       "mode": "100644",
       "sha256": "24a08e4cf6fb6db478feb2cf2f2f6ea75c36d6ffb2b9e66d2f3d59ab44aa7d9f"
+    },
+    "morphhdl/scripts/candidate_provenance_ci.py": {
+      "mode": "100644",
+      "sha256": "74e6e19beeaf5fbb7617479ac577c9f591fda0a248fe6d7a084ac5f77921266c"
+    },
+    "morphhdl/scripts/candidate_provenance_migration.py": {
+      "mode": "100644",
+      "sha256": "ebdee43fb703592073eaf156879b3ce541366e42226dbb6af62d68ea3d6498ca"
+    },
+    "morphhdl/scripts/check-candidate-provenance.py": {
+      "mode": "100644",
+      "sha256": "876d7b604b81d27acde83504f6875aea080244593b9dc3f0a63c1c97826b00c0"
     },
     "morphhdl/scripts/check-fast-aggregate-lint.py": {
       "mode": "100644",
@@ -630,7 +662,7 @@
     },
     "morphhdl/scripts/check-retained-parameterized-regressions.py": {
       "mode": "100644",
-      "sha256": "ff0d18ed8cf714cf84278d5276d283c0f9d4a7201d071ef0a4ae625789adb17a"
+      "sha256": "184dc91e7ee8a3c43bbd03073f0e7f0c0b8c5c8361dc94b51cc4ae352b74697f"
     },
     "morphhdl/scripts/check-typed-layering-ir.py": {
       "mode": "100644",
@@ -642,11 +674,19 @@
     },
     "morphhdl/scripts/run-parameterized-inherited-audit.py": {
       "mode": "100644",
-      "sha256": "745b4c1a95ef829da01c35156b8c58445df0c8fa66ea5a2b59a98bd7d52d3413"
+      "sha256": "6e8ebf2d32bfb1d05764f79bb116425b4e4cb3ae8340dcf7e802077aad4dafaf"
     },
     "morphhdl/scripts/test-audit-git-batch.py": {
       "mode": "100644",
       "sha256": "1201c4262b0d9e7590544b3d9c1f53add01014d22421ed877635fd36498a364d"
+    },
+    "morphhdl/scripts/test-candidate-provenance-ci.py": {
+      "mode": "100644",
+      "sha256": "403ef18ad170a48f5ffcef2e0e9284650674a1a08f63f13626452e45cdf3485a"
+    },
+    "morphhdl/scripts/test-candidate-provenance.py": {
+      "mode": "100644",
+      "sha256": "85df178b9402a9334074c089839b76770c6cb8b7ea01e27ead65332f1dd2191c"
     },
     "morphhdl/scripts/test-increment-59d-synthesis.py": {
       "mode": "100644",
@@ -654,7 +694,11 @@
     },
     "morphhdl/scripts/test-increment-59f-scheduling.py": {
       "mode": "100644",
-      "sha256": "d50e949a0a03259e01434f3496fad62ececdb75d586e4a82b4f82bcbca4d8fdb"
+      "sha256": "07e63e27d0d6021cef9a3de049e5866a88b538c85e70401c707bd11b724e27a9"
+    },
+    "morphhdl/scripts/test-increment-59g-report-inventory.py": {
+      "mode": "100644",
+      "sha256": "505ee995cf09f518e5318af49907256fd304b067d60a4a9006799583fd66b2c7"
     },
     "morphhdl/scripts/test-increment-59g-source-review.py": {
       "mode": "100644",
@@ -684,9 +728,17 @@
       "mode": "100644",
       "sha256": "762eda4ecb060062cc665793d4270a27261af0c94834ab675a66e82802d63577"
     },
+    "morphhdl/scripts/test-increment-60f-source-budget.py": {
+      "mode": "100644",
+      "sha256": "afd5df32ae6d1e8ba973a09d20f04c4ff1486c7e309d66f5fedc43d54c3c9779"
+    },
+    "morphhdl/scripts/test-increment-60f-source-scheduling.py": {
+      "mode": "100644",
+      "sha256": "d79aab5150b7bf442389a6f95c88ddafc52e69650bd42ceed05727e1de4dfb5f"
+    },
     "morphhdl/scripts/test-parameterized-inherited-audit.py": {
       "mode": "100644",
-      "sha256": "f2e44dae7aeb7dd099d92cbd6a8650e5691a2a1b975ab8780986115bec22e6f5"
+      "sha256": "79431d8f47dcc0b34d885b248b398813acbb7c46b533d6d33df8fc20d86c05a8"
     },
     "morphhdl/src/main/scala/morphhdl/MorphAggregateOptions.scala": {
       "mode": "100644",
@@ -716,19 +768,23 @@
     },
     "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala": {
       "mode": "100644",
-      "sha256": "e39e2d17caa8b53b314ec565c521038e764e8df2c9d37eae070e9afac53da64c"
+      "sha256": "5f7fed9bffa0d57f99cdc3acc0df1b5059243a3b5807b10fef3be3e628c79e5a"
     },
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlCanonicalIrProducer.scala": {
       "mode": "100644",
       "sha256": "4bb4643b47135a1ad97e31b0f6220629c90ae2af6b8acf2a845782d3c9d6f03b"
     },
+    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlDefinitionNames.scala": {
+      "mode": "100644",
+      "sha256": "4eb819c23481d464b1b76a2a03403b4860a819e8f58c71140052432f42d38990"
+    },
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlEmitterParameterNames.scala": {
       "mode": "100644",
-      "sha256": "f32576eeef47bf06436c91e1df5cca6f965a54a8cf3ddcd9fcaa48f98930295f"
+      "sha256": "3188769cd17da103a9135f9128bdc87a0b51793218f5d4522d714378df68f6b9"
     },
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala": {
       "mode": "100644",
-      "sha256": "aeed4ee631a178e2dbb97907ecd499143dbbcef5940f6d7f947e68d554abfa7a"
+      "sha256": "fb4c4770e6a5c6085d59c81d6d07583606f2fec0670440a3fd1c730682010704"
     },
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlRecursivePerComponentPublication.scala": {
       "mode": "100644",
@@ -748,11 +804,11 @@
     },
     "morphhdl/src/main/scala/spinal/core/internals/NativeScalarFormalSchema.scala": {
       "mode": "100644",
-      "sha256": "b697368bd2c7055f873ad61d389f7b119ac43f998333a53acb7d3a87756d53b0"
+      "sha256": "2e88ac6ec2c8ba081ab230f01b5d5f30f6f69af3b300d298e468796be2bd465d"
     },
     "morphhdl/src/main/scala/spinal/core/internals/NativeWidthFormalSchema.scala": {
       "mode": "100644",
-      "sha256": "45451146d711388477fefc409dc2101295e2104a684ab3d89b02a3d16612fa17"
+      "sha256": "64fb764465474c2706d238191cf6d371acc5f496e9eb4fd4435ec41d0a583cf9"
     },
     "morphhdl/src/main/scala/spinal/core/internals/NativeWireAssignmentMetadata.scala": null,
     "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogFieldLayout.scala": {
@@ -945,7 +1001,7 @@
     },
     "morphhdl/src/test/scala/morphhdl/StageDepthFormalSharingTests.scala": {
       "mode": "100644",
-      "sha256": "5e5af6214c0c601de3b971279ee8c005f93b2b4a403d559374a21cfaa02a8d44"
+      "sha256": "0a51fcfe3224445d21c886de0980e47b0fd13aef859a9de0d921637d4e72f24c"
     },
     "morphhdl/src/test/scala/morphhdl/SymbolicVecInitializerTests.scala": {
       "mode": "100644",
@@ -1022,6 +1078,10 @@
     "morphhdl/src/test/scala/spinal/core/FiniteBitsIndexTests.scala": {
       "mode": "100644",
       "sha256": "9ced75fe09eb94a5db6182f0013d9f01ed8a2a1d1dea3402d4dc591b3dbb7530"
+    },
+    "morphhdl/src/test/scala/spinal/core/FiniteFormalBoundaryTests.scala": {
+      "mode": "100644",
+      "sha256": "90d774a9f5161eee0df12b69fd570819699e6cee9775933c863e657f89127b17"
     },
     "morphhdl/src/test/scala/spinal/core/FiniteMemIdentityAdversarialTests.scala": {
       "mode": "100644",
@@ -1238,5 +1298,5 @@
     "6bb250972f06ca55c9cfbd7100126adad9e81569"
   ],
   "schema": 1,
-  "verifier_sha256": "457ab1ee01a6454d1f2d752afa58062ce9f2cad4eb02d2d6f79484c261de8b3b"
+  "verifier_sha256": "8df60122d8b6c8090ada86ccfabd133c46a808088c75346a93486d50521c2c3a"
 }
