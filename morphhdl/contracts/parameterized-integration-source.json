@@ -306,6 +306,10 @@
       "mode": "100644",
       "sha256": "0016bc43b545fbcbbd9dccd10e17aaac560e113dcc8debcdbc06b822be4d19fd"
     },
+    "lib/src/main/scala/spinal/lib/Counter.scala": {
+      "mode": "100644",
+      "sha256": "7c85e3cdad2bd5ddf8710ca2ccd3f555bbbdb641c51ead61e9233909ced6a2ca"
+    },
     "lib/src/main/scala/spinal/lib/Utils.scala": {
       "mode": "100644",
       "sha256": "ba3a95eb632601df8d111d46d76dedfed320d5f005813b331f81bd0822635ddc"
@@ -574,7 +578,7 @@
     },
     "morphhdl/contracts/increment-55-native-change-review.json": {
       "mode": "100644",
-      "sha256": "04b145efb77cd2fd488d3b899afdcda9d17f7e7a54387b733e18a914be10b314"
+      "sha256": "1bd463a9f85a18a0aa1ae211b9b2c8212f022f92e04ada39b524ba1e01a807bb"
     },
     "morphhdl/contracts/increment-58-retirement.contract": {
       "mode": "100644",
@@ -590,7 +594,7 @@
     },
     "morphhdl/contracts/native-source-preservation.json": {
       "mode": "100644",
-      "sha256": "8533142ffe3d981dbe187c53c7ab7dfa264861348ab7835b2d607ba2af02635a"
+      "sha256": "0d9a286e90aff81aedf003fdd108fcd5ca0f82ef5ec51cc1b4d31a06ce2b6343"
     },
     "morphhdl/contracts/retained-parameterized-regressions.json": {
       "mode": "100644",

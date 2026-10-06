@@ -14,7 +14,7 @@ BASIS='bfed00f992281d83dde20dfabf319d8f1ea0bc57'
 PARENTS=('23dc9248a09157c25030f6603fbdbd0d01f7ab6d','6bb250972f06ca55c9cfbd7100126adad9e81569')
 SELF='morphhdl/scripts/check-parameterized-integration-source.py'
 CONTRACT='morphhdl/contracts/parameterized-integration-source.json'
-CONTRACT_SHA256='dcb5c70d1920c952fe7cd87f9867dd449b417b38756b218a17d421f9cfd716e7'
+CONTRACT_SHA256='8892d5b3b62e8c10f3fddb30c4a695242a7d7379fca5896d627110a7be94980f'
 RETIRED=('morphhdl-passes/src','morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md','morphhdl/src/main/scala/morphhdl/MorphWireAssignmentPasses.scala','morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala','core/src/main/scala/spinal/core/internals/NativePureExpressionCopy.scala','core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala','morphhdl/src/main/scala/spinal/core/internals/NativeWireAssignmentMetadata.scala')
 FORBIDDEN=('MorphWireAssignmentPasses','WireAssignmentProductionBridge','VerilogEmitterExpressionInlining','NativePureExpressionCopy','NativeWireAssignmentMetadata','morphhdl.passes.')
 def require(ok,detail):
