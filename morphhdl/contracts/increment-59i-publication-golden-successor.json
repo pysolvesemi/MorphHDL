@@ -1,0 +1,2692 @@
+{
+  "profiles": [
+    {
+      "child_bindings": [],
+      "default_count": 5,
+      "file": "default/PublicationGoldenRecords.v",
+      "kind": "parameterized",
+      "layout": "default",
+      "module": "PublicationGoldenRecords",
+      "modules": [
+        {
+          "module": "PublicationGoldenRecords",
+          "parameters": [
+            {
+              "declaration": "parameter integer COORD_WIDTH = 7",
+              "default": "7",
+              "name": "COORD_WIDTH"
+            },
+            {
+              "declaration": "parameter integer COUNT = 5",
+              "default": "5",
+              "name": "COUNT"
+            },
+            {
+              "declaration": "parameter integer MODE = 0",
+              "default": "0",
+              "name": "MODE"
+            },
+            {
+              "declaration": "parameter integer TAG_WIDTH = 3",
+              "default": "3",
+              "name": "TAG_WIDTH"
+            },
+            {
+              "declaration": "parameter integer WIDTH = 5",
+              "default": "5",
+              "name": "WIDTH"
+            }
+          ],
+          "ports": [
+            {
+              "declaration": "input  wire          clk",
+              "direction": "input",
+              "name": "clk",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          reset",
+              "direction": "input",
+              "name": "reset",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          enable",
+              "direction": "input",
+              "name": "enable",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [((WIDTH + TAG_WIDTH + COORD_WIDTH + COORD_WIDTH) * COUNT)-1:0] records",
+              "direction": "input",
+              "name": "records",
+              "packed_dimensions": [
+                "[((WIDTH + TAG_WIDTH + COORD_WIDTH + COORD_WIDTH) * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [WIDTH-1:0]    selected_key",
+              "direction": "output",
+              "name": "selected_key",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [TAG_WIDTH-1:0]    selected_tag",
+              "direction": "output",
+              "name": "selected_tag",
+              "packed_dimensions": [
+                "[TAG_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    selected_x",
+              "direction": "output",
+              "name": "selected_x",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    selected_y",
+              "direction": "output",
+              "name": "selected_y",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [WIDTH-1:0]    delayed_key",
+              "direction": "output",
+              "name": "delayed_key",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [TAG_WIDTH-1:0]    delayed_tag",
+              "direction": "output",
+              "name": "delayed_tag",
+              "packed_dimensions": [
+                "[TAG_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    delayed_x",
+              "direction": "output",
+              "name": "delayed_x",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    delayed_y",
+              "direction": "output",
+              "name": "delayed_y",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [((WIDTH + WIDTH) * COUNT)-1:0] signedRecords",
+              "direction": "input",
+              "name": "signedRecords",
+              "packed_dimensions": [
+                "[((WIDTH + WIDTH) * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  signed [WIDTH-1:0] signedSelected_real",
+              "direction": "output",
+              "name": "signedSelected_real",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "signed",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  signed [WIDTH-1:0] signedSelected_imag",
+              "direction": "output",
+              "name": "signedSelected_imag",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "signed",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            }
+          ]
+        }
+      ],
+      "profile": "default",
+      "rtl_hash_scope": "full-rtl",
+      "rtl_sha256": "c7dc13702b22e9ebb8b08694d3629527108a5bbe659bd23056acca8c1c9b3947",
+      "signed_mode": "default"
+    },
+    {
+      "child_bindings": [],
+      "default_count": 5,
+      "file": "packed/PublicationGoldenRecords.v",
+      "kind": "parameterized",
+      "layout": "packed",
+      "module": "PublicationGoldenRecords",
+      "modules": [
+        {
+          "module": "PublicationGoldenRecords",
+          "parameters": [
+            {
+              "declaration": "parameter integer COORD_WIDTH = 7",
+              "default": "7",
+              "name": "COORD_WIDTH"
+            },
+            {
+              "declaration": "parameter integer COUNT = 5",
+              "default": "5",
+              "name": "COUNT"
+            },
+            {
+              "declaration": "parameter integer MODE = 0",
+              "default": "0",
+              "name": "MODE"
+            },
+            {
+              "declaration": "parameter integer TAG_WIDTH = 3",
+              "default": "3",
+              "name": "TAG_WIDTH"
+            },
+            {
+              "declaration": "parameter integer WIDTH = 5",
+              "default": "5",
+              "name": "WIDTH"
+            }
+          ],
+          "ports": [
+            {
+              "declaration": "input  wire          clk",
+              "direction": "input",
+              "name": "clk",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          reset",
+              "direction": "input",
+              "name": "reset",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          enable",
+              "direction": "input",
+              "name": "enable",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [((WIDTH + TAG_WIDTH + COORD_WIDTH + COORD_WIDTH) * COUNT)-1:0] records",
+              "direction": "input",
+              "name": "records",
+              "packed_dimensions": [
+                "[((WIDTH + TAG_WIDTH + COORD_WIDTH + COORD_WIDTH) * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [WIDTH-1:0]    selected_key",
+              "direction": "output",
+              "name": "selected_key",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [TAG_WIDTH-1:0]    selected_tag",
+              "direction": "output",
+              "name": "selected_tag",
+              "packed_dimensions": [
+                "[TAG_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    selected_x",
+              "direction": "output",
+              "name": "selected_x",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    selected_y",
+              "direction": "output",
+              "name": "selected_y",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [WIDTH-1:0]    delayed_key",
+              "direction": "output",
+              "name": "delayed_key",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [TAG_WIDTH-1:0]    delayed_tag",
+              "direction": "output",
+              "name": "delayed_tag",
+              "packed_dimensions": [
+                "[TAG_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    delayed_x",
+              "direction": "output",
+              "name": "delayed_x",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    delayed_y",
+              "direction": "output",
+              "name": "delayed_y",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [((WIDTH + WIDTH) * COUNT)-1:0] signedRecords",
+              "direction": "input",
+              "name": "signedRecords",
+              "packed_dimensions": [
+                "[((WIDTH + WIDTH) * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  signed [WIDTH-1:0] signedSelected_real",
+              "direction": "output",
+              "name": "signedSelected_real",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "signed",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  signed [WIDTH-1:0] signedSelected_imag",
+              "direction": "output",
+              "name": "signedSelected_imag",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "signed",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            }
+          ]
+        }
+      ],
+      "profile": "packed",
+      "rtl_hash_scope": "full-rtl",
+      "rtl_sha256": "c7dc13702b22e9ebb8b08694d3629527108a5bbe659bd23056acca8c1c9b3947",
+      "signed_mode": "default"
+    },
+    {
+      "child_bindings": [],
+      "default_count": 5,
+      "file": "fields/PublicationGoldenRecords.v",
+      "kind": "parameterized",
+      "layout": "fields",
+      "module": "PublicationGoldenRecords",
+      "modules": [
+        {
+          "module": "PublicationGoldenRecords",
+          "parameters": [
+            {
+              "declaration": "parameter integer COORD_WIDTH = 7",
+              "default": "7",
+              "name": "COORD_WIDTH"
+            },
+            {
+              "declaration": "parameter integer COUNT = 5",
+              "default": "5",
+              "name": "COUNT"
+            },
+            {
+              "declaration": "parameter integer MODE = 0",
+              "default": "0",
+              "name": "MODE"
+            },
+            {
+              "declaration": "parameter integer TAG_WIDTH = 3",
+              "default": "3",
+              "name": "TAG_WIDTH"
+            },
+            {
+              "declaration": "parameter integer WIDTH = 5",
+              "default": "5",
+              "name": "WIDTH"
+            }
+          ],
+          "ports": [
+            {
+              "declaration": "input  wire          clk",
+              "direction": "input",
+              "name": "clk",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          reset",
+              "direction": "input",
+              "name": "reset",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          enable",
+              "direction": "input",
+              "name": "enable",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(WIDTH * COUNT)-1:0] records_key",
+              "direction": "input",
+              "name": "records_key",
+              "packed_dimensions": [
+                "[(WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(TAG_WIDTH * COUNT)-1:0] records_tag",
+              "direction": "input",
+              "name": "records_tag",
+              "packed_dimensions": [
+                "[(TAG_WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(COORD_WIDTH * COUNT)-1:0] records_x",
+              "direction": "input",
+              "name": "records_x",
+              "packed_dimensions": [
+                "[(COORD_WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(COORD_WIDTH * COUNT)-1:0] records_y",
+              "direction": "input",
+              "name": "records_y",
+              "packed_dimensions": [
+                "[(COORD_WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [WIDTH-1:0]    selected_key",
+              "direction": "output",
+              "name": "selected_key",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [TAG_WIDTH-1:0]    selected_tag",
+              "direction": "output",
+              "name": "selected_tag",
+              "packed_dimensions": [
+                "[TAG_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    selected_x",
+              "direction": "output",
+              "name": "selected_x",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    selected_y",
+              "direction": "output",
+              "name": "selected_y",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [WIDTH-1:0]    delayed_key",
+              "direction": "output",
+              "name": "delayed_key",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [TAG_WIDTH-1:0]    delayed_tag",
+              "direction": "output",
+              "name": "delayed_tag",
+              "packed_dimensions": [
+                "[TAG_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    delayed_x",
+              "direction": "output",
+              "name": "delayed_x",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    delayed_y",
+              "direction": "output",
+              "name": "delayed_y",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(WIDTH * COUNT)-1:0] signedRecords_real",
+              "direction": "input",
+              "name": "signedRecords_real",
+              "packed_dimensions": [
+                "[(WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(WIDTH * COUNT)-1:0] signedRecords_imag",
+              "direction": "input",
+              "name": "signedRecords_imag",
+              "packed_dimensions": [
+                "[(WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  signed [WIDTH-1:0] signedSelected_real",
+              "direction": "output",
+              "name": "signedSelected_real",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "signed",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  signed [WIDTH-1:0] signedSelected_imag",
+              "direction": "output",
+              "name": "signedSelected_imag",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "signed",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            }
+          ]
+        }
+      ],
+      "profile": "fields",
+      "rtl_hash_scope": "full-rtl",
+      "rtl_sha256": "d5665e6b1d5607002d13349978cd094844c4915d050fe30c7b7fd4cbe8409398",
+      "signed_mode": "default"
+    },
+    {
+      "child_bindings": [],
+      "default_count": 5,
+      "file": "fields-legacy/PublicationGoldenRecords.v",
+      "kind": "parameterized",
+      "layout": "fields",
+      "module": "PublicationGoldenRecords",
+      "modules": [
+        {
+          "module": "PublicationGoldenRecords",
+          "parameters": [
+            {
+              "declaration": "parameter integer COORD_WIDTH = 7",
+              "default": "7",
+              "name": "COORD_WIDTH"
+            },
+            {
+              "declaration": "parameter integer COUNT = 5",
+              "default": "5",
+              "name": "COUNT"
+            },
+            {
+              "declaration": "parameter integer MODE = 0",
+              "default": "0",
+              "name": "MODE"
+            },
+            {
+              "declaration": "parameter integer TAG_WIDTH = 3",
+              "default": "3",
+              "name": "TAG_WIDTH"
+            },
+            {
+              "declaration": "parameter integer WIDTH = 5",
+              "default": "5",
+              "name": "WIDTH"
+            }
+          ],
+          "ports": [
+            {
+              "declaration": "input  wire          clk",
+              "direction": "input",
+              "name": "clk",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          reset",
+              "direction": "input",
+              "name": "reset",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          enable",
+              "direction": "input",
+              "name": "enable",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(WIDTH * COUNT)-1:0] records_key",
+              "direction": "input",
+              "name": "records_key",
+              "packed_dimensions": [
+                "[(WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(TAG_WIDTH * COUNT)-1:0] records_tag",
+              "direction": "input",
+              "name": "records_tag",
+              "packed_dimensions": [
+                "[(TAG_WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(COORD_WIDTH * COUNT)-1:0] records_x",
+              "direction": "input",
+              "name": "records_x",
+              "packed_dimensions": [
+                "[(COORD_WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(COORD_WIDTH * COUNT)-1:0] records_y",
+              "direction": "input",
+              "name": "records_y",
+              "packed_dimensions": [
+                "[(COORD_WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [WIDTH-1:0]    selected_key",
+              "direction": "output",
+              "name": "selected_key",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [TAG_WIDTH-1:0]    selected_tag",
+              "direction": "output",
+              "name": "selected_tag",
+              "packed_dimensions": [
+                "[TAG_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    selected_x",
+              "direction": "output",
+              "name": "selected_x",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    selected_y",
+              "direction": "output",
+              "name": "selected_y",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [WIDTH-1:0]    delayed_key",
+              "direction": "output",
+              "name": "delayed_key",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [TAG_WIDTH-1:0]    delayed_tag",
+              "direction": "output",
+              "name": "delayed_tag",
+              "packed_dimensions": [
+                "[TAG_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    delayed_x",
+              "direction": "output",
+              "name": "delayed_x",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    delayed_y",
+              "direction": "output",
+              "name": "delayed_y",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(WIDTH * COUNT)-1:0] signedRecords_real",
+              "direction": "input",
+              "name": "signedRecords_real",
+              "packed_dimensions": [
+                "[(WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(WIDTH * COUNT)-1:0] signedRecords_imag",
+              "direction": "input",
+              "name": "signedRecords_imag",
+              "packed_dimensions": [
+                "[(WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [WIDTH-1:0]    signedSelected_real",
+              "direction": "output",
+              "name": "signedSelected_real",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [WIDTH-1:0]    signedSelected_imag",
+              "direction": "output",
+              "name": "signedSelected_imag",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            }
+          ]
+        }
+      ],
+      "profile": "fields-legacy",
+      "rtl_hash_scope": "full-rtl",
+      "rtl_sha256": "1886bd192456adcd174580706382a00c8dc183d1d51d7765085fdb1c7af29d79",
+      "signed_mode": "legacy"
+    },
+    {
+      "child_bindings": [],
+      "default_count": 5,
+      "file": "fields-declarations/PublicationGoldenRecords.v",
+      "kind": "parameterized",
+      "layout": "fields",
+      "module": "PublicationGoldenRecords",
+      "modules": [
+        {
+          "module": "PublicationGoldenRecords",
+          "parameters": [
+            {
+              "declaration": "parameter integer COORD_WIDTH = 7",
+              "default": "7",
+              "name": "COORD_WIDTH"
+            },
+            {
+              "declaration": "parameter integer COUNT = 5",
+              "default": "5",
+              "name": "COUNT"
+            },
+            {
+              "declaration": "parameter integer MODE = 0",
+              "default": "0",
+              "name": "MODE"
+            },
+            {
+              "declaration": "parameter integer TAG_WIDTH = 3",
+              "default": "3",
+              "name": "TAG_WIDTH"
+            },
+            {
+              "declaration": "parameter integer WIDTH = 5",
+              "default": "5",
+              "name": "WIDTH"
+            }
+          ],
+          "ports": [
+            {
+              "declaration": "input  wire          clk",
+              "direction": "input",
+              "name": "clk",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          reset",
+              "direction": "input",
+              "name": "reset",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          enable",
+              "direction": "input",
+              "name": "enable",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(WIDTH * COUNT)-1:0] records_key",
+              "direction": "input",
+              "name": "records_key",
+              "packed_dimensions": [
+                "[(WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(TAG_WIDTH * COUNT)-1:0] records_tag",
+              "direction": "input",
+              "name": "records_tag",
+              "packed_dimensions": [
+                "[(TAG_WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(COORD_WIDTH * COUNT)-1:0] records_x",
+              "direction": "input",
+              "name": "records_x",
+              "packed_dimensions": [
+                "[(COORD_WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(COORD_WIDTH * COUNT)-1:0] records_y",
+              "direction": "input",
+              "name": "records_y",
+              "packed_dimensions": [
+                "[(COORD_WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [WIDTH-1:0]    selected_key",
+              "direction": "output",
+              "name": "selected_key",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [TAG_WIDTH-1:0]    selected_tag",
+              "direction": "output",
+              "name": "selected_tag",
+              "packed_dimensions": [
+                "[TAG_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    selected_x",
+              "direction": "output",
+              "name": "selected_x",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    selected_y",
+              "direction": "output",
+              "name": "selected_y",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [WIDTH-1:0]    delayed_key",
+              "direction": "output",
+              "name": "delayed_key",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [TAG_WIDTH-1:0]    delayed_tag",
+              "direction": "output",
+              "name": "delayed_tag",
+              "packed_dimensions": [
+                "[TAG_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    delayed_x",
+              "direction": "output",
+              "name": "delayed_x",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    delayed_y",
+              "direction": "output",
+              "name": "delayed_y",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(WIDTH * COUNT)-1:0] signedRecords_real",
+              "direction": "input",
+              "name": "signedRecords_real",
+              "packed_dimensions": [
+                "[(WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(WIDTH * COUNT)-1:0] signedRecords_imag",
+              "direction": "input",
+              "name": "signedRecords_imag",
+              "packed_dimensions": [
+                "[(WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  signed [WIDTH-1:0] signedSelected_real",
+              "direction": "output",
+              "name": "signedSelected_real",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "signed",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  signed [WIDTH-1:0] signedSelected_imag",
+              "direction": "output",
+              "name": "signedSelected_imag",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "signed",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            }
+          ]
+        }
+      ],
+      "profile": "fields-declarations",
+      "rtl_hash_scope": "full-rtl",
+      "rtl_sha256": "8853cb704ea9015f2e133b028feb1c7191483d3a41c47e997bc00518ba6c76e5",
+      "signed_mode": "declarations"
+    },
+    {
+      "child_bindings": [],
+      "default_count": 5,
+      "file": "fields-casts/PublicationGoldenRecords.v",
+      "kind": "parameterized",
+      "layout": "fields",
+      "module": "PublicationGoldenRecords",
+      "modules": [
+        {
+          "module": "PublicationGoldenRecords",
+          "parameters": [
+            {
+              "declaration": "parameter integer COORD_WIDTH = 7",
+              "default": "7",
+              "name": "COORD_WIDTH"
+            },
+            {
+              "declaration": "parameter integer COUNT = 5",
+              "default": "5",
+              "name": "COUNT"
+            },
+            {
+              "declaration": "parameter integer MODE = 0",
+              "default": "0",
+              "name": "MODE"
+            },
+            {
+              "declaration": "parameter integer TAG_WIDTH = 3",
+              "default": "3",
+              "name": "TAG_WIDTH"
+            },
+            {
+              "declaration": "parameter integer WIDTH = 5",
+              "default": "5",
+              "name": "WIDTH"
+            }
+          ],
+          "ports": [
+            {
+              "declaration": "input  wire          clk",
+              "direction": "input",
+              "name": "clk",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          reset",
+              "direction": "input",
+              "name": "reset",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          enable",
+              "direction": "input",
+              "name": "enable",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(WIDTH * COUNT)-1:0] records_key",
+              "direction": "input",
+              "name": "records_key",
+              "packed_dimensions": [
+                "[(WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(TAG_WIDTH * COUNT)-1:0] records_tag",
+              "direction": "input",
+              "name": "records_tag",
+              "packed_dimensions": [
+                "[(TAG_WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(COORD_WIDTH * COUNT)-1:0] records_x",
+              "direction": "input",
+              "name": "records_x",
+              "packed_dimensions": [
+                "[(COORD_WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(COORD_WIDTH * COUNT)-1:0] records_y",
+              "direction": "input",
+              "name": "records_y",
+              "packed_dimensions": [
+                "[(COORD_WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [WIDTH-1:0]    selected_key",
+              "direction": "output",
+              "name": "selected_key",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [TAG_WIDTH-1:0]    selected_tag",
+              "direction": "output",
+              "name": "selected_tag",
+              "packed_dimensions": [
+                "[TAG_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    selected_x",
+              "direction": "output",
+              "name": "selected_x",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    selected_y",
+              "direction": "output",
+              "name": "selected_y",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [WIDTH-1:0]    delayed_key",
+              "direction": "output",
+              "name": "delayed_key",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [TAG_WIDTH-1:0]    delayed_tag",
+              "direction": "output",
+              "name": "delayed_tag",
+              "packed_dimensions": [
+                "[TAG_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    delayed_x",
+              "direction": "output",
+              "name": "delayed_x",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0]    delayed_y",
+              "direction": "output",
+              "name": "delayed_y",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(WIDTH * COUNT)-1:0] signedRecords_real",
+              "direction": "input",
+              "name": "signedRecords_real",
+              "packed_dimensions": [
+                "[(WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(WIDTH * COUNT)-1:0] signedRecords_imag",
+              "direction": "input",
+              "name": "signedRecords_imag",
+              "packed_dimensions": [
+                "[(WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  signed [WIDTH-1:0] signedSelected_real",
+              "direction": "output",
+              "name": "signedSelected_real",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "signed",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  signed [WIDTH-1:0] signedSelected_imag",
+              "direction": "output",
+              "name": "signedSelected_imag",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "signed",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            }
+          ]
+        }
+      ],
+      "profile": "fields-casts",
+      "rtl_hash_scope": "full-rtl",
+      "rtl_sha256": "d5665e6b1d5607002d13349978cd094844c4915d050fe30c7b7fd4cbe8409398",
+      "signed_mode": "casts"
+    },
+    {
+      "child_bindings": [
+        {
+          "actual": "COORD_WIDTH",
+          "formal": "COORD_WIDTH"
+        },
+        {
+          "actual": "COUNT",
+          "formal": "COUNT"
+        },
+        {
+          "actual": "(MODE + 1)",
+          "formal": "MODE"
+        },
+        {
+          "actual": "TAG_WIDTH",
+          "formal": "TAG_WIDTH"
+        },
+        {
+          "actual": "WIDTH",
+          "formal": "WIDTH"
+        }
+      ],
+      "default_count": 5,
+      "file": "child-packed/PublicationGoldenChildTop.v",
+      "kind": "child",
+      "layout": "packed",
+      "module": "PublicationGoldenChildTop",
+      "modules": [
+        {
+          "module": "PublicationGoldenChildTop",
+          "parameters": [
+            {
+              "declaration": "parameter integer COORD_WIDTH = 7",
+              "default": "7",
+              "name": "COORD_WIDTH"
+            },
+            {
+              "declaration": "parameter integer COUNT = 5",
+              "default": "5",
+              "name": "COUNT"
+            },
+            {
+              "declaration": "parameter integer MODE = 0",
+              "default": "0",
+              "name": "MODE"
+            },
+            {
+              "declaration": "parameter integer TAG_WIDTH = 3",
+              "default": "3",
+              "name": "TAG_WIDTH"
+            },
+            {
+              "declaration": "parameter integer WIDTH = 5",
+              "default": "5",
+              "name": "WIDTH"
+            }
+          ],
+          "ports": [
+            {
+              "declaration": "input  wire          clk",
+              "direction": "input",
+              "name": "clk",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          reset",
+              "direction": "input",
+              "name": "reset",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          enable",
+              "direction": "input",
+              "name": "enable",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [((WIDTH + TAG_WIDTH + COORD_WIDTH + COORD_WIDTH) * COUNT)-1:0] records",
+              "direction": "input",
+              "name": "records",
+              "packed_dimensions": [
+                "[((WIDTH + TAG_WIDTH + COORD_WIDTH + COORD_WIDTH) * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [((WIDTH + WIDTH) * COUNT)-1:0] signedRecords",
+              "direction": "input",
+              "name": "signedRecords",
+              "packed_dimensions": [
+                "[((WIDTH + WIDTH) * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [WIDTH-1:0]    selected_key",
+              "direction": "output",
+              "name": "selected_key",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [TAG_WIDTH-1:0]    selected_tag",
+              "direction": "output",
+              "name": "selected_tag",
+              "packed_dimensions": [
+                "[TAG_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [COORD_WIDTH-1:0]    selected_x",
+              "direction": "output",
+              "name": "selected_x",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [COORD_WIDTH-1:0]    selected_y",
+              "direction": "output",
+              "name": "selected_y",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [WIDTH-1:0]    delayed_key",
+              "direction": "output",
+              "name": "delayed_key",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [TAG_WIDTH-1:0]    delayed_tag",
+              "direction": "output",
+              "name": "delayed_tag",
+              "packed_dimensions": [
+                "[TAG_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [COORD_WIDTH-1:0]    delayed_x",
+              "direction": "output",
+              "name": "delayed_x",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [COORD_WIDTH-1:0]    delayed_y",
+              "direction": "output",
+              "name": "delayed_y",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire signed [WIDTH-1:0] signedSelected_real",
+              "direction": "output",
+              "name": "signedSelected_real",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "signed",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire signed [WIDTH-1:0] signedSelected_imag",
+              "direction": "output",
+              "name": "signedSelected_imag",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "signed",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            }
+          ]
+        },
+        {
+          "module": "PublicationGoldenChild",
+          "parameters": [
+            {
+              "declaration": "parameter integer COORD_WIDTH = 1",
+              "default": "1",
+              "name": "COORD_WIDTH"
+            },
+            {
+              "declaration": "parameter integer COUNT = 1",
+              "default": "1",
+              "name": "COUNT"
+            },
+            {
+              "declaration": "parameter integer MODE = 1",
+              "default": "1",
+              "name": "MODE"
+            },
+            {
+              "declaration": "parameter integer TAG_WIDTH = 1",
+              "default": "1",
+              "name": "TAG_WIDTH"
+            },
+            {
+              "declaration": "parameter integer WIDTH = 1",
+              "default": "1",
+              "name": "WIDTH"
+            }
+          ],
+          "ports": [
+            {
+              "declaration": "input  wire          clk",
+              "direction": "input",
+              "name": "clk",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          reset",
+              "direction": "input",
+              "name": "reset",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          enable",
+              "direction": "input",
+              "name": "enable",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [((WIDTH + TAG_WIDTH + COORD_WIDTH + COORD_WIDTH) * COUNT)-1:0] records",
+              "direction": "input",
+              "name": "records",
+              "packed_dimensions": [
+                "[((WIDTH + TAG_WIDTH + COORD_WIDTH + COORD_WIDTH) * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [WIDTH-1:0] selected_key",
+              "direction": "output",
+              "name": "selected_key",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [TAG_WIDTH-1:0] selected_tag",
+              "direction": "output",
+              "name": "selected_tag",
+              "packed_dimensions": [
+                "[TAG_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0] selected_x",
+              "direction": "output",
+              "name": "selected_x",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0] selected_y",
+              "direction": "output",
+              "name": "selected_y",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [WIDTH-1:0] delayed_key",
+              "direction": "output",
+              "name": "delayed_key",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [TAG_WIDTH-1:0] delayed_tag",
+              "direction": "output",
+              "name": "delayed_tag",
+              "packed_dimensions": [
+                "[TAG_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0] delayed_x",
+              "direction": "output",
+              "name": "delayed_x",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0] delayed_y",
+              "direction": "output",
+              "name": "delayed_y",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [((WIDTH + WIDTH) * COUNT)-1:0] signedRecords",
+              "direction": "input",
+              "name": "signedRecords",
+              "packed_dimensions": [
+                "[((WIDTH + WIDTH) * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  signed [WIDTH-1:0] signedSelected_real",
+              "direction": "output",
+              "name": "signedSelected_real",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "signed",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  signed [WIDTH-1:0] signedSelected_imag",
+              "direction": "output",
+              "name": "signedSelected_imag",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "signed",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            }
+          ]
+        }
+      ],
+      "profile": "child-packed",
+      "rtl_hash_scope": "full-rtl",
+      "rtl_sha256": "f887ce11cc3c358d21a9bf41e7f19aa7739e63c678794a3a26cc21e54c63d88a",
+      "signed_mode": "default"
+    },
+    {
+      "child_bindings": [
+        {
+          "actual": "COORD_WIDTH",
+          "formal": "COORD_WIDTH"
+        },
+        {
+          "actual": "COUNT",
+          "formal": "COUNT"
+        },
+        {
+          "actual": "(MODE + 1)",
+          "formal": "MODE"
+        },
+        {
+          "actual": "TAG_WIDTH",
+          "formal": "TAG_WIDTH"
+        },
+        {
+          "actual": "WIDTH",
+          "formal": "WIDTH"
+        }
+      ],
+      "default_count": 5,
+      "file": "child-fields/PublicationGoldenChildTop.v",
+      "kind": "child",
+      "layout": "fields",
+      "module": "PublicationGoldenChildTop",
+      "modules": [
+        {
+          "module": "PublicationGoldenChildTop",
+          "parameters": [
+            {
+              "declaration": "parameter integer COORD_WIDTH = 7",
+              "default": "7",
+              "name": "COORD_WIDTH"
+            },
+            {
+              "declaration": "parameter integer COUNT = 5",
+              "default": "5",
+              "name": "COUNT"
+            },
+            {
+              "declaration": "parameter integer MODE = 0",
+              "default": "0",
+              "name": "MODE"
+            },
+            {
+              "declaration": "parameter integer TAG_WIDTH = 3",
+              "default": "3",
+              "name": "TAG_WIDTH"
+            },
+            {
+              "declaration": "parameter integer WIDTH = 5",
+              "default": "5",
+              "name": "WIDTH"
+            }
+          ],
+          "ports": [
+            {
+              "declaration": "input  wire          clk",
+              "direction": "input",
+              "name": "clk",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          reset",
+              "direction": "input",
+              "name": "reset",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          enable",
+              "direction": "input",
+              "name": "enable",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(WIDTH * COUNT)-1:0] records_key",
+              "direction": "input",
+              "name": "records_key",
+              "packed_dimensions": [
+                "[(WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(TAG_WIDTH * COUNT)-1:0] records_tag",
+              "direction": "input",
+              "name": "records_tag",
+              "packed_dimensions": [
+                "[(TAG_WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(COORD_WIDTH * COUNT)-1:0] records_x",
+              "direction": "input",
+              "name": "records_x",
+              "packed_dimensions": [
+                "[(COORD_WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(COORD_WIDTH * COUNT)-1:0] records_y",
+              "direction": "input",
+              "name": "records_y",
+              "packed_dimensions": [
+                "[(COORD_WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(WIDTH * COUNT)-1:0] signedRecords_real",
+              "direction": "input",
+              "name": "signedRecords_real",
+              "packed_dimensions": [
+                "[(WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(WIDTH * COUNT)-1:0] signedRecords_imag",
+              "direction": "input",
+              "name": "signedRecords_imag",
+              "packed_dimensions": [
+                "[(WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [WIDTH-1:0]    selected_key",
+              "direction": "output",
+              "name": "selected_key",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [TAG_WIDTH-1:0]    selected_tag",
+              "direction": "output",
+              "name": "selected_tag",
+              "packed_dimensions": [
+                "[TAG_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [COORD_WIDTH-1:0]    selected_x",
+              "direction": "output",
+              "name": "selected_x",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [COORD_WIDTH-1:0]    selected_y",
+              "direction": "output",
+              "name": "selected_y",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [WIDTH-1:0]    delayed_key",
+              "direction": "output",
+              "name": "delayed_key",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [TAG_WIDTH-1:0]    delayed_tag",
+              "direction": "output",
+              "name": "delayed_tag",
+              "packed_dimensions": [
+                "[TAG_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [COORD_WIDTH-1:0]    delayed_x",
+              "direction": "output",
+              "name": "delayed_x",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [COORD_WIDTH-1:0]    delayed_y",
+              "direction": "output",
+              "name": "delayed_y",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire signed [WIDTH-1:0] signedSelected_real",
+              "direction": "output",
+              "name": "signedSelected_real",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "signed",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire signed [WIDTH-1:0] signedSelected_imag",
+              "direction": "output",
+              "name": "signedSelected_imag",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "signed",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            }
+          ]
+        },
+        {
+          "module": "PublicationGoldenChild",
+          "parameters": [
+            {
+              "declaration": "parameter integer COORD_WIDTH = 1",
+              "default": "1",
+              "name": "COORD_WIDTH"
+            },
+            {
+              "declaration": "parameter integer COUNT = 1",
+              "default": "1",
+              "name": "COUNT"
+            },
+            {
+              "declaration": "parameter integer MODE = 1",
+              "default": "1",
+              "name": "MODE"
+            },
+            {
+              "declaration": "parameter integer TAG_WIDTH = 1",
+              "default": "1",
+              "name": "TAG_WIDTH"
+            },
+            {
+              "declaration": "parameter integer WIDTH = 1",
+              "default": "1",
+              "name": "WIDTH"
+            }
+          ],
+          "ports": [
+            {
+              "declaration": "input  wire          clk",
+              "direction": "input",
+              "name": "clk",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          reset",
+              "direction": "input",
+              "name": "reset",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          enable",
+              "direction": "input",
+              "name": "enable",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(WIDTH * COUNT)-1:0] records_key",
+              "direction": "input",
+              "name": "records_key",
+              "packed_dimensions": [
+                "[(WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(TAG_WIDTH * COUNT)-1:0] records_tag",
+              "direction": "input",
+              "name": "records_tag",
+              "packed_dimensions": [
+                "[(TAG_WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(COORD_WIDTH * COUNT)-1:0] records_x",
+              "direction": "input",
+              "name": "records_x",
+              "packed_dimensions": [
+                "[(COORD_WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(COORD_WIDTH * COUNT)-1:0] records_y",
+              "direction": "input",
+              "name": "records_y",
+              "packed_dimensions": [
+                "[(COORD_WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [WIDTH-1:0] selected_key",
+              "direction": "output",
+              "name": "selected_key",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [TAG_WIDTH-1:0] selected_tag",
+              "direction": "output",
+              "name": "selected_tag",
+              "packed_dimensions": [
+                "[TAG_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0] selected_x",
+              "direction": "output",
+              "name": "selected_x",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0] selected_y",
+              "direction": "output",
+              "name": "selected_y",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [WIDTH-1:0] delayed_key",
+              "direction": "output",
+              "name": "delayed_key",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [TAG_WIDTH-1:0] delayed_tag",
+              "direction": "output",
+              "name": "delayed_tag",
+              "packed_dimensions": [
+                "[TAG_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0] delayed_x",
+              "direction": "output",
+              "name": "delayed_x",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  [COORD_WIDTH-1:0] delayed_y",
+              "direction": "output",
+              "name": "delayed_y",
+              "packed_dimensions": [
+                "[COORD_WIDTH-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(WIDTH * COUNT)-1:0] signedRecords_real",
+              "direction": "input",
+              "name": "signedRecords_real",
+              "packed_dimensions": [
+                "[(WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input wire [(WIDTH * COUNT)-1:0] signedRecords_imag",
+              "direction": "input",
+              "name": "signedRecords_imag",
+              "packed_dimensions": [
+                "[(WIDTH * COUNT)-1:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  signed [WIDTH-1:0] signedSelected_real",
+              "direction": "output",
+              "name": "signedSelected_real",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "signed",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output reg  signed [WIDTH-1:0] signedSelected_imag",
+              "direction": "output",
+              "name": "signedSelected_imag",
+              "packed_dimensions": [
+                "[WIDTH-1:0]"
+              ],
+              "signedness": "signed",
+              "storage": "reg",
+              "unpacked_dimensions": []
+            }
+          ]
+        }
+      ],
+      "profile": "child-fields",
+      "rtl_hash_scope": "full-rtl",
+      "rtl_sha256": "69d0c43b96de1b35a0da2040c69a630befbef7e8ab97e3bb3ce793c9628c5855",
+      "signed_mode": "default"
+    },
+    {
+      "child_bindings": [],
+      "default_count": 1,
+      "file": "concrete-singleton/PublicationGoldenNative.v",
+      "kind": "concrete",
+      "layout": "native",
+      "module": "PublicationGoldenNative",
+      "modules": [
+        {
+          "module": "PublicationGoldenNative",
+          "parameters": [],
+          "ports": [
+            {
+              "declaration": "input  wire          clk",
+              "direction": "input",
+              "name": "clk",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          reset",
+              "direction": "input",
+              "name": "reset",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          enable",
+              "direction": "input",
+              "name": "enable",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire [21:0]   records",
+              "direction": "input",
+              "name": "records",
+              "packed_dimensions": [
+                "[21:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire [9:0]    signedRecords",
+              "direction": "input",
+              "name": "signedRecords",
+              "packed_dimensions": [
+                "[9:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [4:0]    selected_key",
+              "direction": "output",
+              "name": "selected_key",
+              "packed_dimensions": [
+                "[4:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [2:0]    selected_tag",
+              "direction": "output",
+              "name": "selected_tag",
+              "packed_dimensions": [
+                "[2:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [6:0]    selected_x",
+              "direction": "output",
+              "name": "selected_x",
+              "packed_dimensions": [
+                "[6:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [6:0]    selected_y",
+              "direction": "output",
+              "name": "selected_y",
+              "packed_dimensions": [
+                "[6:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [4:0]    delayed_key",
+              "direction": "output",
+              "name": "delayed_key",
+              "packed_dimensions": [
+                "[4:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [2:0]    delayed_tag",
+              "direction": "output",
+              "name": "delayed_tag",
+              "packed_dimensions": [
+                "[2:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [6:0]    delayed_x",
+              "direction": "output",
+              "name": "delayed_x",
+              "packed_dimensions": [
+                "[6:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [6:0]    delayed_y",
+              "direction": "output",
+              "name": "delayed_y",
+              "packed_dimensions": [
+                "[6:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [4:0]    signedSelected_real",
+              "direction": "output",
+              "name": "signedSelected_real",
+              "packed_dimensions": [
+                "[4:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [4:0]    signedSelected_imag",
+              "direction": "output",
+              "name": "signedSelected_imag",
+              "packed_dimensions": [
+                "[4:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            }
+          ]
+        }
+      ],
+      "profile": "concrete-singleton",
+      "rtl_hash_scope": "native-body",
+      "rtl_sha256": "34b38299e752748204245d4b44648242aeea55d7ee0db3fb5e9f4c6925a09541",
+      "signed_mode": "native"
+    },
+    {
+      "child_bindings": [],
+      "default_count": 5,
+      "file": "concrete-unequal/PublicationGoldenNative.v",
+      "kind": "concrete",
+      "layout": "native",
+      "module": "PublicationGoldenNative",
+      "modules": [
+        {
+          "module": "PublicationGoldenNative",
+          "parameters": [],
+          "ports": [
+            {
+              "declaration": "input  wire          clk",
+              "direction": "input",
+              "name": "clk",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          reset",
+              "direction": "input",
+              "name": "reset",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire          enable",
+              "direction": "input",
+              "name": "enable",
+              "packed_dimensions": [],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire [89:0]   records",
+              "direction": "input",
+              "name": "records",
+              "packed_dimensions": [
+                "[89:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "input  wire [9:0]    signedRecords",
+              "direction": "input",
+              "name": "signedRecords",
+              "packed_dimensions": [
+                "[9:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [0:0]    selected_key",
+              "direction": "output",
+              "name": "selected_key",
+              "packed_dimensions": [
+                "[0:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [2:0]    selected_tag",
+              "direction": "output",
+              "name": "selected_tag",
+              "packed_dimensions": [
+                "[2:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [6:0]    selected_x",
+              "direction": "output",
+              "name": "selected_x",
+              "packed_dimensions": [
+                "[6:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [6:0]    selected_y",
+              "direction": "output",
+              "name": "selected_y",
+              "packed_dimensions": [
+                "[6:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [0:0]    delayed_key",
+              "direction": "output",
+              "name": "delayed_key",
+              "packed_dimensions": [
+                "[0:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [2:0]    delayed_tag",
+              "direction": "output",
+              "name": "delayed_tag",
+              "packed_dimensions": [
+                "[2:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [6:0]    delayed_x",
+              "direction": "output",
+              "name": "delayed_x",
+              "packed_dimensions": [
+                "[6:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [6:0]    delayed_y",
+              "direction": "output",
+              "name": "delayed_y",
+              "packed_dimensions": [
+                "[6:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [0:0]    signedSelected_real",
+              "direction": "output",
+              "name": "signedSelected_real",
+              "packed_dimensions": [
+                "[0:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            },
+            {
+              "declaration": "output wire [0:0]    signedSelected_imag",
+              "direction": "output",
+              "name": "signedSelected_imag",
+              "packed_dimensions": [
+                "[0:0]"
+              ],
+              "signedness": "implicit-unsigned",
+              "storage": "wire",
+              "unpacked_dimensions": []
+            }
+          ]
+        }
+      ],
+      "profile": "concrete-unequal",
+      "rtl_hash_scope": "native-body",
+      "rtl_sha256": "8455b7809cb845923e6b6a6a8c4028f6c6193c1c76703be9e04eccac0c49cfe5",
+      "signed_mode": "native"
+    }
+  ],
+  "schema": 1,
+  "scope": "59i-publication-abi-defaults"
+}
