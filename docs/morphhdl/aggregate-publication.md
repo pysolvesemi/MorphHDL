@@ -104,3 +104,31 @@ Local result (2026-10-02): 177 cases across 13 suites pass on Scala 2.12.18
 and 2.13.12, including 16 new aggregate/loop cases. Source-boundary checks and
 native-audit negative controls also pass. Remote qualification remains paused
 and is separate from these local checks.
+
+
+## Enum debug strings
+
+MorphVerilog suppresses simulation-only enum-to-string registers and their
+conversion logic by default. This includes FSM `stateReg_string` and
+`stateNext_string` helpers. Functional enum state registers remain ordinary
+hardware. Enum values in report messages print their numeric encoding when
+these helpers are disabled; assertion and parameter-domain checks remain enabled.
+
+The option is `suppressEnumDebugStrings`, default `true`. No application change
+is needed for the default. To restore enum names for waveform/report debugging:
+
+```scala
+import morphhdl.{MorphDebugOptions, MorphVerilog}
+
+val config = MorphDebugOptions(
+  SpinalConfig(targetDirectory = "rtl"),
+  suppressEnumDebugStrings = false
+)
+MorphVerilog(config)(new MyTop)
+```
+
+`MorphDebugOptions` returns a configuration copy. The selection survives config
+copies and applies to MorphVerilog's single-source, canonical-IR and compatibility
+witness paths. Disabling suppression preserves the native setting, including an
+explicit `withoutEnumString()` request. Ordinary SpinalVerilog defaults are
+unchanged. The same option works with combined and per-component publication.

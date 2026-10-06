@@ -699,6 +699,16 @@
         "public parameter Vec selection kind=uint unpacked=true",
         "scalar selector formals remain shared and forwarded through a wrapper"
       ],
+      "morphhdl.EnumDebugOptionsTests": [
+        "enum debug selection=default split=false retains hardware and reports",
+        "enum debug selection=default split=true retains hardware and reports",
+        "enum debug selection=native-disabled split=false retains hardware and reports",
+        "enum debug selection=native-disabled split=true retains hardware and reports",
+        "enum debug selection=strings split=false retains hardware and reports",
+        "enum debug selection=strings split=true retains hardware and reports",
+        "enum debug selection=suppress split=false retains hardware and reports",
+        "enum debug selection=suppress split=true retains hardware and reports"
+      ],
       "morphhdl.ExternalHierarchyBoolLiteralBindingTests": [
         "typed Stream queue admits the concrete Bool literal on child flush"
       ],
@@ -3299,6 +3309,7 @@
     "morphhdl/src/test/scala/morphhdl/ConstantAggregateTests.scala": "3857dfc8a220a698f16a8e96da68503c945786599e1c15c75d7d5516e02b2818",
     "morphhdl/src/test/scala/morphhdl/DerivedWidthContractFixture.scala": "76d8cecf59436f684baac6dea2c09b6c5add58b721dc48daf37162fe882140d9",
     "morphhdl/src/test/scala/morphhdl/ElabVecSelectionTests.scala": "a264d270078bfa6d5f6ccc8cc29304406382ef3a588ce6c0f33496c1afabc9c4",
+    "morphhdl/src/test/scala/morphhdl/EnumDebugOptionsTests.scala": "fe18bb058019725382ad0c9a5458fb0fc2ea4b181ec76ed496606c2df25245d5",
     "morphhdl/src/test/scala/morphhdl/ExternalHierarchyBoolLiteralBindingTests.scala": "6aa420f847781a5b979cc4c1b4bf8948461f9575aac3ebb9810524f61ada7d9b",
     "morphhdl/src/test/scala/morphhdl/FastAggregateLintFixture.scala": "2b39aca93eeda2a2ea0f9f475e010ef5fab59c074aed1fd65ca8379a09ff6ec3",
     "morphhdl/src/test/scala/morphhdl/FiniteBitsAndRamSharingTests.scala": "c2f59d40658f4e46400b23a4b760216dbcd10a501a331413b25ccf7b2a5816d4",

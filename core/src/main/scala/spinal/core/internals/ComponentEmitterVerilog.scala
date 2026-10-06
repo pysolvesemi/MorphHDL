@@ -816,14 +816,14 @@ class ComponentEmitterVerilog(
 
             val frontString = (for (m <- messageInput) yield m match {
               case m: String => m
-              case m: SpinalEnumCraft[_] => "%s"
+              case m: SpinalEnumCraft[_] if spinalConfig._withEnumString => "%s"
               case m: Expression => "%x"
               case `REPORT_TIME` => "%t"
               case x => SpinalError(s"""L\"\" can't manage the parameter '${x}' type. Located at :\n${statement.getScalaLocationLong}""")
             }).mkString.replace("\n", "\\n")
 
             val backString = (for (m <- messageInput if !m.isInstanceOf[String]) yield m match {
-              case m: SpinalEnumCraft[_] => ", " + emitExpression(m) + "_string"
+              case m: SpinalEnumCraft[_] if spinalConfig._withEnumString => ", " + emitExpression(m) + "_string"
               case m: Expression => ", " + emitExpression(m)
               case `REPORT_TIME` => ", $time"
             }).mkString

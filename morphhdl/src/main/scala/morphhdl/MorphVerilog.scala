@@ -578,8 +578,9 @@ object MorphVerilog {
         val aggregateOptions = config.flags.collect { case value: spinal.core.VerilogAggregateOptions => value }
         if (aggregateOptions.size > 1 || aggregateOptions.exists(_.vecLayout == null))
           errors += "aggregate publication requires one non-null layout configuration"
+        val hardwareFlags = config.flags.filterNot(MorphDebugOptions.isSelection)
         val generationFlags = if (allowSingleSourceFormal)
-          config.flags.filterNot(v => v.isInstanceOf[spinal.core.VerilogAggregateOptions] || v.isInstanceOf[spinal.core.RtlDocumentationOptions]) else config.flags
+          hardwareFlags.filterNot(v => v.isInstanceOf[spinal.core.VerilogAggregateOptions] || v.isInstanceOf[spinal.core.RtlDocumentationOptions]) else hardwareFlags
         val supportedSingleSourceFormal =
           allowSingleSourceFormal &&
             generationFlags.size == 1 &&
@@ -746,7 +747,7 @@ object MorphVerilog {
   }
 
   private def copyForWitness(config: SpinalConfig, witnessDirectory: Path): SpinalConfig =
-    spinal.core.NativeSymbolicLegality.configure(ParameterizedVerilogMode.disable(config.copy(
+    MorphDebugOptions.forPublication(spinal.core.NativeSymbolicLegality.configure(ParameterizedVerilogMode.disable(config.copy(
       mode = Verilog,
       flags = config.flags.clone(),
       debugComponents = config.debugComponents.clone(),
@@ -756,7 +757,7 @@ object MorphVerilog {
       transformationPhases = config.transformationPhases.clone(),
       memBlackBoxers = config.memBlackBoxers.clone(),
       scopeProperties = config.scopeProperties.clone()
-    )), enabled = false)
+    )), enabled = false))
 
   private def copyForSingleSource(config: SpinalConfig, workspace: Path): SpinalConfig = {
     val phaseInserters = config.phasesInserters.clone()
@@ -773,7 +774,7 @@ object MorphVerilog {
     phaseInserters += TypedBalancedReductionBackend.install _
     // Resolve the publication default on a private copy, never on the caller's
     // native configuration or the independent dual-factory witness path.
-    val nativeConfig = spinal.core.NativeSymbolicLegality.configure(ParameterizedVerilogMode.enable(config.copy(
+    val nativeConfig = MorphDebugOptions.forPublication(spinal.core.NativeSymbolicLegality.configure(ParameterizedVerilogMode.enable(config.copy(
       mode = Verilog,
       flags = config.flags.clone(),
       debugComponents = config.debugComponents.clone(),
@@ -782,7 +783,7 @@ object MorphVerilog {
       transformationPhases = config.transformationPhases.clone(),
       memBlackBoxers = config.memBlackBoxers.clone(),
       scopeProperties = config.scopeProperties.clone()
-    )), enabled = true)
+    )), enabled = true))
     nativeConfig.flags += spinal.core.RtlDocumentation.Deferred
     val publication = MorphSignedDeclarations.forPublication(nativeConfig)
     val publicationInserters = publication.phasesInserters.clone()

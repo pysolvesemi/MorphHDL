@@ -91,6 +91,7 @@ jobs:
             morphhdl.GenericExpressionAndStreamTests \
             morphhdl.HierarchyParameterBindingTests \
             morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.EnumDebugOptionsTests \
             morphhdl.CombinationalEventDependencyTests \
             morphhdl.NativeConditionalProcessTests \
             spinal.core.TypedPrimitiveClosureTests \
