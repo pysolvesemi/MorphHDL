@@ -96,7 +96,7 @@
     },
     ".github/workflows/morphhdl-external-structural-process.yml": {
       "mode": "100644",
-      "sha256": "a81a76db35bf0fa818194e5b1f25017937e48ce5fb5ce67a58284b209af4bed5"
+      "sha256": "073c7d5d80e9684828d39064bc8d97a6ed8192a88a55f94310c6dc0b8a6b5a58"
     },
     ".github/workflows/morphhdl-native-source-guard.yml": {
       "mode": "100644",
@@ -171,7 +171,7 @@
     },
     "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala": {
       "mode": "100644",
-      "sha256": "989a71521c675edcb38fe48f88f8b23d2e0e96ba39a577816773e5100de63bbb"
+      "sha256": "e3f3128773f506b25c96e149c5ab75381ed700183457adaf7f826c3b94a78663"
     },
     "core/src/main/scala/spinal/core/internals/NativePureExpressionCopy.scala": null,
     "core/src/main/scala/spinal/core/internals/Phase.scala": {
@@ -196,7 +196,7 @@
     "core/src/test/scala/spinal/core/internals/VerilogEmitterExpressionInliningTests.scala": null,
     "docs/morphhdl/aggregate-publication.md": {
       "mode": "100644",
-      "sha256": "0a49273e5e08a76c1c696315cbba21c0fedc3e2fa930af53a983bc345e36b70f"
+      "sha256": "e9985cfabf42462900fe88e3e4ddc89b4131c2ea90d97f37a2c6f4e2923fcbee"
     },
     "docs/morphhdl/comments-api-contract.md": {
       "mode": "100644",
@@ -570,7 +570,7 @@
     },
     "morphhdl/contracts/increment-55-native-change-review.json": {
       "mode": "100644",
-      "sha256": "9c5d064bd10c4919e86bd794bc124492f0858de39999a208d28a5969d2e219d5"
+      "sha256": "04b145efb77cd2fd488d3b899afdcda9d17f7e7a54387b733e18a914be10b314"
     },
     "morphhdl/contracts/increment-58-retirement.contract": {
       "mode": "100644",
@@ -582,11 +582,11 @@
     },
     "morphhdl/contracts/native-source-preservation.json": {
       "mode": "100644",
-      "sha256": "2f6727ded8639b2c901f0da83129a1375d265ef7f5cf7a68646f232544b692f6"
+      "sha256": "8533142ffe3d981dbe187c53c7ab7dfa264861348ab7835b2d607ba2af02635a"
     },
     "morphhdl/contracts/retained-parameterized-regressions.json": {
       "mode": "100644",
-      "sha256": "3b10e52cb415dbc2aeec788b21ca95d9f34b0bc2d8d567964a03e347b937ad3a"
+      "sha256": "e4603a28eee406a4290e2e15ed19ae4e0109383b0ee0e419c5c96fafe339a83c"
     },
     "morphhdl/examples/contracts/symbolic_data_shapes.v": {
       "mode": "100644",
@@ -662,7 +662,7 @@
     },
     "morphhdl/scripts/check-retained-parameterized-regressions.py": {
       "mode": "100644",
-      "sha256": "184dc91e7ee8a3c43bbd03073f0e7f0c0b8c5c8361dc94b51cc4ae352b74697f"
+      "sha256": "77066e172b53875a095dcdc26bdd5a8e8535310e9195369c08c5a5225c028e98"
     },
     "morphhdl/scripts/check-typed-layering-ir.py": {
       "mode": "100644",
@@ -744,9 +744,13 @@
       "mode": "100644",
       "sha256": "a99608d5fc91f6b2e6df9ea0bfd7a3e412a499f80b4d448addfd18515780be04"
     },
+    "morphhdl/src/main/scala/morphhdl/MorphDebugOptions.scala": {
+      "mode": "100644",
+      "sha256": "f465f56ffb7d99da8e02bb4954af24cf49e6b6011a501da1d37551f069a61108"
+    },
     "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala": {
       "mode": "100644",
-      "sha256": "53939d0e0fba52224fbd18351dbe89b14dc08d86cc56741520f9785bf01e7141"
+      "sha256": "3ef049a735f8f9c461f0be65eaf6f4a5260183a2ee401bd2c5dfd09cc19c94ea"
     },
     "morphhdl/src/main/scala/morphhdl/MorphWireAssignmentPasses.scala": null,
     "morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala": null,
@@ -876,6 +880,10 @@
     "morphhdl/src/test/scala/morphhdl/EnumConditionCoverage.scala": null,
     "morphhdl/src/test/scala/morphhdl/EnumConditionInliningRegressionTests.scala": null,
     "morphhdl/src/test/scala/morphhdl/EnumConditionRepro.scala": null,
+    "morphhdl/src/test/scala/morphhdl/EnumDebugOptionsTests.scala": {
+      "mode": "100644",
+      "sha256": "fe18bb058019725382ad0c9a5458fb0fc2ea4b181ec76ed496606c2df25245d5"
+    },
     "morphhdl/src/test/scala/morphhdl/FastAggregateLintFixture.scala": {
       "mode": "100644",
       "sha256": "2b39aca93eeda2a2ea0f9f475e010ef5fab59c074aed1fd65ca8379a09ff6ec3"
