@@ -580,6 +580,10 @@
       "mode": "100644",
       "sha256": "205f725870593f9a8ed80aa9d0e49afd4d2ccd006b6f7c1409653545699f2ee4"
     },
+    "morphhdl/contracts/increment-59i-publication-golden-successor.json": {
+      "mode": "100644",
+      "sha256": "4bcc706af6fd65611341813ce515a1053786f0268bbfbecbeefc1db625770d20"
+    },
     "morphhdl/contracts/increment-59i-publication-golden.json": {
       "mode": "100644",
       "sha256": "8b27c5a6a85a0aafba1b3799db4d3cfdf5b9553b082aacb519a4674c7f1a01f4"
