@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "0607d60ec3733e90ec0cc7b4dd6b712e13d59049"
+      "approved_tree": "fbc8365b046da15535dd33a8bf3227fa3d409c47"
     },
     {
       "path": "idslpayload/src/main",
@@ -3074,9 +3074,10 @@
         "Compiler repair: ANSI derived widths and native unsigned temporary/operand sizing",
         "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026",
         "Qualification repair: authenticated BOOT initializer publication",
-        "CA-023: authenticated memory and synchronous read geometry before native canonical grouping"
+        "CA-023: authenticated memory and synchronous read geometry before native canonical grouping",
+        "Default enum debug string suppression"
       ],
-      "reason": "Retain native symbolic-legality publication and the generation-scoped signed declaration, cast, literal, resize and unsigned-transport callbacks. The typed expression planner controls optional wrapper suppression; every mandatory wrapper present before depth cutting remains, and CDC-WIRE-01 suppresses new depth wrappers only when complete expansion and all receiving widths are proven. Approved unsigned expression slices use a deterministic Verilog-2001 function with the full authoritative source input width and exact constant result range, preserving truncation and four-state semantics. Helper and argument names are allocated in the same namespace after reserving component/width parameter identities, and functions are cached by symbolic width and range. Signed/unknown or otherwise unproven expressions and the ordinary backend keep inherited emission. Qualification repair reserves declaration-local width names without composing finished branch domains, and passes the exact emitter owner when preserving a retained unsigned wrapper's authoritative logical range. All old public wrapper entry points and ordinary backend behavior remain intact. Emit dependency-ordered typed local parameters through the native localparams buffer after the parameterized backend prepares exact live uses. Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative. Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. CA-005 adds explicit native ANSI-port context while preserving body declaration behavior. Include actual ANSI context and parameter-aware unsigned native temporary/operand publication. Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative. Route BOOT initial assignments through the existing default-disabled owner-bound source publication hook, retaining the exact init statement; preserve ordinary literal emission when the hook returns no replacement. CA-023 preserves child-owned symbolic memory geometry before native identity comparison using optional exact-owner hooks.",
+      "reason": "Retain native symbolic-legality publication and the generation-scoped signed declaration, cast, literal, resize and unsigned-transport callbacks. The typed expression planner controls optional wrapper suppression; every mandatory wrapper present before depth cutting remains, and CDC-WIRE-01 suppresses new depth wrappers only when complete expansion and all receiving widths are proven. Approved unsigned expression slices use a deterministic Verilog-2001 function with the full authoritative source input width and exact constant result range, preserving truncation and four-state semantics. Helper and argument names are allocated in the same namespace after reserving component/width parameter identities, and functions are cached by symbolic width and range. Signed/unknown or otherwise unproven expressions and the ordinary backend keep inherited emission. Qualification repair reserves declaration-local width names without composing finished branch domains, and passes the exact emitter owner when preserving a retained unsigned wrapper's authoritative logical range. All old public wrapper entry points and ordinary backend behavior remain intact. Emit dependency-ordered typed local parameters through the native localparams buffer after the parameterized backend prepares exact live uses. Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative. Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. CA-005 adds explicit native ANSI-port context while preserving body declaration behavior. Include actual ANSI context and parameter-aware unsigned native temporary/operand publication. Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative. Route BOOT initial assignments through the existing default-disabled owner-bound source publication hook, retaining the exact init statement; preserve ordinary literal emission when the hook returns no replacement. CA-023 preserves child-owned symbolic memory geometry before native identity comparison using optional exact-owner hooks. Enum report formatting follows the existing native enum-string setting and falls back to numeric encoding when disabled.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
@@ -3086,8 +3087,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
-        "blob": "8fe4be720d04b46fda7b4ee57e2d4bdaac21f431",
-        "sha256": "989a71521c675edcb38fe48f88f8b23d2e0e96ba39a577816773e5100de63bbb"
+        "blob": "c34ed318882095d8fce45e3da524187736a56de9",
+        "sha256": "e3f3128773f506b25c96e149c5ab75381ed700183457adaf7f826c3b94a78663"
       },
       "edits": [
         {
@@ -3635,6 +3636,52 @@
           ]
         },
         {
+          "id": "enum-report-without-debug-strings-1",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog.emitAssert",
+          "reason": "Use enum helper text only when native enum-string emission is enabled; otherwise use the existing numeric expression/report path so no helper is referenced without a declaration.",
+          "baseline_span": {
+            "start": 32256,
+            "end": 32256,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 34340,
+            "end": 34372,
+            "sha256": "5ed9c53493ff8a0cd206862b672b27ebe2812b9604fcf0163ccbcb7113198f03"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "if spinalConfig._withEnumString ",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "enum-report-without-debug-strings-2",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog.emitAssert",
+          "reason": "Use enum helper text only when native enum-string emission is enabled; otherwise use the existing numeric expression/report path so no helper is referenced without a declaration.",
+          "baseline_span": {
+            "start": 32668,
+            "end": 32668,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 34784,
+            "end": 34816,
+            "sha256": "5ed9c53493ff8a0cd206862b672b27ebe2812b9604fcf0163ccbcb7113198f03"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "if spinalConfig._withEnumString ",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "componentemitterverilog-comments-16",
           "kind": "backend-isolation",
           "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
@@ -3645,8 +3692,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 37926,
-            "end": 38307,
+            "start": 37990,
+            "end": 38371,
             "sha256": "dcf9157377ec34fda03e2dd9bfd8938003f9d11fe017123e073865e09378482c"
           },
           "required_exact_text": [
@@ -3673,8 +3720,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 38376,
-            "end": 38620,
+            "start": 38440,
+            "end": 38684,
             "sha256": "2882c877c3467137bda71d615172edbcd8a738871335f64221cdda2a57fd1fde"
           },
           "required_exact_text": [
@@ -3696,8 +3743,8 @@
             "sha256": "d75a074b03d426e310a7f1def1943ebcdc14835b161f8a472a237f374855decd"
           },
           "approved_span": {
-            "start": 38705,
-            "end": 38714,
+            "start": 38769,
+            "end": 38778,
             "sha256": "596d40a4ed24c02a31b19d6e633f46f64304a672b40f793d8c6deab868beb0e2"
           },
           "required_exact_text": [
@@ -3719,8 +3766,8 @@
             "sha256": "d75a074b03d426e310a7f1def1943ebcdc14835b161f8a472a237f374855decd"
           },
           "approved_span": {
-            "start": 39148,
-            "end": 39157,
+            "start": 39212,
+            "end": 39221,
             "sha256": "596d40a4ed24c02a31b19d6e633f46f64304a672b40f793d8c6deab868beb0e2"
           },
           "required_exact_text": [
@@ -3742,8 +3789,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 39488,
-            "end": 39543,
+            "start": 39552,
+            "end": 39607,
             "sha256": "6042b1972c4d763f5fd04c89b6a83c71df291ea0e06c5bbb99ae3c12c3f886a1"
           },
           "required_exact_text": [
@@ -3765,8 +3812,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 42669,
-            "end": 42745,
+            "start": 42733,
+            "end": 42809,
             "sha256": "f671cdd69a92da60879a9557acffbcdb5e06944433bfdc67901dea138f375ea7"
           },
           "required_exact_text": [
@@ -3788,8 +3835,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 46032,
-            "end": 46071,
+            "start": 46096,
+            "end": 46135,
             "sha256": "0197ec1f122bfde6c08bae644032794aef7080ee2d50aabc73de0077e7939912"
           },
           "required_exact_text": [
@@ -3811,8 +3858,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 46515,
-            "end": 46564,
+            "start": 46579,
+            "end": 46628,
             "sha256": "0b4b7b080f1784c7096c7df53a3807748655700db4664a0612abf4ab49a41042"
           },
           "required_exact_text": [
@@ -3834,8 +3881,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 48382,
-            "end": 48388,
+            "start": 48446,
+            "end": 48452,
             "sha256": "0cba10bc1f335de9d4e1eac6c4f7aa62e523aa54144b9482ffddc09d32a279cf"
           },
           "required_exact_text": [
@@ -3857,8 +3904,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 50280,
-            "end": 50286,
+            "start": 50344,
+            "end": 50350,
             "sha256": "0cba10bc1f335de9d4e1eac6c4f7aa62e523aa54144b9482ffddc09d32a279cf"
           },
           "required_exact_text": [
@@ -3880,8 +3927,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 50712,
-            "end": 50770,
+            "start": 50776,
+            "end": 50834,
             "sha256": "eba8edacc4c1d2dabaedc3bd41b2d03ae7f1397f6998e33d6d4fb45473394834"
           },
           "required_exact_text": [
@@ -3903,8 +3950,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 51532,
-            "end": 51562,
+            "start": 51596,
+            "end": 51626,
             "sha256": "2f76cb5530fec66aa067821b521e1d4220de0bba6c058aef734c5dd4dad22b48"
           },
           "required_exact_text": [
@@ -3926,8 +3973,8 @@
             "sha256": "bcc1ae295e0226637c244b5841cd5caa43896af4545f00b72ae5d9479a1554e3"
           },
           "approved_span": {
-            "start": 51881,
-            "end": 52007,
+            "start": 51945,
+            "end": 52071,
             "sha256": "85fec5dd172d5b13dfe77d34a4cf3f5cb9d50976039962296ca6425d2ec17b46"
           },
           "required_exact_text": [
@@ -3949,8 +3996,8 @@
             "sha256": "69af64d494ef07db908023094ede88292d99c677154c0e4e513476dd95abfcd5"
           },
           "approved_span": {
-            "start": 57443,
-            "end": 57869,
+            "start": 57507,
+            "end": 57933,
             "sha256": "922a4e40562347a20cb4bf09f0846c78f3140482556bf3791e72362c6de3df54"
           },
           "required_exact_text": [
@@ -3972,8 +4019,8 @@
             "sha256": "224f2e0625b2bc43531b17b127daf159ae9fd4063570519957dab3e45aca5a5e"
           },
           "approved_span": {
-            "start": 76239,
-            "end": 76973,
+            "start": 76303,
+            "end": 77037,
             "sha256": "5b1cb27397675b20ebaf1e0f2141d817f2f3820e520db1d789449eb793beed39"
           },
           "required_exact_text": [
@@ -3995,8 +4042,8 @@
             "sha256": "ca47fea6d8fe4bc58f1df50ee7561d0d009b5392895796780e725c8fe9027e70"
           },
           "approved_span": {
-            "start": 77075,
-            "end": 77153,
+            "start": 77139,
+            "end": 77217,
             "sha256": "2081c0d75cf652f45b4fe49b37a2b8d4063bafa35ee2fde26cbfb9129c5c19d5"
           },
           "required_exact_text": [
@@ -4018,8 +4065,8 @@
             "sha256": "5ab9cf83395528e05ec149d6439e8d00a22eb4da89d5e53c19ba9269c966e10b"
           },
           "approved_span": {
-            "start": 77259,
-            "end": 77294,
+            "start": 77323,
+            "end": 77358,
             "sha256": "326bf2045ad9d01e74b5f534adf9fd5b5029b0b8b8d14a0d4083c47e0229a7ad"
           },
           "required_exact_text": [
@@ -4041,8 +4088,8 @@
             "sha256": "89bc1fe93bb1cc8830095ff2a7a90cd0867955fef57f6b6d00f0afdc5de52bd1"
           },
           "approved_span": {
-            "start": 77822,
-            "end": 77857,
+            "start": 77886,
+            "end": 77921,
             "sha256": "e9ebbfd545de2822adbac4c549192adaca12ddcf7fb2e402b382df26c3cf81ca"
           },
           "required_exact_text": [
@@ -4064,8 +4111,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 78477,
-            "end": 78528,
+            "start": 78541,
+            "end": 78592,
             "sha256": "610b6a0d6cab0ce9fc13c6efcd9a54bd25c0b5c24be5f6d734715b0118fc9573"
           },
           "required_exact_text": [
@@ -4087,8 +4134,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 78930,
-            "end": 78985,
+            "start": 78994,
+            "end": 79049,
             "sha256": "af29fb703f43eb5753c8ab99b789e07fce193db9044e4004beacab8820d2da1a"
           },
           "required_exact_text": [
@@ -4110,8 +4157,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 80019,
-            "end": 80082,
+            "start": 80083,
+            "end": 80146,
             "sha256": "6883a57b205d14f99fda4bb6fb61a0b54cb6b2e1cc3bc38d6281dca30b10738f"
           },
           "required_exact_text": [
@@ -4133,8 +4180,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 80146,
-            "end": 80153,
+            "start": 80210,
+            "end": 80217,
             "sha256": "a7e394f7029082eb74696a89f0aa7eb78b10270ba0714adf19d82856a8636f04"
           },
           "required_exact_text": [
@@ -4156,8 +4203,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 80223,
-            "end": 80230,
+            "start": 80287,
+            "end": 80294,
             "sha256": "a7e394f7029082eb74696a89f0aa7eb78b10270ba0714adf19d82856a8636f04"
           },
           "required_exact_text": [
@@ -4179,8 +4226,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 82787,
-            "end": 82847,
+            "start": 82851,
+            "end": 82911,
             "sha256": "f020273bb7525f0220e1be119610447feaaafda59154e2ee21fb712d2f6992aa"
           },
           "required_exact_text": [
