@@ -400,7 +400,7 @@ jobs:
           python3 morphhdl/scripts/check-increment-59i-nested-mechanisms.py "$output/mechanisms-a" "$output/mechanisms-b" --jobs 2 | tee "$output/mechanisms-qualification.log"
           python3 morphhdl/scripts/check-increment-59i-nested-saturation-widening.py --self-test | tee "$output/saturation-widening-checker-self-test.log"
           python3 morphhdl/scripts/check-increment-59i-nested-saturation-widening.py "$output/saturation-widening-a" "$output/saturation-widening-b" --jobs 2 | tee "$output/saturation-widening-qualification.log"
-          python3 morphhdl/scripts/check-increment-59i-publication-golden.py check "$output/golden-a" "$output/golden-b" --contract morphhdl/contracts/increment-59i-publication-golden-successor.json --output "$output/golden-a/evidence.json" | tee "$output/publication-golden-qualification.log"
+          python3 morphhdl/scripts/check-increment-59i-publication-golden.py check "$output/golden-a" "$output/golden-b" --output "$output/golden-a/evidence.json" | tee "$output/publication-golden-qualification.log"
           printf '%s\n' '59i composite matrices, publication goldens, inherited 59b proof and exact-source successor checks passed for this Scala lane. Each slice retains its bounded evidence scope; complete 59i qualification also requires the cross-Scala comparison, all applicable inherited and native-consumer gates, and the reviewed final qualification record.' >> "$GITHUB_STEP_SUMMARY"
       - name: Upload exact-source build, tests, original RTL and hardware evidence
         if: always()
