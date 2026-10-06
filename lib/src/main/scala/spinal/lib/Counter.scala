@@ -991,6 +991,10 @@ class Counter private[lib] (
 
   when(willClear) { valueNext := algorithm.clearValue(initialValue, valueNext) }
 
+  // Keep the Scala control API while publishing concise area-qualified RTL names.
+  willClear.setCompositeName(this, "clear")
+  willIncrement.setCompositeName(this, "incr")
+  valueNext.setCompositeName(this, "next")
   enableStandardPruning()
   willOverflow.setCompositeName(this, "willOverflow", true)
   willUnderflow.setCompositeName(this, "willUnderflow", true)

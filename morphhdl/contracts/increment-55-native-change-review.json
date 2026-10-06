@@ -3269,6 +3269,29 @@
           ]
         },
         {
+          "id": "counter-concise-rtl-names",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Counter native signal naming",
+          "reason": "Publish area-qualified clear, incr and next RTL signal names while retaining the existing Scala control API and unchanged counter assignments.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "willClear.setCompositeName(this, \"clear\")",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "willIncrement.setCompositeName(this, \"incr\")",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "valueNext.setCompositeName(this, \"next\")",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "counter-typed-bounds-18",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter stepping algorithm",
