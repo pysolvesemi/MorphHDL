@@ -15,7 +15,8 @@ import re
 from pathlib import Path
 
 SCOPE = "59i-publication-abi-defaults"
-DEFAULT_CONTRACT = Path(__file__).resolve().parents[1] / "contracts/increment-59i-publication-golden.json"
+DEFAULT_CONTRACT = Path(__file__).resolve().parents[1] / "contracts/increment-59i-publication-golden-successor.json"
+HISTORICAL_CONTRACT = DEFAULT_CONTRACT.with_name("increment-59i-publication-golden.json")
 PROFILES = (
     ("default", "parameterized", "default", "default", 5),
     ("packed", "parameterized", "packed", "default", 5),
@@ -274,11 +275,12 @@ def profile_snapshot(metadata: dict, raw: bytes) -> dict:
             require(len(params) == len(FORMALS) and {param["name"] for param in params} == set(FORMALS),
                 "formal parameter inventory changed")
             child = item["module"] == "PublicationGoldenChild"
-            # Explicit width formals have declaration-owned minimum defaults;
+            # Explicit width and direct Vec-depth formals have definition-owned
+            # minimum defaults (CA-020); top-level defaults remain authored.
             # the parent's independent defaults still reach every child binding.
             widths = (1, 1, 1) if child else (5, 3, 7)
             defaults = dict(zip(FORMALS,
-                (*widths, metadata["default_count"], 1 if child else 0)))
+                (*widths, 1 if child else metadata["default_count"], 1 if child else 0)))
             require({param["name"]: integer_default(param["default"]) for param in params} == defaults,
                 "public parameter defaults changed")
     bindings = child_bindings(text, bodies[metadata["module"]]) if metadata["kind"] == "child" else []
@@ -367,7 +369,8 @@ def check(root: Path, duplicate: Path, contract: Path) -> dict:
 def output_file(path: Path, value: dict, roots: tuple[Path, Path], contract: Path | None,
         candidate: bool = False) -> None:
     path = unlinked(path)
-    require(path != unlinked(DEFAULT_CONTRACT) and (contract is None or path != unlinked(contract)),
+    require(path not in (unlinked(DEFAULT_CONTRACT), unlinked(HISTORICAL_CONTRACT)) and
+        (contract is None or path != unlinked(contract)),
         "output must not rewrite a reviewed expectation")
     for root in roots:
         root = unlinked(root)

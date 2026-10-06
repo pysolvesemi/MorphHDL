@@ -19,10 +19,10 @@ exec(compile(SOURCE.read_bytes(), str(SOURCE), "exec"), G.__dict__)
 
 
 def module(name, mode=0, body="  assign result = records;\n", parameters=True, signed=False, width="WIDTH",
-        width_defaults=(5, 3, 7)):
+        width_defaults=(5, 3, 7), count=5):
     params = ""
     if parameters:
-        values = (*width_defaults, 5, mode)
+        values = (*width_defaults, count, mode)
         params = " #(\n" + ",\n".join("  parameter integer " + name + " = " + str(value)
             for name, value in zip(G.FORMALS, values)) + "\n)"
     return ("module " + name + params + " (\n"
@@ -58,7 +58,7 @@ def fixture_rtl(metadata):
             for name in G.FORMALS)
         body = "  PublicationGoldenChild #(\n" + bindings + "\n  ) child (.clk(clk), .records(records), .result(result));\n"
         return (module(metadata["module"], body=body) + "\n" +
-            module("PublicationGoldenChild", mode=1, width_defaults=(1, 1, 1))).encode()
+            module("PublicationGoldenChild", mode=1, width_defaults=(1, 1, 1), count=1)).encode()
     return module(metadata["module"], body=body, signed=signed).encode()
 
 
@@ -119,6 +119,7 @@ class PublicationGoldenTests(unittest.TestCase):
         self.assertFalse(self.contract.exists())
         self.reject(lambda: G.output_file(candidate, snapshot, (self.a, self.b), None, candidate=True))
         self.reject(lambda: G.output_file(G.DEFAULT_CONTRACT, snapshot, (self.a, self.b), None, candidate=True))
+        self.reject(lambda: G.output_file(G.HISTORICAL_CONTRACT, snapshot, (self.a, self.b), None, candidate=True))
         self.contract.write_bytes(G.serialized(snapshot))
         self.reject(lambda: G.output_file(self.contract, snapshot, (self.a, self.b), self.contract))
         self.reject(lambda: G.output_file(self.a / "manifest.json", snapshot, (self.a, self.b), None))
@@ -126,7 +127,7 @@ class PublicationGoldenTests(unittest.TestCase):
     def test_child_definition_defaults_and_parent_actuals_remain_independent(self):
         for profile in ("child-packed", "child-fields"):
             original = self.path(profile).read_bytes()
-            for name, witness in (("WIDTH", 5), ("TAG_WIDTH", 3), ("COORD_WIDTH", 7)):
+            for name, witness in (("WIDTH", 5), ("TAG_WIDTH", 3), ("COORD_WIDTH", 7), ("COUNT", 5)):
                 with self.subTest(profile=profile, formal=name):
                     before = ("parameter integer " + name + " = 1").encode()
                     after = ("parameter integer " + name + " = " + str(witness)).encode()
