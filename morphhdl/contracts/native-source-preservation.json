@@ -27,7 +27,7 @@
     {
       "path": "lib/src/main",
       "baseline_tree": "76cd20a58e83ff73404632aec84bb03f2dd4dea9",
-      "approved_tree": "0abc6e23f97d6c644e6ba763c3962aaeb72e6e73"
+      "approved_tree": "c3073e017bc56912f23b51a5db743d09963e67e4"
     },
     {
       "path": "scalaplugin/src/main",
@@ -5161,8 +5161,8 @@
       "approved": {
         "path": "lib/src/main/scala/spinal/lib/Counter.scala",
         "mode": "100644",
-        "blob": "31c65472411a69c4ec451cefce99d60639187bd7",
-        "sha256": "0a43076776796e6901a9cba74aa035bd4a53c98f2d064b2e1460bfd1505c4b70"
+        "blob": "bb37c8a163fe8c8c864bb5de27f274d1b775c6b3",
+        "sha256": "7c85e3cdad2bd5ddf8710ca2ccd3f555bbbdb641c51ead61e9233909ced6a2ca"
       },
       "edits": [
         {
@@ -5562,6 +5562,39 @@
           ]
         },
         {
+          "id": "counter-concise-rtl-names",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Counter native signal naming",
+          "reason": "Publish area-qualified clear, incr and next RTL signal names while retaining the existing Scala control API and unchanged counter assignments.",
+          "baseline_span": {
+            "start": 15403,
+            "end": 15403,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 37738,
+            "end": 37955,
+            "sha256": "a9078e020eae86b8cbc576ac22a53f01ef869bcb8d8ba654df7332ac678839f9"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "willClear.setCompositeName(this, \"clear\")",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "willIncrement.setCompositeName(this, \"incr\")",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "valueNext.setCompositeName(this, \"next\")",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "counter-typed-bounds-18",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter stepping algorithm",
@@ -5572,8 +5605,8 @@
             "sha256": "f72c3b9b3be2af8efd41fa9b75cad36c90f97b2fc564732ae28f8e22d3477d3d"
           },
           "approved_span": {
-            "start": 37914,
-            "end": 37945,
+            "start": 38131,
+            "end": 38162,
             "sha256": "163fe441466d92de120e7365285f811377e320ce7f917629c12f77f7f09db3cb"
           },
           "required_exact_text": [
@@ -5595,8 +5628,8 @@
             "sha256": "6113247bf823c32d398236398ee23f3d8b93362e4cde85b783eb4bcd4176bcf7"
           },
           "approved_span": {
-            "start": 37949,
-            "end": 41173,
+            "start": 38166,
+            "end": 41390,
             "sha256": "b9b8d2dc73650acd2332dd7455ff97a5b7e7047dd40a4dcbe707b33df1d97aaf"
           },
           "required_exact_text": [
@@ -5618,8 +5651,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 41282,
-            "end": 41347,
+            "start": 41499,
+            "end": 41564,
             "sha256": "e56ffa2484db4334f6b928bb47c95a680c385da095b59869e387906ded5d3bea"
           },
           "required_exact_text": [
@@ -5641,8 +5674,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 43229,
-            "end": 43360,
+            "start": 43446,
+            "end": 43577,
             "sha256": "63eb26461164f322d3fb80810b3d91e39010a45eddc6f39f4430ce7971827331"
           },
           "required_exact_text": [
@@ -5664,8 +5697,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 43504,
-            "end": 43708,
+            "start": 43721,
+            "end": 43925,
             "sha256": "c2941d87cb7f868ef9d84c632de13208e50c877b2edce525046f64f0fef91260"
           },
           "required_exact_text": [
