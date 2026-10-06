@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "21b16d9258ee50be0b484a82f6aa72c124436b04"
+      "approved_tree": "0607d60ec3733e90ec0cc7b4dd6b712e13d59049"
     },
     {
       "path": "idslpayload/src/main",
@@ -4486,9 +4486,10 @@
       "change": "modified",
       "classification": "backend-isolation-hook",
       "introduced_by": [
-        "PR #187 qualification repair: preserve upstream VerilogBase JVM compatibility"
+        "PR #187 qualification repair: preserve upstream VerilogBase JVM compatibility",
+        "CA-025: canonical definition naming"
       ],
-      "reason": "Supply optional instance-owned declaration-policy storage on the concrete PhaseVerilog emitter, leaving all ordinary emission, construction arguments, process traversal and width behavior unchanged. No new abstract requirements are added to the historical VerilogBase interface.",
+      "reason": "Supply optional instance-owned declaration-policy storage on the concrete PhaseVerilog emitter, leaving all ordinary emission, construction arguments, process traversal and width behavior unchanged. No new abstract requirements are added to the historical VerilogBase interface. Add a default-inert callback after native trace deduplication to publish canonical definition names.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala",
         "mode": "100644",
@@ -4498,8 +4499,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala",
         "mode": "100644",
-        "blob": "dab29d541e5af8cf5d38074230ddc31e567cdc39",
-        "sha256": "dbada79cb31c6e787c7e66b4f37b5b354adae2a525d305e65e023b18635cba4f"
+        "blob": "c90ae34e8ac10e1fa0aa31c13b49516234846f74",
+        "sha256": "376e9de6689f4dd4ee318882f18f04557daa7b9afb28573968a278aafd3b4d1f"
       },
       "edits": [
         {
@@ -4521,6 +4522,52 @@
             {
               "side": "approved",
               "text": "with VerilogBase.DeclarationPolicyOwner ",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "ca025-definition-name-publication-1",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.PhaseVerilog",
+          "reason": "Bind an optional instance-owned naming callback with an inert concrete default.",
+          "baseline_span": {
+            "start": 6702,
+            "end": 6702,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 6742,
+            "end": 7170,
+            "sha256": "ca3a4e5a991ddec0d7400391f4fd96172eea83695d0302d8d2e067304a5c4693"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Optional publication policy runs only for a new native trace, after native\n  // deduplication. Concrete generation keeps its original naming behavior.\n  private var definitionNamePublication: Component => Unit = (_: Component) => ()\n  def bindDefinitionNamePublication(policy: Component => Unit): Unit = {\n    require(policy != null, \"definition naming policy must not be null\")\n    definitionNamePublication = policy\n  }\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "ca025-definition-name-publication-2",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.PhaseVerilog",
+          "reason": "Invoke final naming only for a new canonical native trace; preserve existing trace comparison and reference map.",
+          "baseline_span": {
+            "start": 8324,
+            "end": 8324,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 8792,
+            "end": 8835,
+            "sha256": "ff1c2bd37b99d569667380e18e0e4a05b5c4c0a2f6b4f32ae5d520af51f63e94"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "      definitionNamePublication(component)\n",
               "count": 1
             }
           ]
