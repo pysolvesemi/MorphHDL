@@ -7,6 +7,7 @@ object MorphHdlEmitterParameterNames {
     * pipeline may already install this phase; never prepare an owner twice.
     */
   def install(phases: scala.collection.mutable.ArrayBuffer[Phase]): Unit = {
+    MorphHdlDefinitionNames.install(phases)
     val existing = phases.count(_.isInstanceOf[MorphHdlEmitterParameterNames])
     require(existing <= 1, "parameter publication needs one name preparation phase")
     if (existing == 0 && phases.exists(_.isInstanceOf[PhaseVerilog])) {

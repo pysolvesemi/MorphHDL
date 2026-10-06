@@ -839,3 +839,29 @@ controls pass. A focused local filter runs all 22 original bridge mutations and
 requires their precise early rejection; all pass in about 43 seconds total.
 That filter omits the full positive audit and does not claim a full harness pass.
 The unchanged full positive remains mandatory in targeted CI.
+
+
+## CA-025 — canonical definition publication names
+
+- [x] A shared definition reclaims its requested name when it is available.
+  Capture exact requested names before native allocation and assign final names
+  only when the native emitter accepts a new canonical trace. Existing native
+  deduplication and schema validation remain authoritative. No emitted-text
+  renaming is used; headers, instance references, filenames and file inventories
+  consume the native component name. Reserve top-level, BlackBox, noMerge,
+  keyword and other namespace names; preserve deliberate numeric suffixes.
+
+The mixed-depth register-chain regression fails without the policy, publishing
+`StageDepthCell_1`, and passes with `StageDepthCell`. Forty new cases extend the
+retained suite to 114, covering mixed hierarchy levels, instance order,
+constant/symbolic width and depth actuals, packed/unpacked layouts, combined and
+per-component output, semantic differences and reserved names. All 114 cases
+pass on Scala 2.12.18 and 2.13.12, including Icarus behavioral scoreboards,
+strict Verilator lint on per-component profiles and Yosys checks. Another 18
+scalar-formal/BlackBox regressions pass on Scala 2.13.12.
+
+Read-only application-source retests generate CDC and product top twice each;
+both publish one `CdcSynchronizer.v` without suffixed references and reproduce
+byte-identical RTL. Application source hashes are unchanged. Evidence is in
+`~/.local/state/morphhdl/qualification/23dc9248-resume/repair-ca025/`.
+This is local compiler repair evidence; fresh remote qualification remains due.

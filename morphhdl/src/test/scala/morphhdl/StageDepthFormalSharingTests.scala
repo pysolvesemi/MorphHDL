@@ -56,18 +56,18 @@ class StageDepthFormalSharingTests extends AnyFunSuite {
     val clocks=Seq(clk0,clk1,clk2);val resets=Seq(reset0,reset1,reset2)
     val inputs=Seq(x0,x1,x2);val outputs=Seq(y0,y1,y2)
     for(i <- (if(reverse) Seq(2,1,0) else Seq(0,1,2))) {
-      if(levels==0) {
+      if(levels==0 || (levels == -1 && i == 2)) {
         val child=new Cell(widths(i),depths(i),dynamic,if(i==1) difference else "").setName(s"cell_$i")
         child.clk:=clocks(i);child.resetn:=resets(i);child.enable:=en;child.data:=inputs(i);outputs(i):=child.result
       } else {
-        val child=new Wrapper(widths(i),depths(i),levels,dynamic).setName(s"wrapper_$i")
+        val child=new Wrapper(widths(i),depths(i),if(levels == -1) i+1 else levels,dynamic).setName(s"wrapper_$i")
         child.clk:=clocks(i);child.resetn:=resets(i);child.enable:=en;child.data:=inputs(i);outputs(i):=child.result
       }
     }
   }
   private def sources(dir:Path):Vector[Path]={val stream=Files.list(dir);try stream.iterator.asScala.filter(_.toString.endsWith(".v")).toVector.sortBy(_.toString) finally stream.close()}
   private def run(dir:Path,command:Seq[String]):Unit={val(code,log)=Increment66ToolEvidence.run(dir,command);assert(code==0,s"$command in $dir\n$log")}
-  for(literal<-Seq(false,true);reverse<-Seq(false,true);levels<-Seq(0,1);dynamic<-Seq(false,true);split<-Seq(false,true);unpacked<-Seq(false,true)) {
+  for(literal<-Seq(false,true);reverse<-Seq(false,true);levels<-Seq(0,1,-1);dynamic<-Seq(false,true);split<-Seq(false,true);unpacked<-Seq(false,true)) {
     test(s"register Vec depth sharing literal=$literal reverse=$reverse levels=$levels dynamic=$dynamic split=$split unpacked=$unpacked") {
       val dir=Files.createTempDirectory("stage-depth-sharing-")
       def generate(out:Path):Vector[(String,String)]={
@@ -78,6 +78,8 @@ class StageDepthFormalSharingTests extends AnyFunSuite {
       assert(files==generate(Files.createTempDirectory("stage-depth-sharing-repeat-")))
       val text=files.map(_._2).mkString("\n")
       assert("(?m)^module StageDepthCell(?:_\\d+)?\\b".r.findAllIn(text).size==1,text)
+      assert("(?m)^module StageDepthCell ".r.findAllIn(text).size==1,text)
+      if(split) assert(files.exists(_._1 == "StageDepthCell.v"), files.map(_._1).toString)
       for(n<-0 to 2) assert(text.contains(s".DEPTH(${if(literal) (n+2).toString else "D"+n})"),text)
       assert(text.contains("ASYNC_REG"),text)
       val widthArgs=if(literal) "" else ".W0(A),"
@@ -115,6 +117,31 @@ initial begin wait(a && b);$$finish;end endmodule
       MorphVerilog(SpinalConfig(targetDirectory=dir.toString,oneFilePerComponent=true,headerWithDate=false,flags=scala.collection.mutable.HashSet[Any](VerilogAggregateOptions(preserveConstantVecs=true,preserveConstantLoops=true,vecLayout=VerilogAggregateOptions.UnpackedArray))))(new Top(false,false,0,dynamic,difference))
       val text=sources(dir).map(p=>new String(Files.readAllBytes(p),UTF_8)).mkString("\n")
       assert("(?m)^module StageDepthCell(?:_\\d+)?\\b".r.findAllIn(text).size==2,text)
+      assert("(?m)^module StageDepthCell ".r.findAllIn(text).size==1,text)
+      assert("(?m)^module StageDepthCell_1 ".r.findAllIn(text).size==1,text)
     }
   }
+  for(reserved <- Seq("StageDepthCell", "StageDepthCell_1"); reverse <- Seq(false,true); split <- Seq(false,true)) {
+    test(s"canonical definition names preserve reservation=$reserved reverse=$reverse split=$split") {
+      def generate(dir: Path): Vector[(String,String)] = {
+        MorphVerilog(SpinalConfig(targetDirectory=dir.toString,oneFilePerComponent=split,headerWithDate=false,
+          flags=scala.collection.mutable.HashSet[Any](VerilogAggregateOptions(preserveConstantVecs=true,
+            preserveConstantLoops=true,vecLayout=VerilogAggregateOptions.UnpackedArray)))) {
+          val top = new Top(false,reverse,0,false,"logic")
+          top.setDefinitionName(reserved, noMerge=true)
+          top
+        }
+        sources(dir).map(p => p.getFileName.toString -> new String(Files.readAllBytes(p),UTF_8))
+      }
+      val dir=Files.createTempDirectory("definition-name-reservation-")
+      val files=generate(dir)
+      assert(files==generate(Files.createTempDirectory("definition-name-reservation-repeat-")))
+      val names="(?m)^module (StageDepthCell(?:_\\d+)?) ".r.findAllMatchIn(files.map(_._2).mkString("\n")).map(_.group(1)).toVector
+      assert(names.sorted==Vector("StageDepthCell","StageDepthCell_1","StageDepthCell_2"),names.toString)
+      if(split) assert(names.forall(name => files.exists(_._1==name+".v")))
+      run(dir,Seq("iverilog","-g2001","-s",reserved,"-o","compiled")++files.map(_._1))
+      run(dir,Seq("yosys","-Q","-p",s"read_verilog ${files.map(_._1).mkString(" ")}; hierarchy -check -top $reserved; proc; check -assert"))
+    }
+  }
+
 }
