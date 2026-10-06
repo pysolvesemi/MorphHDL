@@ -2650,9 +2650,10 @@
       "change": "modified",
       "classification": "backend-isolation-hook",
       "introduced_by": [
-        "PR #187 qualification repair: preserve upstream VerilogBase JVM compatibility"
+        "PR #187 qualification repair: preserve upstream VerilogBase JVM compatibility",
+        "CA-025: canonical definition naming"
       ],
-      "reason": "Supply optional instance-owned declaration-policy storage on the concrete PhaseVerilog emitter, leaving all ordinary emission, construction arguments, process traversal and width behavior unchanged. No new abstract requirements are added to the historical VerilogBase interface.",
+      "reason": "Supply optional instance-owned declaration-policy storage on the concrete PhaseVerilog emitter, leaving all ordinary emission, construction arguments, process traversal and width behavior unchanged. No new abstract requirements are added to the historical VerilogBase interface. Add a default-inert callback after native trace deduplication to publish canonical definition names.",
       "baseline_path": "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala",
       "edits": [
         {
@@ -2664,6 +2665,32 @@
             {
               "side": "approved",
               "text": "with VerilogBase.DeclarationPolicyOwner ",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "ca025-definition-name-publication-1",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.PhaseVerilog",
+          "reason": "Bind an optional instance-owned naming callback with an inert concrete default.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Optional publication policy runs only for a new native trace, after native\n  // deduplication. Concrete generation keeps its original naming behavior.\n  private var definitionNamePublication: Component => Unit = (_: Component) => ()\n  def bindDefinitionNamePublication(policy: Component => Unit): Unit = {\n    require(policy != null, \"definition naming policy must not be null\")\n    definitionNamePublication = policy\n  }\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "ca025-definition-name-publication-2",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.PhaseVerilog",
+          "reason": "Invoke final naming only for a new canonical native trace; preserve existing trace comparison and reference map.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "      definitionNamePublication(component)\n",
               "count": 1
             }
           ]
