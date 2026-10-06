@@ -32,7 +32,13 @@ private[internals] object NativeScalarFormalSchema {
     // declarations for owner evidence. Keep nested and captured Vec identities
     // in the classification below; publication roots alone omit those shapes.
     ParameterizedVerilogVecs.publicationVectors(component)
-    val vecDepths = ParameterizedVec.retainedVectorsOf(component).flatMap { vector =>
+    // Consumed reduction probes retain clone metadata, not native declarations.
+    // Their private receipt authenticates the exact removed graph and rejects
+    // changed owners, shapes, leaves and operations. Do not classify that dead
+    // metadata as definition geometry; all other retained Vecs still require
+    // their exact native declaration owners below.
+    val vecDepths = ParameterizedVec.retainedVectorsOf(component)
+      .filterNot(TypedBalancedReductionBackend.ownsConsumedProbe).flatMap { vector =>
       ParameterizedVec.shapeOf(vector).toVector.map(shape => vector -> shape.depth)
     }
     val declarations = ExternalFormalParameterRegistry.completeTypedBindingsOf(component)
@@ -66,12 +72,13 @@ private[internals] object NativeScalarFormalSchema {
   }
 
   def definitionParameters(component: Component,
-      parameters: Vector[ElaborationIntegerParameter]): Vector[ElaborationIntegerParameter] = {
+      parameters: Vector[ElaborationIntegerParameter],
+      canonicalSchema: Boolean = false): Vector[ElaborationIntegerParameter] = {
     // A top-level component has no parent instance binding to restore its
     // supplied actual. Its public defaults must retain that invocation.
     if (component.parent == null) return parameters
     val scalar = bindings(component)
-    NativeWidthFormalSchema.definitionParameters(component, parameters).map { parameter =>
+    NativeWidthFormalSchema.definitionParameters(component, parameters, canonicalSchema).map { parameter =>
       if (scalar.exists(_.binding.formal eq parameter)) parameter.copy(default = parameter.minimum)
       else parameter
     }

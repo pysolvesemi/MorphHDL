@@ -21,6 +21,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: increment-59i-combined-${{ github.ref }}
@@ -51,11 +52,15 @@ jobs:
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
+      - name: Consume authenticated candidate provenance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 morphhdl/scripts/candidate_provenance_ci.py
       - name: Preserve exact source and run bounded primary audits
         shell: bash
         run: |
           set -euo pipefail
-          python3 morphhdl/scripts/check-parameterized-integration-source.py
           python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test
           python3 morphhdl/scripts/check-native-source-preservation.py
           output="$GITHUB_WORKSPACE/target/increment-59i-combined-source"
@@ -63,31 +68,9 @@ jobs:
           git rev-parse HEAD > "$output/head.txt"
           git archive HEAD | gzip > "$output/source.tar.gz"
 
-          # The feature and target sides each have immutable native-source
-          # reviews. Validate those exact parents separately, then require all
-          # joined 59i successor reviews below on the current checkout.
+          # Both native-source parent certificates are enrolled in candidate provenance.
           test "$(git rev-parse "$INTEGRATION_MERGE^2")" = "$TARGET_HEAD"
           git merge-base --is-ancestor "$INTEGRATION_MERGE" HEAD
-          feature_native="/tmp/59i-native-feature-$SCALA_VERSION"
-          target_native="/tmp/59i-native-target-$SCALA_VERSION"
-          rm -rf "$feature_native" "$target_native"
-          cleanup_native_worktrees() {
-            git worktree remove --force "$feature_native" >/dev/null 2>&1 || true
-            git worktree remove --force "$target_native" >/dev/null 2>&1 || true
-          }
-          trap cleanup_native_worktrees EXIT
-          git worktree add --detach "$feature_native" "$INTEGRATION_MERGE^1"
-          git worktree add --detach "$target_native" "$INTEGRATION_MERGE^2"
-          (cd "$feature_native" && python3 morphhdl/scripts/check-native-source-preservation.py) \
-            | tee "$output/native-feature-parent.log"
-          (cd "$target_native" && python3 morphhdl/scripts/check-native-source-preservation.py) \
-            | tee "$output/native-target-parent.log"
-          (cd "$feature_native" && python3 morphhdl/scripts/check-typed-native-source-overlay.py) \
-            | tee "$output/overlay-feature-parent.log"
-          (cd "$target_native" && python3 morphhdl/scripts/check-typed-native-source-overlay.py) \
-            | tee "$output/overlay-target-parent.log"
-          cleanup_native_worktrees
-          trap - EXIT
 
           for layer in 59i 59g 59h; do
             python3 morphhdl/scripts/run-parameterized-inherited-audit.py "morphhdl/scripts/check-increment-$layer-source-review.py" --self-test > "$output/$layer-source-self-test.log" 2>&1 || { tail -n 100 "$output/$layer-source-self-test.log"; exit 1; }
@@ -144,6 +127,11 @@ jobs:
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
+      - name: Consume authenticated candidate provenance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 morphhdl/scripts/candidate_provenance_ci.py
       - name: Preserve exact source and run bounded inherited audits
         shell: bash
         run: |

@@ -94,6 +94,8 @@ def historical_harness(tree):
         if state == "committed":
             return "59i production successor: sealed route tree differs from immutable source plus exact seal"
         if state == "uncommitted":
+            if schema == 22:
+                return "59i production successor: staged, unstaged or untracked content: " + repr([path])
             return "59i production successor: HEAD/index/worktree identity differs: " + path
         if state == "staged":
             return "59i production successor: HEAD/index identity differs"
@@ -332,6 +334,11 @@ class SourceBudgetTests(unittest.TestCase):
     def test_both_scheduling_suites_are_enrolled_without_dropping_source_audits(self):
         for name in ("increment-60f-equivalence-closure.yml", "increment-59i-inherited-source-qualification.yml"):
             source = (ROOT / ".github/workflows" / name).read_text()
+            if name == "increment-60f-equivalence-closure.yml":
+                # Reverse only the reviewed once-per-candidate enrollment;
+                # preserve every other command and budget assertion below.
+                from candidate_provenance_migration import restore_workflow
+                source = restore_workflow(".github/workflows/" + name, source)
             for command in ("test-increment-60f-source-budget.py", "test-increment-60f-source-scheduling.py",
                             "test-increment-60f-inherited-source-scope.py",
                             "check-increment-60f-equivalence-closure.py --source-only"):

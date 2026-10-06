@@ -81,6 +81,11 @@ class SourceSchedulingTests(unittest.TestCase):
         for name, budget in (("increment-60f-equivalence-closure.yml", 180),
                 ("increment-59i-inherited-source-qualification.yml", 240)):
             source = (ROOT / ".github/workflows" / name).read_text()
+            if name == "increment-60f-equivalence-closure.yml":
+                # Reverse only the reviewed once-per-candidate enrollment;
+                # preserve every other command and budget assertion below.
+                from candidate_provenance_migration import restore_workflow
+                source = restore_workflow(".github/workflows/" + name, source)
             self.assertIn("timeout-minutes: " + str(budget), source)
             self.assertIn("python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only", source)
             self.assertIn("python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py", source)

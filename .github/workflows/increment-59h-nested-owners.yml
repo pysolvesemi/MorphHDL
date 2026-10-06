@@ -37,6 +37,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: increment-59h-nested-owners-${{ github.ref }}
@@ -71,11 +72,15 @@ jobs:
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
+      - name: Consume authenticated candidate provenance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 morphhdl/scripts/candidate_provenance_ci.py
       - name: Preserve exact-head evidence and audit native boundaries
         shell: bash
         run: |
           set -euo pipefail
-          python3 morphhdl/scripts/check-parameterized-integration-source.py
           python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test
           output="$GITHUB_WORKSPACE/target/increment-59h-nested-owners"
           mkdir -p "$output/bootstrap"

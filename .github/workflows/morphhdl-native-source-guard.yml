@@ -33,13 +33,19 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+      - name: Authenticate candidate provenance once
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 morphhdl/scripts/candidate_provenance_ci.py --produce
       - name: Syntax-check and self-test the exact native boundary
         shell: bash
         run: |
           set -euo pipefail
-          python3 morphhdl/scripts/check-parameterized-integration-source.py
           python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test
           python3 morphhdl/scripts/test-parameterized-inherited-audit.py
+          python3 morphhdl/scripts/test-candidate-provenance.py
+          python3 morphhdl/scripts/test-candidate-provenance-ci.py
           python3 morphhdl/scripts/test-increment-59i-inherited-audit-budgets.py
           python3 morphhdl/scripts/test-audit-git-batch.py
           test -x morphhdl/scripts/check-native-streamfifocc-boundary.sh
@@ -102,5 +108,12 @@ jobs:
         with:
           name: integrated-source-morphhdl-native-source-guard-guard-${{ matrix.scala || 'source' }}-${{ github.run_attempt }}
           path: target/parameterized-inherited-audits
+          if-no-files-found: error
+          retention-days: 30
+      - name: Retain authenticated candidate provenance
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-provenance-${{ env.MORPHHDL_PROVENANCE_HEAD }}-${{ github.run_attempt }}
+          path: target/parameterized-inherited-audits/candidate-provenance/receipt.json
           if-no-files-found: error
           retention-days: 30

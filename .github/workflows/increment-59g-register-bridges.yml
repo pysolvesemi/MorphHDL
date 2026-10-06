@@ -27,6 +27,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: increment-59g-register-bridges-${{ github.ref }}
@@ -59,6 +60,11 @@ jobs:
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
+      - name: Consume authenticated candidate provenance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 morphhdl/scripts/candidate_provenance_ci.py
       - name: Compose frozen register-bridge reviews with Increment 61
         shell: bash
         run: |
@@ -67,7 +73,6 @@ jobs:
           mkdir -p "$output/bootstrap"
           git rev-parse HEAD > "$output/head.txt"
           git archive HEAD | gzip > "$output/source.tar.gz"
-          python3 morphhdl/scripts/check-parameterized-integration-source.py
           python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test
           python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py
           python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test

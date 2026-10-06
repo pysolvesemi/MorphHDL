@@ -43,7 +43,9 @@ private[internals] object NativeWidthFormalSchema {
       require(e.default == value.getBitsWidth && e.minimum > 0,
         "native formal declaration/connection must preserve its own width witness")
       val reference = NativeLocalParameters.reference(owner, e).getOrElse(e.verilog)
-      s"[$reference-1:0]"
+      if (e.parameters.isEmpty && e.parameterRoots.isEmpty && e.generateIndex.isEmpty)
+        if (e.default == 1) "" else s"[${e.default - 1}:0]"
+      else s"[$reference-1:0]"
     }
   }
 
@@ -89,9 +91,43 @@ private[internals] object NativeWidthFormalSchema {
       .map(_.binding.formal).getOrElse(parameter)
 
   def definitionParameters(component: Component,
-      parameters: Vector[ElaborationIntegerParameter]): Vector[ElaborationIntegerParameter] = {
+      parameters: Vector[ElaborationIntegerParameter],
+      canonicalSchema: Boolean = false): Vector[ElaborationIntegerParameter] = {
     val owned = bindings(component)
-    parameters.map(p => if(owned.exists(_.binding.formal eq p)) p.copy(default=p.minimum) else p)
+    parameters.map { p =>
+      owned.find(_.binding.formal eq p) match {
+        // Literal public defaults retain established formalParam publication.
+        // Definition equivalence still ignores instance actuals, including two
+        // literal instances with different widths sharing one child definition.
+        case Some(entry) if canonicalSchema || entry.binding.actual.parameters.nonEmpty ||
+            entry.binding.actual.parameterRoots.nonEmpty || entry.binding.actual.generateIndex.nonEmpty =>
+          p.copy(default = p.minimum)
+        case _ => p
+      }
+    }
+  }
+
+  /** Literal formals historically substitute the range after native column
+    * formatting. Restore that spacing only at final publication, after native
+    * definition sharing has compared the symbolic bodies.
+    */
+  def literalPortPadding(component: Component, verilog: String): String = {
+    component.getOrdredNodeIo.toVector.foldLeft(verilog) { (text, port) =>
+      portBinding(port).filter { entry =>
+        val actual = entry.binding.actual
+        actual.parameters.isEmpty && actual.parameterRoots.isEmpty && actual.generateIndex.isEmpty
+      } match {
+        case Some(_) =>
+          val concrete = if (port.getBitsWidth == 1) "" else s"[${port.getBitsWidth - 1}:0]"
+          val padding = " " * (1 + math.max(0, 8 - concrete.length))
+          val declaration = ("(?m)^(\\s*(?:input|output|inout)\\s+(?:wire|reg)\\s+" +
+            "(?:signed\\s+)?\\[[^\\]\\n]+\\]) +(" +
+            java.util.regex.Pattern.quote(port.getName()) + "\\b)").r
+          declaration.replaceAllIn(text, matched => java.util.regex.Matcher.quoteReplacement(
+            matched.group(1) + padding + matched.group(2)))
+        case _ => text
+      }
+    }
   }
 
   def portSchema(port: BaseType): Option[ElaborationIntegerExpression] = portBinding(port).map { entry =>

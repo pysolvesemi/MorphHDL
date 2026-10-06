@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: increment-60f-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -23,8 +24,8 @@ jobs:
   qualify:
     name: Signedness closure Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest
-    # The direct source audit and retained harness each repeat the full joined
-    # traversal (measured 1621.921s once). Leave time for both plus RTL gates.
+    # Preserve the full qualification deadline after migrating historical
+    # source replay to the authenticated current-candidate provenance result.
     timeout-minutes: 180
     strategy:
       fail-fast: false
@@ -39,11 +40,15 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           submodules: recursive
+      - name: Consume authenticated candidate provenance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 morphhdl/scripts/candidate_provenance_ci.py
       - name: Compose sealed signedness closure with Increment 61
         shell: bash
         run: |
           set -euo pipefail
-          python3 morphhdl/scripts/check-parameterized-integration-source.py
           python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test
           output="$GITHUB_WORKSPACE/target/increment-60f"
           predecessor="$output/predecessor-source"
@@ -59,16 +64,7 @@ jobs:
           python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --self-test
           python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py
           python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test
-          base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)
-          git worktree add --detach "$predecessor" "$base"
-          trap 'git worktree remove --force "$predecessor"' EXIT
-          (
-            cd "$predecessor"
-            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
-            python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py
-            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --self-test
-            python3 morphhdl/scripts/test-wa07b-inherited-review.py
-          )
+          # The Increment 61 predecessor and its evidence are authenticated by the producer.
           python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test
           python3 morphhdl/scripts/check-increment-58-retirement.py
           python3 morphhdl/scripts/check-production-retirement.py

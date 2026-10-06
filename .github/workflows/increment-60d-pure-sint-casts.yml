@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: increment-60d-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -35,27 +36,23 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           submodules: recursive
+      - name: Consume authenticated candidate provenance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 morphhdl/scripts/candidate_provenance_ci.py
       - name: Sealed historical source scope and current native audits
         shell: bash
         run: |
           set -euo pipefail
-          python3 morphhdl/scripts/check-parameterized-integration-source.py
           python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test
           mkdir -p target/increment-60d
           git archive HEAD | gzip > target/increment-60d/source.tar.gz
-          # Immutable recursive audits share this runner's CPU budget. Execute
-          # both unchanged commands sequentially; keep every nested deadline.
+          # These scopes consume the once-per-candidate provenance result.
+          # Current behavioral qualification below retains its original budget.
           python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py
           python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test
-          predecessor="$GITHUB_WORKSPACE/target/increment-61-predecessor-60d-${{ matrix.scala }}"
-          git worktree add --detach "$predecessor" 5a9294363c7b74ae584f1702160fe1f7e468f58a
-          trap 'git worktree remove --force "$predecessor"' EXIT
-          (
-            cd "$predecessor"
-            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
-            python3 morphhdl/scripts/check-increment-58-retirement.py
-            python3 morphhdl/scripts/check-production-retirement.py
-          )
+          # The Increment 61 predecessor and its evidence are authenticated by the producer.
           python3 morphhdl/scripts/check-native-source-preservation.py
           python3 morphhdl/scripts/check-typed-native-source-overlay.py
       - name: Declaration roles, opt-in isolation, wrappers and deterministic generation

@@ -11,7 +11,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = ".github/workflows/increment-59f-callback-graphs.yml"
 BASELINE = "c48bad51b9857570e65fbd7c1be5dec465a3e8fa"
-WORKFLOW = (ROOT / WORKFLOW_PATH).read_text()
+from candidate_provenance_migration import restore_workflow
+WORKFLOW = restore_workflow(WORKFLOW_PATH, (ROOT / WORKFLOW_PATH).read_text())
 
 
 def git(*args: str) -> str:

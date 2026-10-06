@@ -872,7 +872,7 @@ object MorphHdlExternalParameterizedVerilog {
     }
     ComponentSchema(
       orderedPorts,
-      NativeScalarFormalSchema.definitionParameters(component, componentParameters(component)),
+      NativeScalarFormalSchema.definitionParameters(component, componentParameters(component), canonicalSchema = true),
       ParameterizedVerilogVecs.logicalSchema(component)
     )
   }

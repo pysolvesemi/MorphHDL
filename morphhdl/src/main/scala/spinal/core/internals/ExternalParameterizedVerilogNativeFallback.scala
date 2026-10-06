@@ -217,7 +217,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       withVectors,
       pc
     )
-    lowerRetainedIntegerHelpers(withFiniteFolds, component.definitionName)
+    NativeWidthFormalSchema.literalPortPadding(component,
+      lowerRetainedIntegerHelpers(withFiniteFolds, component.definitionName))
   }
 
   private def ensureParameterHeader(

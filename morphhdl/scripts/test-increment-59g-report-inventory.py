@@ -26,13 +26,74 @@ OLD_BUDGET = '    timeout-minutes: 120\n'
 REVIEWED_BUDGET = '    timeout-minutes: 240\n'
 
 
+# Exact current integration enrollment, reversed before the original historical
+# equality assertion. No general line filtering or certificate changes.
+INTEGRATION_ENROLLMENT = (('', '      options: --shm-size=2g\n'),
+ ('          predecessor="$output/predecessor-source"\n', ''),
+ ('          python3 morphhdl/scripts/check-increment-61-source-review.py\n'
+  '          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test\n'
+  '          base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)\n'
+  '          git worktree add --detach "$predecessor" "$base"\n'
+  '          trap \'git worktree remove --force "$predecessor"\' EXIT\n'
+  '          (\n'
+  '            cd "$predecessor"\n'
+  '            python3 morphhdl/scripts/check-increment-59g-source-review.py --self-test\n'
+  '            python3 morphhdl/scripts/check-increment-59g-source-review.py\n'
+  '            python3 morphhdl/scripts/test-increment-59g-source-review.py\n'
+  '            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only\n'
+  '          )\n',
+  '          python3 morphhdl/scripts/check-parameterized-integration-source.py\n'
+  '          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n'
+  '          python3 morphhdl/scripts/run-parameterized-inherited-audit.py '
+  'morphhdl/scripts/check-increment-61-source-review.py\n'
+  '          python3 morphhdl/scripts/run-parameterized-inherited-audit.py '
+  'morphhdl/scripts/check-increment-61-source-review.py --self-test\n'
+  '          python3 morphhdl/scripts/run-parameterized-inherited-audit.py '
+  'morphhdl/scripts/check-increment-59g-source-review.py --self-test\n'
+  '          python3 morphhdl/scripts/run-parameterized-inherited-audit.py '
+  'morphhdl/scripts/check-increment-59g-source-review.py\n'
+  '          python3 morphhdl/scripts/run-parameterized-inherited-audit.py '
+  'morphhdl/scripts/test-increment-59g-source-review.py\n'
+  '          python3 morphhdl/scripts/run-parameterized-inherited-audit.py '
+  'morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only\n'),
+ ('',
+  '\n'
+  '      - name: Retain inherited source audit receipts\n'
+  '        if: always()\n'
+  '        uses: actions/upload-artifact@v4\n'
+  '        with:\n'
+  "          name: integrated-source-increment-59g-register-bridges-${{ matrix.scala || 'source' "
+  '}}-${{ github.run_attempt }}\n'
+  '          path: target/parameterized-inherited-audits\n'
+  '          if-no-files-found: error\n'
+  '          retention-days: 30\n'))
+
+def restore_integration_enrollment(text: str) -> str:
+    from candidate_provenance_migration import restore_workflow
+    text = restore_workflow(WORKFLOW, text)
+    original_text = text
+    for historical, current in INTEGRATION_ENROLLMENT:
+        if current:
+            if text.count(current) != 1:
+                return original_text
+            text = text.replace(current, historical, 1)
+        else:
+            # A removed predecessor assignment is restored at its exact successor.
+            anchor = '          mkdir -p "$output/bootstrap"\n'
+            if text.count(anchor) != 1 or historical in text:
+                return original_text
+            text = text.replace(anchor, historical + anchor, 1)
+    return text
+
+
 def restore_reviewed_workflow(text: str) -> str:
-    # Only the exact, already reviewed expired-job budget may differ. Preserve
-    # every command, proof, upload setting and rejection gate byte-for-byte.
+    # Reverse exact integration enrollment, then apply the original three
+    # reviewed edits. Every remaining byte must match the historical workflow.
     for expected in (ENROLLMENT, REVIEWED_BUDGET,
                      "'TypedBalancedReductionClosedGraphTests': 27"):
         if text.count(expected) != 1:
             raise AssertionError('Expected exactly one reviewed workflow edit: ' + expected)
+    text = restore_integration_enrollment(text)
     return text.replace(ENROLLMENT, '').replace(REVIEWED_BUDGET, OLD_BUDGET).replace(
         "'TypedBalancedReductionClosedGraphTests': 27", "'TypedBalancedReductionClosedGraphTests': 20")
 
@@ -185,6 +246,25 @@ class ReportInventoryTests(unittest.TestCase):
         changed = self.workflow.replace('if-no-files-found: error', 'if-no-files-found: warn')
         self.assertNotEqual(changed, self.workflow)
         self.assertNotEqual(restore_reviewed_workflow(changed), self.old)
+
+    def test_integration_enrollment_mutations_are_rejected(self):
+        for historical, current in INTEGRATION_ENROLLMENT:
+            # The 2026-10-06 producer owns the once-per-candidate seal check.
+            # Mutate the actual remaining scope block, not an absent old block.
+            current = current.replace(
+                '          python3 morphhdl/scripts/check-parameterized-integration-source.py\n', '')
+            if current:
+                for replacement in ('', current + current, current.replace('python3', 'python2')
+                                    if 'python3' in current else current.replace('2g', '1g')
+                                    if '2g' in current else current.replace('30', '29')):
+                    with self.subTest(block=current, replacement=replacement):
+                        self.assertNotEqual(replacement, current)
+                        changed = self.workflow.replace(current, replacement, 1)
+                        try:
+                            restored = restore_reviewed_workflow(changed)
+                        except AssertionError:
+                            continue
+                        self.assertNotEqual(restored, self.old)
 
     def test_source_has_each_exact_test_inventory(self):
         for name, count in EXPECTED.items():
