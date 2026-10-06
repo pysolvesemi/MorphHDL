@@ -62,7 +62,7 @@
     },
     ".github/workflows/increment-59i-combined-closure.yml": {
       "mode": "100644",
-      "sha256": "50363a3b1bc228894ce73b056f7fd6882f21dcb35c479941d787aee1163db7b9"
+      "sha256": "08d836ab7858dc787fb46ff56d3ac879ac2e0bd5c7516dd7919f0cfa797778f6"
     },
     ".github/workflows/increment-60c-signed-declarations.yml": {
       "mode": "100644",
