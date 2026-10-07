@@ -598,7 +598,7 @@
     },
     "morphhdl/contracts/retained-parameterized-regressions.json": {
       "mode": "100644",
-      "sha256": "ed427f59e50dbb222894358535a37edd7ad8531cd1b12e0a88940b5bd7bc0384"
+      "sha256": "9faf6007816bdce1f77fa55791f66ab4a06b839d5e38aae220f009a7feacd25c"
     },
     "morphhdl/examples/contracts/symbolic_data_shapes.v": {
       "mode": "100644",
@@ -674,7 +674,7 @@
     },
     "morphhdl/scripts/check-retained-parameterized-regressions.py": {
       "mode": "100644",
-      "sha256": "6d4a29593602b9a2180ad055c5f2bfa1ed20898e5c82723045594e46106ca633"
+      "sha256": "cb9f56348b90b452e468e9a80c3c5e261090b218c485608b89ae13b76e0c5302"
     },
     "morphhdl/scripts/check-typed-layering-ir.py": {
       "mode": "100644",
@@ -784,7 +784,7 @@
     },
     "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala": {
       "mode": "100644",
-      "sha256": "77281b53fb8bb7bf3240622ca61c1d613ac361f5573f4310e3bef581486eed55"
+      "sha256": "2759273275e55276595523f8ee9b9839b65283379f37901457295c254705f328"
     },
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlCanonicalIrProducer.scala": {
       "mode": "100644",
@@ -800,7 +800,7 @@
     },
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala": {
       "mode": "100644",
-      "sha256": "3fa8a45c0d2e4cff89ebb9ad62f284415b886a608a84ae042b08d3c26e84c909"
+      "sha256": "60ab127ed5c826abacaf2bdac5147c4bbe0286218d9bf3a2cf3e20c1e21c0301"
     },
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlRecursivePerComponentPublication.scala": {
       "mode": "100644",
@@ -828,7 +828,7 @@
     },
     "morphhdl/src/main/scala/spinal/core/internals/NativeWidthFormalSchema.scala": {
       "mode": "100644",
-      "sha256": "64fb764465474c2706d238191cf6d371acc5f496e9eb4fd4435ec41d0a583cf9"
+      "sha256": "701f1bb213eced34157174fe91d8c46490c700b3a556e2f2dad5ad4fcfd770cd"
     },
     "morphhdl/src/main/scala/spinal/core/internals/NativeWireAssignmentMetadata.scala": null,
     "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogFieldLayout.scala": {
@@ -944,7 +944,7 @@
     "morphhdl/src/test/scala/morphhdl/LaneWhenInliningRegressionTests.scala": null,
     "morphhdl/src/test/scala/morphhdl/LibraryDefinitionReuseTests.scala": {
       "mode": "100644",
-      "sha256": "71158f74cd532f499780776d4f6c63deeba27712c243f0eec6da995f1d7688aa"
+      "sha256": "84784c0718615ba7e20cd831e89719a98d47e16b437abbf26ddc6c0141a1b09e"
     },
     "morphhdl/src/test/scala/morphhdl/MorphCanonicalIrHandoffTests.scala": {
       "mode": "100644",
