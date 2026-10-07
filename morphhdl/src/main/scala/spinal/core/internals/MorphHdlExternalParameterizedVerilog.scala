@@ -171,6 +171,7 @@ object MorphHdlExternalParameterizedVerilog {
       if (schemas.size != 1) {
         val other = candidateSchemas.indexWhere(_ != candidateSchemas.head)
         val difference = schemaDifference(candidateSchemas.head, candidateSchemas(other))
+        NativePublicationReport.rejected("SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT", difference, Vector(candidates.head,candidates(other)))
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
           s"native module identity '$name' maps to ${schemas.size} distinct graph schemas; " +
@@ -886,7 +887,7 @@ object MorphHdlExternalParameterizedVerilog {
     }.getOrElse("ordered schema entries differ")
   }
 
-  private def componentSchema(component: Component): ComponentSchema = {
+  private[internals] def componentSchema(component: Component): ComponentSchema = {
     val ports = component.getOrdredNodeIo.toVector.filterNot(_.isSuffix).map { port =>
       val name = Option(port.getName()).filter(_.nonEmpty).getOrElse {
         fail(

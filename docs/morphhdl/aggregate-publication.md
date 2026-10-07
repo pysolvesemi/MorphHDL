@@ -235,7 +235,7 @@ without a hardware dependency are rejected.
 
 Create native source expressions before entering the callback. Inside it, use
 only builder operations: native declarations, child creation, native assignments
-and nested process construction are rejected. Handles cannot escape the callback
+and native process construction are rejected. Handles cannot escape the callback
 or cross builders/components. Each result is an expression, so extra writers and
 combinational target feedback remain errors. These APIs do not change ordinary
 Scala-loop unrolling or relax `HdlRange.foreach`/`whenSelected` restrictions.
@@ -260,8 +260,9 @@ This opt-in entry point returns the ordinary generation report in `generated`
 and an authenticated module/instance inventory in `modules`. The deterministic
 JSON lists native sharing groups, retained parameter uses (including transitive
 child bindings), retained procedural/structural loops, logical Vec schemas and
-aggregate preservation settings. It contains no timestamps, filesystem paths or
-JVM identity hashes. Reporting does not change emitted RTL, and callers choose
+aggregate preservation settings. Generated metadata omits timestamps, output-directory paths and
+JVM identity hashes; source locations and diagnostic excerpts can contain authored
+paths. Reporting does not change emitted RTL, and callers choose
 whether and where to save the JSON. Capture state is generation-local and is
 released on failures.
 
@@ -278,3 +279,107 @@ fallback, alias pruning and rejection controls. Simulation includes sparse masks
 every 8-bit take value, randomized data and X/Z predicates. Lint, synthesis,
 no-latch/driver checks and an unrolled-control equivalence proof accompany it on
 both supported Scala versions. Full branch qualification remains a separate gate.
+
+### Multiple outputs, defaults and ordered folds
+
+`ElabProcess.outputsLoop(count, outputs)` returns a `Vector[Bits]`. Each output
+specifies its authenticated width and default. The logical outputs share one
+packed local carrier and one owning combinational process; output zero occupies
+the least significant field. Returned fields retain their symbolic offsets and
+widths through publication, including when earlier fields have variable widths.
+
+```scala
+val results = ElabProcess.outputsLoop(lanes, Seq(
+  ElabScopedProcess.Output(ElabInt.literal(16), default = 7),
+  ElabScopedProcess.Output.from(seed)
+)) { p =>
+  val lane = p.index
+  val sample = p.slice(data, lane, byteWidth)
+  p.when(p.bool(enable)) {
+    p.output(0).assign(p.output(0).current + sample.extend(ElabInt.literal(16)))
+    p.output(1).assign(p.output(1).current ^ p.bits(mask))
+  }
+}
+```
+
+`Output.from(seed)` uses an owner-local Bits, UInt or SInt value as the hardware
+default on every evaluation. Literal defaults must fit the smallest legal width;
+`Output(width, default = -7, signed = true)` supplies a signed default. Returned
+fields are Bits; use `.asUInt`/`.asSInt` at the consuming boundary as appropriate.
+`p.current` is shorthand for `p.output(0).current`.
+
+Only these explicit accumulator reads refer to the process's evolving state.
+Each read observes preceding blocking writes, including earlier iterations and
+writes to other outputs. Defaults initialize every field before any iteration.
+Ordinary input signals feeding back from the result remain illegal. Constant-only
+programs and empty bodies remain rejected; hardware defaults count as real input
+dependencies. Unknown/high-impedance conditions retain Verilog `if` behavior.
+
+Scoped values support same-width `+`, `-` and `*`, with wrapping modulo
+`2^width`, plus signed/unsigned comparisons and bitwise operations. Operand widths
+and signedness must match for arithmetic and bitwise operations. Use
+`.extend(width)` before arithmetic to retain more result bits; extension uses the
+operand's signedness and cannot narrow. `p.sint(value)`, `.asSigned` and
+`.asUnsigned` make interpretation explicit. Mixed-signedness comparisons are
+rejected. `p.literal(value, width, signed = ...)` creates a sized scoped literal.
+This API deliberately specifies wrapping operations rather than inferring
+saturation or silently selecting a larger result width.
+
+### Nested loops and correlated bounds
+
+`p.foreach(count) { index => ... }` emits a nested bounded procedural loop.
+Capture `val outer = p.index` before entering it when both indices are needed.
+Indices support affine compositions such as `outer * columns + inner`, where
+`columns` is an authenticated positive ElabInt, and nonnegative constant offsets.
+Every nested index, value and predicate derived from it must remain inside its
+lexical callback. Escaped handles, foreign owners, negative counts and index
+arithmetic outside the signed procedural-index domain are rejected.
+
+```scala
+val row = p.index
+p.foreach(columns) { column =>
+  val position = row * columns + column
+  p.when(p.bit(mask, position)) {
+    p.output(0).assign(p.output(0).current + position.asUInt(sumWidth))
+  }
+}
+```
+
+Bounds use the existing authenticated expression-domain engine to prove
+`available - required >= 0`, preserving shared parameter-root identity. Thus
+`width - 1` iterations reading `index + 1` from a `width`-bit source can be
+accepted across the complete legal domain. An independent parameter with the
+same default does not provide that proof. Unprovable accesses remain errors;
+there is no witness-only fallback or new unchecked algebra parser. Zero counts
+execute no writes and retain the defaults. Nested loop-index variables receive
+unconditional initial values to avoid incidental latch inference when a loop is
+inside a conditional.
+
+### Structured publication failures and separation reasons
+
+`MorphVerilog.tryGenerateWithPublicationReport(config)(component)` returns
+`Either[MorphPublicationFailure, MorphPublicationReport]`. Failures retain the
+ordinary `MorphVerilogFailure` and add diagnostics with codes, bounded details,
+instance paths where captured, and available source locations. `toJson` serializes
+these diagnostics; capture state is released on failure. The throwing generation
+APIs retain their existing behavior.
+
+Successful reports now include `separations`. For multiple native definitions
+from the same construction class, each is compared with the first named
+definition. The report identifies the first differing retained schema or native
+comparison section (attributes, declarations, logic, and so on), with bounded
+excerpts. Explicit separate-name policies are distinguished where no trace differs.
+These observations do not participate in equality or authorize merging. A class
+name only narrows diagnostic candidates. Source locations may be unavailable;
+the report does not invent them or claim a semantic root cause beyond the
+captured difference. Diagnostic text can include authored source content.
+
+Regression coverage includes exhaustive small matrix masks, signed boundary
+values, hardware and literal defaults, zero outer/inner counts, X/Z conditions,
+non-default parameter values, nested-index escape rejection, unrelated-root
+bounds rejection, and tampered output-view/default/write identities. The emitted
+fold is also compared against an independently authored combinational oracle.
+
+Nested loop bounds and index scales used only as scalar formals retain independent
+instance bindings. Their defaults are normalized for one generic definition;
+reversed instance order, overrides and combined/per-component output are covered.

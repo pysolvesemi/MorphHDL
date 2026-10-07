@@ -16,6 +16,13 @@ object ElabProcess {
   def bitsLoop(count: ElabInt, width: ElabInt)(body: ElabScopedProcess.Builder => Unit): Bits =
     ElabScopedProcess.build(count, width, Bits(width bits))(body)
 
+  /** Multiple logical results/defaults, nested loops and explicit ordered accumulators.
+    * Outputs share one owning packed combinational process; field zero is least significant.
+    */
+  def outputsLoop(count: ElabInt, outputs: Seq[ElabScopedProcess.Output])
+      (body: ElabScopedProcess.Builder => Unit): Vector[Bits] =
+    ElabScopedProcess.buildOutputs(count, outputs.toVector)(body)
+
   private object Key
   private[core] final class Operation(
       val input: Bits, val take: Option[UInt], val result: BitVector,

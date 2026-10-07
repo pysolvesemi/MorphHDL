@@ -178,6 +178,10 @@ object MorphVerilog {
   def generateWithPublicationReport[T <: Component](config: SpinalConfig)(component: => T): MorphPublicationReport =
     spinal.core.internals.NativePublicationReport.capture(generateSingleSource(config)(component))
 
+  /** Return structured diagnostics on failure, retaining ordinary exception behavior above. */
+  def tryGenerateWithPublicationReport[T <: Component](config: SpinalConfig)(component: => T): Either[MorphPublicationFailure, MorphPublicationReport] =
+    spinal.core.internals.NativePublicationReport.attempt(generateSingleSource(config)(component))
+
   /** Invoke a read-only optional consumer only after generation succeeds. */
   def publishCanonicalIr[T <: Component](
       config: SpinalConfig,
@@ -300,6 +304,7 @@ object MorphVerilog {
   ): Either[MorphVerilogFailure, ExternalSpinalVerilogReport[T, NativeGraphSnapshot]] =
     try {
       val nativeConfig = copyForSingleSource(config, workspace)
+      spinal.core.internals.NativePublicationReport.observe(nativeConfig)
       val external = ExternalSpinalVerilog.transformWithCanonicalIdentity(nativeConfig) {
         val value = TypedBalancedReductionBackend.elaborate(component)
         if (value == null) {

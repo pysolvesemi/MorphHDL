@@ -3973,6 +3973,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       }
 
       private def inferFixedRange(access: BitVectorRangedAccessFixed): WidthExpr = {
+        NativeScopedProcessEmitter.widthOf(component, access).foreach(width => return retained(width))
         ExternalParameterizedNativeGeometry.widthOf(component, access).foreach { width =>
           return retained(width)
         }

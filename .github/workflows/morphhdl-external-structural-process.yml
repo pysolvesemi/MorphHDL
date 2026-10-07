@@ -89,7 +89,7 @@ jobs:
             morphhdl.NaturalSymbolicConditionalTests \
             morphhdl.GenericProcessLoweringTests \
             morphhdl.GenericExpressionAndStreamTests \
-            morphhdl.ScopedProcessTests \
+            morphhdl.ScopedProcessTests morphhdl.ScopedProcessExtensionTests \
             morphhdl.PublicationDecisionTests \
             spinal.core.ProcessExpressionLineageTests \
             spinal.core.internals.CanonicalSchemaDiagnosticTests \

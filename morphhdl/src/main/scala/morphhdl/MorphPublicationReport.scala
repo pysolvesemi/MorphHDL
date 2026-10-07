@@ -7,7 +7,8 @@ final case class MorphPublicationModule(
 
 final case class MorphPublicationReport(
     generated: MorphSingleSourceVerilogReport, modules: Vector[MorphPublicationModule],
-    settings: Vector[(String, String)] = Vector.empty) {
+    settings: Vector[(String, String)] = Vector.empty,
+    separations: Vector[MorphPublicationSeparation] = Vector.empty) {
   /** No timestamps, absolute paths or JVM identities; suitable for repeat comparisons. */
   def toJson: String = {
     def quote(value: String): String = "\"" + value.flatMap {
@@ -26,7 +27,36 @@ final case class MorphPublicationReport(
         s""""instances":${array(m.instances.map(quote))},"parameters":${array(parameters)},""" +
         s""""loops":${array(m.loops.map(quote))},"vectors":${array(m.vectors.map(quote))}}"""
     }
-    s"""{"schemaVersion":1,"top":${quote(generated.toplevelName)},"modules":${array(entries)},"settings":$configuration,""" +
+    val differences = separations.map(_.toJson).mkString("[", ",", "]")
+    s"""{"schemaVersion":1,"top":${quote(generated.toplevelName)},"modules":${array(entries)},"settings":$configuration,"separations":$differences,""" +
       "\"unrolling\":\"Ordinary Scala loops execute before capture; their origin and iteration count are not observable in this report.\"}\n"
   }
+}
+
+/** Diagnostic observations only; never an input to native sharing decisions. */
+final case class MorphPublicationSeparation(left: String, right: String, category: String,
+    detail: String, locations: Vector[String] = Vector.empty) {
+  def toJson: String = MorphPublicationJson.obj(Vector("left" -> MorphPublicationJson.quote(left),
+    "right" -> MorphPublicationJson.quote(right), "category" -> MorphPublicationJson.quote(category),
+    "detail" -> MorphPublicationJson.quote(detail), "locations" -> MorphPublicationJson.strings(locations)))
+}
+final case class MorphPublicationDiagnostic(code: String, detail: String,
+    instances: Vector[String] = Vector.empty, locations: Vector[String] = Vector.empty) {
+  def toJson: String = MorphPublicationJson.obj(Vector("code" -> MorphPublicationJson.quote(code),
+    "detail" -> MorphPublicationJson.quote(detail), "instances" -> MorphPublicationJson.strings(instances),
+    "locations" -> MorphPublicationJson.strings(locations)))
+}
+final case class MorphPublicationFailure(failure: MorphVerilogFailure,
+    diagnostics: Vector[MorphPublicationDiagnostic], separations: Vector[MorphPublicationSeparation]) {
+  def toJson: String = MorphPublicationJson.obj(Vector("schemaVersion" -> "1", "success" -> "false",
+    "stage" -> MorphPublicationJson.quote(failure.stage.id),
+    "diagnostics" -> diagnostics.map(_.toJson).mkString("[", ",", "]"),
+    "separations" -> separations.map(_.toJson).mkString("[", ",", "]"))) + "\n"
+}
+private[morphhdl] object MorphPublicationJson {
+  def quote(value: String): String = "\"" + value.flatMap {
+    case '"' => "\\\""; case '\\' => "\\\\"; case c if c < ' ' => f"\\u${c.toInt}%04x"; case c => c.toString
+  } + "\""
+  def strings(values: Vector[String]): String = values.map(quote).mkString("[", ",", "]")
+  def obj(values: Vector[(String,String)]): String = values.map { case(k,v) => quote(k)+":"+v }.mkString("{", ",", "}")
 }

@@ -90,4 +90,27 @@ $$finish;end endmodule
     val dir=Files.createTempDirectory("decisions-after-failure-")
     assert(MorphVerilog.generateWithPublicationReport(SpinalConfig(targetDirectory=dir.toString))(new Top(false)).modules.nonEmpty)
   }
+  test("native separation report identifies logic differences without changing RTL") {
+    val dir=Files.createTempDirectory("separation-details-")
+    val report=MorphVerilog.generateWithPublicationReport(SpinalConfig(targetDirectory=dir.toString,headerWithDate=false))(new Top(false,true))
+    assert(report.separations.nonEmpty,report.toJson)
+    assert(report.separations.exists(s=>s.category=="logic" && s.detail.contains("native comparison differs")),report.toJson)
+  }
+  test("publication failure returns structured code and source location and releases capture") {
+    val dir=Files.createTempDirectory("decision-failure-details-")
+    val result=MorphVerilog.tryGenerateWithPublicationReport(SpinalConfig(targetDirectory=dir.toString)){
+      new Component {
+        val n=HdlInt.param("COUNT",3,1,8).asElabInt
+        val data=in Bits(n bits);val result=out UInt(8 bits)
+        result:=ElabProcess.uintLoop(n,ElabInt.literal(8)){p=>p.when(p.bit(data,p.index+1)){p.assign(p.index.asUInt(ElabInt.literal(8)))}}
+      }
+    }
+    val failure=result.left.get
+    assert(failure.diagnostics.exists(_.code=="SPINAL-SCOPED-PROCESS-UNSUPPORTED"),failure.toJson)
+    assert(failure.diagnostics.flatMap(_.locations).exists(_.contains("PublicationDecisionTests.scala:")),failure.toJson)
+    Files.write(dir.resolve("failure.json"),failure.toJson.getBytes(UTF_8))
+    run(dir,Seq("python3","-c","import json; d=json.load(open('failure.json')); assert d['success'] is False; assert d['diagnostics'][0]['code']"))
+    val next=Files.createTempDirectory("decision-after-failure-")
+    assert(MorphVerilog.tryGenerateWithPublicationReport(SpinalConfig(targetDirectory=next.toString))(new Top(false,true)).isRight)
+  }
 }

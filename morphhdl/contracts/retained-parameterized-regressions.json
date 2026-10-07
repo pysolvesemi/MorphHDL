@@ -2906,12 +2906,48 @@
         "publication report explains native sharing and separates distinct scoped programs split=true reverse=false scalarOnly=true",
         "publication report explains native sharing and separates distinct scoped programs split=true reverse=true scalarOnly=false",
         "publication report explains native sharing and separates distinct scoped programs split=true reverse=true scalarOnly=true",
-        "publication report capture is released after generation failure"
+        "publication report capture is released after generation failure",
+        "native separation report identifies logic differences without changing RTL",
+        "publication failure returns structured code and source location and releases capture"
       ],
       "spinal.core.ProcessExpressionLineageTests": [
         "captured alias chains survive native pruning and reject replacement drivers",
         "captured lineage rejects changed literal values and slice geometry",
-        "register boundaries and foreign declarations retain distinct lineage"
+        "register boundaries and foreign declarations retain distinct lineage",
+        "scoped output publication rejects mutated view-source",
+        "scoped output publication rejects mutated view-slice",
+        "scoped output publication rejects mutated result-width",
+        "scoped output publication rejects mutated default-edge",
+        "scoped output publication rejects mutated witness-edge"
+      ],
+      "morphhdl.ScopedProcessExtensionTests": [
+        "multiple outputs defaults nested folds signed arithmetic native=false split=false",
+        "multiple outputs defaults nested folds signed arithmetic native=false split=true",
+        "multiple outputs defaults nested folds signed arithmetic native=true split=false",
+        "multiple outputs defaults nested folds signed arithmetic native=true split=true",
+        "correlated bounds compare exact roots bad=false",
+        "correlated bounds compare exact roots bad=true",
+        "nested symbolic affine indices and extension native=false",
+        "nested symbolic affine indices and extension native=true",
+        "zero outer and inner iteration counts preserve explicit signed defaults",
+        "extended scoped process rejects unsafe escaped-index",
+        "extended scoped process rejects unsafe escaped-predicate",
+        "extended scoped process rejects unsafe signedness",
+        "extended scoped process rejects unsafe arithmetic-width",
+        "extended scoped process rejects unsafe narrow-extension",
+        "extended scoped process rejects unsafe default-overflow",
+        "extended scoped process rejects unsafe signed-default-overflow",
+        "extended scoped process rejects unsafe negative-inner",
+        "extended scoped process rejects unsafe affine-oob",
+        "hardware defaults seed ordered arithmetic native=false",
+        "hardware defaults seed ordered arithmetic native=true",
+        "extended process matches an independent combinational oracle",
+        "nested scalar loop bounds and affine scale share definitions reverse=false split=false",
+        "nested scalar loop bounds and affine scale share definitions reverse=false split=true",
+        "nested scalar loop bounds and affine scale share definitions reverse=true split=false",
+        "nested scalar loop bounds and affine scale share definitions reverse=true split=true",
+        "one-bit nonzero default preserves retained loop signed=false",
+        "one-bit nonzero default preserves retained loop signed=true"
       ]
     },
     "morphir": {
@@ -3650,7 +3686,8 @@
     "paramrtl/src/test/scala/morphhdl/paramrtl/SynchronousStreamM2sPipeValidatorTests.scala": "e0efa84d814108268a97ac378a51f537a024c4eec9bf9971063fa7440eb8ea12",
     "morphhdl/src/test/scala/morphhdl/CanonicalSchemaDiagnosticTests.scala": "c5b3fe6c27d1a963a20fa925d7e61b33bdb9860817903e6c4125488cb83783a6",
     "morphhdl/src/test/scala/morphhdl/ScopedProcessTests.scala": "ae4c27d7601117f81eb41ed0751afb5abee0cdefc87cedaa800be568b4b60e47",
-    "morphhdl/src/test/scala/morphhdl/PublicationDecisionTests.scala": "5d6e5383db2b4005415b149e77b6a5818b6909d8c4fa49e517f34f439f1ca1cf",
-    "morphhdl/src/test/scala/morphhdl/ProcessExpressionLineageTests.scala": "aed70d5ee8a22f506a6116edfb68f31957b878d7cc524039533302b279cb2c54"
+    "morphhdl/src/test/scala/morphhdl/PublicationDecisionTests.scala": "e7693affa99b9570684e67f1c4c280079cec5d24d00e99878a906559afefed35",
+    "morphhdl/src/test/scala/morphhdl/ProcessExpressionLineageTests.scala": "0d5d884b771a18e0adb4d41d7b7a74aa6ef0ec73b971176fb03e2a7f7ab9c3b2",
+    "morphhdl/src/test/scala/morphhdl/ScopedProcessExtensionTests.scala": "98f0f890dba2b7607348c0e69c174365e0d25461a5ba51b0d93c590ae44d5f64"
   }
 }

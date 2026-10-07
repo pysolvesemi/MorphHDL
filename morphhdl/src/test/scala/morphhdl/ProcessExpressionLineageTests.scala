@@ -64,4 +64,35 @@ class ProcessExpressionLineageTests extends AnyFunSuite {
       }
     }
   }
+  for(mode <- Seq("view-source", "view-slice", "result-width", "default-edge", "witness-edge"))
+  test(s"scoped output publication rejects mutated $mode") {
+    val error=intercept[Exception] {
+      morphhdl.MorphVerilog(SpinalConfig(targetDirectory=Files.createTempDirectory("scoped-view-mutation-").toString)) {
+        new Component {
+          val n=morphhdl.frontend.HdlInt.param("COUNT",2,1,4).asElabInt
+          val data=in Bits(8 bits);val result=out Bits(8 bits)
+          val outputs=ElabProcess.outputsLoop(n,Seq(ElabScopedProcess.Output(ElabInt.literal(8)),ElabScopedProcess.Output(ElabInt.literal(8),3))){p=>
+            p.output(0).assign(p.bits(data));p.output(1).assign(p.output(1).current^p.bits(data))
+          }
+          result:=outputs.head^outputs(1)
+          val op=ElabScopedProcess.operations(this).head
+          def literal(expression:Expression):BitVectorLiteral=expression match {
+            case value:BitVectorLiteral=>value
+            case value:BitVector=>literal(value.head.asInstanceOf[DataAssignmentStatement].source)
+          }
+          mode match {
+            case "view-source" => op.views.head.assignment.source=data
+            case "view-slice" =>
+              val alias=op.views.head.source.asInstanceOf[Bits]
+              val range=alias.head.asInstanceOf[DataAssignmentStatement].source.asInstanceOf[BitVectorRangedAccessFixed]
+              range.lo+=1;range.hi+=1
+            case "result-width" => op.result.setWidth(17)
+            case "default-edge" => literal(op.default.source).value+=1
+            case "witness-edge" => literal(op.assignment.source).value+=1
+          }
+        }
+      }
+    }
+    assert(error.toString.contains("SPINAL-") || error.toString.contains("WIDTH MISMATCH") || error.toString.contains("getWidth call result during elaboration differ from inferred width"),error.toString)
+  }
 }
