@@ -33,15 +33,17 @@ object MorphHdlEmitterParameterNames {
           override def binaryOperand(printer: ComponentEmitterVerilog, expression: BinaryOperator, slot: Int): Option[String] =
             names.flatMap(_.binaryOperand(printer, expression, slot))
           override def target(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] =
-            NativeConditionalProcessEmitter.target(printer, assignment)
+            NativeBoundedProcessEmitter.target(printer, assignment)
+              .orElse(NativeConditionalProcessEmitter.target(printer, assignment))
           override def scope(printer: ComponentEmitterVerilog, tree: TreeStatement, scope: ScopeStatement,
               output: StringBuilder, indentation: String, body: String => Int): Option[Int] =
-            NativeConditionalProcessEmitter.scope(printer, tree, scope, output, indentation, body)
+            NativeBoundedProcessEmitter.scope(printer, tree, scope, output, indentation, body)
+              .orElse(NativeConditionalProcessEmitter.scope(printer, tree, scope, output, indentation, body))
           def source(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] =
-            spinal.core.TypedVecStaticSelect.of(printer.component, assignment).map { entry =>
+            NativeBoundedProcessEmitter.source(printer, assignment).orElse(spinal.core.TypedVecStaticSelect.of(printer.component, assignment).map { entry =>
               ParameterizedVerilogVecs.structuralDynamicSlice(entry.vector, entry.index.expression, 0,
                 entry.index.expression.sourceLocation, readOnly = true, staticIndex = Some(entry.index))
-            }.orElse(spinal.core.TypedLoopPowerShift.renderedIndex(printer.component, assignment)
+            }).orElse(spinal.core.TypedLoopPowerShift.renderedIndex(printer.component, assignment)
               .map { case (source, index) => s"(${printer.emitExpression(source)} >> (1 << $index))" })
               .orElse(ExternalParameterizedNativeResize.emitNative(printer, assignment))
               .orElse(ExternalParameterizedVerilogNativeFallback.emitNativeValue(printer, assignment))

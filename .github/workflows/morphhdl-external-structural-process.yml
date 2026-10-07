@@ -94,6 +94,7 @@ jobs:
             morphhdl.EnumDebugOptionsTests \
             morphhdl.CombinationalEventDependencyTests \
             morphhdl.NativeConditionalProcessTests \
+            morphhdl.BoundedProcessOperationTests \
             spinal.core.TypedPrimitiveClosureTests \
             morphhdl.TypedCounterAllOnesTests \
             morphhdl.CounterSingleAuthorityParityTests \

@@ -83,9 +83,12 @@ private[internals] object NativeConditionalProcessEmitter {
         reject("conditional loop lost its exact captured native condition/scope")
       loop.tree.whenTrue.walkLeafStatements {
         case assignment: DataAssignmentStatement =>
-          if (!loop.assignments.exists(_._1 eq assignment) ||
-              loop.assignments.exists(pair => ParameterizedProcess.conditionalReads(assignment.source, pair._1.finalTarget)))
-            reject("conditional loop gained an uncaptured assignment or cross-iteration read")
+          val location = s"${printer.component.definitionName}.${assignment.finalTarget.getName()} (${assignment.getClass.getSimpleName})"
+          if (!loop.assignments.exists(_._1 eq assignment))
+            reject(s"conditional loop '${loop.indexHint}' gained an uncaptured assignment at $location")
+          loop.assignments.find(pair => ParameterizedProcess.conditionalReads(assignment.source, pair._1.finalTarget)).foreach { pair =>
+            reject(s"conditional loop '${loop.indexHint}' gained a cross-iteration read at $location from ${pair._1.finalTarget.getName()}")
+          }
         case _ =>
       }
       val index = printer.component.localNamingScope.allocateName(loop.indexHint)
@@ -134,18 +137,20 @@ private[internals] object NativeConditionalProcessEmitter {
     */
   def removeUnusedSelectionWitnesses(component: Component, verilog: String): String = {
     var lines = verilog.split("\\n", -1).toVector
-    ParameterizedProcess.conditionalLoopsOf(component).foreach { loop =>
-      val value = loop.condition
+    val witnesses = ParameterizedProcess.conditionalLoopsOf(component)
+      .map(loop => (loop.condition, loop.conditionDriver, loop.tree)) ++
+      ElabProcess.operations(component).map(op => (op.condition, op.conditionDriver, op.tree))
+    witnesses.foreach { case (value, driver, tree) =>
       val exactDriver = value.hasOnlyOneStatement && (value.head match {
         case assignment: DataAssignmentStatement =>
           (assignment.target eq value) && (assignment.finalTarget eq value) &&
             (assignment.parentScope eq value.rootScopeStatement) &&
-            (assignment.source eq loop.conditionDriver)
+            (assignment.source eq driver)
         case _ => false
       })
       var otherUse = false
       component.dslBody.walkStatements { statement =>
-        if (!(statement eq loop.tree)) statement.walkDrivingExpressions {
+        if (!(statement eq tree)) statement.walkDrivingExpressions {
           case expression if expression eq value => otherUse = true
           case _ =>
         }

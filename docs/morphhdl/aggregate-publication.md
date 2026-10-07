@@ -132,3 +132,45 @@ copies and applies to MorphVerilog's single-source, canonical-IR and compatibili
 witness paths. Disabling suppression preserves the native setting, including an
 explicit `withoutEnumString()` request. Ordinary SpinalVerilog defaults are
 unchanged. The same option works with combined and per-component publication.
+
+## Ordered priority and conditional prefix operations
+
+`ElabProcess` provides two explicit combinational operations for patterns that
+cannot be expressed with equality-only `GenIndex.whenSelected`:
+
+```scala
+import spinal.core._
+
+val incomingBytes = ElabProcess.highestSetBitPlusOne(
+  incomingKeepLanes, ElabInt.literal(32), ElabInt.literal(8))
+val appendWord = ElabProcess.prefixCopy(
+  shiftedInput, take, ElabInt.literal(32), ElabInt.literal(8))
+```
+
+`highestSetBitPlusOne` returns zero for an empty mask and the highest selected
+bit's position plus one otherwise, including sparse masks. `prefixCopy` copies
+elements whose unsigned index is less than `take`, with element zero in the least
+significant slice; all other bits remain zero. Unknown/high-impedance predicates
+use Verilog `if` semantics and do not select a write.
+
+MorphVerilog emits each operation as one bounded procedural loop in its owning
+combinational process, with an explicit zero default and blocking assignments.
+The APIs retain loops even for literal counts. Ordinary SpinalVerilog uses the
+complete concrete unrolled algorithms. The returned values are expressions;
+do not assign additional drivers to them.
+
+Counts and element widths must remain positive throughout their authenticated
+parameter domains. Source width must equal the declared mask count or packed
+`count * elementWidth` geometry. Priority result width must be 1..32 bits and
+its smallest admitted width must represent the largest admitted count. `take`
+is an owner-local UInt with a fixed width of 1..32 bits. Construct these
+operations at component scope. Invalid geometry, ownership, competing writes,
+and combinational target feedback are rejected.
+
+These are explicit ordered-reduction/conditional-copy APIs. General scalar
+writes inside `HdlRange.foreach`, or converting its scoped index through
+`U(index.asElabInt, ...)`, remain unsupported; the index is private to each
+operation and cannot escape its process. Existing `whenSelected` loops retain
+their original body restrictions. Their feedback validation stops at registers,
+so a registered consumer of the assembled result is permitted without allowing
+combinational or cross-iteration target reads.

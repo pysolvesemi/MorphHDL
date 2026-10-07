@@ -551,6 +551,19 @@
         "exact noBackendSyncMerge registers retain clock and synchronous-reset semantics in distinct processes",
         "ordinary same-domain registers retain the default merged synchronous process"
       ],
+      "morphhdl.BoundedProcessOperationTests": [
+        "ordinary native generation uses the complete concrete priority and prefix algorithms",
+        "bounded operations support unsigned boundary widths count=1 result=1",
+        "bounded operations support unsigned boundary widths count=32 result=6",
+        "bounded operations support unsigned boundary widths count=32 result=32",
+        "bounded priority and prefix operations preserve ordered four-state behavior and parameter overrides",
+        "bounded operations reject unsafe geometry and competing writes 0",
+        "bounded operations reject unsafe geometry and competing writes 1",
+        "bounded operations reject unsafe geometry and competing writes 2",
+        "bounded operations reject unsafe geometry and competing writes 3",
+        "selected loops allow registered feedback without admitting combinational feedback",
+        "nested bounded operations share equivalent definitions but preserve distinct element geometry"
+      ],
       "morphhdl.BoundedRecursivePowerTests": [
         "a recursive metric with a negative parameter domain fails closed",
         "a same-name self-reference without a decreasing metric fails closed",
@@ -3296,6 +3309,7 @@
     "morphhdl/src/test/scala/morphhdl/BackendSyncMergeIsolationTests.scala": "335a4ecef2415c1940f08f21c39cdf45ae014f83d95cd8321b72885c8ca376b7",
     "morphhdl/src/test/scala/morphhdl/BooleanForwardingContractFixture.scala": "624c94f75055dac00891666dd42cd2fccc7f4081186ee6fb1a0b3a8610190168",
     "morphhdl/src/test/scala/morphhdl/BooleanLocalsContractFixture.scala": "35451d186bb32f15eb1b76e409b1b345b06d2f82bd08c1dc20d87f4eb530eed9",
+    "morphhdl/src/test/scala/morphhdl/BoundedProcessOperationTests.scala": "bba238500015766afbcab644fd79623f03be823505892ee705d8fe58a0982ed3",
     "morphhdl/src/test/scala/morphhdl/BoundedRecursivePowerTests.scala": "fc20395f2d5d7eab911b84cf20f0bf3ef577606db4e8b7af068d8850921a87ad",
     "morphhdl/src/test/scala/morphhdl/BoundedRecursiveSafetyTests.scala": "64069cd937cf9cdf44c48b4342d1c9a563af34ca483c9c67dfb3dd1a9e84d197",
     "morphhdl/src/test/scala/morphhdl/CapturedAssignmentNormalizationTests.scala": "178f28a885fd7e861f49b48f214358166c59f253f3dd56f15e4f224e67167f01",

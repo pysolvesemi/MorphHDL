@@ -303,7 +303,8 @@ object ParameterizedProcess {
 
   /** Public process-loop parameter inventory for MorphVerilog reports. */
   def parametersOf(component: Component): Vector[ElaborationIntegerParameter] = {
-    val expressions = loopsOf(component).map(_.count) ++ conditionalLoopsOf(component).map(_.count)
+    val expressions = loopsOf(component).map(_.count) ++ conditionalLoopsOf(component).map(_.count) ++
+      ElabProcess.operations(component).flatMap(op => Vector(op.count.expression, op.elementWidth.expression, op.resultWidth.expression))
     ElabInt.validateParameterRootInventory(
       s"process-loop component '${component.definitionName}'",
       expressions
@@ -339,7 +340,8 @@ object ParameterizedProcess {
   private[core] def conditionalLoopsOf(component: Component): Vector[ConditionalLoop] =
     storageOption(component).toVector.flatMap(_.conditional)
 
-  def hasConditionalLoops(component: Component): Boolean = conditionalLoopsOf(component).nonEmpty
+  def hasConditionalLoops(component: Component): Boolean =
+    conditionalLoopsOf(component).nonEmpty || ElabProcess.operations(component).nonEmpty
 
   /** Explicit hardware selection of the currently captured unsigned index.
     * The comparator is retained with its exact native WhenStatement, never
@@ -373,7 +375,10 @@ object ParameterizedProcess {
       var found = false
       value.foreachExpression(child => if (visit(child)) found = true)
       value match {
-        case leaf: BaseType => leaf.foreachStatements {
+        // Register drivers belong to the next clock transition, not this
+        // combinational iteration. Following them invents a feedback path
+        // through otherwise legal registered consumers of the loop result.
+        case leaf: BaseType if !leaf.isReg => leaf.foreachStatements {
           case assignment: DataAssignmentStatement if visit(assignment.source) => found = true
           case _ =>
         }
