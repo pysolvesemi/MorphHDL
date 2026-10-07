@@ -139,7 +139,8 @@ private[internals] object NativeConditionalProcessEmitter {
     var lines = verilog.split("\\n", -1).toVector
     val witnesses = ParameterizedProcess.conditionalLoopsOf(component)
       .map(loop => (loop.condition, loop.conditionDriver, loop.tree)) ++
-      ElabProcess.operations(component).map(op => (op.condition, op.conditionDriver, op.tree))
+      ElabProcess.operations(component).map(op => (op.condition, op.conditionDriver, op.tree)) ++
+      ElabScopedProcess.operations(component).map(op => (op.condition, op.conditionDriver, op.tree))
     witnesses.foreach { case (value, driver, tree) =>
       val exactDriver = value.hasOnlyOneStatement && (value.head match {
         case assignment: DataAssignmentStatement =>

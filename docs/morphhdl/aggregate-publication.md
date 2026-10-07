@@ -167,8 +167,8 @@ is an owner-local UInt with a fixed width of 1..32 bits. Construct these
 operations at component scope. Invalid geometry, ownership, competing writes,
 and combinational target feedback are rejected.
 
-These are explicit ordered-reduction/conditional-copy APIs. General scalar
-writes inside `HdlRange.foreach`, or converting its scoped index through
+These convenience operations are complemented by the scoped builder described
+below. General scalar writes inside `HdlRange.foreach`, or converting its scoped index through
 `U(index.asElabInt, ...)`, remain unsupported; the index is private to each
 operation and cannot escape its process. Existing `whenSelected` loops retain
 their original body restrictions. Their feedback validation stops at registers,
@@ -190,3 +190,91 @@ objects. Equal printed expressions can still carry different authenticated
 metadata; the diagnostic states that distinction. These summaries never decide
 whether definitions can share: the existing exact schema equality and formal
 ownership checks remain authoritative.
+
+## Scoped procedural loops
+
+Use `ElabProcess.uintLoop(count, width)` or `ElabProcess.bitsLoop(count, width)`
+when the loop needs ordered scalar writes or general conditional slice writes:
+
+```scala
+import spinal.core._
+
+val incomingBytes = ElabProcess.uintLoop(lanes, ElabInt.literal(8)) { p =>
+  p.when(p.bit(incomingKeepLanes, p.index)) {
+    p.assign((p.index + 1).asUInt(ElabInt.literal(8)))
+  }
+}
+
+val appendWord = ElabProcess.bitsLoop(lanes, lanes * byteWidth) { p =>
+  p.when(p.index.asUInt(ElabInt.literal(32)) < p.uint(take)) {
+    p.assignSlice(p.index, byteWidth, p.slice(shiftedInput, p.index, byteWidth))
+  }
+}
+```
+
+Each call owns one combinational result, starts with a whole-result zero default,
+and emits one bounded procedural loop. Iterations and writes execute in source
+order with blocking assignments; later writes take priority. `when` and nested
+`ifElse(condition)(yes)(no)` retain Verilog `if` four-state behavior. Counts may
+be zero: no iterations execute and the result remains zero. Ordinary
+SpinalVerilog elaborates the complete concrete unrolled implementation.
+
+The builder supports owner-local `uint`, `bits` and `bool` inputs, indexed `bit`
+and `slice` reads, whole-result `assign`, and `assignSlice`. Values support
+unsigned `<`, `<=`, `===`, `=/=` comparisons and width-matched `&`, `|`, `^`.
+Predicates support `!`, `&&`, `||`. Comparisons explicitly zero-extend operands.
+`index + constant` retains a proven nonnegative offset; `asUInt(width)` produces
+an unsigned **scoped value**, not a native UInt or Scala integer. Its width must
+be 1..32, with the smallest admitted width representing the largest admitted
+index over the complete domain. Geometry needs authenticated expressions;
+indexed bounds must be provable for every legal parameter value. Counts and
+geometry stay below the signed procedural-index limit, and result/element
+widths remain positive. Packed input widths must also remain positive. Only inputs
+referenced by recorded actions count as dependencies; empty bodies and bodies
+without a hardware dependency are rejected.
+
+Create native source expressions before entering the callback. Inside it, use
+only builder operations: native declarations, child creation, native assignments
+and nested process construction are rejected. Handles cannot escape the callback
+or cross builders/components. Each result is an expression, so extra writers and
+combinational target feedback remain errors. These APIs do not change ordinary
+Scala-loop unrolling or relax `HdlRange.foreach`/`whenSelected` restrictions.
+
+Captured process expressions retain exact alias/driver lineage. Native pruning
+may substitute an observed owner-local alias with its captured dependency;
+replacement drivers, changed literal/slice geometry, foreign declarations and
+register substitution are rejected. Public input boundaries remain identifiable
+even when their assignment appears later in Scala. Registers stop dependency
+traversal. No signal-name matching grants lineage authority.
+
+## Optional publication decision report
+
+```scala
+val report = MorphVerilog.generateWithPublicationReport(config) {
+  new MyTop
+}
+val json = report.toJson
+```
+
+This opt-in entry point returns the ordinary generation report in `generated`
+and an authenticated module/instance inventory in `modules`. The deterministic
+JSON lists native sharing groups, retained parameter uses (including transitive
+child bindings), retained procedural/structural loops, logical Vec schemas and
+aggregate preservation settings. It contains no timestamps, filesystem paths or
+JVM identity hashes. Reporting does not change emitted RTL, and callers choose
+whether and where to save the JSON. Capture state is generation-local and is
+released on failures.
+
+The report describes successful native publication decisions. Ordinary Scala
+loops have already executed before capture, so it explicitly marks their origins
+and iteration counts as unobservable rather than inventing unrolling evidence.
+Different native groups remain separate; the report does not infer semantic
+compatibility from Scala class names or rendered schemas.
+
+The compact regression matrix covers literal/symbolic and zero/boundary counts,
+packed/unpacked options, combined/per-component output, reordered instances,
+width-dependent and scalar-only child formals, non-default overrides, ordinary
+fallback, alias pruning and rejection controls. Simulation includes sparse masks,
+every 8-bit take value, randomized data and X/Z predicates. Lint, synthesis,
+no-latch/driver checks and an unrolled-control equivalence proof accompany it on
+both supported Scala versions. Full branch qualification remains a separate gate.

@@ -23,6 +23,12 @@ private[internals] object NativeScalarFormalSchema {
         region.blocks.foreach(block => loopParameters(block.regions))
       }
     loopParameters(ParameterizedStructure.regionsOf(component))
+    // A scoped loop bound can be the only use of a formal: no packed port or
+    // native witness carrier needs its value. Its definition is still generic;
+    // the complete typed binding retains each instance's actual independently.
+    val scopedScalarBounds = ElabScopedProcess.operations(component).flatMap(_.builder.count.parameters)
+      .filterNot(parameter => geometry.exists(_ eq parameter) ||
+        ParameterizedBlackBoxGenericRegistry.parametersOf(component).exists(_ eq parameter))
     geometry ++= ParameterizedProcess.parametersOf(component)
     geometry ++= ParameterizedBlackBoxGenericRegistry.parametersOf(component)
     // A Vec depth is a definition-owned scalar formal even though it controls
@@ -67,7 +73,7 @@ private[internals] object NativeScalarFormalSchema {
     declarations.filter { entry =>
       val formal = entry.binding.formal
       (values.exists(_ eq formal) && !geometry.exists(_.name == formal.name)) ||
-        depthFormals.exists(_ eq formal)
+        depthFormals.exists(_ eq formal) || scopedScalarBounds.exists(_ eq formal)
     }
   }
 

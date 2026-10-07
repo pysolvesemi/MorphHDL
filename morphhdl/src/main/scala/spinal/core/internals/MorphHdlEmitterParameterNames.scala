@@ -37,10 +37,11 @@ object MorphHdlEmitterParameterNames {
               .orElse(NativeConditionalProcessEmitter.target(printer, assignment))
           override def scope(printer: ComponentEmitterVerilog, tree: TreeStatement, scope: ScopeStatement,
               output: StringBuilder, indentation: String, body: String => Int): Option[Int] =
-            NativeBoundedProcessEmitter.scope(printer, tree, scope, output, indentation, body)
+            NativeScopedProcessEmitter.scope(printer, tree, scope, output, indentation, body)
+              .orElse(NativeBoundedProcessEmitter.scope(printer, tree, scope, output, indentation, body))
               .orElse(NativeConditionalProcessEmitter.scope(printer, tree, scope, output, indentation, body))
           def source(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] =
-            NativeBoundedProcessEmitter.source(printer, assignment).orElse(spinal.core.TypedVecStaticSelect.of(printer.component, assignment).map { entry =>
+            NativeScopedProcessEmitter.source(printer, assignment).orElse(NativeBoundedProcessEmitter.source(printer, assignment)).orElse(spinal.core.TypedVecStaticSelect.of(printer.component, assignment).map { entry =>
               ParameterizedVerilogVecs.structuralDynamicSlice(entry.vector, entry.index.expression, 0,
                 entry.index.expression.sourceLocation, readOnly = true, staticIndex = Some(entry.index))
             }).orElse(spinal.core.TypedLoopPowerShift.renderedIndex(printer.component, assignment)

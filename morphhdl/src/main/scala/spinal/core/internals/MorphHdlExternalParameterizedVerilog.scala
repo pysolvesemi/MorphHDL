@@ -327,6 +327,7 @@ object MorphHdlExternalParameterizedVerilog {
         publishAtomically(publication.target, rewritten.result().mkString("\n"))
       }
     }
+    NativePublicationReport.record(exactGroups.toVector.map { case (owner, members) => owner -> members.toVector }, pc.config)
     top.userCache.update(PublishedWidthParametersKey, publishedWidthParameters)
   }
 

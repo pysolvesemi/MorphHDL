@@ -2865,6 +2865,53 @@
         "schema diagnostics identify port direction type width presence and retained geometry",
         "schema diagnostics bound multiline Vec evidence and identify missing entries",
         "schema diagnostic selection is deterministic without changing schema equality"
+      ],
+      "morphhdl.ScopedProcessTests": [
+        "scoped process boundary matrix symbolic=false unpacked=false split=false",
+        "scoped process boundary matrix symbolic=false unpacked=false split=true",
+        "scoped process boundary matrix symbolic=false unpacked=true split=false",
+        "scoped process boundary matrix symbolic=false unpacked=true split=true",
+        "scoped process boundary matrix symbolic=true unpacked=false split=false",
+        "scoped process boundary matrix symbolic=true unpacked=false split=true",
+        "scoped process boundary matrix symbolic=true unpacked=true split=false",
+        "scoped process boundary matrix symbolic=true unpacked=true split=true",
+        "ordinary generation executes all scoped iterations",
+        "scoped index sizing and unsigned comparisons count=1 width=1",
+        "scoped index sizing and unsigned comparisons count=32 width=6",
+        "scoped index sizing and unsigned comparisons count=32 width=32",
+        "scoped loops are equivalent to ordinary unrolled control",
+        "scoped input identity survives aliases and forward assignment",
+        "zero and boundary count overrides retain the zero default",
+        "scoped comparisons boolean predicates and bitwise values preserve ordered four-state behavior",
+        "independent source width parameters stay live with a constant subrange count",
+        "scoped process rejects unsafe escape",
+        "scoped process rejects unsafe foreign-handle",
+        "scoped process rejects unsafe width",
+        "scoped process rejects unsafe bounds",
+        "scoped process rejects unsafe side-effect",
+        "scoped process rejects unsafe feedback",
+        "scoped process rejects unsafe extra-write",
+        "scoped process rejects unsafe negative-count",
+        "scoped process rejects unsafe zero-width",
+        "scoped process rejects unsafe wide-index",
+        "scoped process rejects unsafe unused-input",
+        "scoped process rejects unsafe empty-body"
+      ],
+      "morphhdl.PublicationDecisionTests": [
+        "publication report explains native sharing and separates distinct scoped programs split=false reverse=false scalarOnly=false",
+        "publication report explains native sharing and separates distinct scoped programs split=false reverse=false scalarOnly=true",
+        "publication report explains native sharing and separates distinct scoped programs split=false reverse=true scalarOnly=false",
+        "publication report explains native sharing and separates distinct scoped programs split=false reverse=true scalarOnly=true",
+        "publication report explains native sharing and separates distinct scoped programs split=true reverse=false scalarOnly=false",
+        "publication report explains native sharing and separates distinct scoped programs split=true reverse=false scalarOnly=true",
+        "publication report explains native sharing and separates distinct scoped programs split=true reverse=true scalarOnly=false",
+        "publication report explains native sharing and separates distinct scoped programs split=true reverse=true scalarOnly=true",
+        "publication report capture is released after generation failure"
+      ],
+      "spinal.core.ProcessExpressionLineageTests": [
+        "captured alias chains survive native pruning and reject replacement drivers",
+        "captured lineage rejects changed literal values and slice geometry",
+        "register boundaries and foreign declarations retain distinct lineage"
       ]
     },
     "morphir": {
@@ -3601,6 +3648,9 @@
     "paramrtl/src/test/scala/morphhdl/paramrtl/SynchronousRegisterValidatorTests.scala": "39f7eb5f8be72e3757d9be75d96a198100803d58fec0d191aec829543ef8d71b",
     "paramrtl/src/test/scala/morphhdl/paramrtl/SynchronousStreamFifoValidatorTests.scala": "69850c4e840385a6fd7e30282917c6e5ef32ee01a7926154e412b947165c4878",
     "paramrtl/src/test/scala/morphhdl/paramrtl/SynchronousStreamM2sPipeValidatorTests.scala": "e0efa84d814108268a97ac378a51f537a024c4eec9bf9971063fa7440eb8ea12",
-    "morphhdl/src/test/scala/morphhdl/CanonicalSchemaDiagnosticTests.scala": "c5b3fe6c27d1a963a20fa925d7e61b33bdb9860817903e6c4125488cb83783a6"
+    "morphhdl/src/test/scala/morphhdl/CanonicalSchemaDiagnosticTests.scala": "c5b3fe6c27d1a963a20fa925d7e61b33bdb9860817903e6c4125488cb83783a6",
+    "morphhdl/src/test/scala/morphhdl/ScopedProcessTests.scala": "ae4c27d7601117f81eb41ed0751afb5abee0cdefc87cedaa800be568b4b60e47",
+    "morphhdl/src/test/scala/morphhdl/PublicationDecisionTests.scala": "5d6e5383db2b4005415b149e77b6a5818b6909d8c4fa49e517f34f439f1ca1cf",
+    "morphhdl/src/test/scala/morphhdl/ProcessExpressionLineageTests.scala": "aed70d5ee8a22f506a6116edfb68f31957b878d7cc524039533302b279cb2c54"
   }
 }

@@ -174,6 +174,10 @@ object MorphVerilog {
     )
   }
 
+  /** Generate normally and return an optional explanation of authenticated publication decisions. */
+  def generateWithPublicationReport[T <: Component](config: SpinalConfig)(component: => T): MorphPublicationReport =
+    spinal.core.internals.NativePublicationReport.capture(generateSingleSource(config)(component))
+
   /** Invoke a read-only optional consumer only after generation succeeds. */
   def publishCanonicalIr[T <: Component](
       config: SpinalConfig,

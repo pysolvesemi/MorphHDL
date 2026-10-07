@@ -121,6 +121,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
   ): String = {
     NativeConditionalProcessEmitter.validate(component)
     NativeBoundedProcessEmitter.validate(component)
+    NativeScopedProcessEmitter.validate(component)
     val hierarchy = ExternalParameterizedVerilogHierarchy.analyze(component, pc, canonicalOf)
     MorphHdlExternalParameterizedVerilog.validateComponentParameterRootInventory(
       component,

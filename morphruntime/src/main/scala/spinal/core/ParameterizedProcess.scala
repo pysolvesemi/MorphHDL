@@ -304,7 +304,8 @@ object ParameterizedProcess {
   /** Public process-loop parameter inventory for MorphVerilog reports. */
   def parametersOf(component: Component): Vector[ElaborationIntegerParameter] = {
     val expressions = loopsOf(component).map(_.count) ++ conditionalLoopsOf(component).map(_.count) ++
-      ElabProcess.operations(component).flatMap(op => Vector(op.count.expression, op.elementWidth.expression, op.resultWidth.expression))
+      ElabProcess.operations(component).flatMap(op => Vector(op.count.expression, op.elementWidth.expression, op.resultWidth.expression)) ++
+      ElabScopedProcess.operations(component).flatMap(_.builder.geometry.map(_.expression))
     ElabInt.validateParameterRootInventory(
       s"process-loop component '${component.definitionName}'",
       expressions
@@ -341,7 +342,7 @@ object ParameterizedProcess {
     storageOption(component).toVector.flatMap(_.conditional)
 
   def hasConditionalLoops(component: Component): Boolean =
-    conditionalLoopsOf(component).nonEmpty || ElabProcess.operations(component).nonEmpty
+    conditionalLoopsOf(component).nonEmpty || ElabProcess.operations(component).nonEmpty || ElabScopedProcess.operations(component).nonEmpty
 
   /** Explicit hardware selection of the currently captured unsigned index.
     * The comparator is retained with its exact native WhenStatement, never

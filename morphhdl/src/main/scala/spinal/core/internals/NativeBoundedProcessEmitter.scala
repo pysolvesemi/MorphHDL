@@ -17,18 +17,18 @@ private[internals] object NativeBoundedProcessEmitter {
     }
     if (op.result.isReg || writes.size != 2 || !writes.exists(_ eq op.default) ||
         !writes.exists(_ eq op.assignment) || (op.assignment.target ne op.result) ||
-        (op.assignment.source ne op.source) || (op.assignment.parentScope ne op.tree.whenTrue) ||
+        !op.sourceLineage.accepts(op.assignment.source) || (op.assignment.parentScope ne op.tree.whenTrue) ||
         (op.tree.parentScope ne op.result.component.dslBody) ||
         (op.default.parentScope ne op.result.component.dslBody) ||
         op.tree.whenTrue.statementIterable.toVector != Vector(op.assignment) ||
         op.tree.whenFalse.statementIterable.nonEmpty ||
-        !((op.tree.cond eq op.condition) || (op.tree.cond eq op.conditionDriver)))
+        !op.conditionLineage.accepts(op.tree.cond))
       fail(s"${op.result.component.definitionName}.${op.result.getName()} lost exact defaults, writes or ownership: " +
         s"writes=${writes.size}, default=${writes.exists(_ eq op.default)}, assignment=${writes.exists(_ eq op.assignment)}, " +
         s"target=${op.assignment.target eq op.result}, source=${op.assignment.source eq op.source}, " +
         s"scope=${op.assignment.parentScope eq op.tree.whenTrue}, defaultScope=${op.default.parentScope eq op.result.component.dslBody}, " +
         s"body=${op.tree.whenTrue.statementIterable.map(_.getClass.getSimpleName).mkString(",")}, " +
-        s"condition=${(op.tree.cond eq op.condition) || (op.tree.cond eq op.conditionDriver)}")
+        s"condition=${(op.tree.cond eq op.condition) || (op.tree.cond eq op.conditionDriver)}; sourceLineage=${op.sourceLineage.explain(op.assignment.source)}; conditionLineage=${op.conditionLineage.explain(op.tree.cond)}")
     if (ParameterizedProcess.conditionalReads(op.input, op.result) ||
         op.take.exists(ParameterizedProcess.conditionalReads(_, op.result)))
       fail(s"${op.result.getName()} has combinational target feedback")

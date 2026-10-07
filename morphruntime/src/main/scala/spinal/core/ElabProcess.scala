@@ -9,6 +9,13 @@ import spinal.core.internals._
   * retains a concrete, unrolled implementation.
   */
 object ElabProcess {
+  /** Ordered unsigned writes with a zero default; one owning procedural loop. */
+  def uintLoop(count: ElabInt, width: ElabInt)(body: ElabScopedProcess.Builder => Unit): UInt =
+    ElabScopedProcess.build(count, width, UInt(width bits))(body)
+  /** Ordered whole/sliced writes with a zero default; later writes take priority. */
+  def bitsLoop(count: ElabInt, width: ElabInt)(body: ElabScopedProcess.Builder => Unit): Bits =
+    ElabScopedProcess.build(count, width, Bits(width bits))(body)
+
   private object Key
   private[core] final class Operation(
       val input: Bits, val take: Option[UInt], val result: BitVector,
@@ -16,6 +23,8 @@ object ElabProcess {
       val tree: WhenStatement, val condition: Bool, val conditionDriver: Expression,
       val default: DataAssignmentStatement, val assignment: DataAssignmentStatement,
       val source: Expression) {
+    val sourceLineage = ProcessExpressionLineage.capture(source, result.component)
+    val conditionLineage = ProcessExpressionLineage.capture(condition, result.component)
     var emitting: Option[(ComponentEmitterVerilog, String)] = None
     var emitted = false
   }
