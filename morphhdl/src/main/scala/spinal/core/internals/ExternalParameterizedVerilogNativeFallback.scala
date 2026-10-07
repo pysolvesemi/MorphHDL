@@ -102,11 +102,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       component: Component,
       verilog: String,
       pc: PhaseContext,
-      canonicalOf: Component => Component
+      canonicalOf: Component => Component,
+      sharedWidthDefaults: Set[String] = Set.empty
   ): String = ExternalParameterizedHighBit.withPublicationValidation(component) {
     ExternalParameterizedNativeResize.withPublicationValidation(component) {
       ExternalParameterizedNativeGeometry.withPublicationValidation(component) {
-        rewriteValidated(component, verilog, pc, canonicalOf)
+        rewriteValidated(component, verilog, pc, canonicalOf, sharedWidthDefaults)
       }
     }
   }
@@ -115,7 +116,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       component: Component,
       verilog: String,
       pc: PhaseContext,
-      canonicalOf: Component => Component
+      canonicalOf: Component => Component,
+      sharedWidthDefaults: Set[String]
   ): String = {
     NativeConditionalProcessEmitter.validate(component)
     NativeBoundedProcessEmitter.validate(component)
@@ -147,7 +149,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           withoutSelectionWitnesses,
           component.definitionName,
           analysis.parameters,
-          NativeScalarFormalSchema.definitionParameters(component, analysis.parameters)
+          NativeScalarFormalSchema.definitionParameters(component, analysis.parameters).map { parameter =>
+            if (sharedWidthDefaults.contains(parameter.name)) parameter.copy(default = parameter.minimum)
+            else parameter
+          }
         )
 
     val (withHierarchy, hierarchyWidths) = hierarchy.rewrite(withHeader)
@@ -219,7 +224,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       pc
     )
     NativeWidthFormalSchema.literalPortPadding(component,
-      lowerRetainedIntegerHelpers(withFiniteFolds, component.definitionName))
+      lowerRetainedIntegerHelpers(withFiniteFolds, component.definitionName), sharedWidthDefaults)
   }
 
   private def ensureParameterHeader(

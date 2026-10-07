@@ -107,15 +107,30 @@ private[internals] object NativeWidthFormalSchema {
     }
   }
 
+  /** Normalize publication only where one authenticated definition represents
+    * distinct width defaults or literal/symbolic publication modes. A single
+    * supplied literal keeps its public default.
+    */
+  def sharedDefaults(candidates: Vector[Component]): Set[String] =
+    candidates.flatMap(bindings).groupBy(_.binding.formal.name).collect {
+      case (name, entries) if entries.map(_.binding.formal.default).distinct.size > 1 ||
+          entries.map { entry =>
+            val actual = entry.binding.actual
+            actual.parameters.nonEmpty || actual.parameterRoots.nonEmpty || actual.generateIndex.nonEmpty
+          }.distinct.size > 1 => name
+    }.toSet
+
   /** Literal formals historically substitute the range after native column
     * formatting. Restore that spacing only at final publication, after native
     * definition sharing has compared the symbolic bodies.
     */
-  def literalPortPadding(component: Component, verilog: String): String = {
+  def literalPortPadding(component: Component, verilog: String,
+      sharedDefaults: Set[String] = Set.empty): String = {
     component.getOrdredNodeIo.toVector.foldLeft(verilog) { (text, port) =>
       portBinding(port).filter { entry =>
         val actual = entry.binding.actual
-        actual.parameters.isEmpty && actual.parameterRoots.isEmpty && actual.generateIndex.isEmpty
+        !sharedDefaults.contains(entry.binding.formal.name) &&
+          actual.parameters.isEmpty && actual.parameterRoots.isEmpty && actual.generateIndex.isEmpty
       } match {
         case Some(_) =>
           val concrete = if (port.getBitsWidth == 1) "" else s"[${port.getBitsWidth - 1}:0]"

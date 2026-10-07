@@ -857,6 +857,7 @@
         "split publication uses one deterministic file per canonical logical component"
       ],
       "morphhdl.LibraryDefinitionReuseTests": [
+        "equal witnesses with mixed literal and symbolic actuals publish order-independent definitions",
         "native definition sharing scalar=false equal=false split=false",
         "native definition sharing scalar=false equal=false split=true",
         "native definition sharing scalar=false equal=true split=false",
@@ -3348,7 +3349,7 @@
     "morphhdl/src/test/scala/morphhdl/LaneArrayContractFixture.scala": "77ef87334eae392b107353446cd63503890e7befec0479b5dbe481016e64f7bf",
     "morphhdl/src/test/scala/morphhdl/LaneConditionCoverageExample.scala": "814b9c6bc371a91c7a621f287bfa8a3516c23066212ee118d26aa052ded3201e",
     "morphhdl/src/test/scala/morphhdl/LaneReceiverCoverageExample.scala": "76e1f07bf1f7abdceeb60eb5758db1b3df6a225bddac1cae5e9b7a347b6f6f83",
-    "morphhdl/src/test/scala/morphhdl/LibraryDefinitionReuseTests.scala": "71158f74cd532f499780776d4f6c63deeba27712c243f0eec6da995f1d7688aa",
+    "morphhdl/src/test/scala/morphhdl/LibraryDefinitionReuseTests.scala": "84784c0718615ba7e20cd831e89719a98d47e16b437abbf26ddc6c0141a1b09e",
     "morphhdl/src/test/scala/morphhdl/MorphCanonicalIrHandoffTests.scala": "926c694ae355009b94b01aad68fe40f3a07919c26f8db2e47db7fcec403a6634",
     "morphhdl/src/test/scala/morphhdl/MorphContractFixtureGenerator.scala": "b719cfe3652d259578f742dfd9bc10a77d1e7be2f63047fb7e56ff4576a64f81",
     "morphhdl/src/test/scala/morphhdl/MorphSingleSourceVerilogTests.scala": "9cc9300d3ff39061cc37a57fa06a6e6248b07d2912ba1730e94196e05f20ec64",

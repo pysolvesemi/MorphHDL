@@ -55,7 +55,7 @@ endmodule
   }
   private class WidthTop(equal: Boolean, mode: String = "parameter", reverse: Boolean = false,
       body: String = "direct") extends Component {
-    @dontName private val aw = if(mode == "literal") ElabInt.literal(8)
+    @dontName private val aw = if(mode == "literal" || mode == "mixed") ElabInt.literal(8)
       else if(mode == "derived") HdlInt.param("A_WIDTH", 4, 1, 60).asElabInt + 4
       else HdlInt.param("A_WIDTH", 8, 1, 64).asElabInt
     @dontName private val bw = if(mode == "literal") ElabInt.literal(if(equal) 8 else 16)
@@ -136,6 +136,25 @@ endmodule
         .map(p => new String(Files.readAllBytes(p),UTF_8)).mkString("\n") finally paths.close()
       val expected=if(body=="nested") 2 else 1
       assert("(?m)^module WidthChild(?:_[0-9]+)?\\b".r.findAllIn(rtl).size==expected, s"$dir\n$rtl")
+    }
+  }
+  test("equal witnesses with mixed literal and symbolic actuals publish order-independent definitions") {
+    for(split <- Seq(false,true); body <- Seq("direct","internal","nested","blackbox")) {
+      def emit(reverse: Boolean): Map[String,String] = {
+        val dir=Files.createTempDirectory("mixed-width-sharing-")
+        MorphVerilog(SpinalConfig(targetDirectory=dir.toString,
+          oneFilePerComponent=split,headerWithDate=false)) {
+          new WidthTop(true,mode="mixed",reverse=reverse,body=body)
+        }
+        val paths=Files.list(dir)
+        val text=try paths.iterator.asScala.filter(_.toString.endsWith(".v"))
+          .map(p => new String(Files.readAllBytes(p),UTF_8)).mkString("\n") finally paths.close()
+        "(?s)module (WidthChild(?:_[0-9]+)?)\\b.*?endmodule".r.findAllMatchIn(text)
+          .map(m => m.group(1) -> m.matched).toMap
+      }
+      val forward=emit(false)
+      assert(forward.size==(if(body=="nested") 2 else 1))
+      assert(forward==emit(true),s"mixed actual definition changed: body=$body split=$split")
     }
   }
   for(split <- Seq(false,true); mode <- Seq("parameter", "literal", "derived");
