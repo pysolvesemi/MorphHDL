@@ -43,6 +43,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test
+          python3 morphhdl/scripts/check-retained-parameterized-regressions.py --self-test
           python3 morphhdl/scripts/test-parameterized-inherited-audit.py
           python3 morphhdl/scripts/test-candidate-provenance.py
           python3 morphhdl/scripts/test-candidate-provenance-ci.py

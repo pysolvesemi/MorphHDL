@@ -3502,7 +3502,7 @@
     "morphhdl/src/test/scala/morphhdl/TypedParameterizedFactoryDirectionTests.scala": "dbea6e31d28f6bb290c953d4b85cb1597a7f8488a90457bc6de18dfe3363670f",
     "morphhdl/src/test/scala/morphhdl/TypedParameterizedVecFormalEquivalenceTests.scala": "dfbc5d52e3df8fd41d95f66b94805e40d6a4cd67e76104e12c22bfc1aeb4ae79",
     "morphhdl/src/test/scala/morphhdl/TypedParameterizedVecTests.scala": "3943ad2d50cb1d754b450616f09a3a8c722a9cd054832f0617d5f8dbc797603c",
-    "morphhdl/src/test/scala/morphhdl/TypedPrimitiveClosureFormalEquivalenceTests.scala": "5375c6fcf0913e561a19417f60ca4c37ee838f2b985070906b8b83869d32b297",
+    "morphhdl/src/test/scala/morphhdl/TypedPrimitiveClosureFormalEquivalenceTests.scala": "729075f5b622361c7567fe9d344d1493b19fa9b643c1c4a4f4f6044933fabcbb",
     "morphhdl/src/test/scala/morphhdl/TypedSignednessAuthorityTests.scala": "27b53a03a4f8ed0e69531d4db2eef73291acf3981a0e5137e811957dac27fb5c",
     "morphhdl/src/test/scala/morphhdl/TypedSignednessResumeTests.scala": "09a81d1ebf6aaa3521b7a5dc3d43b6f037939232fe79e36635d17bec6992a3ad",
     "morphhdl/src/test/scala/morphhdl/TypedStreamWidthAdapterFormalEquivalenceTests.scala": "69fa3081097de7dd33445219dc182d3aefcc8ceab5750b233692a0761c672564",
