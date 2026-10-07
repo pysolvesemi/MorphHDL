@@ -28,7 +28,7 @@ object MorphHdlExternalParameterizedVerilog {
       blocks: Vector[ModuleBlock]
   )
 
-  private final case class PortSchema(
+  private[internals] final case class PortSchema(
       name: String,
       direction: String,
       dataClass: String,
@@ -36,7 +36,7 @@ object MorphHdlExternalParameterizedVerilog {
       retained: Option[ElaborationIntegerExpression]
   )
 
-  private final case class ComponentSchema(
+  private[internals] final case class ComponentSchema(
       ports: Vector[PortSchema],
       parameters: Vector[ElaborationIntegerParameter],
       vecs: Vector[String]
@@ -166,11 +166,15 @@ object MorphHdlExternalParameterizedVerilog {
       val name = componentName(canonical)
       validateFormalCanonicalGroup(name, candidates)
       NativeScalarFormalSchema.validateGroup(candidates)
-      val schemas = candidates.map(componentSchema).distinct
+      val candidateSchemas = candidates.map(componentSchema)
+      val schemas = candidateSchemas.distinct
       if (schemas.size != 1) {
+        val other = candidateSchemas.indexWhere(_ != candidateSchemas.head)
+        val difference = schemaDifference(candidateSchemas.head, candidateSchemas(other))
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
-          s"native module identity '$name' maps to ${schemas.size} distinct graph schemas"
+          s"native module identity '$name' maps to ${schemas.size} distinct graph schemas; " +
+            s"instances '${candidates.head.getPath()}' and '${candidates(other).getPath()}': $difference"
         )
       }
       name -> canonical
@@ -831,6 +835,51 @@ object MorphHdlExternalParameterizedVerilog {
         FormalPort(name, binding, typedToken)
       }
     }
+
+  /** Diagnostic only: equality above remains the authority. Do not use rendered
+    * expressions, names or this bounded summary to decide module sharing.
+    */
+  private[internals] def schemaDifference(left: ComponentSchema, right: ComponentSchema): String = {
+    def shown(value: Any): String = {
+      val text = String.valueOf(value).replace('\n', ' ').replace('\r', ' ')
+      if (text.length <= 240) text else text.take(237) + "..."
+    }
+    def difference(field: String, a: Any, b: Any): Option[String] =
+      if (a == b) None else Some(s"$field: left=${shown(a)}; right=${shown(b)}")
+    def parameter(p: ElaborationIntegerParameter): String =
+      s"${p.name}(default=${p.default}, domain=[${p.minimum}, ${p.maximum}])"
+    def expression(value: Option[ElaborationIntegerExpression]): String = value.map { e =>
+      s"${e.verilog}(default=${e.default}, domain=[${e.minimum}, ${e.maximum}], " +
+        s"parameters=${e.parameters.map(parameter).mkString("[", ", ", "]")}, index=${e.generateIndex.getOrElse("<none>")})"
+    }.getOrElse("<missing>")
+    // Parameters first: equal rendered widths can have different legal domains.
+    val parameterNames = (left.parameters.map(_.name) ++ right.parameters.map(_.name)).distinct.sorted
+    parameterNames.iterator.flatMap { name =>
+      val a = left.parameters.find(_.name == name)
+      val b = right.parameters.find(_.name == name)
+      difference(s"parameter '$name'", a.map(parameter).getOrElse("<missing>"), b.map(parameter).getOrElse("<missing>"))
+    }.take(1).toVector.headOption.orElse {
+      val names = (left.ports.map(_.name) ++ right.ports.map(_.name)).distinct.sorted
+      names.iterator.flatMap { name =>
+        (left.ports.find(_.name == name), right.ports.find(_.name == name)) match {
+          case (Some(a), Some(b)) =>
+            difference(s"port '$name' direction", a.direction, b.direction)
+              .orElse(difference(s"port '$name' type", a.dataClass, b.dataClass))
+              .orElse(difference(s"port '$name' concrete width", a.concreteWidth, b.concreteWidth))
+              .orElse {
+                if (a.retained == b.retained) None
+                else Some(s"port '$name' retained expression: left=${shown(expression(a.retained))}; " +
+                  s"right=${shown(expression(b.retained))}; authenticated expression metadata differs")
+              }
+          case (a, b) => difference(s"port '$name' presence", a.isDefined, b.isDefined)
+        }
+      }.take(1).toVector.headOption
+    }.orElse {
+      (0 until math.max(left.vecs.size, right.vecs.size)).iterator.flatMap { index =>
+        difference(s"Vec schema entry $index", left.vecs.lift(index), right.vecs.lift(index))
+      }.take(1).toVector.headOption
+    }.getOrElse("ordered schema entries differ")
+  }
 
   private def componentSchema(component: Component): ComponentSchema = {
     val ports = component.getOrdredNodeIo.toVector.filterNot(_.isSuffix).map { port =>

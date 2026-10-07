@@ -174,3 +174,19 @@ operation and cannot escape its process. Existing `whenSelected` loops retain
 their original body restrictions. Their feedback validation stops at registers,
 so a registered consumer of the assembled result is permitted without allowing
 combinational or cross-iteration target reads.
+
+### Canonical schema conflict diagnostics
+
+When one native module identity maps to incompatible retained schemas, the
+`SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT` diagnostic
+identifies two conflicting component instance paths and the first differing
+parameter, port field or logical Vec entry. Parameter summaries show defaults
+and complete domains. Port differences distinguish direction, type, concrete
+width and retained expression metadata. Missing entries are reported explicitly.
+
+The diagnostic chooses parameter and port names in sorted order and bounds each
+reported value to 240 characters. It avoids printing opaque expression identity
+objects. Equal printed expressions can still carry different authenticated
+metadata; the diagnostic states that distinction. These summaries never decide
+whether definitions can share: the existing exact schema equality and formal
+ownership checks remain authoritative.

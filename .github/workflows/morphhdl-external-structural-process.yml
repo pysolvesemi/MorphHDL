@@ -89,6 +89,7 @@ jobs:
             morphhdl.NaturalSymbolicConditionalTests \
             morphhdl.GenericProcessLoweringTests \
             morphhdl.GenericExpressionAndStreamTests \
+            spinal.core.internals.CanonicalSchemaDiagnosticTests \
             morphhdl.HierarchyParameterBindingTests \
             morphhdl.MorphSingleSourceVerilogTests \
             morphhdl.EnumDebugOptionsTests \

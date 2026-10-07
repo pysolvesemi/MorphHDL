@@ -349,7 +349,8 @@ class HierarchyParameterBindingTests extends AnyFunSuite {
       expectFailure(
         directory,
         "hierarchy_schema.v",
-        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT"
+        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
+        Vector("instances '", "parameter 'LEAF_WIDTH'", "domain=[1, 32]", "domain=[1, 64]")
       ) {
         val leftWidth =
           HdlInt.param("LEFT_WIDTH", default = 8, min = 1, max = 32)
@@ -386,12 +387,15 @@ class HierarchyParameterBindingTests extends AnyFunSuite {
   private def expectFailure(
       directory: Path,
       filename: String,
-      code: String
+      code: String,
+      details: Vector[String] = Vector.empty
   )(component: => Component): Unit = {
     val config = SpinalConfig(targetDirectory = directory.toString)
     config.netlistFileName = filename
     MorphVerilog.tryGenerate(config)(component) match {
-      case Left(failure) => assert(failure.detail.contains(code), failure.detail)
+      case Left(failure) =>
+        assert(failure.detail.contains(code), failure.detail)
+        details.foreach(detail => assert(failure.detail.contains(detail), failure.detail))
       case Right(report) => fail(s"Expected $code, received $report")
     }
   }
