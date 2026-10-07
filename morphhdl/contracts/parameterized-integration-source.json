@@ -98,9 +98,13 @@
       "mode": "100644",
       "sha256": "09535eb66d3611f7cc60f14a1eeb34890697b6a38a7452cd6f46e5ebc93543c6"
     },
+    ".github/workflows/morphhdl-external-symbolic-width.yml": {
+      "mode": "100644",
+      "sha256": "ef653c2c2695d4f66b858d90d6ea9667eb5cb00299ab799a25cc1b46178f52c6"
+    },
     ".github/workflows/morphhdl-native-source-guard.yml": {
       "mode": "100644",
-      "sha256": "8133f8423d35ef02cb4a954365b5a46d96dedf96ed6065ffbc29fb205e790110"
+      "sha256": "f4c437482d3aa970d86b3a64f000bdd934771eec539ac0dd8fcfb94e80d85fc0"
     },
     ".github/workflows/morphhdl-passes.yml": null,
     ".github/workflows/sequential-source-review-targeted.yml": null,
@@ -598,7 +602,7 @@
     },
     "morphhdl/contracts/retained-parameterized-regressions.json": {
       "mode": "100644",
-      "sha256": "d46610dd14ae63d57dcf5bb4fefcc1143d12ce799f82b560f93263f16a3c804a"
+      "sha256": "f92b9906af71d2aafa237d59602cd1b76a01a64b24f99f70cd9e149d8a176167"
     },
     "morphhdl/examples/contracts/symbolic_data_shapes.v": {
       "mode": "100644",
@@ -674,7 +678,7 @@
     },
     "morphhdl/scripts/check-retained-parameterized-regressions.py": {
       "mode": "100644",
-      "sha256": "815ee96949a9f4fd5e3aeb0c42d4f11b57b3178b8a05fec1c55ea1ec9e8ef62f"
+      "sha256": "dc90dc586bd4c1727bed5032e47c4d74c6fe29c720f403d4779184f2d552cd2a"
     },
     "morphhdl/scripts/check-typed-layering-ir.py": {
       "mode": "100644",
@@ -1086,6 +1090,10 @@
     "morphhdl/src/test/scala/morphhdl/TypedParameterizedVecTests.scala": {
       "mode": "100644",
       "sha256": "3943ad2d50cb1d754b450616f09a3a8c722a9cd054832f0617d5f8dbc797603c"
+    },
+    "morphhdl/src/test/scala/morphhdl/TypedPrimitiveClosureFormalEquivalenceTests.scala": {
+      "mode": "100644",
+      "sha256": "729075f5b622361c7567fe9d344d1493b19fa9b643c1c4a4f4f6044933fabcbb"
     },
     "morphhdl/src/test/scala/morphhdl/TypedSignednessAuthorityTests.scala": {
       "mode": "100644",
