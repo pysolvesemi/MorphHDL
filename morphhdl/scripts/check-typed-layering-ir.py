@@ -18,8 +18,9 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 DEFAULT_MANIFEST = "morphhdl/contracts/increment-54-typed-layering-ir.contract"
 EXPECTED_REPOSITORY = "pysolvesemi/MorphHDL"
-EXPECTED_CONTRACT_SHA256 = "7ef9f2628720ed68a49d95e18c8694ded6ddf0d0032a5d410b335dde5f423fa6"
+EXPECTED_CONTRACT_SHA256 = "3c48f95d5e093f6d43364fecbcc087f39ec9813bbc0ec28ab4af218c0529ccb2"
 EXPECTED_PLUGIN_COMPONENTS = (
+    "MorphHdlAreaCollectionComponent",
     "MorphHdlTypedElaborationControlComponent",
     "MorphHdlNaturalSymbolicConditionalComponent",
     "MorphHdlFrontendSymbolicEqualitySafetyComponent",
@@ -572,7 +573,7 @@ def compile_contract(manifest: Mapping[str, Any]) -> Dict[str, Any]:
     components = manifest.get("expected_plugin_components")
     if components != list(EXPECTED_PLUGIN_COMPONENTS):
         raise LayeringError(
-            "expected_plugin_components must be the three ordered Increment 54 phases"
+            "expected_plugin_components must be the four ordered reviewed phases including the CA-028 Area bridge"
         )
     descriptor = clean_path(manifest.get("plugin_descriptor"), "plugin_descriptor")
     if source_prefix(descriptor, roots) is None:
@@ -1428,7 +1429,7 @@ def validate_sources(root: Path, contract: Mapping[str, Any]) -> int:
     actual_components = plugin_components(descriptor_source)
     if actual_components != list(EXPECTED_PLUGIN_COMPONENTS):
         raise LayeringError(
-            "default Morph plugin phases must be exactly typed-control, "
+            "default Morph plugin phases must be exactly Area-collection, typed-control, "
             "natural-symbolic, then frontend symbolic-equality safety; "
             f"found {actual_components}"
         )

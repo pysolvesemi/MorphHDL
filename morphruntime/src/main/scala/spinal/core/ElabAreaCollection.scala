@@ -76,13 +76,15 @@ private[spinal] object ElabAreaExport {
   def moduleDeclarations(component: Component, blocks: Vector[ParameterizedStructuralBlock]): Vector[BaseType] =
     entries(component).toVector.map { entry =>
       val owners = blocks.filter(_.assignments.exists(_ eq entry.assignment))
-      require(owners.size == 1 && totalDriver(component, entry.result.getName(), owners.head),
+      require(owners.size == 1 && totalDriver(component, entry.result, owners.head),
         "Area export requires one authenticated singleton driver before declaration publication")
       entry.result
     }
 
-  def totalDriver(component: Component, name: String, owner: ParameterizedStructuralBlock): Boolean =
-    entries(component).find(entry => entry.result.getName() == name).exists { entry =>
+  def retainedResults(component: Component): Vector[BaseType] = entries(component).toVector.map(_.result)
+
+  def totalDriver(component: Component, resultIdentity: BaseType, owner: ParameterizedStructuralBlock): Boolean =
+    entries(component).find(entry => entry.result eq resultIdentity).exists { entry =>
       val result = entry.result
       val drivers = scala.collection.mutable.ArrayBuffer.empty[DataAssignmentStatement]
       result.foreachStatements { case a: DataAssignmentStatement => drivers += a; case _ => }

@@ -427,6 +427,7 @@
     }
   ],
   "expected_plugin_components": [
+    "MorphHdlAreaCollectionComponent",
     "MorphHdlTypedElaborationControlComponent",
     "MorphHdlNaturalSymbolicConditionalComponent",
     "MorphHdlFrontendSymbolicEqualitySafetyComponent"

@@ -2840,7 +2840,8 @@ private[internals] object ParameterizedVerilogStructural {
         owner: ParameterizedStructuralBlock,
         role: String
     ): Unit = {
-      if (ElabAreaExport.totalDriver(component, target, owner) ||
+      if (ElabAreaExport.retainedResults(component).exists(result =>
+          result.getName() == target && ElabAreaExport.totalDriver(component, result, owner)) ||
         TypedFinitePackedAccess.writes(component).exists(write =>
           NativeFiniteStatementLineage.referenceName(component, write.source) == target &&
             TypedFinitePackedAccess.completeDriver(component, write.source, owner))) return
