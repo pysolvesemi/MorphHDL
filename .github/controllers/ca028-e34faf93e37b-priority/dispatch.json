@@ -1,0 +1,45 @@
+{
+  "repository": "pysolvesemi/MorphHDL",
+  "pr": 195,
+  "base_ref": "parameterized-verilog",
+  "base_sha": "db54d01e5b21c7664f7a0de3795f061d77a3d259",
+  "candidate_ref": "work/remaining-parameterized-increments",
+  "candidate_sha": "e34faf93e37b224ed8e5e5a412d05b18c29a8abe",
+  "candidate_tree": "299f3c4b4a9552b4b21b4fc8e2e278deba0e9197",
+  "control_ref": "control/ca028-e34faf93e37b-priority",
+  "control_files": [
+    ".github/workflows/ca028-e34faf93e37b-priority.yml",
+    ".github/controllers/ca028-e34faf93e37b-priority/dispatch.py",
+    ".github/controllers/ca028-e34faf93e37b-priority/dispatch.json"
+  ],
+  "workflows": [
+    {
+      "id": 337738060,
+      "path": ".github/workflows/morphhdl-external-structural-process.yml",
+      "sha256": "c8a141ada748bd18c094e45d5520913d8d626422ed5b284c0cc3d68e8ecf9deb",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 336665858,
+      "path": ".github/workflows/morphhdl-native-source-guard.yml",
+      "sha256": "f4c437482d3aa970d86b3a64f000bdd934771eec539ac0dd8fcfb94e80d85fc0",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    }
+  ],
+  "original_failures": [
+    {
+      "run_id": 38072004731,
+      "workflow_id": 336665858,
+      "head_sha": "6b58331e3f9f00b0010836d97fa09ed1a5f1ead1"
+    },
+    {
+      "run_id": 38071989653,
+      "workflow_id": 337738060,
+      "head_sha": "6b58331e3f9f00b0010836d97fa09ed1a5f1ead1"
+    }
+  ]
+}
