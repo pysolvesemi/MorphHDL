@@ -586,7 +586,7 @@
     },
     "morphhdl/contracts/increment-55-native-change-review.json": {
       "mode": "100644",
-      "sha256": "1bd463a9f85a18a0aa1ae211b9b2c8212f022f92e04ada39b524ba1e01a807bb"
+      "sha256": "8738c49f156ed4e1d827b584eede789e87957873339e59c01d016c32dea481f9"
     },
     "morphhdl/contracts/increment-58-retirement.contract": {
       "mode": "100644",
@@ -606,7 +606,7 @@
     },
     "morphhdl/contracts/retained-parameterized-regressions.json": {
       "mode": "100644",
-      "sha256": "464853393ab0b85c5141116b6ecd62251e90d9c915ec21ba12a341a89e553735"
+      "sha256": "9aa03895633af7311c8a4473c4e9eb2821a3aa96dc87ba57dfa330cb1fe02b06"
     },
     "morphhdl/examples/contracts/symbolic_data_shapes.v": {
       "mode": "100644",
@@ -682,7 +682,7 @@
     },
     "morphhdl/scripts/check-retained-parameterized-regressions.py": {
       "mode": "100644",
-      "sha256": "c9a313ec740834f65906dc3e0df1c8c24f4b838e72e32f6e55a05e6ee05d7745"
+      "sha256": "f620c2a8d5001d130946f0eb7ff716306cff3b46bf43c94507d4152318928ee7"
     },
     "morphhdl/scripts/check-typed-layering-ir.py": {
       "mode": "100644",
@@ -1320,6 +1320,10 @@
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlAreaCollectionComponentTests.scala": {
       "mode": "100644",
       "sha256": "ea1a59ca754168b7a9f34cc618781a5bc5db4078831881e390da6a01440489cf"
+    },
+    "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlCompilerTestSupport.scala": {
+      "mode": "100644",
+      "sha256": "c4137dbf2872457ee7b85bd0f87c2f0f1a6b986ad03e0c48a4dc8cbb7b4a81fd"
     },
     "morphruntime/src/main/scala/spinal/core/ElabAreaBranchResult.scala": {
       "mode": "100644",
