@@ -72,8 +72,9 @@ class NativeResizeSimplificationTests extends AnyFunSuite {
     assert(rtl.contains("{1{1'b0}}") && rtl.contains(", u}"), rtl)
     assert(rtl.contains("$signed") || rtl.contains(" signed "), rtl)
     info(s"Resize artifact: $dir")
-    val baselinePath = java.nio.file.Paths.get("docs/morphhdl/evidence/increment66/baseline",
-      if (derived) "resize-derived" else "resize-direct", "SymbolicResizeProbe.v")
+    val baselineKind = if (derived) "resize-derived" else "resize-direct"
+    val baselinePath = morphhdl.RepositoryTestResources.resolve(
+      s"docs/morphhdl/evidence/increment66/baseline/$baselineKind/SymbolicResizeProbe.v")
     val baseline = new String(Files.readAllBytes(baselinePath), UTF_8)
       .replace("module SymbolicResizeProbe", "module BaselineResize")
     Files.write(dir.resolve("baseline.v"), baseline.getBytes(UTF_8))

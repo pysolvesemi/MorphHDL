@@ -103,7 +103,7 @@ class NativeNamedFactoryTests extends AnyFunSuite {
       assert(run(Seq("verilator","--lint-only","-Wno-fatal","--top-module","NamedFactory","NamedFactory.v"))==0,log.toString)
       assert(run(Seq("yosys","-p",s"read_verilog -DSYNTHESIS NamedFactory.v LiteralFactory.v; $specialize proc; memory; opt; async2sync; opt; equiv_make LiteralFactory NamedFactory equiv; hierarchy -top equiv; equiv_simple; equiv_induct -seq 8; equiv_status -assert"))==0,log.toString)
       assert(run(Seq("yosys","-p",s"read_verilog -DSYNTHESIS NamedFactory.v; $specialize synth -top NamedFactory; check -assert"))==0,log.toString)
-      val script=new java.io.File("morphhdl/scripts/validate-named-factory.py").getAbsolutePath
+      val script=RepositoryTestResources.resolve("morphhdl/scripts/validate-named-factory.py").toString
       assert(run(Seq("python3",script,dir.toString,"--base",base.toString) ++
         (if(lite) Seq("--lite") else Seq.empty) ++ (if(symbolic) Seq("--symbolic") else Seq.empty))==0,log.toString)
     }
