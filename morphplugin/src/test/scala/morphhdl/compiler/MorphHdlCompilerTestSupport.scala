@@ -2,6 +2,7 @@ package morphhdl.compiler
 
 import java.io.File
 import java.nio.file.Files
+import java.util.jar.{JarEntry, JarOutputStream}
 
 import scala.collection.JavaConverters._
 import scala.reflect.internal.util.BatchSourceFile
@@ -23,7 +24,32 @@ private[compiler] object MorphHdlCompilerTestSupport {
       new File(
         classOf[MorphHdlPlugin].getProtectionDomain.getCodeSource.getLocation.toURI
       ).getAbsolutePath
-    settings.plugin.value = List(pluginLocation)
+    // SBT co-locates resources with classes; Mill keeps them in separate roots.
+    // Package the actual compiled plugin with its actual descriptor for the nested compiler.
+    val pluginRoot = new File(pluginLocation).toPath
+    val pluginJar = if (Files.isDirectory(pluginRoot) && !Files.isRegularFile(pluginRoot.resolve("scalac-plugin.xml"))) {
+      val jar = Files.createTempFile("morphhdl-compiler-plugin-test", ".jar")
+      val stream = new JarOutputStream(Files.newOutputStream(jar))
+      try {
+        val paths = Files.walk(pluginRoot)
+        try paths.iterator().asScala.filter(Files.isRegularFile(_)).toVector.sortBy(_.toString).foreach { path =>
+          stream.putNextEntry(new JarEntry(pluginRoot.relativize(path).toString.replace(File.separatorChar, '/')))
+          Files.copy(path, stream)
+          stream.closeEntry()
+        } finally paths.close()
+        val descriptor = classOf[MorphHdlPlugin].getClassLoader.getResourceAsStream("scalac-plugin.xml")
+        require(descriptor != null, "compiled plugin is missing its actual scalac-plugin.xml resource")
+        try {
+          stream.putNextEntry(new JarEntry("scalac-plugin.xml"))
+          val buffer = new Array[Byte](4096)
+          var count = descriptor.read(buffer)
+          while (count >= 0) { if (count > 0) stream.write(buffer, 0, count); count = descriptor.read(buffer) }
+          stream.closeEntry()
+        } finally descriptor.close()
+      } finally stream.close()
+      Some(jar)
+    } else None
+    settings.plugin.value = List(pluginJar.map(_.toString).getOrElse(pluginLocation))
     val reporter = new StoreReporter
     val compiler = new Global(settings, reporter)
     assert(
@@ -51,6 +77,7 @@ private[compiler] object MorphHdlCompilerTestSupport {
       val paths = Files.walk(output)
       try paths.iterator().asScala.toVector.reverse.foreach(path => Files.deleteIfExists(path))
       finally paths.close()
+      pluginJar.foreach(path => Files.deleteIfExists(path))
     }
   }
 

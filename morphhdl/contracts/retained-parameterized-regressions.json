@@ -3690,7 +3690,7 @@
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala": "24b185c3ef7939be404500704e955d598c2493ee7c3a1f737d0cf16267d9c362",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrV1Spec.scala": "835224bc5028bc192976dd96e08906add489d4824d328397466a7e4dd7f31493",
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlAreaCollectionComponentTests.scala": "ea1a59ca754168b7a9f34cc618781a5bc5db4078831881e390da6a01440489cf",
-    "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlCompilerTestSupport.scala": "ea4d599b8289bb900440d8c29fe91f846fa8e451b487669fe34878d646a5e289",
+    "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlCompilerTestSupport.scala": "c4137dbf2872457ee7b85bd0f87c2f0f1a6b986ad03e0c48a4dc8cbb7b4a81fd",
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlFrontendSymbolicEqualitySafetyComponentTests.scala": "61d8fb7fb5892ec9b48b3d74360204d432b030b52387bd4779d225d62a5ab34a",
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponentTests.scala": "cfcba4baae6445095236207f23562d2ade502f18e69abfac7f146071aa305bee",
     "paramrtl/src/test/scala/morphhdl/paramrtl/AddressWidthExpressionTests.scala": "b194d35db36483b350c998a39c22e0932b758ca603fc9f06d3b571cd016de4d8",
