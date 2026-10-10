@@ -632,6 +632,10 @@
       "mode": "100644",
       "sha256": "876d7b604b81d27acde83504f6875aea080244593b9dc3f0a63c1c97826b00c0"
     },
+    "morphhdl/scripts/check-contracts.sh": {
+      "mode": "100755",
+      "sha256": "5dcceba7b2f4fca047f24a262c395127d66277f116182baf988ad13978f4e59c"
+    },
     "morphhdl/scripts/check-fast-aggregate-lint.py": {
       "mode": "100644",
       "sha256": "9ec8b696e7dc4e48d22b51fdee42c22bfcf22fd24164c424026a783663a05a5b"
@@ -691,6 +695,10 @@
     "morphhdl/scripts/check-wa11-boolean-width.py": {
       "mode": "100644",
       "sha256": "5eb81e534ae37cc4ef099dc165e52a6755dc686e5d4acf7cfd10a52cfe4ca63d"
+    },
+    "morphhdl/scripts/check-yosys-symbolic-data-shapes-contract.py": {
+      "mode": "100755",
+      "sha256": "a59d5ea9cb671201bcdf59ee555dec3ab0b2c26e329fb91ccc9087381be48d87"
     },
     "morphhdl/scripts/run-parameterized-inherited-audit.py": {
       "mode": "100644",
@@ -1020,7 +1028,7 @@
     },
     "morphhdl/src/test/scala/morphhdl/NativeNamedFactoryTests.scala": {
       "mode": "100644",
-      "sha256": "ff3a75b4edb6ec693a25cb5e5263b44c808c2db74a626c4b9bcd925a8e301f71"
+      "sha256": "ed9dac43b65bdb298247df05d9cf33919fe840d691b31573463e8d417841e294"
     },
     "morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCParameterizedTests.scala": {
       "mode": "100644",
@@ -1057,6 +1065,10 @@
     "morphhdl/src/test/scala/morphhdl/PublicationDecisionTests.scala": {
       "mode": "100644",
       "sha256": "e7693affa99b9570684e67f1c4c280079cec5d24d00e99878a906559afefed35"
+    },
+    "morphhdl/src/test/scala/morphhdl/RepositoryTestResources.scala": {
+      "mode": "100644",
+      "sha256": "6c7951371f5b09e65bc6a3a59440eb5b5fafa12c682f905f552a20022f70abbc"
     },
     "morphhdl/src/test/scala/morphhdl/RtlDocumentationTests.scala": {
       "mode": "100644",
@@ -1202,7 +1214,7 @@
     },
     "morphhdl/src/test/scala/spinal/core/NativeResizeSimplificationTests.scala": {
       "mode": "100644",
-      "sha256": "41b602431f91d4a3bf96147af8d19c8e78730484e3c37bac12f189c759a92cfd"
+      "sha256": "fb527fee2e5b6b675283f9366927b300e765d18c63ff3573bc7c189340529f40"
     },
     "morphhdl/src/test/scala/spinal/core/NativeScopedLegalityTests.scala": {
       "mode": "100644",
