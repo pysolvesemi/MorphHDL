@@ -1,0 +1,61 @@
+{
+  "repository": "pysolvesemi/MorphHDL",
+  "pr": 195,
+  "base_ref": "parameterized-verilog",
+  "base_sha": "db54d01e5b21c7664f7a0de3795f061d77a3d259",
+  "candidate_ref": "work/remaining-parameterized-increments",
+  "candidate_sha": "025db2de2314a5185d95871a0768e2cea094433f",
+  "candidate_tree": "73679a1fcdb03ee94a17bca45b95091f78194f70",
+  "control_ref": "control/ca028-025db2de2314-resource-composite",
+  "control_files": [
+    ".github/workflows/ca028-025db2de2314-resource-composite.yml",
+    ".github/controllers/ca028-025db2de2314-resource-composite/dispatch.py",
+    ".github/controllers/ca028-025db2de2314-resource-composite/dispatch.json"
+  ],
+  "workflows": [
+    {
+      "id": 352827927,
+      "path": ".github/workflows/increment-59i-combined-closure.yml",
+      "sha256": "08d836ab7858dc787fb46ff56d3ac879ac2e0bd5c7516dd7919f0cfa797778f6",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    }
+  ],
+  "original_failures": [
+    {
+      "run_id": 38076412864,
+      "workflow_id": 347814196,
+      "head_sha": "e34faf93e37b224ed8e5e5a412d05b18c29a8abe"
+    },
+    {
+      "run_id": 38076419181,
+      "workflow_id": 348180595,
+      "head_sha": "e34faf93e37b224ed8e5e5a412d05b18c29a8abe"
+    }
+  ],
+  "provenance": {
+    "workflow_id": 336665858,
+    "run_id": 38084870275,
+    "artifact_id": 11681891083,
+    "artifact_digest": "sha256:b378d735efcb25da5fb1fe412c0e3d4942bdce39eefd8a678977449e30c5506e",
+    "receipt_sha256": "0a7c87041321f06173471d3e4caa64626f94671a1eb95dcdcd7e3e192c6b6178",
+    "candidate": {
+      "commit": "025db2de2314a5185d95871a0768e2cea094433f",
+      "tree": "73679a1fcdb03ee94a17bca45b95091f78194f70"
+    },
+    "status": "pass"
+  },
+  "priority_runs": [
+    {
+      "id": 38084870275,
+      "workflow_id": 336665858,
+      "jobs": 1
+    },
+    {
+      "id": 38084864571,
+      "workflow_id": 337738060,
+      "jobs": 3
+    }
+  ]
+}
