@@ -1,0 +1,205 @@
+{
+  "repository": "pysolvesemi/MorphHDL",
+  "pr": 195,
+  "base_ref": "parameterized-verilog",
+  "base_sha": "db54d01e5b21c7664f7a0de3795f061d77a3d259",
+  "candidate_ref": "work/remaining-parameterized-increments",
+  "candidate_sha": "025db2de2314a5185d95871a0768e2cea094433f",
+  "candidate_tree": "73679a1fcdb03ee94a17bca45b95091f78194f70",
+  "control_ref": "control/ca028-025db2de2314-resource-consumers",
+  "control_files": [
+    ".github/workflows/ca028-025db2de2314-resource-consumers.yml",
+    ".github/controllers/ca028-025db2de2314-resource-consumers/dispatch.py",
+    ".github/controllers/ca028-025db2de2314-resource-consumers/dispatch.json"
+  ],
+  "workflows": [
+    {
+      "id": 351037194,
+      "path": ".github/workflows/increment-60e-signedness-boundaries.yml",
+      "sha256": "fe07e3d85d03517e6396567ebdfea47f412f60d775cc0baab057d76dbd9eba68",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 351947632,
+      "path": ".github/workflows/increment-59g-register-bridges.yml",
+      "sha256": "59bd23eb7e3221f8bb77ee1d9a6b27b33da8af980c1b67be9d5279f8eb04bd12",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 337856627,
+      "path": ".github/workflows/morphhdl-external-memory.yml",
+      "sha256": "cb394fcc4a23c565131f308c91aab16280e816e67b5722ce52afbf5d1f684deb",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 336740926,
+      "path": ".github/workflows/morphhdl-external-symbolic-width.yml",
+      "sha256": "ef653c2c2695d4f66b858d90d6ea9667eb5cb00299ab799a25cc1b46178f52c6",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 351078713,
+      "path": ".github/workflows/increment-59b-publication.yml",
+      "sha256": "3796114c4d1c2bf48c138212ebd1c2b93192b37fb62b1575bacfc34b013c986d",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 351996892,
+      "path": ".github/workflows/increment-59h-nested-owners.yml",
+      "sha256": "d5c54c0d533b61d13dd6e6df434ca2f3cf8dde15a023739ade4eae8f88880b2f",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 352827927,
+      "path": ".github/workflows/increment-59i-combined-closure.yml",
+      "sha256": "08d836ab7858dc787fb46ff56d3ac879ac2e0bd5c7516dd7919f0cfa797778f6",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 351368935,
+      "path": ".github/workflows/increment-59c-named-field-vectors.yml",
+      "sha256": "e296104884aa730fa23d38ef4d24692aff509a374aef0556e392e806ea67221a",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 350835108,
+      "path": ".github/workflows/increment-60c-signed-declarations.yml",
+      "sha256": "7cf3c3fce61463d578570feecf0c10f201f367a6bd159a7d3a60d1cc0aea02d9",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 350942510,
+      "path": ".github/workflows/increment-60d-pure-sint-casts.yml",
+      "sha256": "05cce03d17b434cf8efe23f65efae3a2aaf6cf7cae725a682f9d93074c22bf3e",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 339748140,
+      "path": ".github/workflows/morphhdl-external-formalization.yml",
+      "sha256": "af165fa05aabca1bfedf23c67ce1275e0b4c960464980249fb08cfa83bf4c0d2",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 341560103,
+      "path": ".github/workflows/morphhdl-native-streamfifo-structure.yml",
+      "sha256": "084727e3a918abf3f8964f2bcc8db300ca21f961ccb9fa1963941df743aebbfb",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 344533049,
+      "path": ".github/workflows/morphhdl-native-streamfifo-formal-equivalence.yml",
+      "sha256": "90a54dfe3942dad53ac01188578052c4557cf34994d82b4df42a92f0c30033e0",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 349153248,
+      "path": ".github/workflows/morphhdl-streamfifocc-proof.yml",
+      "sha256": "f6dbc168c87cabed8bfacf26cac9f2c78f3677ad0d50c5a7f62904bef76f9b7c",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 351370311,
+      "path": ".github/workflows/increment-59d-widening.yml",
+      "sha256": "133b8360ce4b5789e5b448a29a33ac8007f62ac2de2d59f0ae88c628e0e7f143",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 351360305,
+      "path": ".github/workflows/increment-59e-composite-reduction.yml",
+      "sha256": "b4255fc7e6217849a434fddbb2a7bdbc8c25ec6ad4db547325ae7c08513e9592",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 351397918,
+      "path": ".github/workflows/increment-59f-callback-graphs.yml",
+      "sha256": "f37f6b44097ccad2337c038e82eb621344e7453c1354858f85008a9ce176d04f",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 347814196,
+      "path": ".github/workflows/increment-53g-production-retirement.yml",
+      "sha256": "d7e1e446008aa9f19c918f3b4c4c28606f89d471a215cc88dd71885aef4bd792",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 348180595,
+      "path": ".github/workflows/increment-54-typed-layering-ir.yml",
+      "sha256": "cd5732a99e9391b34aa4d2f846b687e2112511155e3784c59b82de5fd125c797",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    }
+  ],
+  "original_failures": [
+    {
+      "run_id": 38076412864,
+      "workflow_id": 347814196,
+      "head_sha": "e34faf93e37b224ed8e5e5a412d05b18c29a8abe"
+    },
+    {
+      "run_id": 38076419181,
+      "workflow_id": 348180595,
+      "head_sha": "e34faf93e37b224ed8e5e5a412d05b18c29a8abe"
+    }
+  ],
+  "provenance": {
+    "workflow_id": 336665858,
+    "run_id": 38084870275,
+    "artifact_id": 11681891083,
+    "artifact_digest": "sha256:b378d735efcb25da5fb1fe412c0e3d4942bdce39eefd8a678977449e30c5506e",
+    "receipt_sha256": "0a7c87041321f06173471d3e4caa64626f94671a1eb95dcdcd7e3e192c6b6178",
+    "candidate": {
+      "commit": "025db2de2314a5185d95871a0768e2cea094433f",
+      "tree": "73679a1fcdb03ee94a17bca45b95091f78194f70"
+    },
+    "status": "pass"
+  },
+  "priority_runs": [
+    {
+      "id": 38084870275,
+      "workflow_id": 336665858,
+      "jobs": 1
+    },
+    {
+      "id": 38084864571,
+      "workflow_id": 337738060,
+      "jobs": 3
+    }
+  ]
+}
