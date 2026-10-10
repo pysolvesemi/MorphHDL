@@ -547,6 +547,17 @@
       ]
     },
     "morphhdl": {
+      "morphhdl.AreaCollectionLoopTests": [
+        "Area collections reject escaped index values",
+        "Area collections reject insufficient source-tag widths",
+        "Area collections reject out-of-range static members",
+        "Area collections retain rejection of competing branch drivers",
+        "Area documentation iteration rejects hardware construction",
+        "ordinary Area collection preserves branches, static exports, packed writes and priority count=1",
+        "ordinary Area collection preserves branches, static exports, packed writes and priority count=3",
+        "symbolic Area collection retains branch and static export across count overrides unpacked=false",
+        "symbolic Area collection retains branch and static export across count overrides unpacked=true"
+      ],
       "morphhdl.BackendSyncMergeIsolationTests": [
         "exact noBackendSyncMerge registers retain clock and synchronous-reset semantics in distinct processes",
         "ordinary same-domain registers retain the default merged synchronous process"
@@ -1263,6 +1274,19 @@
         "a native adapter invocation rejects an unproven second symbolic root",
         "typed native StreamWidthAdapter emits one parameterized top covering all three native modes"
       ],
+      "morphhdl.PublicationDecisionTests": [
+        "publication report explains native sharing and separates distinct scoped programs split=false reverse=false scalarOnly=false",
+        "publication report explains native sharing and separates distinct scoped programs split=false reverse=false scalarOnly=true",
+        "publication report explains native sharing and separates distinct scoped programs split=false reverse=true scalarOnly=false",
+        "publication report explains native sharing and separates distinct scoped programs split=false reverse=true scalarOnly=true",
+        "publication report explains native sharing and separates distinct scoped programs split=true reverse=false scalarOnly=false",
+        "publication report explains native sharing and separates distinct scoped programs split=true reverse=false scalarOnly=true",
+        "publication report explains native sharing and separates distinct scoped programs split=true reverse=true scalarOnly=false",
+        "publication report explains native sharing and separates distinct scoped programs split=true reverse=true scalarOnly=true",
+        "publication report capture is released after generation failure",
+        "native separation report identifies logic differences without changing RTL",
+        "publication failure returns structured code and source location and releases capture"
+      ],
       "morphhdl.ReduceBalancedTreeNativeContractTests": [
         "a singleton is returned by identity without invoking either callback",
         "empty native collections fail rather than inventing an identity",
@@ -1319,6 +1343,66 @@
         "scalar formal reuse preserves independent defaults and overrides mode=same-default split=true",
         "standalone scalar formal retains its supplied default mixed=false",
         "standalone scalar formal retains its supplied default mixed=true"
+      ],
+      "morphhdl.ScopedProcessExtensionTests": [
+        "multiple outputs defaults nested folds signed arithmetic native=false split=false",
+        "multiple outputs defaults nested folds signed arithmetic native=false split=true",
+        "multiple outputs defaults nested folds signed arithmetic native=true split=false",
+        "multiple outputs defaults nested folds signed arithmetic native=true split=true",
+        "correlated bounds compare exact roots bad=false",
+        "correlated bounds compare exact roots bad=true",
+        "nested symbolic affine indices and extension native=false",
+        "nested symbolic affine indices and extension native=true",
+        "zero outer and inner iteration counts preserve explicit signed defaults",
+        "extended scoped process rejects unsafe escaped-index",
+        "extended scoped process rejects unsafe escaped-predicate",
+        "extended scoped process rejects unsafe signedness",
+        "extended scoped process rejects unsafe arithmetic-width",
+        "extended scoped process rejects unsafe narrow-extension",
+        "extended scoped process rejects unsafe default-overflow",
+        "extended scoped process rejects unsafe signed-default-overflow",
+        "extended scoped process rejects unsafe negative-inner",
+        "extended scoped process rejects unsafe affine-oob",
+        "hardware defaults seed ordered arithmetic native=false",
+        "hardware defaults seed ordered arithmetic native=true",
+        "extended process matches an independent combinational oracle",
+        "nested scalar loop bounds and affine scale share definitions reverse=false split=false",
+        "nested scalar loop bounds and affine scale share definitions reverse=false split=true",
+        "nested scalar loop bounds and affine scale share definitions reverse=true split=false",
+        "nested scalar loop bounds and affine scale share definitions reverse=true split=true",
+        "one-bit nonzero default preserves retained loop signed=false",
+        "one-bit nonzero default preserves retained loop signed=true"
+      ],
+      "morphhdl.ScopedProcessTests": [
+        "scoped process boundary matrix symbolic=false unpacked=false split=false",
+        "scoped process boundary matrix symbolic=false unpacked=false split=true",
+        "scoped process boundary matrix symbolic=false unpacked=true split=false",
+        "scoped process boundary matrix symbolic=false unpacked=true split=true",
+        "scoped process boundary matrix symbolic=true unpacked=false split=false",
+        "scoped process boundary matrix symbolic=true unpacked=false split=true",
+        "scoped process boundary matrix symbolic=true unpacked=true split=false",
+        "scoped process boundary matrix symbolic=true unpacked=true split=true",
+        "ordinary generation executes all scoped iterations",
+        "scoped index sizing and unsigned comparisons count=1 width=1",
+        "scoped index sizing and unsigned comparisons count=32 width=6",
+        "scoped index sizing and unsigned comparisons count=32 width=32",
+        "scoped loops are equivalent to ordinary unrolled control",
+        "scoped input identity survives aliases and forward assignment",
+        "zero and boundary count overrides retain the zero default",
+        "scoped comparisons boolean predicates and bitwise values preserve ordered four-state behavior",
+        "independent source width parameters stay live with a constant subrange count",
+        "scoped process rejects unsafe escape",
+        "scoped process rejects unsafe foreign-handle",
+        "scoped process rejects unsafe width",
+        "scoped process rejects unsafe bounds",
+        "scoped process rejects unsafe side-effect",
+        "scoped process rejects unsafe feedback",
+        "scoped process rejects unsafe extra-write",
+        "scoped process rejects unsafe negative-count",
+        "scoped process rejects unsafe zero-width",
+        "scoped process rejects unsafe wide-index",
+        "scoped process rejects unsafe unused-input",
+        "scoped process rejects unsafe empty-body"
       ],
       "morphhdl.SharedFiniteLoopControlTests": [
         "module control reads relocated state and drives loop memory and scalar child=false nested=false",
@@ -1688,6 +1772,12 @@
         "external boundary preserves configured transformation phases and phase inserters",
         "parameterized mode clones baseline flags without changing the caller config"
       ],
+      "spinal.core.AreaCollectionLineageTests": [
+        "Area documentation iteration rejects changes to a child driver",
+        "finite index value rejects mutated source lineage",
+        "finite index value rejects mutated target lineage",
+        "finite index value rejects mutated width lineage"
+      ],
       "spinal.core.BooleanWidthNormalizationTests": [
         "Boolean roots normalize without specializing either default or losing provenance",
         "compound predicates and negation retain one integer encoding through round trips",
@@ -1908,6 +1998,16 @@
         "a live retained procedural assignment rewrites only its exact slices",
         "a removed procedural assignment cannot be replaced by copied marker text",
         "coincident fixed and retained procedural slices remain distinct or fail closed"
+      ],
+      "spinal.core.ProcessExpressionLineageTests": [
+        "captured alias chains survive native pruning and reject replacement drivers",
+        "captured lineage rejects changed literal values and slice geometry",
+        "register boundaries and foreign declarations retain distinct lineage",
+        "scoped output publication rejects mutated view-source",
+        "scoped output publication rejects mutated view-slice",
+        "scoped output publication rejects mutated result-width",
+        "scoped output publication rejects mutated default-edge",
+        "scoped output publication rejects mutated witness-edge"
       ],
       "spinal.core.ScalarStructuralIdentityAdversarialTests": [
         "a removed scalar-operator driver cannot be replaced by the same result operands and text",
@@ -2154,6 +2254,12 @@
         "constant Vec carrier replacement preserves module and attribute syntax",
         "exact structural names cannot collide with retained Vec carriers",
         "packed Vec declaration replacement preserves same-name attribute strings"
+      ],
+      "spinal.core.internals.CanonicalSchemaDiagnosticTests": [
+        "schema diagnostics identify default domain and missing parameter boundaries",
+        "schema diagnostics identify port direction type width presence and retained geometry",
+        "schema diagnostics bound multiline Vec evidence and identify missing entries",
+        "schema diagnostic selection is deterministic without changing schema equality"
       ],
       "spinal.core.internals.HierarchyResizeSourceWidthTests": [
         "auto-resize source-width authority rejects stale drivers, kind, direction, use and owner",
@@ -2859,95 +2965,6 @@
         "symbolic continuous reads slice the packed view without read functions",
         "symbolic procedural reads retain direct-memory helpers for blocking ordering",
         "unaligned windows concatenate actual array bits across element boundaries"
-      ],
-      "spinal.core.internals.CanonicalSchemaDiagnosticTests": [
-        "schema diagnostics identify default domain and missing parameter boundaries",
-        "schema diagnostics identify port direction type width presence and retained geometry",
-        "schema diagnostics bound multiline Vec evidence and identify missing entries",
-        "schema diagnostic selection is deterministic without changing schema equality"
-      ],
-      "morphhdl.ScopedProcessTests": [
-        "scoped process boundary matrix symbolic=false unpacked=false split=false",
-        "scoped process boundary matrix symbolic=false unpacked=false split=true",
-        "scoped process boundary matrix symbolic=false unpacked=true split=false",
-        "scoped process boundary matrix symbolic=false unpacked=true split=true",
-        "scoped process boundary matrix symbolic=true unpacked=false split=false",
-        "scoped process boundary matrix symbolic=true unpacked=false split=true",
-        "scoped process boundary matrix symbolic=true unpacked=true split=false",
-        "scoped process boundary matrix symbolic=true unpacked=true split=true",
-        "ordinary generation executes all scoped iterations",
-        "scoped index sizing and unsigned comparisons count=1 width=1",
-        "scoped index sizing and unsigned comparisons count=32 width=6",
-        "scoped index sizing and unsigned comparisons count=32 width=32",
-        "scoped loops are equivalent to ordinary unrolled control",
-        "scoped input identity survives aliases and forward assignment",
-        "zero and boundary count overrides retain the zero default",
-        "scoped comparisons boolean predicates and bitwise values preserve ordered four-state behavior",
-        "independent source width parameters stay live with a constant subrange count",
-        "scoped process rejects unsafe escape",
-        "scoped process rejects unsafe foreign-handle",
-        "scoped process rejects unsafe width",
-        "scoped process rejects unsafe bounds",
-        "scoped process rejects unsafe side-effect",
-        "scoped process rejects unsafe feedback",
-        "scoped process rejects unsafe extra-write",
-        "scoped process rejects unsafe negative-count",
-        "scoped process rejects unsafe zero-width",
-        "scoped process rejects unsafe wide-index",
-        "scoped process rejects unsafe unused-input",
-        "scoped process rejects unsafe empty-body"
-      ],
-      "morphhdl.PublicationDecisionTests": [
-        "publication report explains native sharing and separates distinct scoped programs split=false reverse=false scalarOnly=false",
-        "publication report explains native sharing and separates distinct scoped programs split=false reverse=false scalarOnly=true",
-        "publication report explains native sharing and separates distinct scoped programs split=false reverse=true scalarOnly=false",
-        "publication report explains native sharing and separates distinct scoped programs split=false reverse=true scalarOnly=true",
-        "publication report explains native sharing and separates distinct scoped programs split=true reverse=false scalarOnly=false",
-        "publication report explains native sharing and separates distinct scoped programs split=true reverse=false scalarOnly=true",
-        "publication report explains native sharing and separates distinct scoped programs split=true reverse=true scalarOnly=false",
-        "publication report explains native sharing and separates distinct scoped programs split=true reverse=true scalarOnly=true",
-        "publication report capture is released after generation failure",
-        "native separation report identifies logic differences without changing RTL",
-        "publication failure returns structured code and source location and releases capture"
-      ],
-      "spinal.core.ProcessExpressionLineageTests": [
-        "captured alias chains survive native pruning and reject replacement drivers",
-        "captured lineage rejects changed literal values and slice geometry",
-        "register boundaries and foreign declarations retain distinct lineage",
-        "scoped output publication rejects mutated view-source",
-        "scoped output publication rejects mutated view-slice",
-        "scoped output publication rejects mutated result-width",
-        "scoped output publication rejects mutated default-edge",
-        "scoped output publication rejects mutated witness-edge"
-      ],
-      "morphhdl.ScopedProcessExtensionTests": [
-        "multiple outputs defaults nested folds signed arithmetic native=false split=false",
-        "multiple outputs defaults nested folds signed arithmetic native=false split=true",
-        "multiple outputs defaults nested folds signed arithmetic native=true split=false",
-        "multiple outputs defaults nested folds signed arithmetic native=true split=true",
-        "correlated bounds compare exact roots bad=false",
-        "correlated bounds compare exact roots bad=true",
-        "nested symbolic affine indices and extension native=false",
-        "nested symbolic affine indices and extension native=true",
-        "zero outer and inner iteration counts preserve explicit signed defaults",
-        "extended scoped process rejects unsafe escaped-index",
-        "extended scoped process rejects unsafe escaped-predicate",
-        "extended scoped process rejects unsafe signedness",
-        "extended scoped process rejects unsafe arithmetic-width",
-        "extended scoped process rejects unsafe narrow-extension",
-        "extended scoped process rejects unsafe default-overflow",
-        "extended scoped process rejects unsafe signed-default-overflow",
-        "extended scoped process rejects unsafe negative-inner",
-        "extended scoped process rejects unsafe affine-oob",
-        "hardware defaults seed ordered arithmetic native=false",
-        "hardware defaults seed ordered arithmetic native=true",
-        "extended process matches an independent combinational oracle",
-        "nested scalar loop bounds and affine scale share definitions reverse=false split=false",
-        "nested scalar loop bounds and affine scale share definitions reverse=false split=true",
-        "nested scalar loop bounds and affine scale share definitions reverse=true split=false",
-        "nested scalar loop bounds and affine scale share definitions reverse=true split=true",
-        "one-bit nonzero default preserves retained loop signed=false",
-        "one-bit nonzero default preserves retained loop signed=true"
       ]
     },
     "morphir": {
@@ -2989,6 +3006,13 @@
       ]
     },
     "morphplugin": {
+      "morphhdl.compiler.MorphHdlAreaCollectionComponentTests": [
+        "Area bridge does not intercept unrelated Area classes",
+        "Area bridge preserves ordinary loops without structural index branches",
+        "Area bridge rejects ordinary collection iteration over a retained template",
+        "Area bridge rejects unsupported aliases of the retained index",
+        "Area bridge respects nested Scala index shadowing"
+      ],
       "morphhdl.compiler.MorphHdlFrontendSymbolicEqualitySafetyComponentTests": [
         "does not intercept ordinary equality or symbolic receivers",
         "rejects reverse equality for statically typed MorphHDL values",
@@ -3394,6 +3418,7 @@
     "frontend/src/test/scala/morphhdl/frontend/compatibility/SpinalImportCompatibilityTests.scala": "288f982de1dd671c5a6b348e31cbffd5798aa465b8caef47ea7a01e21eb12f14",
     "idslplugin/src/test/scala/spinal/idslplugin/DocumentationPluginTests.scala": "0016bc43b545fbcbbd9dccd10e17aaac560e113dcc8debcdbc06b822be4d19fd",
     "morphhdl/src/test/scala/adversarial/vecfake/SInt.scala": "ed76ab7df5ae95a0f3eb7dd5ce05aca5dbf9f54ee72e067bfff004d79c02671d",
+    "morphhdl/src/test/scala/morphhdl/AreaCollectionLoopTests.scala": "499bbfe0b2a769d948443cfc07eea212e40ddf0966315bbaf7dc288e7b41553e",
     "morphhdl/src/test/scala/morphhdl/AsynchronousEnabledRegisterContractFixture.scala": "bfe3aa719951fb82431a00211cbcdd7fbf58863016943dfa7910278221c2c9bb",
     "morphhdl/src/test/scala/morphhdl/AsynchronousRegisterContractFixture.scala": "679d2cb571a90115c1734c3b5744cd7f3b04f73ce6be2b7843c553aba1d9c816",
     "morphhdl/src/test/scala/morphhdl/BackendSyncMergeIsolationTests.scala": "335a4ecef2415c1940f08f21c39cdf45ae014f83d95cd8321b72885c8ca376b7",
@@ -3402,6 +3427,7 @@
     "morphhdl/src/test/scala/morphhdl/BoundedProcessOperationTests.scala": "bba238500015766afbcab644fd79623f03be823505892ee705d8fe58a0982ed3",
     "morphhdl/src/test/scala/morphhdl/BoundedRecursivePowerTests.scala": "fc20395f2d5d7eab911b84cf20f0bf3ef577606db4e8b7af068d8850921a87ad",
     "morphhdl/src/test/scala/morphhdl/BoundedRecursiveSafetyTests.scala": "64069cd937cf9cdf44c48b4342d1c9a563af34ca483c9c67dfb3dd1a9e84d197",
+    "morphhdl/src/test/scala/morphhdl/CanonicalSchemaDiagnosticTests.scala": "c5b3fe6c27d1a963a20fa925d7e61b33bdb9860817903e6c4125488cb83783a6",
     "morphhdl/src/test/scala/morphhdl/CapturedAssignmentNormalizationTests.scala": "178f28a885fd7e861f49b48f214358166c59f253f3dd56f15e4f224e67167f01",
     "morphhdl/src/test/scala/morphhdl/CapturedDomainWidthEquivalenceTests.scala": "5ce6ccac05c0f80ce9d476d65dec96692662092d477e3a7479a191d08088be8a",
     "morphhdl/src/test/scala/morphhdl/CaseRoutingContractFixture.scala": "d023ec2012ae83d4a7cbe98ade300da2c638de567261c4f3d859cb2721bd4c03",
@@ -3470,11 +3496,15 @@
     "morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala": "e8d6161476c6a03ffa33d4037f7548ef98740bbd40ef5282cabb43d13f975128",
     "morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala": "0eb60d07a03a73b99a71cac9e52c4bd29ee8c5e9ecca950777e729286c3f404b",
     "morphhdl/src/test/scala/morphhdl/ParameterizedWireContractFixture.scala": "72d5584335a3139ece5b6f936715322b32d8d37d6e5e343e7e9d6128d631fce6",
+    "morphhdl/src/test/scala/morphhdl/ProcessExpressionLineageTests.scala": "0d5d884b771a18e0adb4d41d7b7a74aa6ef0ec73b971176fb03e2a7f7ab9c3b2",
+    "morphhdl/src/test/scala/morphhdl/PublicationDecisionTests.scala": "e7693affa99b9570684e67f1c4c280079cec5d24d00e99878a906559afefed35",
     "morphhdl/src/test/scala/morphhdl/PureSIntCastTests.scala": "c2d8d0eeaba13d3c41c19b7081c5a011f8030cc2eeb92e23dd2f4ace198b0ef6",
     "morphhdl/src/test/scala/morphhdl/ReduceBalancedTreeNativeContractTests.scala": "7ed02fcf5d40a383a13added7696622df6084a2e2b208967255576e82b981f4b",
     "morphhdl/src/test/scala/morphhdl/RtlDocumentationTests.scala": "02bafabb0282f28b6fc50ef4a2893a82f945ae8b7b1cb7ea96557308c029e853",
     "morphhdl/src/test/scala/morphhdl/RuntimeMuxContractFixture.scala": "0db2014836a7c603af006ef34bdc9ca1571e94ea75c69aeaf9fe8e50d20a4939",
     "morphhdl/src/test/scala/morphhdl/ScalarFormalReuseTests.scala": "7a77e6ddd068fabe3d6ab10898f1ef0bdeb5a944ac66dae0cb009bc91cc4e239",
+    "morphhdl/src/test/scala/morphhdl/ScopedProcessExtensionTests.scala": "98f0f890dba2b7607348c0e69c174365e0d25461a5ba51b0d93c590ae44d5f64",
+    "morphhdl/src/test/scala/morphhdl/ScopedProcessTests.scala": "ae4c27d7601117f81eb41ed0751afb5abee0cdefc87cedaa800be568b4b60e47",
     "morphhdl/src/test/scala/morphhdl/SharedFiniteLoopControlTests.scala": "6b94ae384ad11a27cafc84d7bd8129929e2336d74903ed8a2ba6360bd98cdd25",
     "morphhdl/src/test/scala/morphhdl/ShiftSubrangeAndGrayTests.scala": "33cab7fa846b5b4233c8cfa5cc3a67baf935894e01564658288d5a4cbac33bf7",
     "morphhdl/src/test/scala/morphhdl/SignedDeclarationPublicationTests.scala": "e7da32b0ea6aeb453fead0e5c7cba27ade392cea041abfd2a1ff3b1072502498",
@@ -3537,6 +3567,7 @@
     "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogNestedArtifactWriter.scala": "438badb3dc987825890d6294659a7670c9886b429d96d64f03a7963774761fb3",
     "morphhdl/src/test/scala/nativeapplication/SignednessCompatibilityArtifactWriter.scala": "4aba50c53a196b2bbec97a8151e7ed7d5adc53d92d6b6541c9b050d2cfa1792c",
     "morphhdl/src/test/scala/nativeapplication/TypedBlackBoxGenericBindingFixture.scala": "35bc5f4c7c2d8fc6257aafff894313d27f3cd3dabdbc63241e2450efb205f7b1",
+    "morphhdl/src/test/scala/spinal/core/AreaCollectionLineageTests.scala": "00374f9b0dfc17ef79823aacddcea46fdfceabd4c60fddafea99b88c80470aae",
     "morphhdl/src/test/scala/spinal/core/BooleanWidthNormalizationTests.scala": "62a4392ecdd10a0ed6c5a98e12cd8c40aafd538d52e2454a7b109b76428fa2d7",
     "morphhdl/src/test/scala/spinal/core/CdcPublicationFormalControl.scala": "19e058f9da8da5c7a7d355819179a8f64d202226c9fea81eb96b9912a8ac01c3",
     "morphhdl/src/test/scala/spinal/core/CdcWireGeometryControl.scala": "176221233cc8a8fa99fe3061de8d957ff3e77db80d5da461a3999456df945621",
@@ -3658,6 +3689,7 @@
     "morphhdl/src/test/scala/spinal/lib/CounterSingleAuthorityParityTests.scala": "9eedbe0f3ce7a457d4c79ab2c9fc3aa1cb02c932436bc76d30d8ada2ca6780f5",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala": "24b185c3ef7939be404500704e955d598c2493ee7c3a1f737d0cf16267d9c362",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrV1Spec.scala": "835224bc5028bc192976dd96e08906add489d4824d328397466a7e4dd7f31493",
+    "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlAreaCollectionComponentTests.scala": "ea1a59ca754168b7a9f34cc618781a5bc5db4078831881e390da6a01440489cf",
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlCompilerTestSupport.scala": "ea4d599b8289bb900440d8c29fe91f846fa8e451b487669fe34878d646a5e289",
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlFrontendSymbolicEqualitySafetyComponentTests.scala": "61d8fb7fb5892ec9b48b3d74360204d432b030b52387bd4779d225d62a5ab34a",
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponentTests.scala": "cfcba4baae6445095236207f23562d2ade502f18e69abfac7f146071aa305bee",
@@ -3683,11 +3715,6 @@
     "paramrtl/src/test/scala/morphhdl/paramrtl/SynchronousReadFirstSinglePortMemoryValidatorTests.scala": "4bbd9ed72d079e2d0eb731103b218efccb632bd0c86bce45be28010abf47cb7c",
     "paramrtl/src/test/scala/morphhdl/paramrtl/SynchronousRegisterValidatorTests.scala": "39f7eb5f8be72e3757d9be75d96a198100803d58fec0d191aec829543ef8d71b",
     "paramrtl/src/test/scala/morphhdl/paramrtl/SynchronousStreamFifoValidatorTests.scala": "69850c4e840385a6fd7e30282917c6e5ef32ee01a7926154e412b947165c4878",
-    "paramrtl/src/test/scala/morphhdl/paramrtl/SynchronousStreamM2sPipeValidatorTests.scala": "e0efa84d814108268a97ac378a51f537a024c4eec9bf9971063fa7440eb8ea12",
-    "morphhdl/src/test/scala/morphhdl/CanonicalSchemaDiagnosticTests.scala": "c5b3fe6c27d1a963a20fa925d7e61b33bdb9860817903e6c4125488cb83783a6",
-    "morphhdl/src/test/scala/morphhdl/ScopedProcessTests.scala": "ae4c27d7601117f81eb41ed0751afb5abee0cdefc87cedaa800be568b4b60e47",
-    "morphhdl/src/test/scala/morphhdl/PublicationDecisionTests.scala": "e7693affa99b9570684e67f1c4c280079cec5d24d00e99878a906559afefed35",
-    "morphhdl/src/test/scala/morphhdl/ProcessExpressionLineageTests.scala": "0d5d884b771a18e0adb4d41d7b7a74aa6ef0ec73b971176fb03e2a7f7ab9c3b2",
-    "morphhdl/src/test/scala/morphhdl/ScopedProcessExtensionTests.scala": "98f0f890dba2b7607348c0e69c174365e0d25461a5ba51b0d93c590ae44d5f64"
+    "paramrtl/src/test/scala/morphhdl/paramrtl/SynchronousStreamM2sPipeValidatorTests.scala": "e0efa84d814108268a97ac378a51f537a024c4eec9bf9971063fa7440eb8ea12"
   }
 }

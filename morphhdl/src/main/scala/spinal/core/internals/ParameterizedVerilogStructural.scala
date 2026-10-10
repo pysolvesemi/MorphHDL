@@ -132,7 +132,7 @@ private[internals] object ParameterizedVerilogStructural {
       ParameterizedVerilogVecs.parametersOf(component) ++ ParameterizedStructure.parametersOf(component) ++
       NativeSymbolicLegality.parametersOf(component))
     val scalar = resolveScalarOperatorReplay(component, blocks, lines)
-    val targets = blocks.flatMap(_.assignments.map(_.finalTarget.getName())).toSet
+    val targets = blocks.flatMap(_.assignments.map(a => NativeFiniteStatementLineage.referenceName(component, a.finalTarget))).toSet
     val plans = blocks.map(b => planBlock(component, b, lines, pc, ports,
       parameters.map(_.name).toSet, scalar, targets,
       ContinuousAssignmentResolution.empty, canonicalOf))
@@ -233,7 +233,7 @@ private[internals] object ParameterizedVerilogStructural {
       block.assignments
         .filterNot(assignment => promotedScalarAssignments.exists(_ eq assignment))
         .foreach { assignment =>
-          Option(assignment.finalTarget.getName()).filter(_.nonEmpty).foreach { name =>
+          Option(NativeFiniteStatementLineage.referenceName(component, assignment.finalTarget)).filter(_.nonEmpty).foreach { name =>
             assignmentOwners
               .getOrElseUpdate(
                 name,
@@ -268,6 +268,7 @@ private[internals] object ParameterizedVerilogStructural {
     val preliminaryPlans =
       plansWithContinuousResolution(ContinuousAssignmentResolution.empty)
     val continuousResolution = sharedContinuousAssignmentResolution(
+      component,
       preliminaryPlans,
       lines,
       alternativePaths,
@@ -344,7 +345,12 @@ private[internals] object ParameterizedVerilogStructural {
     val declarationScopedRawPlans = retainExactAggregateDeclarationsAtModuleScope(
       rawPlans,
       lines,
-      moduleScopeAggregateDeclarations
+      moduleScopeAggregateDeclarations ++ (ElabAreaExport.moduleDeclarations(component, rawPlans.map(_.block)) ++
+        TypedFinitePackedAccess.moduleDeclarations(component, rawPlans.map(_.block))).map { value =>
+        val range = findDeclarationLine(lines, NativeFiniteStatementLineage.referenceName(component, value), None)
+        require(range.start == range.end, "Area export must have one standalone declaration")
+        value -> range.start
+      }
     )
     val (resolvedPlans, sharedProcessRanges, continuousOutputDeclarations) =
       resolveSharedProceduralProcesses(
@@ -358,7 +364,33 @@ private[internals] object ParameterizedVerilogStructural {
     validateBranchLocalReferences(resolvedPlans, lines)
     val liveStatements = new IdentityHashMap[Statement, java.lang.Boolean]()
     component.dslBody.walkStatements(value => liveStatements.put(value, java.lang.Boolean.TRUE))
-    val plans = resolvedPlans.map(plan => finalizePlan(plan, liveStatements))
+    val localPlans = resolvedPlans.map(plan => finalizePlan(component, plan, liveStatements))
+    val plans = localPlans.map { plan =>
+      val path = containmentPathOf(plan.block, containmentPaths)
+      val ancestors = path.dropRight(1)
+      val inherited = ancestors.flatMap(_.vecIndices)
+      val body = inherited.foldLeft(plan.body) { (body, selection) =>
+        selection.result.flatten.zipWithIndex.foldLeft(body) { case (text, (alias, leaf)) =>
+          val name = requiredName(alias, "inherited structural Vec alias", selection.sourceLocation)
+          if (!containsName(text, name)) text
+          else {
+            if (ParameterizedVec.shapeOf(selection.vector).isEmpty)
+              fail("SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-INHERITED-SHAPE-MISSING",
+                "a nested branch must retain its enclosing Vec's exact shape", selection.sourceLocation)
+            val partial = ("(?<![A-Za-z0-9_$])" + Pattern.quote(name) + "(?![A-Za-z0-9_$])\\s*\\[").r
+            if (partial.findFirstIn(text).nonEmpty)
+              fail("SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-ALIAS-PARTIAL-USE-UNSUPPORTED",
+                s"inherited structural Vec alias '$name' has an uncaptured partial use", selection.sourceLocation)
+            val writes = plan.block.assignments.exists(_.finalTarget eq alias)
+            val target = ParameterizedVerilogVecs.structuralDynamicSlice(selection.vector,
+              selection.index, leaf, selection.sourceLocation, selection.affineRead,
+              selection.finiteIndexToken, readOnly = !writes, unitRange = selection.unitRange)
+            replaceName(text, name, target)
+          }
+        }
+      }
+      plan.copy(body = body)
+    }
     validateContinuousAssignmentDominance(
       component,
       pc,
@@ -768,11 +800,11 @@ private[internals] object ParameterizedVerilogStructural {
       )
       val sourceNames = record.sources.map {
         case source: BaseType =>
-          requiredName(
+          NativeFiniteStatementLineage.scalarReference(component, assignment, source).getOrElse(requiredName(
             source,
             "captured scalar operator operand",
             block.sourceLocation
-          )
+          ))
         case _ =>
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SCALAR-OPERATOR-SOURCE-UNSUPPORTED",
@@ -990,7 +1022,30 @@ private[internals] object ParameterizedVerilogStructural {
       case value: BaseType if !captured.containsKey(value) && independent(value) => Option(value.getName()).filter(_.nonEmpty).foreach(result += _)
       case _ =>
     }
+    component.children.filterNot(child => blocks.exists(_.children.exists(_ eq child))).foreach { child =>
+      child.getOrdredNodeIo.filter(port => port.isOutput && independent(port)).foreach { port =>
+        Option(NativeFiniteStatementLineage.referenceName(component, port)).filter(_.nonEmpty).foreach(result += _)
+      }
+    }
     result.toSet
+  }
+
+  /** Native clock-domain pulls create module input ports even when first read
+    * inside a template. Authenticate the pull and its clock-domain identity;
+    * an arbitrary declaration made inside a loop is not a module export.
+    */
+  private def pulledClockPort(value: BaseType): Boolean = {
+    val owner = value.component
+    owner != null && value.isInput && owner.pulledDataCache.exists {
+      case (source: Bool, pulled) if pulled.flatten.exists(_ eq value) =>
+        source.getTags().exists {
+          case ClockTag(domain) => domain.clock eq source
+          case ResetTag(domain) => (domain.reset eq source) || (domain.softReset eq source)
+          case ClockEnableTag(domain) => domain.clockEnable eq source
+          case _ => false
+        }
+      case _ => false
+    }
   }
 
   private def planBlock(
@@ -1053,7 +1108,7 @@ private[internals] object ParameterizedVerilogStructural {
       Vector(replay.declarationLine, replay.driverLine)
     }.toSet
     val ownedDeclarations = block.declarations.filterNot { declaration =>
-      promotedScalarOperators.exists(_.result eq declaration)
+      promotedScalarOperators.exists(_.result eq declaration) || pulledClockPort(declaration)
     }
     val ownedAssignments = block.assignments.filterNot { assignment =>
       promotedScalarOperators.exists(_.assignment eq assignment)
@@ -1156,14 +1211,14 @@ private[internals] object ParameterizedVerilogStructural {
     }
 
     ownedAssignments.foreach { assignment =>
-      Option(assignment.finalTarget.getName()).filter(_.nonEmpty).foreach { name =>
+      Option(NativeFiniteStatementLineage.referenceName(component, assignment.finalTarget)).filter(_.nonEmpty).foreach { name =>
         ownedTargetNames += name
         proceduralOwnedTargetNames += name
       }
     }
     def recordInitializationTarget(statement: Statement): Unit = statement match {
       case initialization: InitAssignmentStatement =>
-        Option(initialization.finalTarget.getName()).filter(_.nonEmpty).foreach { name =>
+        Option(NativeFiniteStatementLineage.referenceName(component, initialization.finalTarget)).filter(_.nonEmpty).foreach { name =>
           proceduralOwnedTargetNames += name
         }
       case tree: TreeStatement => tree.foreachStatements(recordInitializationTarget)
@@ -1179,7 +1234,10 @@ private[internals] object ParameterizedVerilogStructural {
           block.sourceLocation
         )
       }
-      val canonical = canonicalOf(child)
+      val canonical = child match {
+        case external: BlackBox if ParameterizedStructure.isFiniteExternalChild(component, external) => external
+        case _ => canonicalOf(child)
+      }
       val definitionName = Option(canonical.definitionName).filter(_.nonEmpty).getOrElse {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-DEFINITION-NAME-MISSING",
@@ -1208,10 +1266,10 @@ private[internals] object ParameterizedVerilogStructural {
     }
 
     ownedAssignments.foreach { assignment =>
-      Option(assignment.finalTarget.getName()).filter(_.nonEmpty).foreach { name =>
+      Option(NativeFiniteStatementLineage.referenceName(component, assignment.finalTarget)).filter(_.nonEmpty).foreach { name =>
         assignmentEvidence += AssignmentEvidence(
           name,
-          expressionNames(assignment.source) ++
+          expressionNames(component, assignment.source) ++
             emittedActualNames(assignment.source, emittedActualByExpression),
           wholeTargetBooleanLiteral(assignment),
           wholeTargetBitVectorLiteral(assignment)
@@ -1238,7 +1296,7 @@ private[internals] object ParameterizedVerilogStructural {
       }
     }
 
-    val fixedSlicePatterns = block.slices.map(fixedSlicePattern)
+    val fixedSlicePatterns = block.slices.map(slice => fixedSlicePattern(component, slice))
     var changed = true
     while (changed) {
       changed = false
@@ -1357,7 +1415,7 @@ private[internals] object ParameterizedVerilogStructural {
     val removedIndices = plans.flatMap(_.ranges).flatMap(_.indices).toSet
     val branchLocalNames = plans
       .flatMap { plan =>
-        plan.block.declarations.flatMap { declaration =>
+        plan.block.declarations.filterNot(pulledClockPort).flatMap { declaration =>
           Option(declaration.getName()).filter(_.nonEmpty).flatMap { name =>
             val range = findDeclarationLine(
               lines,
@@ -1448,7 +1506,7 @@ private[internals] object ParameterizedVerilogStructural {
     }
   }
 
-  private def expressionNames(root: Expression): Set[String] = {
+  private def expressionNames(component: Component, root: Expression): Set[String] = {
     val names = mutable.LinkedHashSet.empty[String]
     val visited = new IdentityHashMap[Expression, java.lang.Boolean]()
 
@@ -1456,6 +1514,8 @@ private[internals] object ParameterizedVerilogStructural {
       if ((value ne null) && !visited.containsKey(value)) {
         visited.put(value, java.lang.Boolean.TRUE)
         value match {
+          case named: BaseType =>
+            Option(NativeFiniteStatementLineage.referenceName(component, named)).filter(_.nonEmpty).foreach(names += _)
           case named: Nameable =>
             Option(named.getName()).filter(_.nonEmpty).foreach(names += _)
           case _ =>
@@ -1532,6 +1592,7 @@ private[internals] object ParameterizedVerilogStructural {
   }
 
   private def finalizePlan(
+      component: Component,
       plan: BlockPlan,
       liveStatements: IdentityHashMap[Statement, java.lang.Boolean]
   ): BlockPlan = {
@@ -1562,8 +1623,9 @@ private[internals] object ParameterizedVerilogStructural {
         }
       }
       var body = rewriteSlices(
+        component,
         nativeBody,
-        plan.block.slices,
+        plan.block.slices.filterNot(slice => TypedFinitePackedAccess.prunedWriteOnly(component, slice, liveStatements)),
         plan.block.assignments,
         liveStatements,
         plan.block.sourceLocation
@@ -2029,6 +2091,7 @@ private[internals] object ParameterizedVerilogStructural {
       portableBooleanExpression(rhsText, rhsNames)
 
   private def sharedContinuousAssignmentResolution(
+      component: Component,
       plans: Vector[BlockPlan],
       lines: Vector[String],
       paths: Map[ParameterizedStructuralBlock, Vector[AlternativeStep]],
@@ -2133,8 +2196,14 @@ private[internals] object ParameterizedVerilogStructural {
           val targetDeclarationOwners = plans.filter { plan =>
             plan.directSourceNames(target)
           }
+          val wrapperOwners = NativeFiniteStatementLineage.wrapper(component, target).toVector.flatMap { expression =>
+            val consumers = plans.filter(_.block.assignments.exists(a => expressionContainsIdentity(a.source, expression)))
+            leastCommonContainingBlock(consumers.map(_.block), containmentPaths).toVector
+              .flatMap(owner => plans.filter(_.block eq owner))
+          }
           val pathCandidates =
-            if (targetEvidenceOwners.nonEmpty) targetEvidenceOwners
+            if (targetOwners.isEmpty && wrapperOwners.nonEmpty) wrapperOwners
+            else if (targetEvidenceOwners.nonEmpty) targetEvidenceOwners
             else if (directSourceEvidenceOwners.nonEmpty)
               directSourceEvidenceOwners
             else if (exactReferenceOwners.nonEmpty) exactReferenceOwners
@@ -2771,6 +2840,10 @@ private[internals] object ParameterizedVerilogStructural {
         owner: ParameterizedStructuralBlock,
         role: String
     ): Unit = {
+      if (ElabAreaExport.totalDriver(component, target, owner) ||
+        TypedFinitePackedAccess.writes(component).exists(write =>
+          NativeFiniteStatementLineage.referenceName(component, write.source) == target &&
+            TypedFinitePackedAccess.completeDriver(component, write.source, owner))) return
       val ownerPath = containmentPathOf(owner, containmentPaths)
       val undominatedConsumers = plans.filter { plan =>
         consumedByBody(plan.body)(target) &&
@@ -2988,6 +3061,7 @@ private[internals] object ParameterizedVerilogStructural {
       ],
       moduleScopeNames: Set[String]
   ): (Vector[BlockPlan], Set[LineRange], Map[Int, String]) = {
+    val emittedAssignmentIdentities = NativeFiniteStatementLineage.lineAssignments(component, lines)
     val claims = mutable.LinkedHashMap.empty[LineRange, ArrayBuffer[BlockPlan]]
     plans.foreach { plan =>
       plan.ranges.foreach { range =>
@@ -3166,7 +3240,7 @@ private[internals] object ParameterizedVerilogStructural {
           selectedTargets.map { target =>
             target -> values.map { plan =>
               plan.block.assignments.count { assignment =>
-                Option(assignment.finalTarget.getName()).contains(target)
+                Option(NativeFiniteStatementLineage.referenceName(component, assignment.finalTarget)).contains(target)
               }
             }.sum
           }.toMap
@@ -3174,7 +3248,7 @@ private[internals] object ParameterizedVerilogStructural {
         val initialBlocks = initialClaimants.map(_.block).toSet
         val missingCandidates = plans.filterNot(plan => initialBlocks(plan.block)).filter { plan =>
           val touchesSelectedTarget = plan.block.assignments.exists { assignment =>
-            Option(assignment.finalTarget.getName()).exists(selectedTargetCounts.contains)
+            Option(NativeFiniteStatementLineage.referenceName(component, assignment.finalTarget)).exists(selectedTargetCounts.contains)
           }
           val exclusiveFromInitial = initialClaimants.forall { owner =>
             mutuallyExclusive(
@@ -3236,6 +3310,16 @@ private[internals] object ParameterizedVerilogStructural {
         }
         val claimants =
           (initialClaimants ++ selectedMissing).map(plan => current(plan.block))
+        def finiteOwner(block: ParameterizedStructuralBlock): Boolean = {
+          val containing = containmentPathOf(block, containmentPaths)
+          def visit(regions: Vector[ParameterizedStructure.StructuralRegion]): Boolean = regions.exists {
+            case loop: ParameterizedStructure.StructuralFor if loop.finiteIndexToken.nonEmpty &&
+                containing.exists(_ eq loop.body) => true
+            case region => region.blocks.exists(child => visit(child.regions))
+          }
+          visit(ParameterizedStructure.regionsOf(component))
+        }
+        val finiteFamily = claimants.forall(plan => finiteOwner(plan.block))
 
         claimants.combinations(2).foreach { pair =>
           val left = pair(0)
@@ -3279,10 +3363,10 @@ private[internals] object ParameterizedVerilogStructural {
           val names = mutable.LinkedHashSet.empty[String]
           def visit(statement: Statement): Unit = statement match {
             case value: WhenStatement =>
-              names ++= expressionNames(value.cond)
+              names ++= expressionNames(component, value.cond)
               value.foreachStatements(visit)
             case value: SwitchStatement =>
-              names ++= expressionNames(value.value)
+              names ++= expressionNames(component, value.value)
               value.foreachStatements(visit)
             case _ =>
           }
@@ -3403,6 +3487,13 @@ private[internals] object ParameterizedVerilogStructural {
             statement: scala.util.matching.Regex.Match,
             statementText: String
         ): Vector[BlockPlan] = {
+          emittedAssignmentIdentities.get(statementIndex).foreach { assignment =>
+            val owners = claimants.filter(_.block.assignments.exists(_ eq assignment))
+            if (owners.size != 1)
+              fail("SPINAL-FINITE-ASSIGNMENT-OWNER-MISMATCH",
+                "native finite assignment must retain exactly one captured structural owner")
+            return owners
+          }
           val targetName = statement.group(1)
           val rhsNames = sanitizedIdentifierTokens(statement.group(3))
           val childOutputOwners = claimants.filter { plan =>
@@ -3505,7 +3596,7 @@ private[internals] object ParameterizedVerilogStructural {
             targetName: String
         ): (Int, Int) = {
           val expected = plan.block.assignments.count { assignment =>
-            Option(assignment.finalTarget.getName()).contains(targetName)
+            Option(NativeFiniteStatementLineage.referenceName(component, assignment.finalTarget)).contains(targetName)
           }
           val alreadyOwnedResidual = ownedIndices(plan.block).count { ownedIndex =>
             !preclassifiedOwners.contains(ownedIndex) &&
@@ -3578,7 +3669,7 @@ private[internals] object ParameterizedVerilogStructural {
                   line.nonEmpty &&
                   DirectProceduralAssignment.findFirstMatchIn(line).isEmpty &&
                   !(line.startsWith("if") && line.endsWith("begin")) &&
-                  line != "end"
+                  line != "end" && !(finiteFamily && line.matches("end\\s+else(?:\\s+if\\s*\\(.*\\))?\\s+begin"))
                 }
                 if (
                   unsupported.nonEmpty ||
@@ -3771,11 +3862,11 @@ private[internals] object ParameterizedVerilogStructural {
           }
         }
 
-        // A constant-only always @(*) fragment has an empty event set and
-        // never initializes in Verilog-2001 simulation. Convert the complete
-        // family only after proving one independent whole blocking assignment
-        // per output and branch, with every native driver owned by this family.
-        // This is exact native-process serialization, not an RTL algorithm.
+        // A split alias can have a constant source, or one already settled
+        // before its event control starts. Serialize a flat assignment family
+        // continuously only after proving one independent whole assignment per
+        // target and branch, with every native driver owned by this family.
+        // Runtime conditionals and ordered writes remain procedural.
         val blockingWhole =
           """^\s*([A-Za-z_][A-Za-z0-9_$]*)\s*=(?!=)\s*(.*?)\s*;\s*$""".r
         val fragmentAssignments = claimants.map { plan =>
@@ -3789,13 +3880,10 @@ private[internals] object ParameterizedVerilogStructural {
             blockingWhole.findFirstMatchIn(line).nonEmpty
           )
         }
-        val needsConstantDriver = flat && fragmentAssignments.exists { case (_, statements) =>
-          statements.forall(line =>
-            verilogLiteral(blockingWhole.findFirstMatchIn(line).get.group(2)).nonEmpty
-          )
-        }
         val continuousFamily = if (
-          needsConstantDriver &&
+          flat && (finiteFamily || fragmentAssignments.exists { case (_, statements) =>
+            statements.forall(line => verilogLiteral(blockingWhole.findFirstMatchIn(line).get.group(2)).nonEmpty)
+          }) &&
           (normalized.head == "always @* begin" ||
             (normalized.head.matches("always @\\([^()]*\\) begin") &&
               "\\b(?:posedge|negedge)\\b".r.findFirstIn(normalized.head).isEmpty))
@@ -3804,7 +3892,7 @@ private[internals] object ParameterizedVerilogStructural {
             statements.map(line => blockingWhole.findFirstMatchIn(line).get.group(1))
           }.toSet
           val captured = claimants.flatMap(_.block.assignments).filter(assignment =>
-            Option(assignment.finalTarget.getName()).exists(targets)
+            Option(NativeFiniteStatementLineage.referenceName(component, assignment.finalTarget)).exists(targets)
           )
           val nativeTargets = captured.map(_.finalTarget).foldLeft(Vector.empty[BaseType]) {
             case (known, target) if known.exists(_ eq target) => known
@@ -3819,7 +3907,8 @@ private[internals] object ParameterizedVerilogStructural {
           }
           val exactFamily = nativeTargets.size == targets.size &&
             nativeTargets.forall(target =>
-              target.isOutput && target.isComb && (target.component eq component)
+              target.isComb && ((target.component eq component) ||
+                (target.isInput && (target.component.parent eq component)))
             ) && captured.forall(assignment =>
               (assignment.target eq assignment.finalTarget) &&
                 liveDrivers.exists(_ eq assignment)
@@ -3829,7 +3918,7 @@ private[internals] object ParameterizedVerilogStructural {
               val assigned = statements.map(line => blockingWhole.findFirstMatchIn(line).get.group(1))
               assigned.distinct.size == assigned.size &&
                 assigned.forall(name => plan.block.assignments.count(assignment =>
-                  Option(assignment.finalTarget.getName()).contains(name)
+                  Option(NativeFiniteStatementLineage.referenceName(component, assignment.finalTarget)).contains(name)
                 ) == 1) &&
                 statements.forall(line =>
                   !sanitizedIdentifierTokens(blockingWhole.findFirstMatchIn(line).get.group(2))
@@ -3838,8 +3927,9 @@ private[internals] object ParameterizedVerilogStructural {
             }
           if (exactFamily) {
             nativeTargets.foreach { target =>
+              val name = NativeFiniteStatementLineage.referenceName(component, target)
               val declaration =
-                ("^\\s*output\\s+reg\\b.*?\\b" + Pattern.quote(target.getName()) + "\\s*[,;]?\\s*$").r
+                ("^\\s*(?:output\\s+)?reg\\b.*?\\b" + Pattern.quote(name) + "\\s*[,;]?\\s*$").r
               val matches = lines.zipWithIndex.filter { case (line, _) =>
                 declaration.findFirstIn(line).nonEmpty
               }
@@ -3888,8 +3978,17 @@ private[internals] object ParameterizedVerilogStructural {
         sharedProcessRanges += range
       }
 
+    val declarationReplacements = continuousOutputDeclarations.map { case (index, replacement) =>
+      lines(index).trim -> replacement.trim
+    }.toMap
     (
-      plans.map(plan => current(plan.block)),
+      plans.map { plan =>
+        val resolved = current(plan.block)
+        resolved.copy(body = resolved.body.split("\n", -1).map { line =>
+          declarationReplacements.get(line.trim).map(replacement =>
+            line.takeWhile(_.isWhitespace) + replacement).getOrElse(line)
+        }.mkString("\n"))
+      },
       sharedProcessRanges.toSet,
       continuousOutputDeclarations.toMap
     )
@@ -4004,6 +4103,7 @@ private[internals] object ParameterizedVerilogStructural {
   }
 
   private def rewriteSlices(
+      component: Component,
       body: String,
       slices: Vector[ParameterizedStructure.StructuralSlice],
       blockAssignments: Vector[DataAssignmentStatement],
@@ -4026,11 +4126,7 @@ private[internals] object ParameterizedVerilogStructural {
           slice.sourceLocation.orElse(sourceLocation)
         )
       }
-      val sourceName = requiredName(
-        slice.source,
-        "structural slice source",
-        slice.sourceLocation
-      )
+      val sourceName = NativeFiniteStatementLineage.referenceName(component, slice.source)
       val resultName = requiredName(
         slice.result,
         "structural slice result",
@@ -5007,8 +5103,8 @@ private[internals] object ParameterizedVerilogStructural {
     if (index < 0) value else value.substring(0, index)
   }
 
-  private def fixedSlicePattern(slice: ParameterizedStructure.StructuralSlice): Pattern = {
-    val sourceName = requiredName(slice.source, "structural slice source", slice.sourceLocation)
+  private def fixedSlicePattern(component: Component, slice: ParameterizedStructure.StructuralSlice): Pattern = {
+    val sourceName = NativeFiniteStatementLineage.referenceName(component, slice.source)
     val low = slice.offset.default
     val high = low + slice.width.default - 1
     Pattern.compile("\\b" + Pattern.quote(sourceName) + "\\s*\\[\\s*" + high + "\\s*:\\s*" + low + "\\s*\\]")

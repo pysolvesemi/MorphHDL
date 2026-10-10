@@ -290,7 +290,7 @@ object MorphHdlExternalParameterizedVerilog {
           // Lower their retained arithmetic through the same portable helper.
           ExternalParameterizedVerilogNativeFallback.lowerRetainedIntegerHelpers(withArrays, component.definitionName)
         }
-        val documented = RtlDocumentation.finishPublication(component, RtlDocumentation.publish(rewritten, ParameterizedVerilogVecs.documentationBindings(component, pc)))
+        val documented = NativeFiniteStatementLineage.finish(component, RtlDocumentation.finishPublication(component, RtlDocumentation.publish(rewritten, ParameterizedVerilogVecs.documentationBindings(component, pc))))
         Some(name -> NativeGenerateIndexNames.publish(component, documented).split("\n", -1).toVector)
       } else if (RtlDocumentation.declarationBindings(component).nonEmpty || RtlDocumentation.emissions(component).nonEmpty) {
         val publication = if (pc.config.oneFilePerComponent) splitPublications(name) else consolidated.get

@@ -123,6 +123,8 @@ object ParameterizedStructure {
     val finiteIndexOwners = new IdentityHashMap[ElabFiniteIndexToken, CaptureState]()
     val exactCaseCaptures = new IdentityHashMap[ParameterizedStructuralBlock, ExactCaseCapture]()
     val typedCaseRegions = new IdentityHashMap[StructuralCase, Vector[Set[BigInt]]]()
+    val finitePredicateRoots = new IdentityHashMap[ElabFiniteIndexToken, StructuralPredicateRoot]()
+    val finiteExternalChildren = new IdentityHashMap[BlackBox, (String, Long)]()
     var nextPendingId = 0L
     var nextCaptureId = 0L
     var nextVecAliasId = 0L
@@ -700,7 +702,14 @@ object ParameterizedStructure {
                 binding.parameters.nonEmpty
               case _ => false
             }
-        if (!typedSelfReference)
+        var loopOwner: CaptureState = state
+        while (loopOwner != null && !storage.finiteIndexOwners.values().toArray.exists(_ eq loopOwner))
+          loopOwner = loopOwner.parent.orNull
+        val finiteExternal = loopOwner != null && value.isBlackBox && value.impl == null &&
+          value.children.isEmpty && Option(value.definitionName).exists(name =>
+            name.nonEmpty && name != component.definitionName) && value.getAllIo.nonEmpty
+        if (finiteExternal) storage.finiteExternalChildren.put(value, value.definitionName -> loopOwner.id)
+        if (!typedSelfReference && !finiteExternal)
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-BLACKBOX-UNSUPPORTED",
             s"structural body instantiated unsupported BlackBox '${value.getName()}'; only typed direct self-references without separate RTL may be captured",
@@ -1011,6 +1020,117 @@ object ParameterizedStructure {
         state.sourceLocation
       )
     storage.finiteIndexOwners.put(token, state)
+  }
+
+  private[core] def requireActiveFiniteIndex(index: ElabFiniteIndex): Unit = {
+    val state = requireCapture("finite index conditional", index.expression.sourceLocation)
+    val owner = storageOf(state.component).finiteIndexOwners.get(index.token)
+    var cursor: CaptureState = state
+    while (cursor != null && (cursor ne owner)) cursor = cursor.parent.orNull
+    if (owner == null || cursor == null || (Component.current ne state.component))
+      fail("SPINAL-ELAB-FINITE-INDEX-SCOPE-MISMATCH",
+        "finite index conditional must remain in the capture which issued its index",
+        index.expression.sourceLocation)
+  }
+
+  private[spinal] def isFiniteExternalChild(owner: Component, child: BlackBox): Boolean =
+    storageOption(owner).flatMap(storage => Option(storage.finiteExternalChildren.get(child)).map(storage -> _))
+      .exists { case (storage, (definition, captureId)) =>
+        val root = storage.blocksByCaptureId.getOrElse(captureId,
+          fail("SPINAL-ELAB-FINITE-CHILD-OWNER-MISSING", "external child lost its captured loop"))
+        def contains(block: ParameterizedStructuralBlock): Boolean =
+          block.children.exists(_ eq child) || block.regions.exists(_.blocks.exists(contains))
+        def loops(regions: Vector[StructuralRegion]): Boolean = regions.exists {
+          case loop: StructuralFor if (loop.body eq root) && loop.finiteIndexToken.nonEmpty => true
+          case region => region.blocks.exists(block => loops(block.regions))
+        }
+        if ((child.parent ne owner) || !owner.children.exists(_ eq child) || !child.isBlackBox ||
+            child.impl != null || child.children.nonEmpty || child.definitionName != definition ||
+            definition == owner.definitionName || !contains(root) || !loops(regionsOf(owner)))
+          fail("SPINAL-ELAB-FINITE-CHILD-IDENTITY-MISMATCH", "external child lost its exact definition or loop ownership")
+        true
+      }
+
+  private[core] def requireFiniteValueOwner(index: ElabFiniteIndex, component: Component,
+      block: ParameterizedStructuralBlock): Unit = {
+    val (_, root) = finiteMemberOwner(index, component)
+    def loops(regions: Vector[StructuralRegion]): Vector[StructuralFor] = regions.flatMap { region =>
+      val direct = region match { case loop: StructuralFor if loop.finiteIndexToken.exists(_ eq index.token) => Vector(loop); case _ => Vector.empty }
+      direct ++ region.blocks.flatMap(block => loops(block.regions))
+    }
+    val matches = loops(regionsOf(component))
+    if (matches.size != 1 || (matches.head.body ne root) || !ElabFiniteRange.equivalentLogicalCount(matches.head.count, index.count))
+      fail("SPINAL-ELAB-FINITE-INDEX-SCOPE-MISMATCH", "finite index lost its exact loop count or owner")
+    def contains(candidate: ParameterizedStructuralBlock): Boolean =
+      (candidate eq block) || candidate.regions.exists(_.blocks.exists(contains))
+    if (!contains(root)) fail("SPINAL-ELAB-FINITE-INDEX-SCOPE-MISMATCH",
+      "finite index value escaped the loop which issued its index", index.expression.sourceLocation)
+  }
+
+  private[core] def captureFiniteIndexIf(index: ElabFiniteIndex, value: Int, role: String, emptyElse: Boolean = false)
+      (ifTrue: => Unit)(ifFalse: => Unit): Unit = {
+    requireActiveFiniteIndex(index)
+    val state = activeCapture.get()
+    val source = index.expression.sourceLocation
+    val condition = ElaborationBooleanExpression(s"(${index.expression.verilog} == $value)",
+      index.expression.default == value, Vector.empty, source)
+    val storage = storageOf(state.component)
+    var root = storage.finitePredicateRoots.get(index.token)
+    if (root == null) {
+      if (index.count.maximum > ElaborationExactDomain.MaximumDomainSize)
+        fail("SPINAL-ELAB-FINITE-CONDITION-DOMAIN-TOO-LARGE",
+          "finite index conditions require a bounded exact index truth set", source)
+      root = new StructuralPredicateRoot(index.expression.verilog, index.expression.default,
+        BigInt(0), index.count.maximum - 1, Vector.empty)
+      storage.finitePredicateRoots.put(index.token, root)
+    }
+    val universe = (BigInt(0) until index.count.maximum).toSet
+    val domain = StructuralPredicateDomain(root, universe, universe.filter(_ == value))
+    val pending = beginPending(state.component, "finite-index-if", source)
+    val yes = captureBlock(state.component, source)(ifTrue)
+    val no = if (emptyElse) ParameterizedStructuralSynthetic.emptyBlock(source)
+      else captureBlock(state.component, source)(ifFalse)
+    var label = role
+    var suffix = 2
+    while (storage.labels.contains(label + "_true") || storage.labels.contains(label + "_false")) {
+      label = role + "_" + suffix
+      suffix += 1
+    }
+    registerIf(pending, condition, label + "_true", label + "_false", yes, no, source, Some(domain))
+  }
+
+  private[core] def finitePredicateRoot(component: Component, token: ElabFiniteIndexToken): Option[StructuralPredicateRoot] =
+    storageOption(component).flatMap(storage => Option(storage.finitePredicateRoots.get(token)))
+
+  private def finiteMemberOwner(index: ElabFiniteIndex, component: Component = Component.current): (CaptureState, ParameterizedStructuralBlock) = {
+    val storage = storageOption(component).getOrElse(
+      fail("SPINAL-ELAB-AREA-OWNER-MISMATCH", "Area collection has no native capture owner"))
+    val owner = storage.finiteIndexOwners.get(index.token)
+    if (owner == null || (owner.component ne component))
+      fail("SPINAL-ELAB-AREA-OWNER-MISMATCH", "Area collection lost its exact finite index owner")
+    val block = storage.blocksByCaptureId.getOrElse(owner.id,
+      fail("SPINAL-ELAB-AREA-CAPTURE-INCOMPLETE", "Area members may only be exported after their template closes"))
+    owner -> block
+  }
+
+  private[core] def requireFiniteMember(index: ElabFiniteIndex, source: BaseType): Unit = {
+    val (_, block) = finiteMemberOwner(index)
+    if (source == null || !block.declarations.exists(_ eq source))
+      fail("SPINAL-ELAB-AREA-MEMBER-OWNER-MISMATCH",
+        "export requires an exact common-scope signal declared by the Area template")
+  }
+
+  private[core] def extendFiniteIndex(index: ElabFiniteIndex)(body: => Unit): Unit = {
+    val (owner, block) = finiteMemberOwner(index)
+    val previous = activeCapture.get()
+    if (Option(previous) != owner.parent)
+      fail("SPINAL-ELAB-AREA-EXPORT-SCOPE-MISMATCH",
+        "Area exports must be created in the lexical scope containing their loop")
+    activeCapture.set(owner)
+    try block.append(captureBlock(owner.component, owner.sourceLocation)(body))
+    finally {
+      if (previous == null) activeCapture.remove() else activeCapture.set(previous)
+    }
   }
 
   /** Resolve only the registered capture which issued this exact handle.

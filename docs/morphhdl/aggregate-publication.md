@@ -93,6 +93,52 @@ symbolic control-flow support. Unsupported combinations fail rather than
 silently using a witness size or dropping control logic. Concatenated array
 write targets must belong to retained Vec geometry.
 
+## Area collections with index branches
+
+With the MorphHDL compiler plugin and `preserveConstantLoops`, a zero-based
+ordinary Area collection containing `if (index == literal)` can retain one
+structural template:
+
+```scala
+val inputs = in(Vec(Bool(), 3))
+val outputs = out(Vec(Bool(), 3))
+val adapters = for (index <- 0 until 3) yield new Area {
+  val selected = if (index == 0) inputs(index) else !inputs(index)
+  outputs(index) := selected
+}
+val first = out Bool()
+first := adapters(0).selected
+```
+
+The loop emits a generate-for; index conditions emit nested generate-if/else.
+Each iteration has independent registers and child instances. Bool-valued and
+statement branches are supported, including branches nested in hardware `when`
+with their captured defaults and assignment priority. Packed bit/slice access,
+constant-width `B(index, width bits)` / `U(index, width bits)` tags, and
+`UInt === index` retain the index rather than its elaboration witness. Index
+widths must cover the complete finite domain. The fixed inner Scala loops remain
+ordinary unrolled loops.
+
+Static collection member access exports a common-scope hardware leaf through
+one authenticated singleton branch. It must be valid for every admitted count.
+The retained collection is not a general Scala `Seq`: escaping its Area objects,
+arbitrary iteration and unsupported uses of the index are rejected. A
+`zipWithIndex.foreach` containing only `.doc(...)` calls labels the retained
+template once with `generated lane`; it cannot construct or alter hardware.
+
+The explicit `ElabAreaCollection.tabulate(count, "adapters")` API also accepts
+an authenticated parameterized `ElabInt` count. Its index supports
+`selectBool`, `whenEqual`, `onlyEqual`, `packed`, `bits`, `uint`, and ordinary
+finite Vec access; export a leaf using `collection.member(0)(_.selected)`.
+The ordinary syntax bridge requires a Scala count and the supported equality
+branch shape. Other ordinary Scala loops keep their existing semantics.
+
+Generated hierarchy intentionally changes from individual `adapters_0`,
+`adapters_1`, etc. declarations to indexed generate scopes with nested branch
+labels. External hierarchical probes must follow the generated scopes; module
+ports and functional behavior retain their source meaning. Turning loop
+preservation off elaborates concrete iterations.
+
 ## Validation
 
 Focused local tests exercise strict Verilog-2001 compilation, simulation and

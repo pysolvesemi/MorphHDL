@@ -77,11 +77,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          /tmp/morphhdl-mill morphplugin[${{ matrix.scala_version }}].testOnly \
+            morphhdl.compiler.MorphHdlAreaCollectionComponentTests
           /tmp/morphhdl-mill frontend[${{ matrix.scala_version }}].testOnly \
             morphhdl.frontend.HdlIntTests
           /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
             morphhdl.FiniteBitsAndRamSharingTests \
             morphhdl.SharedFiniteLoopControlTests \
+            morphhdl.AreaCollectionLoopTests \
+            spinal.core.AreaCollectionLineageTests \
             spinal.core.FiniteBitsIndexTests \
             spinal.core.FiniteMemIdentityAdversarialTests \
             morphhdl.integration.ExternalSpinalVerilogBaselineTests \

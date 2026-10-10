@@ -41,7 +41,7 @@ private[spinal] object BoundedRecursiveModuleValidation {
     ParameterizedStructure.regionsOf(owner)
       .flatMap(ParameterizedStructure.allBlocks)
       .flatMap(_.children)
-      .collect { case reference: BlackBox => reference }
+      .collect { case reference: BlackBox if !ParameterizedStructure.isFiniteExternalChild(owner, reference) => reference }
       .foreach { reference =>
         if (
           !owner.children.exists(_ eq reference) ||

@@ -3,6 +3,7 @@ package spinal.core
 import scala.collection.mutable
 
 import spinal.core.internals.DataAssignmentStatement
+import spinal.idslplugin.Location
 
 /** One generic typed population-count operation retained for final portable
   * publication. The native zero assignment is only a validated graph anchor;
@@ -90,6 +91,56 @@ final class ElabFiniteIndex private[core] (
     private[core] val count: ElaborationIntegerExpression,
     private[core] val token: ElabFiniteIndexToken
 ) {
+  /** Capture a structural alternative for this exact, lexically active index.
+    * Both callbacks describe hardware; this does not create a runtime mux.
+    */
+  def whenEqual(value: Int, role: String)(ifTrue: => Unit)(ifFalse: => Unit): Unit = {
+    if (!ParameterizedStructure.captureEnabled || expression.generateIndex.isEmpty) {
+      if (witness == value) ifTrue else ifFalse
+    } else ParameterizedStructure.captureFiniteIndexIf(this, value, role)(ifTrue)(ifFalse)
+  }
+
+  def onlyEqual(value: Int, role: String)(body: => Unit): Unit = {
+    if (!ParameterizedStructure.captureEnabled || expression.generateIndex.isEmpty) {
+      if (witness == value) body
+    } else ParameterizedStructure.captureFiniteIndexIf(this, value, role, emptyElse = true)(body)(())
+  }
+
+  /** A common-scope Bool driven by the two mutually exclusive generate branches. */
+  def selectBool(value: Int, role: String)(ifTrue: => Bool)(ifFalse: => Bool): Bool = {
+    val result = Bool()
+    whenEqual(value, role) { result := ifTrue } { result := ifFalse }
+    result
+  }
+
+  /** Unsigned hardware value of this generate index, with checked explicit width. */
+  def uint(width: BitCount): UInt = TypedFiniteIndexValue(this, width.value)
+
+  def bits(width: BitCount): Bits = uint(width).asBits
+
+  def choose[T](value: Int, role: String)(ifTrue: => T)(ifFalse: => T)
+      (implicit result: ElabAreaBranchResult[T]): T = result(this, value, role)(ifTrue)(ifFalse)
+
+  def packed(source: Bits, stride: Int, width: BitCount): Bits =
+    TypedFinitePackedAccess(this, source, stride, width)
+
+  def bit(source: Bits): Bool = {
+    val selected = packed(source, 1, 1 bits)
+    val result = selected.asBool
+    result.compositeAssign = new Assignable {
+      protected def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)(implicit location: Location): Unit = {
+        require(kind == DataAssign && (target eq result), "finite bit assignment must be whole-leaf data")
+        selected := that.asInstanceOf[Bool].asBits
+      }
+      def getRealSourceNoRec: BaseType = source
+    }
+    result
+  }
+
+  def at[T <: Data](source: Vec[T]): T = apply(source)
+  def at(source: Bits): Bool = bit(source)
+  def equal(source: UInt): Bool = source === uint((expression.maximum.bitLength max 1) bits)
+
   private def witness: Int = {
     if (!expression.default.isValidInt) {
       ParameterizedVerilogException.fail(

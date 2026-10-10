@@ -734,7 +734,7 @@ class ComponentEmitterVerilog(
               val notes = new StringBuilder
               emitRegionNotes(s, notes, "  ")
               logics ++= RtlDocumentation.envelope(component, s, notes.toString)
-              logics ++= s"  assign ${emitAssignedExpression(s.target)} = ${emitAssignmentSource(s)};${emitLocation(s)}\n"
+              logics ++= s"  assign ${verilogBase.emitAssignmentTarget(this, s).getOrElse(emitAssignedExpression(s.target))} = ${emitAssignmentSource(s)};${emitLocation(s)}\n"
             }
         }
       case _ =>
@@ -801,7 +801,7 @@ class ComponentEmitterVerilog(
 
         emitRegionNotes(statement, b, tab)
         statement match {
-          case assignment: AssignmentStatement  => b ++= s"${tab}${verilogBase.emitAssignmentTarget(this, assignment).getOrElse(emitAssignedExpression(assignment.target))} ${assignmentKind} ${emitAssignmentSource(assignment)};${emitLocation(assignment)}\n"
+          case assignment: AssignmentStatement  => b ++= s"${tab}${verilogBase.emitAssignmentTarget(this, assignment).getOrElse(emitAssignedExpression(assignment.target))} ${assignmentKind} ${emitAssignmentSource(assignment)};${emitLocation(assignment)}${verilogBase.emitStatementSuffix(this, assignment)}\n"
           case assertStatement: AssertStatement => {
             val cond = emitExpression(assertStatement.cond)
 

@@ -10,12 +10,14 @@ private[core] object TypedLoopAssignmentCoverage {
       countProof: Option[ElabInt]): Unit = {
     val count = loop.count
     if (count.minimum < 0) return
-    loop.body.slices.foreach { slice =>
+    val root = loop.finiteIndexToken.flatMap(ParameterizedStructure.finitePredicateRoot(component, _))
+    def visit(block: ParameterizedStructuralBlock, allowed: Option[Set[BigInt]]): Unit = {
+    block.slices.foreach { slice =>
       if (slice.offset.default == 0 && slice.offset.minimum == 0 &&
           slice.offset.generateIndex.contains(loop.indexName) &&
           slice.width.parameters.isEmpty && slice.width.minimum == slice.width.maximum &&
           ParameterizedProcess.isContiguous(slice, loop.indexName)) {
-        val writes = loop.body.assignments.filter(ParameterizedProcess.matchesTargetSlice(_, slice))
+        val writes = block.assignments.filter(ParameterizedProcess.matchesTargetSlice(_, slice))
         writes.foreach { assignment => assignment.target match {
           case native: RangedAssignmentFixed =>
             val total = countProof.getOrElse(ElabInt.fromExpression(count)) * ElabInt.fromExpression(slice.width)
@@ -41,20 +43,43 @@ private[core] object TypedLoopAssignmentCoverage {
                   def registered(regions: Vector[ParameterizedStructure.StructuralRegion]): Boolean =
                     regions.exists(region => (region eq loop) || region.blocks.exists(block => registered(block.regions)))
                   if ((assignment.target ne this) || (out ne source) || lo != low || hi != high ||
-                      (assignment.parentScope ne scope) || !loop.body.assignments.exists(_ eq assignment) ||
-                      !loop.body.slices.exists(_ eq slice) || !registered(ParameterizedStructure.regionsOf(component)))
+                      (assignment.parentScope ne scope) || !block.assignments.exists(_ eq assignment) ||
+                      !block.slices.exists(_ eq slice) || !registered(ParameterizedStructure.regionsOf(component)))
                     ParameterizedVerilogException.fail("SPINAL-TYPED-LOOP-COVERAGE-IDENTITY-MISMATCH",
                       "typed loop coverage lost its exact registered assignment, scope or slice", slice.sourceLocation)
-                  if (size == 0) AssignedRange() else AssignedRange(size.toInt - 1, 0)
+                  if (size == 0) AssignedRange()
+                  else allowed match {
+                    case None => AssignedRange(size.toInt - 1, 0)
+                    case Some(indices) =>
+                      val covered = indices.toVector.sorted.filter(i => i * slice.width.default < size)
+                      // Native AssignedRange is contiguous. Never fill a gap in
+                      // a truth set; retain only its first complete run.
+                      if (covered.isEmpty) AssignedRange()
+                      else {
+                        val run = covered.zipWithIndex.takeWhile { case (i, n) => i == covered.head + n }.map(_._1)
+                        AssignedRange(((run.last + 1) * slice.width.default - 1).toInt,
+                          (run.head * slice.width.default).toInt)
+                      }
+                  }
                 }
                 override def getMinAssignedBits: AssignedRange = coverage(extent)
                 override def getMaxAssignedBits: AssignedRange = coverage(possibleExtent)
               }
+              TypedFinitePackedAccess.retainCoverageTarget(component, assignment, covered)
               assignment.target = covered
             }
           case _ =>
         }}
       }
     }
+    block.regions.foreach {
+      case branch: ParameterizedStructure.StructuralIf if branch.predicateDomain.exists(d => root.exists(_ eq d.root)) =>
+        val domain = branch.predicateDomain.get
+        visit(branch.whenTrue, Some(allowed.getOrElse(domain.universe) intersect domain.whenTrue))
+        visit(branch.whenFalse, Some(allowed.getOrElse(domain.universe) intersect (domain.universe -- domain.whenTrue)))
+      case _ =>
+    }
+    }
+    visit(loop.body, None)
   }
 }

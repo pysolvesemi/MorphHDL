@@ -113,6 +113,7 @@ object VerilogBase {
     def binaryOperand(printer: ComponentEmitterVerilog, expression: BinaryOperator, slot: Int): Option[String] = None
     def source(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String]
     def target(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] = None
+    def statementSuffix(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): String = ""
     def scope(printer: ComponentEmitterVerilog, tree: TreeStatement, scope: ScopeStatement,
         output: StringBuilder, indentation: String, body: String => Int): Option[Int] = None
   }
@@ -232,6 +233,16 @@ trait VerilogBase extends VhdlVerilogBase{
       case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>
         owner.assignmentPublication.target(printer, assignment)
       case _ => None
+    }
+  }
+
+  private[spinal] final def emitStatementSuffix(printer: ComponentEmitterVerilog,
+      assignment: AssignmentStatement): String = {
+    require(printer.usesVerilogBase(this), "assignment lineage must belong to this native emitter")
+    this match {
+      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>
+        owner.assignmentPublication.statementSuffix(printer, assignment)
+      case _ => ""
     }
   }
   private[spinal] final def emitPublicationScope(printer: ComponentEmitterVerilog,

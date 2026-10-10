@@ -32,16 +32,21 @@ object MorphHdlEmitterParameterNames {
             names.flatMap(_.wrapperRange(printer, expression))
           override def binaryOperand(printer: ComponentEmitterVerilog, expression: BinaryOperator, slot: Int): Option[String] =
             names.flatMap(_.binaryOperand(printer, expression, slot))
-          override def target(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] =
-            NativeBoundedProcessEmitter.target(printer, assignment)
+          override def target(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] = {
+            NativeFiniteStatementLineage.captureReferences(printer)
+            spinal.core.TypedFinitePackedAccess.target(printer.component, assignment, value => printer.emitReference(value, false)).orElse(NativeBoundedProcessEmitter.target(printer, assignment))
               .orElse(NativeConditionalProcessEmitter.target(printer, assignment))
+          }
+          override def statementSuffix(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): String =
+            NativeFiniteStatementLineage.suffix(printer.component, assignment)
           override def scope(printer: ComponentEmitterVerilog, tree: TreeStatement, scope: ScopeStatement,
               output: StringBuilder, indentation: String, body: String => Int): Option[Int] =
             NativeScopedProcessEmitter.scope(printer, tree, scope, output, indentation, body)
               .orElse(NativeBoundedProcessEmitter.scope(printer, tree, scope, output, indentation, body))
               .orElse(NativeConditionalProcessEmitter.scope(printer, tree, scope, output, indentation, body))
-          def source(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] =
-            NativeScopedProcessEmitter.source(printer, assignment).orElse(NativeBoundedProcessEmitter.source(printer, assignment)).orElse(spinal.core.TypedVecStaticSelect.of(printer.component, assignment).map { entry =>
+          def source(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] = {
+            NativeFiniteStatementLineage.captureScalarReferences(printer, assignment)
+            spinal.core.TypedFiniteIndexValue.source(printer.component, assignment).orElse(NativeScopedProcessEmitter.source(printer, assignment)).orElse(NativeBoundedProcessEmitter.source(printer, assignment)).orElse(spinal.core.TypedVecStaticSelect.of(printer.component, assignment).map { entry =>
               ParameterizedVerilogVecs.structuralDynamicSlice(entry.vector, entry.index.expression, 0,
                 entry.index.expression.sourceLocation, readOnly = true, staticIndex = Some(entry.index))
             }).orElse(spinal.core.TypedLoopPowerShift.renderedIndex(printer.component, assignment)
@@ -49,6 +54,7 @@ object MorphHdlEmitterParameterNames {
               .orElse(ExternalParameterizedNativeResize.emitNative(printer, assignment))
               .orElse(ExternalParameterizedVerilogNativeFallback.emitNativeValue(printer, assignment))
               .orElse(ExternalParameterizedVerilogNativeFallback.emitNativeInitializer(printer, assignment))
+          }
         })
       }
   }
