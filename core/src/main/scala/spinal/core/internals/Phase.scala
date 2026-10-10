@@ -1823,7 +1823,11 @@ class PhaseSimplifyNodes(pc: PhaseContext) extends PhaseNetlist{
     walkStatements{s =>
       s.remapDrivingExpressions{
         case e : BaseType if e.isComb && !e.isNamed && e.isDirectionLess && Statement.isSomethingToFullStatement(e) => e.head match {
-          case DataAssignmentStatement(_, lit : Literal) => lit.clone //clone because Expression can only be once in the graph
+          case DataAssignmentStatement(_, lit : Literal) =>
+            val replacement = lit.clone // An Expression can occur only once in the graph.
+            ParameterizedVec.recordStaticLiteralNormalization(s, e, lit, replacement)
+            replacement
+          case DataAssignmentStatement(_, local: TypedLocalUInt.Reference) => local.fresh
           case _ => e
         }
         case e => e
@@ -2396,6 +2400,7 @@ class PhaseCompletSwitchCases extends PhaseNetlist{
 
     walkStatements{
       case s: SwitchStatement =>
+        TypedLocalUInt.validateSwitch(s)
         var failed = false
         s.elements.foreach{element =>
           if(element.keys.size > 1){

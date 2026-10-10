@@ -397,10 +397,11 @@ class ParameterizedVerilogTests extends AnyFunSuite {
         new Component {
           setDefinitionName("TypedZeroWitnessValue")
           val width = HdlInt.param("WIDTH", 1, 1, 8).asElabInt
-          val input = in Bool()
+          val input = (in Bool()).setName("dataIn")
           val echo = out Bool()
           echo := input
           val output, zero = out UInt(width.bits)
+          output.setName("result")
           val value = ElabValue.uintLike(width - 1, UInt(width.bits), "varying_value")
           output := value
           zero := 0
@@ -410,9 +411,25 @@ class ParameterizedVerilogTests extends AnyFunSuite {
       val compact = verilog.replaceAll("\\s+", "")
       val valueAssignment = verilog.split("\n").find(_.matches("\\s*assign\\s+varying_value\\s*=.*"))
         .getOrElse(fail("retained typed value assignment was not published:\n" + verilog))
-      assert(valueAssignment.replaceAll("\\s+", "").contains("WIDTH-1"), valueAssignment)
+      assert(valueAssignment.replaceAll("\\s+", "") ==
+        "assignvarying_value=param_value[(WIDTH)-1:0];", valueAssignment)
+      assert(compact.contains("localparam[31:0]param_value=(WIDTH-1);"), verilog)
       assert(!valueAssignment.contains("1'b0"), valueAssignment)
       assert(compact.contains("assignzero={WIDTH{1'b0}};"), verilog)
+      for (bits <- Seq(1,2,8)) {
+        Files.write(directory.resolve("tb.v"),s"""module tb;
+reg source; wire echo; wire [$bits-1:0] observed,zero;
+TypedZeroWitnessValue #(.WIDTH($bits)) dut(.dataIn(source),.echo(echo),.result(observed),.zero(zero));
+initial begin source=0;#1;if(observed!==$bits'd${bits-1} || zero!==0 || echo!==source) $$fatal;
+source=1;#1;if(observed!==$bits'd${bits-1} || zero!==0 || echo!==source) $$fatal;$$finish;end
+endmodule
+""".getBytes(StandardCharsets.UTF_8))
+        Seq(Seq("iverilog","-g2001","-s","tb","-o","sim","TypedZeroWitnessValue.v","tb.v"),
+          Seq("timeout","10","vvp","sim")).foreach { command =>
+          val (code,log)=morphhdl.Increment66ToolEvidence.run(directory,command)
+          assert(code==0,s"$command failed in $directory\n$log")
+        }
+      }
     }
   }
 
@@ -433,10 +450,10 @@ class ParameterizedVerilogTests extends AnyFunSuite {
       }
       val verilog = read(directory.resolve("TypedZeroWitnessFold.v"))
       val compact = verilog.replaceAll("\\s+", "")
-      assert(compact.contains("for(morphhdl_finite_fold_index_1=0;"), verilog)
-      assert(compact.contains("morphhdl_finite_fold_index_1<WIDTH;"), verilog)
+      assert(compact.contains("for(finite_fold_index_1=0;"), verilog)
+      assert(compact.contains("finite_fold_index_1<WIDTH;"), verilog)
       assert(compact.contains("assignzero={WIDTH{1'b0}};"), verilog)
-      assert(!compact.contains("assignmorphhdl_finite_count_one_1="), verilog)
+      assert(!compact.contains("assignfinite_count_one_1="), verilog)
     }
   }
 

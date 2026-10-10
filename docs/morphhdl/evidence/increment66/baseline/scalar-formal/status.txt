@@ -1,0 +1,3 @@
+REJECTED
+MorphVerilog single-source-generation failed: [SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED] scalar parameter 'BUS_LOG2_BYTES' of canonical child 'ScalarChild' requires one exact typed scalar-formal binding on canonical and actual instance 'child'
+[SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED] scalar parameter 'BUS_LOG2_BYTES' of canonical child 'ScalarChild' requires one exact typed scalar-formal binding on canonical and actual instance 'child'

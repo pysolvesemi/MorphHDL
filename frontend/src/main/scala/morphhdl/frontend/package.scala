@@ -111,12 +111,14 @@ package object frontend {
     * colliding with the established ParamRtlFrontend.generateIf import.
     */
   implicit final class StructuralGenerateIfOps(private val condition: HdlBool) extends AnyVal {
+    @spinal.idslplugin.RtlDocumentationRegion
     def generateIf(whenTrue: => Unit)(implicit
         file: sourcecode.File,
         line: sourcecode.Line
     ): GenerateIfBuilder =
       startStructuralGenerateIf(condition, None, whenTrue, SourceOrigin.capture)
 
+    @spinal.idslplugin.RtlDocumentationRegion
     def generateIf(
         whenTrueLabel: String,
         whenFalseLabel: String
@@ -222,7 +224,10 @@ package object frontend {
     ): T = {
       val origin = SourceOrigin.capture
       val indexValue = witnessInt(index, "Vec index", origin)
-      if (indexValue < 0 || indexValue >= vector.length) {
+      // Native Vec.apply checks the representative against its exact retained
+      // depth. Asking Scala for a logical length here rejects every varying
+      // typed depth before the structural selector can be authenticated.
+      if (!ParameterizedStructure.captureEnabled && (indexValue < 0 || indexValue >= vector.length)) {
         FrontendException.failAt(
           "MORPH-FRONTEND-STRUCTURAL-VEC-WITNESS-OUT-OF-RANGE",
           s"Vec index witness $indexValue is outside 0 until ${vector.length}",

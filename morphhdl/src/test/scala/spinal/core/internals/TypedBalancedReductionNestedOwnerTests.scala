@@ -73,7 +73,7 @@ private[internals] final class BalancedNestedStageLabelCollision(count: HdlInt, 
   (mode > HdlInt.literal(0)).generateIf("g_outer", "g_other") {
     result := words.reduceBalancedTree((a: UInt, b: UInt) => a + b)
     (count > HdlInt.literal(1))
-      .generateIf("morphhdl_balanced_1_active_0", "g_user_single") {
+      .generateIf("balanced_1_active_0", "g_user_single") {
         val marker = UInt(5 bits).setName("user_many").dontSimplifyIt()
         marker := words(0)
       }.otherwise {
@@ -220,22 +220,22 @@ class TypedBalancedReductionNestedOwnerTests extends AnyFunSuite {
       assert(rtl.contains(expected), rtl)
     }
     assert("\\bCOUNT\\b\\s*\\)*\\s*>\\s*\\(*\\s*1\\b".r.findFirstIn(rtl).nonEmpty, rtl)
-    assert(rtl.contains("morphhdl_balanced_1_active_3"), rtl)
-    assert(rtl.contains("morphhdl_balanced_2_active_3"), rtl)
-    assert(rtl.contains("morphhdl_balanced_3_active_3"), rtl)
+    assert(rtl.contains("balanced_1_active_3"), rtl)
+    assert(rtl.contains("balanced_2_active_3"), rtl)
+    assert(rtl.contains("balanced_3_active_3"), rtl)
     assert("(?m)^module\\s+BalancedNestedConditional\\b".r.findAllIn(rtl).size == 1, rtl)
   }
 
   test("finite outer loops retain row indices inside nested reduction branches") {
     val rtl = generate("loop")
-    Vector("ROWS = 1", "row_index_1_1 < ROWS", "begin : g_row", "begin : g_row_xor",
-      "begin : g_row_add", "morphhdl_balanced_1", "morphhdl_balanced_2").foreach { expected =>
+    Vector("ROWS = 1", "i < ROWS", "begin : g_row", "begin : g_row_xor",
+      "begin : g_row_add", "balanced_1", "balanced_2").foreach { expected =>
       assert(rtl.contains(expected), rtl)
     }
-    val rowReads = "(?m)^.*biases\\[[^;\\n]*\\brow_index_[0-9_]+\\b[^;\\n]*;".r.findAllIn(rtl).toVector
+    val rowReads = "(?m)^.*biases\\[[^;\\n]*\\bi\\b[^;\\n]*;".r.findAllIn(rtl).toVector
     assert(rowReads.nonEmpty, "row binding disappeared from packed reduction inputs:\n" + rtl)
     assert(rowReads.exists(_.contains("WIDTH")), rtl)
-    assert("(?m)^.*words\\[[^;\\n]*\\bword_index_[0-9_]+\\b[^;\\n]*;".r.findFirstIn(rtl).nonEmpty, rtl)
+    assert("(?m)^.*words\\[[^;\\n]*\\bj\\b[^;\\n]*;".r.findFirstIn(rtl).nonEmpty, rtl)
   }
 
   test("COUNT case narrowing captures only the admitted native carrier prefix and preserves singleton fallback") {
@@ -245,9 +245,9 @@ class TypedBalancedReductionNestedOwnerTests extends AnyFunSuite {
     val rtl = text(directory.resolve("count_case.v"))
     Vector("COUNT = 1", "case (COUNT)", "begin : g_count_one", "begin : g_count_two",
       "begin : g_count_three").foreach(expected => assert(rtl.contains(expected), rtl))
-    assert(rtl.contains("morphhdl_balanced_1_active_0"), rtl)
-    assert(!rtl.contains("morphhdl_balanced_1_active_1"), rtl)
-    assert(rtl.contains("morphhdl_balanced_2_active_1"), rtl)
+    assert(rtl.contains("balanced_1_active_0"), rtl)
+    assert(!rtl.contains("balanced_1_active_1"), rtl)
+    assert(rtl.contains("balanced_2_active_1"), rtl)
     def available(command: String): Boolean =
       Process(Seq("sh", "-c", s"command -v $command")).!(ProcessLogger(_ => (), _ => ())) == 0
     val runSimulation = available("iverilog") && available("vvp")
@@ -338,7 +338,7 @@ class TypedBalancedReductionNestedOwnerTests extends AnyFunSuite {
   test("initialized register bridge processes retain their outer loop and branch owners") {
     val rtl = generate("registered-loop")
     Vector("begin : g_registered_row", "begin : g_row_xor", "begin : g_row_add",
-      "posedge clk", "reset", "enable", "morphhdl_balanced_1", "morphhdl_balanced_2").foreach { expected =>
+      "posedge clk", "reset", "enable", "balanced_1", "balanced_2").foreach { expected =>
       assert(rtl.contains(expected), rtl)
     }
     assert(rtl.contains("COUNT = 1"), rtl)
@@ -354,7 +354,7 @@ class TypedBalancedReductionNestedOwnerTests extends AnyFunSuite {
     assert(rtl.contains("begin : g_child_row"), rtl)
     assert("(?m)^module\\s+BalancedNestedFormalChild\\b".r.findAllIn(rtl).size == 1, rtl)
     assert("(?m)^\\s+BalancedNestedFormalChild\\s*#".r.findAllIn(rtl).size == 1, rtl)
-    assert("(?s)biases\\[[^;]*\\bchild_row_index_[0-9_]+\\b[^;]*WIDTH".r.findFirstIn(rtl).nonEmpty, rtl)
+    assert("(?s)biases\\[[^;]*\\bi\\b[^;]*WIDTH".r.findFirstIn(rtl).nonEmpty, rtl)
     Vector("WIDTH", "COUNT").foreach { parameter =>
       assert(("\\." + parameter + "\\s*\\(\\s*" + parameter + "\\s*\\)").r
         .findAllIn(rtl).size == 1, rtl)
@@ -391,9 +391,9 @@ class TypedBalancedReductionNestedOwnerTests extends AnyFunSuite {
         HdlInt.param("COUNT", 1, 1, 5), HdlInt.param("MODE", 0, 0, 1))
     }
     val rtl = text(directory.resolve("collision.v"))
-    assert(rtl.contains("begin : morphhdl_balanced_1_active_0"), rtl)
-    assert(rtl.contains("morphhdl_balanced_1_1_active_0"), rtl)
-    assert("\\bbegin\\s*:\\s*morphhdl_balanced_1_active_0\\b".r.findAllIn(rtl).size == 1, rtl)
+    assert(rtl.contains("begin : balanced_1_active_0"), rtl)
+    assert(rtl.contains("balanced_1_1_active_0"), rtl)
+    assert("\\bbegin\\s*:\\s*balanced_1_active_0\\b".r.findAllIn(rtl).size == 1, rtl)
   }
 
   test("a reduction result cannot escape to its outer component scope") {

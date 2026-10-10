@@ -1,0 +1,575 @@
+{
+  "base": "90b7fc8f13f2c53dbb6f7f8ab51f4e43cd486be6",
+  "files": [
+    {
+      "baseline_sha256": "86c7dcf10842cc32c2708d2510348d33d1ecc0ad2fe6dc28cfa16531658b6406",
+      "change": "modified",
+      "edits": [
+        {
+          "after": "  /** Flatten only the exact structural block's captured statements. Native\n    * register enables keep their assignments inside When bodies; looking only\n    * at the root would discard their drivers from the freshness observation.\n    * No driver is discovered by name, target, or a scan of unrelated source. */\n  private def observedStatements(block: ParameterizedStructuralBlock): Vector[Statement] = {\n    val statements = ArrayBuffer.empty[Statement]\n    block.statements.foreach { statement =>\n      statements += statement\n      statement match {\n        case tree: TreeStatement => tree.walkStatements(statements += _)\n        case _ =>\n      }\n    }\n    statements.toVector\n  }\n",
+          "after_end": 1491,
+          "after_start": 803,
+          "before": "",
+          "before_end": 803,
+          "before_start": 803,
+          "id": "59i-local-enable-1-1",
+          "reason": "Inventory assignments from exact captured statement trees so register-enable When bodies remain covered by the existing freshness observations."
+        },
+        {
+          "after": "      val statements = observedStatements(block)\n      val assignments = statements.collect { case a: AssignmentStatement => a }\n",
+          "after_end": 33439,
+          "after_start": 33310,
+          "before": "      val assignments = block.statements.collect { case a: AssignmentStatement => a }\n",
+          "before_end": 32708,
+          "before_start": 32622,
+          "id": "59i-local-enable-1-2",
+          "reason": "Inventory assignments from exact captured statement trees so register-enable When bodies remain covered by the existing freshness observations."
+        },
+        {
+          "after": "        result, block.declarations, assignments, statements)\n",
+          "after_end": 33851,
+          "after_start": 33790,
+          "before": "        result, block.declarations, assignments, block.statements)\n",
+          "before_end": 33126,
+          "before_start": 33059,
+          "id": "59i-local-enable-1-3",
+          "reason": "Inventory assignments from exact captured statement trees so register-enable When bodies remain covered by the existing freshness observations."
+        },
+        {
+          "after": "      val statements = observedStatements(block)\n      val assignments = statements.collect { case a: AssignmentStatement => a }\n",
+          "after_end": 38552,
+          "after_start": 38423,
+          "before": "      val assignments = block.statements.collect { case a: AssignmentStatement => a }\n",
+          "before_end": 37784,
+          "before_start": 37698,
+          "id": "59i-local-enable-1-4",
+          "reason": "Inventory assignments from exact captured statement trees so register-enable When bodies remain covered by the existing freshness observations."
+        },
+        {
+          "after": "        result, block.declarations, assignments, statements)\n",
+          "after_end": 38730,
+          "after_start": 38669,
+          "before": "        result, block.declarations, assignments, block.statements)\n",
+          "before_end": 37968,
+          "before_start": 37901,
+          "id": "59i-local-enable-1-5",
+          "reason": "Inventory assignments from exact captured statement trees so register-enable When bodies remain covered by the existing freshness observations."
+        }
+      ],
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala",
+      "reason": "Inventory assignments from exact captured statement trees so register-enable When bodies remain covered by the existing freshness observations.",
+      "source_sha256": "20478eb96f965e69c7e9e51f6c56c906a2e05bcbda5cbae63626797890c5e390"
+    },
+    {
+      "baseline_sha256": "e5893162b093f71f42fb452b331110180200b13595832f44fb758d20f0711e40",
+      "change": "modified",
+      "edits": [
+        {
+          "after": "  /** The current register-chain driver and the original composite input are\n    * different dependencies, even when both denote the same leaf at step zero.\n    * Preserve that distinction through every later register and odd tail. */\n  private sealed trait ControlInput {\n    def value(current: BaseType, original: Vector[BaseType]): BaseType\n    def width(current: ElaborationIntegerExpression,\n        original: Vector[ElaborationIntegerExpression]): ElaborationIntegerExpression\n  }\n  private case object CurrentData extends ControlInput {\n    def value(current: BaseType, original: Vector[BaseType]): BaseType = current\n    def width(current: ElaborationIntegerExpression,\n        original: Vector[ElaborationIntegerExpression]): ElaborationIntegerExpression = current\n  }\n  private final case class CompositeInput(index: Int) extends ControlInput {\n    def value(current: BaseType, original: Vector[BaseType]): BaseType = original(index)\n    def width(current: ElaborationIntegerExpression,\n        original: Vector[ElaborationIntegerExpression]): ElaborationIntegerExpression = original(index)\n  }\n\n  private def mergeMinimumWidths(left: Map[ControlInput, Int],\n      right: Map[ControlInput, Int]): Map[ControlInput, Int] =\n    (left.keySet ++ right.keySet).map { input =>\n      input -> left.getOrElse(input, 0).max(right.getOrElse(input, 0))\n    }.toMap\n\n",
+          "after_end": 1974,
+          "after_start": 609,
+          "before": "",
+          "before_end": 609,
+          "before_start": 609,
+          "id": "59i-local-enable-2-1",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "    def replay(current: BaseType, original: Vector[BaseType]): Bool\n    def minimumWidths: Map[ControlInput, Int]\n",
+          "after_end": 2120,
+          "after_start": 2006,
+          "before": "    def replay(value: BaseType): Bool\n    def minimumWidth: Int = 1\n",
+          "before_end": 709,
+          "before_start": 641,
+          "id": "59i-local-enable-2-2",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "  private final case class BooleanInput(input: ControlInput) extends Enable {\n    val minimumWidths: Map[ControlInput, Int] = Map(input -> 1)\n    def replay(current: BaseType, original: Vector[BaseType]): Bool =\n      input.value(current, original).asInstanceOf[Bool]\n",
+          "after_end": 2392,
+          "after_start": 2124,
+          "before": "  private case object BooleanInput extends Enable {\n    def replay(value: BaseType): Bool = value.asInstanceOf[Bool]\n",
+          "before_end": 830,
+          "before_start": 713,
+          "id": "59i-local-enable-2-3",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "    // Preserve the scalar enable grammar's original positive data-width bound.\n    val minimumWidths: Map[ControlInput, Int] = Map(CurrentData -> 1)\n    def replay(current: BaseType, original: Vector[BaseType]): Bool = Bool(value)\n",
+          "after_end": 2697,
+          "after_start": 2465,
+          "before": "    def replay(input: BaseType): Bool = Bool(value)\n",
+          "before_end": 955,
+          "before_start": 903,
+          "id": "59i-local-enable-2-4",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "  private final case class Bit(input: ControlInput, index: Int, high: Boolean) extends Enable {\n    val minimumWidths: Map[ControlInput, Int] = Map(input -> (if (high) 1 else index + 1))\n    def replay(current: BaseType, original: Vector[BaseType]): Bool = {\n      val bits = input.value(current, original).asInstanceOf[BitVector]\n",
+          "after_end": 3032,
+          "after_start": 2701,
+          "before": "  private final case class Bit(index: Int, high: Boolean) extends Enable {\n    override def minimumWidth: Int = if (high) 1 else index + 1\n    def replay(value: BaseType): Bool = {\n      val bits = value.asInstanceOf[BitVector]\n",
+          "before_end": 1187,
+          "before_start": 959,
+          "id": "59i-local-enable-2-5",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "    val minimumWidths: Map[ControlInput, Int] = value.minimumWidths\n    def replay(current: BaseType, original: Vector[BaseType]): Bool = !value.replay(current, original)\n",
+          "after_end": 3318,
+          "after_start": 3147,
+          "before": "    override def minimumWidth: Int = value.minimumWidth\n    def replay(input: BaseType): Bool = !value.replay(input)\n",
+          "before_end": 1419,
+          "before_start": 1302,
+          "id": "59i-local-enable-2-6",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "    val minimumWidths: Map[ControlInput, Int] = mergeMinimumWidths(left.minimumWidths, right.minimumWidths)\n    def replay(current: BaseType, original: Vector[BaseType]): Bool = operation match {\n      case 0 => left.replay(current, original) && right.replay(current, original)\n      case 1 => left.replay(current, original) || right.replay(current, original)\n      case 2 => left.replay(current, original) ^ right.replay(current, original)\n",
+          "after_end": 3859,
+          "after_start": 3418,
+          "before": "    override def minimumWidth: Int = left.minimumWidth.max(right.minimumWidth)\n    def replay(input: BaseType): Bool = operation match {\n      case 0 => left.replay(input) && right.replay(input)\n      case 1 => left.replay(input) || right.replay(input)\n      case 2 => left.replay(input) ^ right.replay(input)\n",
+          "before_end": 1829,
+          "before_start": 1519,
+          "id": "59i-local-enable-2-7",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "      private val controls: Vector[Evidence],\n      private val inputIndex: Int,\n",
+          "after_end": 4252,
+          "after_start": 4171,
+          "before": "",
+          "before_end": 2141,
+          "before_start": 2141,
+          "id": "59i-local-enable-2-8",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "      controls.foreach(_.requireFreshness())\n",
+          "after_end": 4715,
+          "after_start": 4670,
+          "before": "",
+          "before_end": 2559,
+          "before_start": 2559,
+          "id": "59i-local-enable-2-9",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "        inputIndex == other.inputIndex && controls.size == other.controls.size &&\n        controls.zip(other.controls).forall { case (a, b) =>\n          (a.owner eq b.owner) && (a.kind eq b.kind)\n        } && minimumInitializerWidth == other.minimumInitializerWidth &&\n",
+          "after_end": 5289,
+          "after_start": 5020,
+          "before": "        minimumInitializerWidth == other.minimumInitializerWidth &&\n",
+          "before_end": 2932,
+          "before_start": 2864,
+          "id": "59i-local-enable-2-10",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "    private def scalarReplayOnly(): Unit =\n      if (controls.size != 1 || inputIndex != 0)\n        fail(\"CONTROL-ARITY\", \"a composite-control bridge must be replayed with its full recursive input\")\n\n",
+          "after_end": 5708,
+          "after_start": 5508,
+          "before": "",
+          "before_end": 3151,
+          "before_start": 3151,
+          "id": "59i-local-enable-2-11",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "      scalarReplayOnly()\n",
+          "after_end": 5779,
+          "after_start": 5754,
+          "before": "",
+          "before_end": 3197,
+          "before_start": 3197,
+          "id": "59i-local-enable-2-12",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "    def replayWithWidth(value: BaseType, width: ElaborationIntegerExpression): BaseType = {\n      scalarReplayOnly()\n      replayWithWidthWhen(value, width, Vector(value), Vector(width), None)\n    }\n",
+          "after_end": 6065,
+          "after_start": 5866,
+          "before": "    def replayWithWidth(value: BaseType, width: ElaborationIntegerExpression): BaseType =\n      replayWithWidthWhen(value, width, None)\n",
+          "before_end": 3420,
+          "before_start": 3284,
+          "id": "59i-local-enable-2-13",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "      scalarReplayOnly()\n",
+          "after_end": 6463,
+          "after_start": 6438,
+          "before": "",
+          "before_end": 3793,
+          "before_start": 3793,
+          "id": "59i-local-enable-2-14",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "      replayWithWidthWhen(value, width, Vector(value), Vector(width), Some(active))\n    }\n\n    def replayWithWidth(value: BaseType, width: ElaborationIntegerExpression,\n        controlValues: Vector[BaseType], controlWidths: Vector[ElaborationIntegerExpression]): BaseType =\n      replayWithWidthWhen(value, width, controlValues, controlWidths, None)\n\n    def replayWithWidth(value: BaseType, width: ElaborationIntegerExpression,\n        controlValues: Vector[BaseType], controlWidths: Vector[ElaborationIntegerExpression],\n        active: ElaborationBooleanExpression): BaseType = {\n      if (active == null) fail(\"WIDTH-AUTHORITY\", \"template activity must retain exact native count authority\")\n      replayWithWidthWhen(value, width, controlValues, controlWidths, Some(active))\n    }\n\n    private def requireReplacement(evidence: Evidence, candidate: BaseType,\n        width: ElaborationIntegerExpression, label: String): Unit = {\n      evidence.requireFreshness()\n      ElaborationWidthAuthority.requireAuthoritative(width, label,\n        \"MORPH-REDUCE-BALANCED-BRIDGE-WIDTH-AUTHORITY\")\n      if (candidate == null || (candidate.component ne evidence.owner) ||\n          candidate.getClass != evidence.value.getClass ||\n          (candidate.getTypeObject.asInstanceOf[AnyRef] ne evidence.kind) ||\n          candidate.isAnalog || candidate.hasTag(tagAutoResize) ||\n          BigInt(candidate.getBitsWidth) != width.default ||\n          !ElaborationWidthAuthority.equivalent(ParameterizedWidth.expressionOf(candidate)\n            .getOrElse(ElabInt.literal(candidate.getBitsWidth).expression), width))\n        fail(\"WIDTH\", label + \" lacks its exact owner, scalar type and symbolic width\")\n",
+          "after_end": 8266,
+          "after_start": 6575,
+          "before": "      replayWithWidthWhen(value, width, Some(active))\n",
+          "before_end": 3959,
+          "before_start": 3905,
+          "id": "59i-local-enable-2-15",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "        controlValues: Vector[BaseType], controlWidths: Vector[ElaborationIntegerExpression],\n",
+          "after_end": 8457,
+          "after_start": 8363,
+          "before": "",
+          "before_end": 4056,
+          "before_start": 4056,
+          "id": "59i-local-enable-2-16",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "      if (controlValues == null || controlWidths == null ||\n          controlValues.size != controls.size || controlWidths.size != controls.size ||\n          inputIndex < 0 || inputIndex >= controls.size || (controlValues(inputIndex) ne value))\n        fail(\"CONTROL-BINDING\", \"composite controls must preserve their complete recursive leaf order\")\n      requireReplacement(input, value, width, \"replayed bridge data width\")\n      controls.zip(controlValues).zip(controlWidths).zipWithIndex.foreach {\n        case (((evidence, candidate), controlWidth), index) =>\n          requireReplacement(evidence, candidate, controlWidth,\n            \"replayed bridge control width \" + index)\n      }\n      def minimum(value: ElaborationIntegerExpression): Option[BigInt] =\n        active.map(condition => ElaborationWidthAuthority.minimumWhen(value, condition))\n          .getOrElse(Some(value.minimum))\n      if (minimum(width).exists(_ < minimumInitializerWidth))\n",
+          "after_end": 9630,
+          "after_start": 8674,
+          "before": "      ElaborationWidthAuthority.requireAuthoritative(width, \"replayed bridge width\",\n        \"MORPH-REDUCE-BALANCED-BRIDGE-WIDTH-AUTHORITY\")\n      val activeMinimum = active.map(ElaborationWidthAuthority.minimumWhen(width, _))\n        .getOrElse(Some(width.minimum))\n      if (activeMinimum.exists(_ < minimumInitializerWidth))\n",
+          "before_end": 4601,
+          "before_start": 4273,
+          "id": "59i-local-enable-2-17",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "      registers.flatMap(_.enable).foreach { enable =>\n        enable.minimumWidths.foreach { case (control, required) =>\n          if (minimum(control.width(width, controlWidths)).exists(_ < required))\n            fail(\"ENABLE-WIDTH\", \"replayed control lane cannot contain a certified enable bit\")\n        }\n      }\n",
+          "after_end": 10060,
+          "after_start": 9744,
+          "before": "      if (registers.flatMap(_.enable).exists(enable => activeMinimum.exists(_ < enable.minimumWidth)))\n        fail(\"ENABLE-WIDTH\", \"replayed narrower native lane cannot contain a certified enable bit\")\n      if (value == null || (value.component ne input.owner) ||\n          (value.getTypeObject.asInstanceOf[AnyRef] ne input.kind) || value.isAnalog ||\n          value.hasTag(tagAutoResize) || BigInt(value.getBitsWidth) != width.default ||\n          !ElaborationWidthAuthority.equivalent(ParameterizedWidth.expressionOf(value)\n            .getOrElse(ElabInt.literal(value.getBitsWidth).expression), width))\n        fail(\"WIDTH\", \"replayed bridge input lacks its exact certified native shape\")\n",
+          "before_end": 5410,
+          "before_start": 4715,
+          "id": "59i-local-enable-2-18",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "            case Some(enable) => when(enable.replay(prior, controlValues)) { next.assignFrom(prior) }\n",
+          "after_end": 10414,
+          "after_start": 10312,
+          "before": "            case Some(enable) => when(enable.replay(prior)) { next.assignFrom(prior) }\n",
+          "before_end": 5749,
+          "before_start": 5662,
+          "id": "59i-local-enable-2-19",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "  def certify(callback: UnvalidatedBalancedCallback, input: Evidence): Proof =\n    certifyWithControls(callback, input, Vector(input), compositeControls = false)\n\n  def certify(callback: UnvalidatedBalancedCallback, input: Evidence,\n      controls: Vector[Evidence]): Proof =\n    certifyWithControls(callback, input, controls, compositeControls = true)\n\n  /** The complete composite callback owns shared native enable scopes. Its\n    * authenticated observation retains every sibling write while the scalar\n    * proof below still consumes exactly its own data/control path. */\n  def certifyProjection(callback: UnvalidatedBalancedCallback, input: Evidence,\n      controls: Vector[Evidence], observation: TypedBalancedReductionClosedGraph.Observation): Proof = {\n    if (observation == null) fail(\"PROJECTION\", \"a composite bridge projection needs its closed whole callback\")\n    certifyWithControls(callback, input, controls, compositeControls = true, enclosing = Some(observation))\n  }\n\n  private def certifyWithControls(callback: UnvalidatedBalancedCallback, input: Evidence,\n      controls: Vector[Evidence], compositeControls: Boolean,\n      enclosing: Option[TypedBalancedReductionClosedGraph.Observation] = None): Proof = {\n    if (callback == null || input == null || controls == null || controls.isEmpty ||\n        callback.operands == null || callback.operands.size != controls.size || callback.result == null)\n      fail(\"ARITY\", \"bridge proof needs its exact recursive controls and one scalar result\")\n    val identities = new IdentityHashMap[BaseType, java.lang.Integer]()\n    controls.zipWithIndex.foreach { case (evidence, index) =>\n      if (evidence == null || identities.put(evidence.value, java.lang.Integer.valueOf(index)) != null)\n        fail(\"CONTROL-IDENTITY\", \"bridge controls must be unique live scalar leaves\")\n      evidence.requireValue(evidence.value)\n",
+          "after_end": 12889,
+          "after_start": 11007,
+          "before": "  def certify(callback: UnvalidatedBalancedCallback, input: Evidence): Proof = {\n    if (callback == null || input == null || callback.operands == null ||\n        callback.operands.size != 1 || callback.result == null)\n      fail(\"ARITY\", \"bridge proof needs one exact operand and a scalar result\")\n    val source = callback.operands.head match {\n      case value: BaseType => value\n      case _ => fail(\"TYPE\", \"bridge operand must be a native scalar\")\n",
+          "before_end": 6796,
+          "before_start": 6342,
+          "id": "59i-local-enable-2-20",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "    if (callback.operands.zip(controls).exists {\n        case (value: BaseType, evidence) => value ne evidence.value\n        case _ => true\n      })\n      fail(\"CONTROL-BINDING\", \"callback operands changed their recursive composite-leaf order\")\n    val source = input.value\n    val inputIndexValue = identities.get(source)\n    if (inputIndexValue == null)\n      fail(\"CONTROL-BINDING\", \"bridge data input is absent from its admitted controls\")\n    val inputIndex = inputIndexValue.intValue()\n",
+          "after_end": 13387,
+          "after_start": 12895,
+          "before": "",
+          "before_end": 6802,
+          "before_start": 6802,
+          "id": "59i-local-enable-2-21",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "    val observation = enclosing match {\n      case Some(whole) => whole.requireProjection(callback); whole\n      case None => TypedBalancedReductionClosedGraph.observe(callback)\n    }\n",
+          "after_end": 13878,
+          "after_start": 13694,
+          "before": "    val observation = TypedBalancedReductionClosedGraph.observe(callback)\n",
+          "before_end": 7183,
+          "before_start": 7109,
+          "id": "59i-local-enable-2-22",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "      def admitted(value: BaseType): Int = {\n        val found = identities.get(value)\n        if (found == null) -1 else found.intValue()\n      }\n      def control(value: BaseType): ControlInput = {\n        if (value eq driver) CurrentData\n        else if (compositeControls && admitted(value) >= 0) CompositeInput(admitted(value))\n        else fail(\"ENABLE\", \"control must be the current data driver or an admitted original composite leaf\")\n      }\n",
+          "after_end": 20523,
+          "after_start": 20072,
+          "before": "",
+          "before_end": 13377,
+          "before_start": 13377,
+          "id": "59i-local-enable-2-23",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "        case value: Bool if (value eq driver) || (compositeControls && admitted(value) >= 0) =>\n          BooleanInput(control(value))\n",
+          "after_end": 20683,
+          "after_start": 20548,
+          "before": "        case value: Bool if value eq driver => BooleanInput\n",
+          "before_end": 13462,
+          "before_start": 13402,
+          "id": "59i-local-enable-2-24",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "        case access: BitVectorBitAccessFixed =>\n          val selected = access.source match {\n            case source: BaseType => control(source)\n            case _ => fail(\"ENABLE\", \"enable bit source must be an exact admitted native scalar\")\n          }\n          val evidence = selected match {\n            case CurrentData => input\n            case CompositeInput(index) => controls(index)\n          }\n          if ((evidence.kind ne TypeBits) && (evidence.kind ne TypeUInt) && (evidence.kind ne TypeSInt))\n            fail(\"ENABLE\", \"enable bit source must remain a native bit vector\")\n",
+          "after_end": 22061,
+          "after_start": 21468,
+          "before": "        case access: BitVectorBitAccessFixed if access.source eq driver =>\n",
+          "before_end": 14322,
+          "before_start": 14247,
+          "id": "59i-local-enable-2-25",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "          if (access.bitId < 0 || (!high && BigInt(access.bitId) >= evidence.width.minimum))\n            fail(\"ENABLE-WIDTH\", \"enable index is outside the smallest certified control width\")\n          Bit(selected, if (high) 0 else access.bitId, high)\n",
+          "after_end": 22373,
+          "after_start": 22122,
+          "before": "          if (access.bitId < 0 || (!high && BigInt(access.bitId) >= input.width.minimum))\n            fail(\"ENABLE-WIDTH\", \"enable index is outside the smallest certified data width\")\n          Bit(if (high) 0 else access.bitId, high)\n",
+          "before_end": 14618,
+          "before_start": 14383,
+          "id": "59i-local-enable-2-26",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "        case _ => fail(\"ENABLE\", \"enable must be a closed Bool predicate of the current path and admitted composite inputs\")\n",
+          "after_end": 22866,
+          "after_start": 22741,
+          "before": "        case _ => fail(\"ENABLE\", \"enable must be a closed Bool predicate of the register's exact data input\")\n",
+          "before_end": 15096,
+          "before_start": 14986,
+          "id": "59i-local-enable-2-27",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        },
+        {
+          "after": "    val proof = new Proof(result, input.width, input, controls, inputIndex, observation,\n",
+          "after_end": 26767,
+          "after_start": 26678,
+          "before": "    val proof = new Proof(result, input.width, input, observation,\n",
+          "before_end": 18975,
+          "before_start": 18908,
+          "id": "59i-local-enable-2-28",
+          "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards."
+        }
+      ],
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala",
+      "reason": "Distinguish current data-chain dependencies from immutable original composite inputs; preserve scalar admission, exact recursive ownership, independent control widths and clock/reset/freshness guards.",
+      "source_sha256": "564e96c5e8c2c33b795200c0953219f02e739b942850b699c674e4f25a07bd80"
+    },
+    {
+      "baseline_sha256": "058d6ae568b4310c08ae536c5910227280a1cb65ed551912ebec604f90c58554",
+      "change": "modified",
+      "edits": [
+        {
+          "after": "\n    /** Authenticate one scalar result path against this already closed whole\n      * callback. A shared native When belongs to the whole record, so its\n      * sibling writes remain covered by this observation, not reinterpreted as\n      * effects outside a scalar partition. Every selected declaration keeps\n      * all of its original drivers, including initializers. */\n    def requireProjection(projected: UnvalidatedBalancedCallback): Unit = {\n      requireUnchanged()\n      if (combinationalScopes || projected == null || projected.ordinal != callback.ordinal ||\n          projected.operands == null || projected.operands.exists(_ == null) ||\n          projected.declarations == null || projected.assignments == null ||\n          projected.statements == null || !projected.result.isInstanceOf[BaseType])\n        fail(\"PROJECTION\", \"a bridge projection requires its exact closed callback and one scalar result\")\n      val originalInputs = callback.operands.flatMap(_.flatten)\n      val projectedInputs = projected.operands.flatMap(_.flatten)\n      if (originalInputs.size != projectedInputs.size ||\n          originalInputs.zip(projectedInputs).exists { case (a, b) => a ne b } ||\n          !callback.result.flatten.exists(_ eq projected.result))\n        fail(\"PROJECTION\", \"a bridge projection changed its exact recursive inputs or result identity\")\n      val selected = identitySet(projected.declarations, \"projected declarations\")\n      identitySet(projected.assignments, \"projected assignments\")\n      if (projected.declarations.exists(value => !callback.declarations.exists(_ eq value)) ||\n          projected.statements.exists(value => !callback.statements.exists(_ eq value)))\n        fail(\"PROJECTION\", \"a bridge projection contains effects absent from the closed callback\")\n      val expected = callback.assignments.filter(value => selected.containsKey(value.finalTarget))\n      if (expected.size != projected.assignments.size ||\n          expected.zip(projected.assignments).exists { case (a, b) => a ne b })\n        fail(\"PROJECTION\", \"a bridge projection must preserve every driver and initializer of its selected declarations\")\n    }\n",
+          "after_end": 6816,
+          "after_start": 4662,
+          "before": "",
+          "before_end": 4662,
+          "before_start": 4662,
+          "id": "59i-local-enable-3-1",
+          "reason": "Authenticate scalar leaf projections against the unchanged whole closed callback, preserving every selected driver and initializer while retaining ownership of all shared native When sibling writes."
+        }
+      ],
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala",
+      "reason": "Authenticate scalar leaf projections against the unchanged whole closed callback, preserving every selected driver and initializer while retaining ownership of all shared native When sibling writes.",
+      "source_sha256": "669bbc83555ce9f767f0c2281bdf6da7261d60cc9eb2c29f089b517a52531832"
+    },
+    {
+      "baseline_sha256": "27e00dd8bb23bab290c7f30c54942d7ad3eff5b03cc3d90db12e573f5f049e01",
+      "change": "modified",
+      "edits": [
+        {
+          "after": "\n  /** A finite carrier includes leaves absent at smaller logical Vec depths.\n    * Every data or control dependency must be present whenever its destination\n    * is present; zero-filled inactive transport lanes are not native values. */\n  private def requireActiveDependency(\n      destination: Vector[(Int, ElaborationIntegerExpression)],\n      source: Vector[(Int, ElaborationIntegerExpression)]): Unit =\n    source.foreach { case (sourceIndex, sourceDepth) =>\n      if (BigInt(sourceIndex) >= sourceDepth.minimum && !destination.exists {\n          case (targetIndex, targetDepth) => targetIndex >= sourceIndex && sameWidth(targetDepth, sourceDepth)\n        })\n        fail(\"INACTIVE-DEPENDENCY\", \"a live result field can read a nested Vec lane outside its logical depth\")\n    }\n",
+          "after_end": 10215,
+          "after_start": 9432,
+          "before": "",
+          "before_end": 9432,
+          "before_start": 9432,
+          "id": "59i-local-enable-4-1",
+          "reason": "Partition each leaf data path and its closed same-composite control graph; reject registered peer controls, cross-field data and potentially inactive nested-Vec inputs, then replay using the complete original recursive leaf vector and authenticated whole-callback observation."
+        },
+        {
+          "after": "        requireActiveDependency(active, inputs(side).leafDimensions(leafIndex))\n",
+          "after_end": 33690,
+          "after_start": 33610,
+          "before": "        inputs(side).leafDimensions(leafIndex).foreach { case (sourceIndex, sourceDepth) =>\n          if (BigInt(sourceIndex) >= sourceDepth.minimum && !active.exists {\n              case (targetIndex, targetDepth) => targetIndex >= sourceIndex && sameWidth(targetDepth, sourceDepth)\n            })\n            fail(\"INACTIVE-DEPENDENCY\", \"a live result field can read a nested Vec lane outside its logical depth\")\n        }\n",
+          "before_end": 33252,
+          "before_start": 32827,
+          "id": "59i-local-enable-4-2",
+          "reason": "Partition each leaf data path and its closed same-composite control graph; reject registered peer controls, cross-field data and potentially inactive nested-Vec inputs, then replay using the complete original recursive leaf vector and authenticated whole-callback observation."
+        },
+        {
+          "after": "    val hasLocalEnables: Boolean = leaves.exists(_.hasLocalEnables)\n",
+          "after_end": 34569,
+          "after_start": 34501,
+          "before": "",
+          "before_end": 34063,
+          "before_start": 34063,
+          "id": "59i-local-enable-4-3",
+          "reason": "Partition each leaf data path and its closed same-composite control graph; reject registered peer controls, cross-field data and potentially inactive nested-Vec inputs, then replay using the complete original recursive leaf vector and authenticated whole-callback observation."
+        },
+        {
+          "after": "        val controls = value.flatten.toVector\n        result.flatten.toVector.zip(controls).zip(leaves).zip(widths).foreach {\n",
+          "after_end": 36220,
+          "after_start": 36094,
+          "before": "        result.flatten.toVector.zip(value.flatten.toVector).zip(leaves).zip(widths).foreach {\n",
+          "before_end": 35682,
+          "before_start": 35588,
+          "id": "59i-local-enable-4-4",
+          "reason": "Partition each leaf data path and its closed same-composite control graph; reject registered peer controls, cross-field data and potentially inactive nested-Vec inputs, then replay using the complete original recursive leaf vector and authenticated whole-callback observation."
+        },
+        {
+          "after": "              case Some(condition) => proof.replayWithWidth(source, width, controls, widths, condition)\n              case None => proof.replayWithWidth(source, width, controls, widths)\n",
+          "after_end": 36501,
+          "after_start": 36315,
+          "before": "              case Some(condition) => proof.replayWithWidth(source, width, condition)\n              case None => proof.replayWithWidth(source, width)\n",
+          "before_end": 35927,
+          "before_start": 35777,
+          "id": "59i-local-enable-4-5",
+          "reason": "Partition each leaf data path and its closed same-composite control graph; reject registered peer controls, cross-field data and potentially inactive nested-Vec inputs, then replay using the complete original recursive leaf vector and authenticated whole-callback observation."
+        },
+        {
+          "after": "    val inputLeaves = new IdentityHashMap[BaseType, java.lang.Integer]()\n    input.evidence.zipWithIndex.foreach { case (evidence, index) =>\n      if (inputLeaves.put(evidence.value, java.lang.Integer.valueOf(index)) != null)\n        fail(\"BRIDGE-INPUT-ALIAS\", \"recursive composite inputs cannot share scalar identities\")\n    }\n    val owner = input.evidence.head.owner\n",
+          "after_end": 37594,
+          "after_start": 37224,
+          "before": "",
+          "before_end": 36650,
+          "before_start": 36650,
+          "id": "59i-local-enable-4-6",
+          "reason": "Partition each leaf data path and its closed same-composite control graph; reject registered peer controls, cross-field data and potentially inactive nested-Vec inputs, then replay using the complete original recursive leaf vector and authenticated whole-callback observation."
+        },
+        {
+          "after": "    val leaves = results.zip(input.evidence).zipWithIndex.map { case ((result, evidence), resultIndex) =>\n      val dataVisited = new IdentityHashMap[Expression, java.lang.Boolean]()\n",
+          "after_end": 37828,
+          "after_start": 37645,
+          "before": "    val leaves = results.zip(input.evidence).map { case (result, evidence) =>\n      val visited = new IdentityHashMap[Expression, java.lang.Boolean]()\n",
+          "before_end": 36852,
+          "before_start": 36701,
+          "id": "59i-local-enable-4-7",
+          "reason": "Partition each leaf data path and its closed same-composite control graph; reject registered peer controls, cross-field data and potentially inactive nested-Vec inputs, then replay using the complete original recursive leaf vector and authenticated whole-callback observation."
+        },
+        {
+          "after": "      def mark(value: BaseType): Vector[AssignmentStatement] = {\n        if (!callback.declarations.exists(_ eq value))\n          fail(\"BRIDGE-CROSS-FIELD\", \"bridge data and local controls must remain inside the callback graph\")\n        declarations.put(value, java.lang.Boolean.TRUE)\n        usedDeclarations.put(value, java.lang.Boolean.TRUE)\n        val found = callback.assignments.filter(_.finalTarget eq value)\n        found.foreach { assignment =>\n          assignments.put(assignment, java.lang.Boolean.TRUE)\n          usedAssignments.put(assignment, java.lang.Boolean.TRUE)\n        }\n        found\n      }\n      def condition(assignment: DataAssignmentStatement): Unit = {\n        if (assignment.parentScope ne owner.dslBody) {\n          // ClosedGraph already requires an exact single native When true arm.\n          // A current-chain driver may be registered. An arbitrary registered\n          // peer must still be rejected, even if another data path consumes it.\n          val driver = assignment.source match {\n            case leaf: BaseType => leaf\n            case _ => fail(\"BRIDGE-CONTROL-DATA\", \"enabled bridge data must be a full scalar identity path\")\n          }\n          val visited = new IdentityHashMap[Expression, java.lang.Boolean]()\n          def walkControl(value: Expression): Unit = {\n            if (visited.put(value, java.lang.Boolean.TRUE) != null) return\n            value match {\n              case leaf: BaseType if inputLeaves.containsKey(leaf) =>\n                requireActiveDependency(input.leafDimensions(resultIndex),\n                  input.leafDimensions(inputLeaves.get(leaf).intValue()))\n              case leaf: BaseType if leaf eq driver =>\n              case leaf: BaseType =>\n                if (leaf.isReg)\n                  fail(\"BRIDGE-CONTROL-REGISTER\", \"a local enable cannot read a registered peer field\")\n                mark(leaf).foreach { dependency =>\n                  if (dependency.parentScope ne owner.dslBody)\n                    fail(\"BRIDGE-CONTROL-SCOPE\", \"control aliases must be unconditional local combinational nodes\")\n                  walkControl(dependency.source)\n                }\n              case expression => expression.foreachExpression(walkControl)\n            }\n          }\n          assignment.parentScope.parentStatement match {\n            case statement: WhenStatement => walkControl(statement.cond)\n            case _ => fail(\"BRIDGE-CONTROL-SCOPE\", \"conditional bridge assignment lost its native When owner\")\n          }\n        }\n      }\n      def walkData(value: Expression): Unit = {\n        if (dataVisited.put(value, java.lang.Boolean.TRUE) != null) return\n",
+          "after_end": 40649,
+          "after_start": 37990,
+          "before": "      def walk(value: Expression): Unit = {\n        if (visited.put(value, java.lang.Boolean.TRUE) != null) return\n",
+          "before_end": 37129,
+          "before_start": 37014,
+          "id": "59i-local-enable-4-8",
+          "reason": "Partition each leaf data path and its closed same-composite control graph; reject registered peer controls, cross-field data and potentially inactive nested-Vec inputs, then replay using the complete original recursive leaf vector and authenticated whole-callback observation."
+        },
+        {
+          "after": "          case leaf: BaseType if inputLeaves.containsKey(leaf) =>\n            fail(\"BRIDGE-CROSS-FIELD\", \"bridge data paths must preserve their exact corresponding input field\")\n",
+          "after_end": 40908,
+          "after_start": 40730,
+          "before": "",
+          "before_end": 37210,
+          "before_start": 37210,
+          "id": "59i-local-enable-4-9",
+          "reason": "Partition each leaf data path and its closed same-composite control graph; reject registered peer controls, cross-field data and potentially inactive nested-Vec inputs, then replay using the complete original recursive leaf vector and authenticated whole-callback observation."
+        },
+        {
+          "after": "            mark(leaf).foreach { assignment =>\n              assignment match {\n                case data: DataAssignmentStatement => condition(data)\n                case _ =>\n              }\n              walkData(assignment.source)\n",
+          "after_end": 41175,
+          "after_start": 40941,
+          "before": "            if (!callback.declarations.exists(_ eq leaf))\n              fail(\"BRIDGE-CROSS-FIELD\", \"bridge data paths must preserve their exact corresponding input field\")\n            declarations.put(leaf, java.lang.Boolean.TRUE)\n            usedDeclarations.put(leaf, java.lang.Boolean.TRUE)\n            callback.assignments.filter(_.finalTarget eq leaf).foreach { assignment =>\n              assignments.put(assignment, java.lang.Boolean.TRUE)\n              usedAssignments.put(assignment, java.lang.Boolean.TRUE)\n              walk(assignment.source)\n",
+          "before_end": 37798,
+          "before_start": 37243,
+          "id": "59i-local-enable-4-10",
+          "reason": "Partition each leaf data path and its closed same-composite control graph; reject registered peer controls, cross-field data and potentially inactive nested-Vec inputs, then replay using the complete original recursive leaf vector and authenticated whole-callback observation."
+        },
+        {
+          "after": "          case expression => expression.foreachExpression(walkData)\n",
+          "after_end": 41257,
+          "after_start": 41189,
+          "before": "          case expression => expression.foreachExpression(walk)\n",
+          "before_end": 37876,
+          "before_start": 37812,
+          "id": "59i-local-enable-4-11",
+          "reason": "Partition each leaf data path and its closed same-composite control graph; reject registered peer controls, cross-field data and potentially inactive nested-Vec inputs, then replay using the complete original recursive leaf vector and authenticated whole-callback observation."
+        },
+        {
+          "after": "      walkData(result)\n      val controls = input.evidence.map(_.value)\n      val partition = UnvalidatedBalancedCallback(callback.ordinal, controls, result,\n",
+          "after_end": 41433,
+          "after_start": 41275,
+          "before": "      walk(result)\n      val partition = UnvalidatedBalancedCallback(callback.ordinal, Vector(evidence.value), result,\n",
+          "before_end": 38013,
+          "before_start": 37894,
+          "id": "59i-local-enable-4-12",
+          "reason": "Partition each leaf data path and its closed same-composite control graph; reject registered peer controls, cross-field data and potentially inactive nested-Vec inputs, then replay using the complete original recursive leaf vector and authenticated whole-callback observation."
+        },
+        {
+          "after": "      TypedBalancedReductionBridgeReplay.certifyProjection(partition, evidence, input.evidence, observation)\n",
+          "after_end": 41660,
+          "after_start": 41551,
+          "before": "      TypedBalancedReductionBridgeReplay.certify(partition, evidence)\n",
+          "before_end": 38201,
+          "before_start": 38131,
+          "id": "59i-local-enable-4-13",
+          "reason": "Partition each leaf data path and its closed same-composite control graph; reject registered peer controls, cross-field data and potentially inactive nested-Vec inputs, then replay using the complete original recursive leaf vector and authenticated whole-callback observation."
+        },
+        {
+          "after": "      fail(\"BRIDGE-EFFECT\", \"bridge contains effects outside its leaf data/control paths\")\n",
+          "after_end": 41871,
+          "after_start": 41780,
+          "before": "      fail(\"BRIDGE-EFFECT\", \"bridge contains effects outside its leaf paths\")\n",
+          "before_end": 38399,
+          "before_start": 38321,
+          "id": "59i-local-enable-4-14",
+          "reason": "Partition each leaf data path and its closed same-composite control graph; reject registered peer controls, cross-field data and potentially inactive nested-Vec inputs, then replay using the complete original recursive leaf vector and authenticated whole-callback observation."
+        },
+        {
+          "after": "      fail(\"BRIDGE-LATENCY\", \"all composite leaves must preserve equal structural register depths\")\n",
+          "after_end": 42058,
+          "after_start": 41958,
+          "before": "      fail(\"BRIDGE-LATENCY\", \"all composite leaves must advance in lockstep through equal register counts\")\n",
+          "before_end": 38594,
+          "before_start": 38486,
+          "id": "59i-local-enable-4-15",
+          "reason": "Partition each leaf data path and its closed same-composite control graph; reject registered peer controls, cross-field data and potentially inactive nested-Vec inputs, then replay using the complete original recursive leaf vector and authenticated whole-callback observation."
+        },
+        {
+          "after": "    val hasLocalEnables: Boolean = stages.exists(_.bridges.exists(_.hasLocalEnables))\n",
+          "after_end": 43902,
+          "after_start": 43816,
+          "before": "",
+          "before_end": 40352,
+          "before_start": 40352,
+          "id": "59i-local-enable-4-16",
+          "reason": "Partition each leaf data path and its closed same-composite control graph; reject registered peer controls, cross-field data and potentially inactive nested-Vec inputs, then replay using the complete original recursive leaf vector and authenticated whole-callback observation."
+        },
+        {
+          "after": "    /** Structural register depth. Independent local enables may stall fields\n      * or rows, so this is not a fixed transaction latency when enabled. */\n",
+          "after_end": 44315,
+          "after_start": 44160,
+          "before": "",
+          "before_end": 40610,
+          "before_start": 40610,
+          "id": "59i-local-enable-4-17",
+          "reason": "Partition each leaf data path and its closed same-composite control graph; reject registered peer controls, cross-field data and potentially inactive nested-Vec inputs, then replay using the complete original recursive leaf vector and authenticated whole-callback observation."
+        }
+      ],
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala",
+      "reason": "Partition each leaf data path and its closed same-composite control graph; reject registered peer controls, cross-field data and potentially inactive nested-Vec inputs, then replay using the complete original recursive leaf vector and authenticated whole-callback observation.",
+      "source_sha256": "9c2d9ca6ba2da2ad356523194f17205c790c216a4242dbe83766ef199ebb5c24"
+    },
+    {
+      "baseline_sha256": null,
+      "change": "added",
+      "edits": [
+        {
+          "after": "package spinal.core.internals\n\nimport java.nio.charset.StandardCharsets\nimport java.nio.file.Files\nimport java.util.IdentityHashMap\nimport scala.collection.mutable.ArrayBuffer\nimport morphhdl.MorphVerilog\nimport morphhdl.frontend.HdlInt\nimport org.scalatest.funsuite.AnyFunSuite\nimport spinal.core._\nimport spinal.lib._\n\nfinal case class BalancedLocalEnableRecord(uw: HdlInt, sw: HdlInt, bw: HdlInt) extends Bundle {\n  val unsigned = UInt(uw bits)\n  val signed = SInt(sw bits)\n  val bitsValue = Bits(bw bits)\n  val valid = Bool()\n}\n\nfinal case class BalancedLocalEnableNestedRecord(width: HdlInt, inner: HdlInt,\n    otherInner: HdlInt) extends Bundle {\n  val word = UInt(width bits)\n  val lanes = Vec(UInt(width bits), inner)\n  val flags = Vec(Bool(), inner)\n  val other = Vec(Bool(), otherInner)\n}\n\nprivate final class BalancedLocalEnablePublic(width: HdlInt, count: HdlInt,\n    moduleName: String, asynchronousLow: Boolean) extends Component {\n  setDefinitionName(moduleName)\n  val clk = in(Bool()).setName(\"clk\")\n  val reset = in(Bool()).setName(\"reset\")\n  val values = in(Vec(BalancedLocalEnableRecord(width, width, width), count)).setName(\"values\")\n  val result = out(BalancedLocalEnableRecord(width, width, width)).setName(\"result\")\n  val domain = ClockDomain(clock = clk, reset = reset, config = ClockDomainConfig(\n    clockEdge = if (asynchronousLow) FALLING else RISING,\n    resetKind = if (asynchronousLow) ASYNC else SYNC,\n    resetActiveLevel = if (asynchronousLow) LOW else HIGH))\n  val area = new ClockingArea(domain) {\n    val reduced = values.reduceBalancedTree(\n      (a: BalancedLocalEnableRecord, b: BalancedLocalEnableRecord) => {\n        val r = cloneOf(a)\n        r.unsigned := a.unsigned + b.unsigned\n        r.signed := a.signed + b.signed\n        r.bitsValue := a.bitsValue ^ b.bitsValue\n        r.valid := a.valid | b.valid\n        r\n      },\n      (value: BalancedLocalEnableRecord, _: Int) => {\n        val r = cloneOf(value)\n        r.unsigned := RegNextWhen(value.unsigned, value.valid) init U(3)\n        r.signed := RegNextWhen(value.signed, value.bitsValue(0)) init S(-2)\n        r.bitsValue := RegNextWhen(value.bitsValue, value.signed.msb) init B(1)\n        r.valid := RegNextWhen(value.valid, value.unsigned(0) ^ value.bitsValue.msb) init True\n        r\n      })\n    result := reduced\n  }\n}\n\nprivate final class BalancedSharedLocalEnablePublic(width: HdlInt, count: HdlInt,\n    moduleName: String) extends Component {\n  setDefinitionName(moduleName)\n  val clk = in(Bool()).setName(\"clk\")\n  val reset = in(Bool()).setName(\"reset\")\n  val values = in(Vec(BalancedLocalEnableRecord(width, width, width), count)).setName(\"values\")\n  val result = out(BalancedLocalEnableRecord(width, width, width)).setName(\"result\")\n  val area = new ClockingArea(ClockDomain(clock = clk, reset = reset,\n    config = ClockDomainConfig(resetKind = SYNC, resetActiveLevel = HIGH))) {\n    result := values.reduceBalancedTree(\n      (a: BalancedLocalEnableRecord, b: BalancedLocalEnableRecord) => {\n        val r = cloneOf(a)\n        r.unsigned := a.unsigned + b.unsigned\n        r.signed := a.signed + b.signed\n        r.bitsValue := a.bitsValue ^ b.bitsValue\n        r.valid := a.valid | b.valid\n        r\n      },\n      (value: BalancedLocalEnableRecord, _: Int) => {\n        val r = RegNextWhen(value, value.valid)\n        r.unsigned.init(U(3))\n        r.signed.init(S(-2))\n        r.bitsValue.init(B(1))\n        r.valid.init(True)\n        r\n      })\n  }\n}\n\nclass TypedBalancedReductionCompositeLocalEnableTests extends AnyFunSuite {\n  private def native[T <: Data]: ElabBalancedReduction.Native[T] =\n    (values, operation, bridge) => new TraversableOnceAnyPimped[T](values).reduceBalancedTree(operation, bridge)\n\n  private def details(error: Throwable): String =\n    if (error == null) \"\" else Option(error.getMessage).getOrElse(\"\") + \"\\n\" + details(error.getCause)\n\n  test(\"same-composite cross-field controls replay with field-local data and exact latency\") {\n    val width = HdlInt.param(\"WIDTH\", 5, 3, 16)\n    val count = HdlInt.param(\"COUNT\", 1, 1, 5)\n    var stageCounts = Vector.empty[Int]\n    var allLocal = false\n    var latencies = Vector.empty[Int]\n    var registerCounts = Vector.empty[Int]\n    SpinalConfig(targetDirectory = Files.createTempDirectory(\"balanced-local-enable-certificate-\").toString,\n      headerWithDate = false, headerWithRepoHash = false).generateVerilog(new Component {\n      val values = Vec(BalancedLocalEnableRecord(width, width, width), count)\n      values.vec.foreach(_.flatten.foreach {\n        case value: UInt => value := 0\n        case value: SInt => value := 0\n        case value: Bits => value := 0\n        case value: Bool => value := False\n      })\n      val certificate = TypedBalancedReductionCompositeReplay.capture(values,\n        (a: BalancedLocalEnableRecord, b: BalancedLocalEnableRecord) => {\n          val r = cloneOf(a)\n          r.unsigned := a.unsigned + b.unsigned\n          r.signed := a.signed + b.signed\n          r.bitsValue := a.bitsValue ^ b.bitsValue\n          r.valid := a.valid | b.valid\n          r\n        },\n        (value: BalancedLocalEnableRecord, _: Int) => {\n          val r = cloneOf(value)\n          r.unsigned := RegNextWhen(value.unsigned, value.valid) init U(3)\n          r.signed := RegNextWhen(value.signed, value.bitsValue(0)) init S(-2)\n          r.bitsValue := RegNextWhen(value.bitsValue, value.signed.msb) init B(1)\n          r.valid := RegNextWhen(value.valid, value.unsigned(0) ^ value.bitsValue.msb) init True\n          r\n        }, native[BalancedLocalEnableRecord])\n      for (activeCount <- 1 to 5) certificate.replay(values.vec.take(activeCount).toVector)\n      stageCounts = certificate.stages.map(_.registerCountPerRow)\n      allLocal = certificate.stages.forall(_.bridges.head.hasLocalEnables)\n      latencies = (1 to 5).map(certificate.latencyFor).toVector\n      registerCounts = certificate.captured.rows.map(_.bridge.declarations.count(_.isReg))\n      certificate.requireFreshness()\n    })\n    assert(stageCounts == Vector(1, 1, 1))\n    assert(allLocal)\n    assert(latencies == (1 to 5).map(value => (BigInt(value) - 1).bitLength).toVector)\n    assert(registerCounts.forall(_ == 4))\n  }\n\n  for ((name, asynchronousLow) <- Vector(\"sync_high\" -> false, \"async_low\" -> true);\n       split <- Vector(false, true)) {\n    test(\"public local enables preserve reset semantics: \" + name + \", split=\" + split) {\n      val directory = Files.createTempDirectory(\"balanced-local-enable-public-\" + name + \"-\")\n      val top = \"BalancedLocalEnable_\" + name\n      val config = SpinalConfig(targetDirectory = directory.toString, bitVectorWidthMax = 4096,\n        oneFilePerComponent = split, headerWithDate = false, headerWithRepoHash = true)\n      if (!split) config.netlistFileName = top + \".v\"\n      MorphVerilog(config) {\n        new BalancedLocalEnablePublic(HdlInt.param(\"WIDTH\", 5, 3, 16),\n          HdlInt.param(\"COUNT\", 1, 1, 5), top, asynchronousLow)\n      }\n      val path = directory.resolve(top + \".v\")\n      assert(Files.isRegularFile(path))\n      val rtl = new String(Files.readAllBytes(path), StandardCharsets.UTF_8)\n      assert(rtl.contains(\"parameter\") && rtl.contains(\"COUNT\") && rtl.contains(\"WIDTH\"), rtl)\n      assert(rtl.contains(\"generate\") && rtl.contains(\"always\"), rtl)\n      assert(rtl.contains(if (asynchronousLow) \"negedge clk\" else \"posedge clk\"), rtl)\n      if (asynchronousLow) assert(rtl.contains(\"negedge reset\"), rtl)\n    }\n  }\n\n  for (split <- Vector(false, true)) {\n    test(\"public whole-record RegNextWhen retains its shared enable scope: split=\" + split) {\n      val directory = Files.createTempDirectory(\"balanced-shared-local-enable-\")\n      val top = \"BalancedSharedLocalEnable\"\n      val config = SpinalConfig(targetDirectory = directory.toString, bitVectorWidthMax = 4096,\n        oneFilePerComponent = split, headerWithDate = false)\n      if (!split) config.netlistFileName = top + \".v\"\n      MorphVerilog(config) {\n        new BalancedSharedLocalEnablePublic(HdlInt.param(\"WIDTH\", 3, 3, 5),\n          HdlInt.param(\"COUNT\", 1, 1, 3), top)\n      }\n      val rtl = new String(Files.readAllBytes(directory.resolve(top + \".v\")), StandardCharsets.UTF_8)\n      assert(rtl.contains(\"COUNT\") && rtl.contains(\"WIDTH\") && rtl.contains(\"always\"), rtl)\n    }\n  }\n\n  private def sharedEnableCapture(externalWrite: Boolean): Unit = nativeComponent {\n    val width = HdlInt.param(\"WIDTH\", 3, 3, 5)\n    val values = Vec(BalancedLocalEnableRecord(width, width, width), HdlInt.param(\"COUNT\", 1, 1, 3))\n    values.vec.foreach(_.flatten.foreach {\n      case value: UInt => value := 0\n      case value: SInt => value := 0\n      case value: Bits => value := 0\n      case value: Bool => value := False\n    })\n    val foreign = Bool(); foreign := False\n    val certificate = TypedBalancedReductionCompositeReplay.capture(values,\n      (a: BalancedLocalEnableRecord, b: BalancedLocalEnableRecord) => {\n        val r = cloneOf(a)\n        r.unsigned := a.unsigned + b.unsigned\n        r.signed := a.signed + b.signed\n        r.bitsValue := a.bitsValue ^ b.bitsValue\n        r.valid := a.valid | b.valid\n        r\n      },\n      (value: BalancedLocalEnableRecord, _: Int) => {\n        val r = if (externalWrite) {\n          val registers = Reg(cloneOf(value))\n          when(value.valid) {\n            registers := value\n            foreign := value.valid\n          }\n          registers\n        } else RegNextWhen(value, value.valid)\n        r.unsigned.init(U(3)); r.signed.init(S(-2)); r.bitsValue.init(B(1)); r.valid.init(True)\n        r\n      }, native[BalancedLocalEnableRecord])\n    assert(certificate.hasLocalEnables)\n    for (count <- 1 to 3) certificate.replay(values.vec.take(count).toVector)\n    certificate.captured.rows.foreach { row =>\n      assert(row.bridge.statements.count(_.isInstanceOf[WhenStatement]) == 1)\n      val writes = row.bridge.assignments.collect { case data: DataAssignmentStatement if data.finalTarget.isReg => data }\n      assert(writes.size == 4 && writes.map(_.parentScope).distinct.size == 1)\n    }\n    certificate.requireFreshness()\n  }\n\n  test(\"whole-record RegNextWhen certifies all scalar paths under one native enable\") {\n    sharedEnableCapture(externalWrite = false)\n  }\n\n  test(\"a shared record enable cannot conceal a sibling write to external data\") {\n    val error = intercept[Exception] { sharedEnableCapture(externalWrite = true) }\n    assert(details(error).contains(\"CALLBACK-EXTERNAL-WRITE\"), details(error))\n  }\n\n  test(\"external and registered peer controls remain rejected\") {\n    val width = HdlInt.param(\"WIDTH\", 5, 3, 16)\n    val count = HdlInt.param(\"COUNT\", 1, 1, 3)\n    val external = intercept[Exception] {\n      SpinalConfig(targetDirectory = Files.createTempDirectory(\"balanced-local-enable-external-\").toString,\n        headerWithDate = false, headerWithRepoHash = false).generateVerilog(new Component {\n        val values = Vec(BalancedLocalEnableRecord(width, width, width), count)\n        values.vec.foreach(_.flatten.foreach {\n          case value: UInt => value := 0\n          case value: SInt => value := 0\n          case value: Bits => value := 0\n          case value: Bool => value := False\n        })\n        val foreign = Bool(); foreign := False\n        TypedBalancedReductionCompositeReplay.capture(values,\n          (a: BalancedLocalEnableRecord, b: BalancedLocalEnableRecord) => {\n            val r = cloneOf(a)\n            r.unsigned := a.unsigned + b.unsigned\n            r.signed := a.signed + b.signed\n            r.bitsValue := a.bitsValue ^ b.bitsValue\n            r.valid := a.valid | b.valid\n            r\n          },\n          (value: BalancedLocalEnableRecord, _: Int) => {\n            val r = cloneOf(value)\n            r.unsigned := RegNextWhen(value.unsigned, foreign) init U(3)\n            r.signed := RegNextWhen(value.signed, value.bitsValue(0)) init S(-2)\n            r.bitsValue := RegNextWhen(value.bitsValue, value.signed.msb) init B(1)\n            r.valid := RegNextWhen(value.valid, value.unsigned(0)) init False\n            r\n          }, native[BalancedLocalEnableRecord])\n      })\n    }\n    assert(details(external).contains(\"BRIDGE\") ||\n      details(external).contains(\"GRAPH-EXTERNAL-READ\"), details(external))\n\n    val registered = intercept[Exception] {\n      SpinalConfig(targetDirectory = Files.createTempDirectory(\"balanced-local-enable-peer-\").toString,\n        headerWithDate = false, headerWithRepoHash = false).generateVerilog(new Component {\n        val values = Vec(BalancedLocalEnableRecord(width, width, width), count)\n        values.vec.foreach(_.flatten.foreach {\n          case value: UInt => value := 0\n          case value: SInt => value := 0\n          case value: Bits => value := 0\n          case value: Bool => value := False\n        })\n        TypedBalancedReductionCompositeReplay.capture(values,\n          (a: BalancedLocalEnableRecord, b: BalancedLocalEnableRecord) => {\n            val r = cloneOf(a)\n            r.unsigned := a.unsigned + b.unsigned\n            r.signed := a.signed + b.signed\n            r.bitsValue := a.bitsValue ^ b.bitsValue\n            r.valid := a.valid | b.valid\n            r\n          },\n          (value: BalancedLocalEnableRecord, _: Int) => {\n            val r = cloneOf(value)\n            val peer = RegNext(value.valid) init False\n            r.unsigned := RegNextWhen(value.unsigned, peer) init U(3)\n            r.signed := RegNextWhen(value.signed, value.bitsValue(0)) init S(-2)\n            r.bitsValue := RegNextWhen(value.bitsValue, value.signed.msb) init B(1)\n            // The peer is a legitimate result path with matching depth; only\n            // its use by a different field's enable is outside the contract.\n            r.valid := peer\n            r\n          }, native[BalancedLocalEnableRecord])\n      })\n    }\n    assert(details(registered).contains(\"BRIDGE-CONTROL-REGISTER\"), details(registered))\n  }\n\n  test(\"composite controls may read the current driver within each two-register data chain\") {\n    val width = HdlInt.param(\"WIDTH\", 5, 3, 16)\n    val count = HdlInt.param(\"COUNT\", 1, 1, 3)\n    nativeComponent {\n      val values = Vec(BalancedLocalEnableRecord(width, width, width), count)\n      values.vec.foreach(_.flatten.foreach {\n        case value: UInt => value := 0\n        case value: SInt => value := 0\n        case value: Bits => value := 0\n        case value: Bool => value := False\n      })\n      val certificate = TypedBalancedReductionCompositeReplay.capture(values,\n        (a: BalancedLocalEnableRecord, b: BalancedLocalEnableRecord) => {\n          val r = cloneOf(a)\n          r.unsigned := a.unsigned + b.unsigned\n          r.signed := a.signed + b.signed\n          r.bitsValue := a.bitsValue ^ b.bitsValue\n          r.valid := a.valid | b.valid\n          r\n        },\n        (value: BalancedLocalEnableRecord, _: Int) => {\n          val r = cloneOf(value)\n          val u = RegNext(value.unsigned) init U(0)\n          val s = RegNext(value.signed) init S(0)\n          val b = RegNext(value.bitsValue) init B(0)\n          val f = RegNext(value.valid) init False\n          r.unsigned := RegNextWhen(u, u(0) ^ value.valid) init U(0)\n          r.signed := RegNextWhen(s, s.msb ^ value.unsigned(0)) init S(0)\n          r.bitsValue := RegNextWhen(b, b.msb ^ value.signed(0)) init B(0)\n          r.valid := RegNextWhen(f, f ^ value.bitsValue(0)) init False\n          r\n        }, native[BalancedLocalEnableRecord])\n      assert(certificate.stages.map(_.registerCountPerRow) == Vector(2, 2))\n      assert(certificate.captured.rows.forall(_.bridge.declarations.count(_.isReg) == 8))\n      assert(certificate.stages.forall(_.bridges.forall(_.hasLocalEnables)))\n      for (n <- 1 to 3) {\n        certificate.replay(values.vec.take(n).toVector)\n        assert(certificate.latencyFor(n) == 2 * (BigInt(n) - 1).bitLength)\n      }\n      certificate.requireFreshness()\n    }\n  }\n\n  test(\"local controls preserve independent field widths through every odd-tail replay\") {\n    val uw = HdlInt.param(\"UW\", 5, 3, 16)\n    val sw = HdlInt.param(\"SW\", 7, 3, 16)\n    val bw = HdlInt.param(\"BW\", 3, 1, 8)\n    val count = HdlInt.param(\"COUNT\", 1, 1, 5)\n    nativeComponent {\n      val values = Vec(BalancedLocalEnableRecord(uw, sw, bw), count)\n      values.vec.foreach(_.flatten.foreach {\n        case value: UInt => value := 0\n        case value: SInt => value := 0\n        case value: Bits => value := 0\n        case value: Bool => value := False\n      })\n      val certificate = TypedBalancedReductionCompositeReplay.capture(values,\n        (a: BalancedLocalEnableRecord, b: BalancedLocalEnableRecord) => {\n          val r = cloneOf(a)\n          r.unsigned := a.unsigned + b.unsigned\n          r.signed := a.signed + b.signed\n          r.bitsValue := a.bitsValue ^ b.bitsValue\n          r.valid := a.valid | b.valid\n          r\n        },\n        (value: BalancedLocalEnableRecord, _: Int) => {\n          val r = cloneOf(value)\n          r.unsigned := RegNextWhen(value.unsigned, value.valid) init U(3)\n          r.signed := RegNextWhen(value.signed, value.bitsValue(0)) init S(-2)\n          r.bitsValue := RegNextWhen(value.bitsValue, value.signed.msb) init B(1)\n          r.valid := RegNextWhen(value.valid, value.unsigned.msb) init False\n          r\n        }, native[BalancedLocalEnableRecord])\n      assert(certificate.captured.shape.elementLeaves.map(_.width.verilog) == Vector(\"UW\", \"SW\", \"BW\", \"1\"))\n      for (n <- 1 to 5) {\n        val result = certificate.replay(values.vec.take(n).toVector)\n        assert(result.flatten.map(_.getBitsWidth).toVector == Vector(5, 7, 3, 1))\n        assert(certificate.latencyFor(n) == (BigInt(n) - 1).bitLength)\n      }\n      certificate.requireFreshness()\n    }\n  }\n\n  private def nestedControls(mode: String): Unit = {\n    val width = HdlInt.param(\"WIDTH\", 3, 1, 5)\n    val inner = HdlInt.param(\"INNER\", 1, 1, 3)\n    val otherInner = HdlInt.param(\"OTHER_INNER\", 1, 1, 3)\n    nativeComponent {\n      val values = Vec(BalancedLocalEnableNestedRecord(width, inner, otherInner),\n        HdlInt.param(\"COUNT\", 1, 1, 3))\n      values.vec.foreach(_.flatten.foreach {\n        case word: UInt => word := 0\n        case flag: Bool => flag := False\n      })\n      val certificate = TypedBalancedReductionCompositeReplay.capture(values,\n        (a: BalancedLocalEnableNestedRecord, b: BalancedLocalEnableNestedRecord) => {\n          val r = cloneOf(a)\n          r.word := a.word ^ b.word\n          r.lanes.vec.indices.foreach(i => r.lanes.vec(i) := a.lanes.vec(i) ^ b.lanes.vec(i))\n          r.flags.vec.indices.foreach(i => r.flags.vec(i) := a.flags.vec(i) | b.flags.vec(i))\n          r.other.vec.indices.foreach(i => r.other.vec(i) := a.other.vec(i) | b.other.vec(i))\n          r\n        },\n        (value: BalancedLocalEnableNestedRecord, _: Int) => {\n          val r = cloneOf(value)\n          r.word := RegNextWhen(value.word, value.flags.vec(if (mode == \"root\") 2 else 0)) init U(0)\n          r.lanes.vec.indices.foreach { i =>\n            r.lanes.vec(i) := RegNextWhen(value.lanes.vec(i),\n              value.flags.vec(if (mode == \"earlier\" && i == 0) 2 else i)) init U(0)\n          }\n          r.flags.vec.indices.foreach { i =>\n            r.flags.vec(i) := RegNextWhen(value.flags.vec(i),\n              if (mode == \"independent\") value.other.vec(i) else value.lanes.vec(i)(0)) init False\n          }\n          r.other.vec.indices.foreach { i =>\n            r.other.vec(i) := RegNextWhen(value.other.vec(i), value.word(0)) init False\n          }\n          r\n        }, native[BalancedLocalEnableNestedRecord])\n      assert(certificate.hasLocalEnables)\n      for (count <- 1 to 3) {\n        val result = certificate.replay(values.vec.take(count).toVector)\n        assert(ParameterizedVec.shapeOf(result.lanes).get.depth.verilog == \"INNER\")\n        assert(ParameterizedVec.shapeOf(result.other).get.depth.verilog == \"OTHER_INNER\")\n      }\n      certificate.requireFreshness()\n    }\n  }\n\n  test(\"nested local controls retain matching logical lanes and independent inner dimensions\") {\n    nestedControls(\"legal\")\n  }\n\n  for (mode <- Vector(\"root\", \"earlier\", \"independent\")) {\n    test(\"nested local controls reject an absent peer dependency: \" + mode) {\n      val error = intercept[Exception] { nestedControls(mode) }\n      assert(details(error).contains(\"INACTIVE-DEPENDENCY\"), details(error))\n    }\n  }\n\n  test(\"widening sum and product fields retain local enables through narrow odd tails\") {\n    val uw = HdlInt.param(\"UW\", 3, 1, 5).asElabInt\n    val sw = HdlInt.param(\"SW\", 2, 1, 5).asElabInt\n    nativeComponent {\n      val values = Vec(BalancedCompositeWideningValue(uw, uw, sw, sw),\n        HdlInt.param(\"COUNT\", 1, 1, 5))\n      values.vec.foreach(_.flatten.foreach {\n        case value: UInt => value := 0\n        case value: SInt => value := 0\n      })\n      val certificate = TypedBalancedReductionCompositeReplay.capture(values,\n        (a: BalancedCompositeWideningValue, b: BalancedCompositeWideningValue) => {\n          val us = a.unsignedSum +^ b.unsignedSum\n          val up = a.unsignedProduct * b.unsignedProduct\n          val ss = a.signedSum +^ b.signedSum\n          val sp = a.signedProduct * b.signedProduct\n          val r = BalancedCompositeWideningValue(ElabInt.widthOf(us), ElabInt.widthOf(up),\n            ElabInt.widthOf(ss), ElabInt.widthOf(sp))\n          r.unsignedSum := us\n          r.unsignedProduct := up\n          r.signedSum := ss\n          r.signedProduct := sp\n          r\n        },\n        (value: BalancedCompositeWideningValue, _: Int) => {\n          val r = cloneOf(value)\n          r.unsignedSum := RegNextWhen(value.unsignedSum, value.signedProduct.msb) init U(0)\n          r.unsignedProduct := RegNextWhen(value.unsignedProduct, value.signedSum(0)) init U(0)\n          r.signedSum := RegNextWhen(value.signedSum, value.unsignedProduct.msb) init S(0)\n          r.signedProduct := RegNextWhen(value.signedProduct, value.unsignedSum(0)) init S(0)\n          r\n        }, native[BalancedCompositeWideningValue])\n      assert(certificate.hasWidening && certificate.hasLocalEnables)\n      for (count <- 1 to 5) {\n        val result = certificate.replay(values.vec.take(count).toVector)\n        val depth = (BigInt(count) - 1).bitLength\n        assert(result.flatten.map(_.getBitsWidth).toVector ==\n          Vector(3 + depth, 3 * count, 2 + depth, 2 * count))\n        assert(certificate.latencyFor(count) == depth)\n      }\n      assert(certificate.widthSchedule.stages.exists(_.tailPossible))\n      certificate.requireFreshness()\n    }\n  }\n\n  /** Construct actual native callbacks without replacing the production proof\n    * or using a Python emulation of it. These assertions run before normalizing\n    * native graphs, so they can compare the precise operand identities. */\n  private def nativeComponent(body: => Unit): Unit = {\n    SpinalConfig(targetDirectory = Files.createTempDirectory(\"local-enable-native-\").toString,\n      headerWithDate = false, headerWithRepoHash = false).generateVerilog(new Component {\n      val anchor = out Bool()\n      anchor := False\n      body\n    })\n  }\n\n  private def record(inputs: Vector[BaseType])(body: => Data): UnvalidatedBalancedCallback = {\n    var result: Data = null\n    val block = ParameterizedStructure.captureBlock(Component.current, None) { result = body }\n    val statements = ArrayBuffer.empty[Statement]\n    block.statements.foreach { statement =>\n      statements += statement\n      statement match {\n        case tree: TreeStatement => tree.walkStatements(statements += _)\n        case _ =>\n      }\n    }\n    UnvalidatedBalancedCallback(0, inputs, result, block.declarations,\n      statements.collect { case a: AssignmentStatement => a }.toVector, statements.toVector)\n  }\n\n  private def inputs(): Vector[BaseType] = {\n    val word = UInt(5 bits); word := 0\n    val peer = Bits(3 bits); peer := 0\n    val flag = Bool(); flag := False\n    Vector(word, peer, flag)\n  }\n\n  private def dataWrite(value: BaseType): DataAssignmentStatement = {\n    val writes = ArrayBuffer.empty[DataAssignmentStatement]\n    value.foreachStatements {\n      case data: DataAssignmentStatement => writes += data\n      case _ =>\n    }\n    assert(writes.size == 1)\n    writes.head\n  }\n\n  private def enableCondition(value: BaseType): Expression =\n    dataWrite(value).parentScope.parentStatement.asInstanceOf[WhenStatement].cond\n\n  private def bitSources(condition: Expression): Vector[Expression] = {\n    val found = ArrayBuffer.empty[Expression]\n    val seen = new IdentityHashMap[Expression, java.lang.Boolean]()\n    def visit(value: Expression): Unit = {\n      if (seen.put(value, java.lang.Boolean.TRUE) != null) return\n      value match {\n        case access: BitVectorBitAccessFixed => found += access.source\n        case leaf: BaseType => leaf.foreachStatements(a => visit(a.source))\n        case other => other.foreachExpression(visit)\n      }\n    }\n    visit(condition)\n    found.toVector\n  }\n\n  private def rejected(code: String)(body: => Any): Unit = {\n    val error = intercept[IllegalArgumentException](body)\n    assert(error.getMessage.contains(code), error.getMessage)\n  }\n\n  test(\"shared-scope projections preserve initializers and reject stale sibling writes\") {\n    nativeComponent {\n      val source = inputs()\n      val evidence = source.map(TypedBalancedReductionValueEvidence.input)\n      val callback = record(source) {\n        val result = new Bundle {\n          val word = Reg(UInt(5 bits)) init U(0)\n          val peer = Reg(Bits(3 bits)) init B(0)\n        }\n        when(source(2).asInstanceOf[Bool]) {\n          result.word := source(0).asInstanceOf[UInt]\n          result.peer := source(1).asInstanceOf[Bits]\n        }\n        result\n      }\n      val whole = TypedBalancedReductionClosedGraph.observe(callback)\n      val leaf = callback.result.flatten.collectFirst { case value: UInt if value.isReg => value }.get\n      val declarations = callback.declarations.filter(_.getTypeObject == TypeUInt)\n      val assignments = callback.assignments.filter(a => declarations.exists(_ eq a.finalTarget))\n      val projected = UnvalidatedBalancedCallback(callback.ordinal, source, leaf, declarations, assignments)\n      // The scalar API still requires a complete standalone native scope.\n      rejected(\"GRAPH-ASSIGNMENT-SHAPE\") {\n        TypedBalancedReductionBridgeReplay.certify(projected, evidence(0), evidence)\n      }\n      val proof = TypedBalancedReductionBridgeReplay.certifyProjection(projected, evidence(0), evidence, whole)\n      proof.validateFreshness()\n      rejected(\"GRAPH-PROJECTION\") {\n        whole.requireProjection(projected.copy(assignments = assignments.filterNot(_.isInstanceOf[InitAssignmentStatement])))\n      }\n      rejected(\"GRAPH-PROJECTION\") { whole.requireProjection(projected.copy(operands = source.reverse)) }\n      val sibling = callback.assignments.collectFirst {\n        case data: DataAssignmentStatement if data.finalTarget.isReg && (data.finalTarget ne leaf) => data\n      }.get\n      val saved = sibling.source\n      sibling.source = BitsLiteral(0, 3)\n      rejected(\"GRAPH-CHANGED\") { proof.validateFreshness() }\n      sibling.source = saved\n      proof.validateFreshness()\n    }\n  }\n\n  for (original <- Vector(false, true)) {\n    test(\"two-register bit enable retains \" + (if (original) \"original input\" else \"current data\") + \" identity\") {\n      nativeComponent {\n        val source = inputs()\n        val evidence = source.map(TypedBalancedReductionValueEvidence.input)\n        val word = source(0).asInstanceOf[UInt]\n        val callback = record(source) {\n          val first = RegNextWhen(word, source(2).asInstanceOf[Bool]) init U(0)\n          RegNextWhen(first, (if (original) word else first)(0)) init U(0)\n        }\n        val proof = TypedBalancedReductionBridgeReplay.certify(callback, evidence(0), evidence)\n        val replacement = inputs()\n        val replayed = proof.replayWithWidth(replacement(0), evidence(0).width,\n          replacement, evidence.map(_.width))\n        assert(proof.registerCount == 2)\n        val previous = dataWrite(replayed).source.asInstanceOf[BaseType]\n        val sources = bitSources(enableCondition(replayed))\n        assert(sources.size == 1)\n        assert(sources.head eq (if (original) replacement(0) else previous))\n        assert(previous ne replacement(0))\n        proof.validateFreshness()\n      }\n    }\n\n    test(\"two-register Bool enable retains \" + (if (original) \"original input\" else \"current data\") + \" identity\") {\n      nativeComponent {\n        val source = inputs()\n        val evidence = source.map(TypedBalancedReductionValueEvidence.input)\n        val flag = source(2).asInstanceOf[Bool]\n        val callback = record(source) {\n          val first = RegNext(flag) init False\n          RegNextWhen(first, if (original) flag else first) init False\n        }\n        val proof = TypedBalancedReductionBridgeReplay.certify(callback, evidence(2), evidence)\n        val replacement = inputs()\n        val replayed = proof.replayWithWidth(replacement(2), evidence(2).width,\n          replacement, evidence.map(_.width))\n        val previous = dataWrite(replayed).source.asInstanceOf[BaseType]\n        assert(enableCondition(replayed) eq (if (original) replacement(2) else previous))\n        assert(previous ne replacement(2))\n      }\n    }\n  }\n\n  test(\"behavior equality cannot conflate current and original input enables\") {\n    nativeComponent {\n      val source = inputs()\n      val evidence = source.map(TypedBalancedReductionValueEvidence.input)\n      val word = source(0).asInstanceOf[UInt]\n      def capture(original: Boolean) = {\n        val callback = record(source) {\n          val first = RegNext(word) init U(0)\n          RegNextWhen(first, (if (original) word else first)(0)) init U(0)\n        }\n        TypedBalancedReductionBridgeReplay.certify(callback, evidence(0), evidence)\n      }\n      val original = capture(true)\n      val current = capture(false)\n      assert(!original.sameBehavior(current))\n      assert(!current.sameBehavior(original))\n      assert(original.sameBehavior(capture(true)))\n      assert(current.sameBehavior(capture(false)))\n    }\n  }\n\n  test(\"mixed enables retain current driver, original self and original peer simultaneously\") {\n    nativeComponent {\n      val source = inputs()\n      val evidence = source.map(TypedBalancedReductionValueEvidence.input)\n      val word = source(0).asInstanceOf[UInt]\n      val peer = source(1).asInstanceOf[Bits]\n      val callback = record(source) {\n        val first = RegNext(word) init U(0)\n        RegNextWhen(first, word(0) ^ first.msb ^ peer(1)) init U(0)\n      }\n      val proof = TypedBalancedReductionBridgeReplay.certify(callback, evidence(0), evidence)\n      val replacement = inputs()\n      val replayed = proof.replayWithWidth(replacement(0), evidence(0).width,\n        replacement, evidence.map(_.width))\n      val previous = dataWrite(replayed).source.asInstanceOf[BaseType]\n      val sources = bitSources(enableCondition(replayed))\n      assert(sources.size == 3)\n      for (value <- Vector(replacement(0), replacement(1), previous))\n        assert(sources.count(_ eq value) == 1)\n    }\n  }\n\n  test(\"the original scalar entry point does not silently admit original-input cross-stage captures\") {\n    nativeComponent {\n      val source = UInt(5 bits); source := 0\n      val evidence = TypedBalancedReductionValueEvidence.input(source)\n      val callback = record(Vector(source)) {\n        val first = RegNext(source) init U(0)\n        RegNextWhen(first, source(0)) init U(0)\n      }\n      rejected(\"BRIDGE-ENABLE\") { TypedBalancedReductionBridgeReplay.certify(callback, evidence) }\n    }\n  }\n\n  test(\"original composite controls are never captured external signals\") {\n    nativeComponent {\n      val source = inputs()\n      val evidence = source.map(TypedBalancedReductionValueEvidence.input)\n      val foreign = Bool(); foreign := False\n      val callback = record(source) {\n        RegNextWhen(source(0).asInstanceOf[UInt], foreign) init U(0)\n      }\n      rejected(\"GRAPH-EXTERNAL-READ\") {\n        TypedBalancedReductionBridgeReplay.certify(callback, evidence(0), evidence)\n      }\n    }\n  }\n\n  test(\"duplicate or reordered captured control identities are rejected\") {\n    nativeComponent {\n      val source = inputs()\n      val evidence = source.map(TypedBalancedReductionValueEvidence.input)\n      val callback = record(source) {\n        RegNextWhen(source(0).asInstanceOf[UInt], source(2).asInstanceOf[Bool]) init U(0)\n      }\n      rejected(\"CONTROL-IDENTITY\") {\n        TypedBalancedReductionBridgeReplay.certify(callback, evidence(0), Vector(evidence(0), evidence(1), evidence(1)))\n      }\n      rejected(\"CONTROL-BINDING\") {\n        TypedBalancedReductionBridgeReplay.certify(callback, evidence(0), evidence.reverse)\n      }\n    }\n  }\n\n  test(\"a composite proof cannot be replayed through the single-scalar API\") {\n    nativeComponent {\n      val source = inputs()\n      val evidence = source.map(TypedBalancedReductionValueEvidence.input)\n      val callback = record(source) {\n        RegNextWhen(source(0).asInstanceOf[UInt], source(2).asInstanceOf[Bool]) init U(0)\n      }\n      val proof = TypedBalancedReductionBridgeReplay.certify(callback, evidence(0), evidence)\n      rejected(\"CONTROL-ARITY\") { proof.replay(source(0)) }\n      rejected(\"CONTROL-ARITY\") { proof.replayWithWidth(source(0), evidence(0).width) }\n      val replacement = inputs()\n      rejected(\"CONTROL-BINDING\") {\n        proof.replayWithWidth(replacement(0), evidence(0).width, replacement.dropRight(1), evidence.map(_.width))\n      }\n    }\n  }\n\n  test(\"peer fixed-bit bounds use the peer width rather than the data width\") {\n    nativeComponent {\n      val source = inputs()\n      val evidence = source.map(TypedBalancedReductionValueEvidence.input)\n      val callback = record(source) {\n        RegNextWhen(source(0).asInstanceOf[UInt], source(1).asInstanceOf[Bits](1)) init U(0)\n      }\n      val proof = TypedBalancedReductionBridgeReplay.certify(callback, evidence(0), evidence)\n      val narrow = Bits(1 bits); narrow := 0\n      val replacement = inputs().updated(1, narrow)\n      rejected(\"ENABLE-WIDTH\") {\n        proof.replayWithWidth(replacement(0), evidence(0).width, replacement,\n          evidence.map(_.width).updated(1, ElabInt.literal(1).expression))\n      }\n    }\n  }\n\n  test(\"peer control freshness is checked after proof reuse\") {\n    nativeComponent {\n      val source = inputs()\n      val evidence = source.map(TypedBalancedReductionValueEvidence.input)\n      val callback = record(source) {\n        RegNextWhen(source(0).asInstanceOf[UInt], source(1).asInstanceOf[Bits](0)) init U(0)\n      }\n      val proof = TypedBalancedReductionBridgeReplay.certify(callback, evidence(0), evidence)\n      proof.validateFreshness()\n      val peer = source(1).asInstanceOf[Bits]\n      peer.setWidth(4)\n      rejected(\"VALUE-EVIDENCE\") { proof.validateFreshness() }\n      peer.setWidth(3)\n      proof.validateFreshness()\n    }\n  }\n\n  test(\"mutated enable predicates and reset clocks cannot reuse a composite-control proof\") {\n    nativeComponent {\n      val source = inputs()\n      val evidence = source.map(TypedBalancedReductionValueEvidence.input)\n      val callback = record(source) {\n        RegNextWhen(source(0).asInstanceOf[UInt], source(2).asInstanceOf[Bool]) init U(0)\n      }\n      val proof = TypedBalancedReductionBridgeReplay.certify(callback, evidence(0), evidence)\n      val when = callback.statements.collectFirst { case value: WhenStatement => value }.get\n      val saved = when.cond\n      when.cond = new BoolLiteral(false)\n      rejected(\"GRAPH-CHANGED\") { proof.validateFreshness() }\n      when.cond = saved\n      proof.validateFreshness()\n      val register = callback.result.asInstanceOf[BaseType]\n      val clock = register.clockDomain\n      register.clockDomain = clock.copy(config = clock.config.copy(resetActiveLevel = LOW))\n      rejected(\"GRAPH-CHANGED\") { proof.validateFreshness() }\n      register.clockDomain = clock\n      proof.validateFreshness()\n    }\n  }\n}\n",
+          "after_end": 36018,
+          "after_start": 0,
+          "before": "",
+          "before_end": 0,
+          "before_start": 0,
+          "id": "59i-local-enable-5-1",
+          "reason": "Exercise original/current/peer control identities, independent widths, odd tails, register chains, inactive nested-Vec controls, shared whole-record enables, exact projection rejection, stale evidence, preserved scalar restrictions and both public publication modes without disabling the emitter configuration guard."
+        }
+      ],
+      "path": "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala",
+      "reason": "Exercise original/current/peer control identities, independent widths, odd tails, register chains, inactive nested-Vec controls, shared whole-record enables, exact projection rejection, stale evidence, preserved scalar restrictions and both public publication modes without disabling the emitter configuration guard.",
+      "source_sha256": "80b4049c454e30da9dce4f7c719d9dc7f21c8fd59a91d36aa83fd6a72948f449"
+    }
+  ],
+  "inherited_feature": "31e7488be8073022ae840dc7391c19a6f3727847",
+  "offset_format": "utf8-bytes",
+  "preserved_development": "d76fbd5f84869ac56186b36f35dfc3c480a80cbb",
+  "qualification": "source-review-only; hardware and final-head qualification remain independent mandatory gates",
+  "schema_version": 1
+}

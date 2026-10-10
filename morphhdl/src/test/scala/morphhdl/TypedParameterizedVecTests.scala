@@ -818,7 +818,9 @@ class TypedParameterizedVecTests extends AnyFunSuite {
       assertInternalRangeAlgebra(verilog, "packed_read", expected)
 
       val packedReadDriver = continuousAssignmentRhs(verilog, "packed_read")
-      assert(packedReadDriver == "vec_in", verilog)
+      assert(packedReadDriver == "typed_vec_packed_carrier", verilog)
+      assertInternalRangeAlgebra(verilog, packedReadDriver, expected)
+      assert(continuousAssignmentRhs(verilog, packedReadDriver) == "vec_in", verilog)
       val resultDriver = continuousAssignmentRhs(verilog, "result")
       assert(resultDriver.contains("packed_read[0]"), verilog)
       assert(resultDriver.contains("mask"), verilog)
@@ -836,12 +838,11 @@ class TypedParameterizedVecTests extends AnyFunSuite {
         new DepthBitsBridge(depth)
       )
 
-      Vector(("input", "bits_in"), ("input", "unrelated_in"), ("output", "bits_out"))
-        .foreach { case (direction, signal) =>
-          assertPackedRangeAlgebra(verilog, direction, signal, "DEPTH - 1:0")
-        }
-      assertInternalRangeAlgebra(verilog, "values", "DEPTH - 1:0")
-      assertInternalRangeAlgebra(verilog, "packed_values", "DEPTH - 1:0")
+      assertPackedRangeAlgebra(verilog, "input", "bits_in", "(1 * DEPTH) - 1:0")
+      assertPackedRangeAlgebra(verilog, "input", "unrelated_in", "DEPTH - 1:0")
+      assertPackedRangeAlgebra(verilog, "output", "bits_out", "DEPTH - 1:0")
+      assertInternalRangeAlgebra(verilog, "values", "(1 * DEPTH) - 1:0")
+      assertInternalRangeAlgebra(verilog, "packed_values", "(1 * DEPTH) - 1:0")
       assert(continuousAssignmentRhs(verilog, "bits_out").contains("packed_values"), verilog)
 
       val unrelatedDriver = continuousAssignmentRhs(verilog, "unrelated_carrier")
@@ -864,9 +865,17 @@ class TypedParameterizedVecTests extends AnyFunSuite {
         new PixelBitsBridge(depth)
       )
       val expected = "24 * DEPTH - 1:0"
-
-      assertPackedRangeAlgebra(verilog, "input", "bits_in", expected)
-      assertPackedRangeAlgebra(verilog, "output", "bits_out", expected)
+      val local = "localparam\\s+integer\\s+PACKED_WIDTH\\s*=\\s*([^;]+);".r
+        .findAllMatchIn(verilog).toVector
+      assert(local.size == 1, verilog)
+      assertRangeAlgebra(s"(${local.head.group(1)}) - 1:0", expected)
+      // The scalar declaration uses its local while the retained packed Vec
+      // edge may publish its original typed range. Check both against the
+      // independently expected algebra using the one asserted definition.
+      val expanded = verilog.replaceAll("\\bPACKED_WIDTH\\b",
+        java.util.regex.Matcher.quoteReplacement("(" + local.head.group(1) + ")"))
+      assertPackedRangeAlgebra(expanded, "input", "bits_in", expected)
+      assertPackedRangeAlgebra(expanded, "output", "bits_out", expected)
       assertInternalRangeAlgebra(verilog, "pixels", expected)
       assertInternalRangeAlgebra(verilog, "packed_pixels", expected)
       assert(continuousAssignmentRhs(verilog, "bits_out").contains("packed_pixels"), verilog)
@@ -923,11 +932,9 @@ class TypedParameterizedVecTests extends AnyFunSuite {
       assertPackedRangeAlgebra(verilog, "input", "child_vec_in", "WIDTH * DEPTH - 1:0")
       assertPackedRangeAlgebra(verilog, "output", "child_vec_out", "WIDTH * DEPTH - 1:0")
       val normalized = compact(verilog)
-      assert(
-        normalized.contains(".DEPTH((DEPTH+1))") ||
-          normalized.contains(".DEPTH(DEPTH+1)"),
-        verilog
-      )
+      assert(normalized.contains("localparamintegerACTUAL_DEPTH=(DEPTH+1);"), verilog)
+      assert(normalized.contains(".DEPTH(ACTUAL_DEPTH)"), verilog)
+      assert(normalized.contains(".WIDTH(WIDTH)"), verilog)
       assertNoExplodedVecPorts(
         verilog,
         Vector("parent_vec_in", "parent_vec_out", "child_vec_in", "child_vec_out")

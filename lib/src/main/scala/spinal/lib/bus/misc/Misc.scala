@@ -630,3 +630,25 @@ case class InterleaverTransformer(blockSize : Int, ratio : Int, sel : Int) exten
 //  def mincover(rhs : T) : T
 //}
 // ElabIntSingleMapping intentionally remains a generic AddressMapping.
+
+/** One named, compile-time address. Equivalent exact address functions retain
+  * the factory's existing shared-address grouping and double-read checks.
+  */
+final class TypedLocalSingleMapping(val local: TypedLocalUInt,
+    private[misc] val underlying: ElabIntSingleMapping) extends AddressMapping {
+  override def hit(address: UInt): Bool = address === local.asUInt
+  override def hit(address: BigInt): Boolean = underlying.hit(address)
+  override def removeOffset(address: UInt): UInt = U(0)
+  override def lowerBound: BigInt = underlying.lowerBound
+  override def highestBound: BigInt = underlying.highestBound
+  override def randomPick(): BigInt = underlying.randomPick()
+  override def foreach(body: BigInt => Unit): Unit = underlying.foreach(body)
+  override def withOffset(offset: BigInt): AddressMapping =
+    if (offset == 0) this else underlying.withOffset(offset)
+  override def equals(that: Any): Boolean = that match {
+    case other: TypedLocalSingleMapping => underlying == other.underlying
+    case _ => false
+  }
+  override def hashCode(): Int = underlying.hashCode()
+  override def toString: String = s"Named address ${local.name}"
+}

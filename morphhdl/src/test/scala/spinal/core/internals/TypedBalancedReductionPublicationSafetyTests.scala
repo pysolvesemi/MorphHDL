@@ -60,7 +60,7 @@ private[internals] final class BalancedPublicationSingletonFixture extends Compo
 private[internals] final class BalancedPublicationCollisionFixture extends Component {
   setDefinitionName("BalancedPublicationCollision")
   val words = in(Vec(UInt(5 bits), HdlInt.param("COUNT", 1, 1, 5)))
-  val collision = in(UInt(5 bits)).setName("morphhdl_balanced_1_stage_0")
+  val collision = in(UInt(5 bits)).setName("balanced_1_stage_0")
   collision.dontSimplifyIt()
   val collisionOut = out(UInt(5 bits)).setName("collisionOut")
   val output = out(UInt(5 bits))
@@ -75,9 +75,9 @@ private[internals] final class BalancedPublicationNestedLabelCollisionFixture(wi
     count)).setName("words")
   val result = out(BalancedCompositeCountedRecord(width, width, width, width, inner, one, one)).setName("result")
   // Leaf six is samples(1).unsigned, which is absent when INNER is one.
-  val present = in(Bool()).setName("morphhdl_balanced_1_result_leaf_6_present")
-  val absent = in(Bool()).setName("morphhdl_balanced_1_result_leaf_6_absent")
-  val published = in(Bool()).setName("morphhdl_balanced_1_result_leaf_6_published")
+  val present = in(Bool()).setName("balanced_1_result_leaf_6_present")
+  val absent = in(Bool()).setName("balanced_1_result_leaf_6_absent")
+  val published = in(Bool()).setName("balanced_1_result_leaf_6_published")
   val presentOut = out(Bool()).setName("presentOut")
   val absentOut = out(Bool()).setName("absentOut")
   val publishedOut = out(Bool()).setName("publishedOut")
@@ -141,9 +141,9 @@ class TypedBalancedReductionPublicationSafetyTests extends AnyFunSuite {
     val directory = Files.createTempDirectory("balanced-name-collision-")
     MorphVerilog(SpinalConfig(targetDirectory = directory.toString))(new BalancedPublicationCollisionFixture)
     val text = new String(Files.readAllBytes(directory.resolve("BalancedPublicationCollision.v")), StandardCharsets.UTF_8)
-    assert(text.contains("morphhdl_balanced_1_stage_0"), text)
-    assert(text.contains("morphhdl_balanced_1_1_stage_0"), text)
-    assert(text.contains("assign collisionOut = morphhdl_balanced_1_stage_0;"), text)
+    assert(text.contains("balanced_1_stage_0"), text)
+    assert(text.contains("balanced_1_1_stage_0"), text)
+    assert(text.contains("assign collisionOut = balanced_1_stage_0;"), text)
     assert(text.linesIterator.count(_.trim.startsWith("module BalancedPublicationCollision")) == 1, text)
   }
 
@@ -152,7 +152,7 @@ class TypedBalancedReductionPublicationSafetyTests extends AnyFunSuite {
     MorphVerilog(SpinalConfig(targetDirectory = directory.toString))(new BalancedPublicationNestedLabelCollisionFixture(
       HdlInt.literal(5), HdlInt.param("INNER", 1, 1, 2), HdlInt.literal(1), HdlInt.param("COUNT", 1, 1, 2)))
     val text = new String(Files.readAllBytes(directory.resolve("BalancedPublicationNestedLabelCollision.v")), StandardCharsets.UTF_8)
-    val base = "morphhdl_balanced_1_result_leaf_6"
+    val base = "balanced_1_result_leaf_6"
     val collisions = Vector("present", "absent", "published").map(suffix => base + "_" + suffix)
     val labels = """\bbegin\s*:\s*([A-Za-z_][A-Za-z0-9_$]*)""".r.findAllMatchIn(text).map(_.group(1)).toVector
     for (suffix <- Vector("present", "absent", "published")) {

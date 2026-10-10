@@ -152,14 +152,14 @@ def candidate_contract(rtl: str, profile: dict) -> None:
             raise RuntimeError('missing declared parameter default: ' + parameter)
     for ordinal in range(1, len(OUTPUTS) + 1):
         for level in range(5):
-            if f'morphhdl_balanced_{ordinal}_active_{level}' not in rtl:
+            if f'balanced_{ordinal}_active_{level}' not in rtl:
                 raise RuntimeError('default specialization discarded a potentially active callback stage')
     if 'genvar' not in rtl or 'begin : tail' not in rtl or '+:' not in rtl:
         raise RuntimeError('native pairing loops, odd tail or packed input slices missing')
 
 
 def mutate_pair_order(rtl: str) -> str:
-    pattern = lambda side: re.compile(r'(?m)^(\s*assign\s+\w*morphhdl_balanced_2_l0_pair_' + side + r'\w*\s*=\s*)([^;]+);')
+    pattern = lambda side: re.compile(r'(?m)^(\s*assign\s+\w*balanced_2_l0_pair_' + side + r'\w*\s*=\s*)([^;]+);')
     left, right = pattern('left').search(rtl), pattern('right').search(rtl)
     if left is None or right is None:
         raise RuntimeError('subtraction pair anchors missing for order mutation')
@@ -331,7 +331,7 @@ def self_test() -> None:
     assert result['biased'] == (15 + 4 * 7) & 31
     assert result['saturated'] == 15
     assert expected((31, 31), 5, 0, 0)['saturated'] == 31
-    sample = 'assign morphhdl_balanced_2_l0_pair_left = left;\nassign morphhdl_balanced_2_l0_pair_right = right;\n'
+    sample = 'assign balanced_2_l0_pair_left = left;\nassign balanced_2_l0_pair_right = right;\n'
     assert '= right;' in mutate_pair_order(sample).splitlines()[0]
     assert '= otherBias;' in mutate_capture_binding('assign capture = bias;\n')
     assert mutate_dropped_operation('assign result = ((left + right) ^ left);\n') == 'assign result = ((left + right));\n'

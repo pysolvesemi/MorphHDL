@@ -1,7 +1,7 @@
 package spinal.core.internals
 
 import java.nio.file.Files
-import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
+import morphhdl.{MorphVerilog}
 import morphhdl.frontend.HdlInt
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
@@ -33,7 +33,10 @@ private[internals] final class HierarchyResizeWidthParent(actual: ElabInt, renam
     if (renamed) new QuartzWidthUnit(count) else new CedarWidthUnit(count)
   }
   child.enable := enable
-  observed := (if (late) child.lateOutput() else child.payload).resized
+  // Exercise surviving native carriers independently of retired optimizer retention.
+  val resizeSource = (if (late) child.lateOutput() else child.payload).resized
+  resizeSource.setName("resizeSource")
+  observed := resizeSource
   spare := 0
 }
 
@@ -57,7 +60,7 @@ class HierarchyResizeSourceWidthTests extends AnyFunSuite {
         })
       }
     }
-    val report = MorphVerilog(MorphWireAssignmentPasses(config, enabled = enabled)) {
+    val report = MorphVerilog(config) {
       new HierarchyResizeWidthParent(actual, renamed, late)
     }
     assert(report.parameters.map(_.name) == Vector("SIZE"))

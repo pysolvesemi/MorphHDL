@@ -11,9 +11,13 @@ on:
 
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: increment-60e-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   qualify:
     name: Signedness boundaries Scala ${{ matrix.scala }}
@@ -25,6 +29,7 @@ jobs:
         scala: ['2.12.18', '2.13.12']
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
+      options: --shm-size=2g
     env:
       MORPHDL_RUN_TYPED_VEC_FORMAL_EQUIVALENCE: '1'
       MORPHDL_TYPED_VEC_FORMAL_WORKSPACE: /tmp/increment-60e-native-vec-formal
@@ -34,24 +39,26 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           submodules: recursive
+      - name: Consume authenticated candidate provenance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 morphhdl/scripts/candidate_provenance_ci.py
       - name: Compose sealed boundary source with Increment 61
         shell: bash
         run: |
           set -euo pipefail
+          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test
           output="$GITHUB_WORKSPACE/target/increment-60e"
           predecessor="$output/predecessor-source"
           mkdir -p "$output"
           git rev-parse HEAD > "$output/head.txt"
           git archive HEAD | gzip > "$output/source.tar.gz"
-          python3 morphhdl/scripts/check-increment-61-source-review.py
-          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
-          base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)
-          git worktree add --detach "$predecessor" "$base"
-          trap 'git worktree remove --force "$predecessor"' EXIT
-          (
-            cd "$predecessor"
-            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
-          )
+          # These scopes consume the once-per-candidate provenance result.
+          # Current behavioral qualification below retains its original budget.
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test
+          # The Increment 61 predecessor and its evidence are authenticated by the producer.
           python3 morphhdl/scripts/check-increment-58-retirement.py
           python3 morphhdl/scripts/check-production-retirement.py
           python3 morphhdl/scripts/check-native-source-preservation.py
@@ -111,5 +118,13 @@ jobs:
             target/increment-60e
             morphhdl/target/test-reports
             /tmp/increment-60e-native-vec-formal
+          if-no-files-found: error
+          retention-days: 30
+      - name: Retain current and historical source audit receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integrated-source-increment-60e-signedness-boundaries-qualify-${{ matrix.scala || 'source' }}-${{ github.run_attempt }}
+          path: target/parameterized-inherited-audits
           if-no-files-found: error
           retention-days: 30

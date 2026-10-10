@@ -45,7 +45,7 @@ class TypedBalancedReductionBridgePublicationTests extends AnyFunSuite {
     assert(rtl.contains("parameter") && rtl.contains("WIDTH") && rtl.contains("COUNT"), rtl)
     TypedBalancedReductionBridgeArtifactWriter.outputs.foreach(output => assert(rtl.contains(output), rtl))
     for (tree <- 1 to 11; level <- 0 until 5)
-      assert(rtl.contains(s"morphhdl_balanced_${tree}_active_$level"), rtl)
+      assert(rtl.contains(s"balanced_${tree}_active_$level"), rtl)
     assert(rtl.contains("generate") && rtl.contains("begin : tail"), rtl)
   }
 
@@ -60,7 +60,7 @@ class TypedBalancedReductionBridgePublicationTests extends AnyFunSuite {
     val rtl = read(directory.resolve("BalancedBridgeScalarKinds.v"))
     assert(rtl.contains("signedResult") && rtl.contains("bitsResult") && rtl.contains("boolResult"), rtl)
     assert(rtl.contains("always @(posedge clk)"), rtl)
-    assert(rtl.contains("morphhdl_balanced_3_active_4"), rtl)
+    assert(rtl.contains("balanced_3_active_4"), rtl)
   }
 
   test("ordinary bridge publication preserves asynchronous low reset and falling clock with low active enable") {

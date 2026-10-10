@@ -49,6 +49,13 @@ class ComponentEmitterVerilog(
 
   import verilogBase._
 
+  private val emittedRegionNotes = mutable.HashSet.empty[RtlDocumentation.RegionNote]
+  private def emitRegionNotes(host: RtlDocumentationAnchor, b: StringBuilder, indent: String): Unit = {
+    val notes = host.rtlDocumentation.filter(n => n.valid && (n.component eq component) && n.generatedOwners.isEmpty && emittedRegionNotes.add(n))
+    b ++= RtlDocumentation.lines(notes.map(_.content), indent)
+  }
+
+
   override def component = c
 
   val portMaps     = ArrayBuffer[String]()
@@ -59,12 +66,12 @@ class ComponentEmitterVerilog(
   val localparams = new StringBuilder()
   val logics       = new StringBuilder()
   val endModule = new StringBuilder()
-  def getTrace() = new ComponentEmitterTrace(definitionAttributes :: beginModule :: endModule :: localparams :: declarations :: logics :: Nil, portMaps)
+  def getTrace() = new ComponentEmitterTrace(new StringBuilder(RtlDocumentation.signature(component)) :: definitionAttributes :: beginModule :: endModule :: localparams :: declarations :: logics :: Nil, portMaps)
 
   def result: String = {
     val ports = portMaps.map{ portMap => s"${theme.porttab}${portMap}\n"}.mkString + s");"
     val definitionComments = commentTagsToString(component.definition, "//")
-    s"""
+    val rtl = s"""
       |${definitionComments}${definitionAttributes}module ${component.definitionName} (
       |${ports}
       |${beginModule}${localparams}
@@ -72,6 +79,8 @@ class ComponentEmitterVerilog(
       |${logics}${endModule}
       |endmodule
       |""".stripMargin
+    if (spinalConfig.flags.contains(RtlDocumentation.Deferred)) rtl
+    else RtlDocumentation.publish(rtl, RtlDocumentation.declarationBindings(component))
   }
 
 
@@ -81,7 +90,7 @@ class ComponentEmitterVerilog(
     ios.foreach{baseType =>
       val syntax     = s"${emitSyntaxAttributes(baseType.instanceAttributes)}"
       val dir        = s"${emitDirection(baseType)}"
-      val section    = s"${emitType(baseType)}"
+      val section    = s"${emitPortType(baseType)}"
       val name       = s"${baseType.getName()}"
       val comma      = ","
       val EDAcomment = s"${emitCommentAttributes(baseType.instanceAttributes)}"  //like "/* verilator public */"
@@ -135,6 +144,7 @@ class ComponentEmitterVerilog(
   }
 
   def emitArchitecture(): Unit = {
+    localparams ++= NativeLocalParameters.declarations(component)
     endModule ++= NativeSymbolicLegality.render(component,
       name => component.localNamingScope.allocateName(name))
     definitionAttributes ++= emitSyntaxAttributes(component.definition.instanceAttributes)
@@ -154,7 +164,7 @@ class ComponentEmitterVerilog(
         s match {
           case s: MemReadSync  =>
             val name = component.localNamingScope.allocateName(portName)
-            declarations ++= emitExpressionWrap(s, name, "reg")
+            declarations ++= emitExpressionWrap(s, name, "reg", this)
             wrappedExpressionToName(s) = name
           case s: MemReadAsync =>
             val name = component.localNamingScope.allocateName(portName)
@@ -194,7 +204,7 @@ class ComponentEmitterVerilog(
         val noUse = signalNoUse(io)
         val canInline = outSigCanInline(io)
         if (!io.isSuffix && ((io.isVital || !noUse) && !canInline || spinalConfig.emitFullComponentBindings))
-          declarations ++= emitExpressionWrap(io, name)
+          declarations ++= emitExpressionWrap(io, name, this)
         if ((!canInline) || spinalConfig.emitFullComponentBindings)
           referencesOverrides(io) = name
         else
@@ -203,18 +213,8 @@ class ComponentEmitterVerilog(
     ))
 
     //Wrap expression which need it
-    if(spinalConfig.cutLongExpressions) {
-      val requiredBeforeDepthCut = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()
-      expressionToWrap.foreach(expression => requiredBeforeDepthCut.put(expression, java.lang.Boolean.TRUE))
+    if(spinalConfig.cutLongExpressions)
       cutLongExpressions()
-      // The typed planner already bounds the complete expanded expression and
-      // proves every receiving context. Do not recreate its eliminated chain
-      // solely because the legacy breadth-frontier depth cutter sees it again.
-      // Mandatory wraps installed before this optional depth cut still win.
-      expressionToWrap.retain { expression =>
-        requiredBeforeDepthCut.containsKey(expression) || !wrappersProvenRedundant.containsKey(expression)
-      }
-    }
     // A declaration policy may require a real unsigned carrier at an exact
     // typed conversion. Keep the inherited expression/cast printers unchanged.
     if (verilogBase.hasDeclarationPolicy) {
@@ -390,7 +390,8 @@ class ComponentEmitterVerilog(
       if(openSubIo.contains(data)) ""
       else {
         val wireName = emitReference(data, false)
-        val section = if(data.getBitsWidth == 1 || wireName.contains('\'')) "" else  s"[${data.getBitsWidth - 1}:0]"
+        val section = if(wireName.contains('\'')) "" else emitOwnedRange(this, data)
+          .getOrElse(if(data.getBitsWidth == 1) "" else s"[${data.getBitsWidth - 1}:0]")
         referencesOverrides.getOrElse(data, data.getNameElseThrow) match {
           case x: Literal => wireName
           case _ =>  wireName + section
@@ -415,7 +416,7 @@ class ComponentEmitterVerilog(
 
       val isTracingOff = child.hasTag(TracingOff)
 
-      logics ++= commentTagsToString(child, "  //")
+      logics ++= RtlDocumentation.envelope(component, child, commentTagsToString(child, "  //"))
 
       if(isTracingOff) {
         logics ++= s" ${emitCommentAttributes(List(Verilator.tracing_off))} \n"
@@ -429,7 +430,7 @@ class ComponentEmitterVerilog(
 
         if (genericFlat.nonEmpty) {
           val ret = genericFlat.map{ e =>
-            e match {
+            emitNativeBlackBoxGeneric(this, bb, e).map(e._1 -> _).getOrElse(e match {
               case (name: String, bt: BaseType)      => name -> s"${emitExpression(bt.getTag(classOf[GenericValue]).get.e)}"
               case (name: String, rs: VerilogValues) => name -> s"${rs.v}"
               case (name: String, s: String)         => name -> s"""\"$s\""""
@@ -438,7 +439,7 @@ class ComponentEmitterVerilog(
               case (name: String, b: Boolean)        => name -> s"${if(b) "1'b1" else "1'b0"}"
               case (name: String, b: BigInt)         => name -> s"${b.toString(16).size*4}'h${b.toString(16)}"
               case _                                 => SpinalError(s"The generic type ${"\""}${e._1} - ${e._2}${"\""} of the blackbox ${"\""}${bb.definitionName}${"\""} is not supported in Verilog")
-            }
+            })
           }
           val namelens = ret.map(_._1.size).max
           val exprlens = ret.map(_._2.size).max
@@ -537,6 +538,7 @@ class ComponentEmitterVerilog(
                          b                    : mutable.StringBuilder,
                          clockDomain          : ClockDomain,
                          withReset            : Boolean): Unit ={
+    emittedRegionNotes.clear()
 
     val clock       = component.pulledDataCache.getOrElse(clockDomain.clock, throw new Exception("???")).asInstanceOf[Bool]
     val reset       = if (null == clockDomain.reset || !withReset) null else component.pulledDataCache.getOrElse(clockDomain.reset, throw new Exception("???")).asInstanceOf[Bool]
@@ -715,17 +717,24 @@ class ComponentEmitterVerilog(
     length.toString + "'d" + str
   }
 
+  private def emitAssignmentSource(assignment: AssignmentStatement): String =
+    verilogBase.emitAssignmentSource(this, assignment).getOrElse(emitExpression(assignment.source))
+
   def emitLocation(that : AssignmentStatement) : String = if(that.locationString != null) " // " + that.locationString else ""
 
   def emitAsynchronousAsAsign(process: AsyncProcess) = process.leafStatements.size == 1 && process.leafStatements.head.parentScope == process.nameableTargets.head.rootScopeStatement
 
   def emitAsynchronous(process: AsyncProcess): Unit = {
+    emittedRegionNotes.clear()
     process match {
       case _ if emitAsynchronousAsAsign(process) =>
         process.leafStatements.head match {
           case s: AssignmentStatement =>
             if (!s.target.isInstanceOf[Suffixable]) {
-              logics ++= s"  assign ${emitAssignedExpression(s.target)} = ${emitExpression(s.source)};${emitLocation(s)}\n"
+              val notes = new StringBuilder
+              emitRegionNotes(s, notes, "  ")
+              logics ++= RtlDocumentation.envelope(component, s, notes.toString)
+              logics ++= s"  assign ${verilogBase.emitAssignmentTarget(this, s).getOrElse(emitAssignedExpression(s.target))} = ${emitAssignmentSource(s)};${emitLocation(s)}\n"
             }
         }
       case _ =>
@@ -735,7 +744,8 @@ class ComponentEmitterVerilog(
 
         if (referenceSetSorted().nonEmpty) {
 //          logics ++= s"  always @ (${referenceSetSorted().mkString(" or ")})\n"
-          logics ++= s"  always @(*) begin\n"
+          val sensitivity = if (conditionDependenciesAdded) referenceSetSorted().mkString(" or ") else "*"
+          logics ++= s"  always @($sensitivity) begin\n"
           logics ++= tmp.toString()
           logics ++= "  end\n\n"
         } else {
@@ -789,8 +799,9 @@ class ComponentEmitterVerilog(
       if(targetScope == scope){
         closeSubs()
 
+        emitRegionNotes(statement, b, tab)
         statement match {
-          case assignment: AssignmentStatement  => b ++= s"${tab}${emitAssignedExpression(assignment.target)} ${assignmentKind} ${emitExpression(assignment.source)};${emitLocation(assignment)}\n"
+          case assignment: AssignmentStatement  => b ++= s"${tab}${verilogBase.emitAssignmentTarget(this, assignment).getOrElse(emitAssignedExpression(assignment.target))} ${assignmentKind} ${emitAssignmentSource(assignment)};${emitLocation(assignment)}${verilogBase.emitStatementSuffix(this, assignment)}\n"
           case assertStatement: AssertStatement => {
             val cond = emitExpression(assertStatement.cond)
 
@@ -805,14 +816,14 @@ class ComponentEmitterVerilog(
 
             val frontString = (for (m <- messageInput) yield m match {
               case m: String => m
-              case m: SpinalEnumCraft[_] => "%s"
+              case m: SpinalEnumCraft[_] if spinalConfig._withEnumString => "%s"
               case m: Expression => "%x"
               case `REPORT_TIME` => "%t"
               case x => SpinalError(s"""L\"\" can't manage the parameter '${x}' type. Located at :\n${statement.getScalaLocationLong}""")
             }).mkString.replace("\n", "\\n")
 
             val backString = (for (m <- messageInput if !m.isInstanceOf[String]) yield m match {
-              case m: SpinalEnumCraft[_] => ", " + emitExpression(m) + "_string"
+              case m: SpinalEnumCraft[_] if spinalConfig._withEnumString => ", " + emitExpression(m) + "_string"
               case m: Expression => ", " + emitExpression(m)
               case `REPORT_TIME` => ", $time"
             }).mkString
@@ -880,10 +891,20 @@ class ComponentEmitterVerilog(
           closeSubs()
         }
 
-        treeStatement match {
+        emitRegionNotes(treeStatement, b, tab)
+        val publishedScope = verilogBase.emitPublicationScope(this, treeStatement, scopePtr, b, tab,
+          indentation => emitLeafStatements(statements, statementIndex, scopePtr, assignmentKind, b, indentation))
+        if (publishedScope.nonEmpty) {
+          statementIndex = publishedScope.get
+          lastWhen = null
+        } else treeStatement match {
           case treeStatement: WhenStatement =>
+            def condition = verilogBase.emitNativeWhenCondition(this, treeStatement) match {
+              case Some(value) => conditionDependenciesAdded = true; value
+              case None => emitExpression(treeStatement.cond)
+            }
             if(scopePtr == treeStatement.whenTrue){
-              b ++= s"${tab}if(${emitExpression(treeStatement.cond)}) begin\n"
+              b ++= s"${tab}if(${condition}) begin\n"
             } else if(lastWhen == treeStatement){
               //              if(scopePtr.sizeIsOne && scopePtr.head.isInstanceOf[WhenStatement]){
               //                b ++= s"${tab}if ${emitExpression(treeStatement.cond)} = '1' then\n"
@@ -891,13 +912,14 @@ class ComponentEmitterVerilog(
               b ++= s"${tab}end else begin\n"
               //              }
             } else {
-              b ++= s"${tab}if(!${emitExpression(treeStatement.cond)}) begin\n"
+              b ++= s"${tab}if(!${condition}) begin\n"
             }
             lastWhen = treeStatement
             statementIndex = emitLeafStatements(statements,statementIndex, scopePtr, assignmentKind,b, tab + "  ")
           case switchStatement : SwitchStatement =>
             def checkPure(o : Expression): Boolean = o match {
               case l: Literal => true
+              case _: TypedLocalUInt.Reference => true
               case k: SwitchStatementKeyBool => k.key != null
               case _ => false
             }
@@ -966,6 +988,7 @@ class ComponentEmitterVerilog(
 
                 case _ => {
                   def emitIsCond(that: Expression): String = that match {
+                    case e: TypedLocalUInt.Reference => e.render(component)
                     case e: BitVectorLiteral => emitBitVectorLiteral(e)
 //                    case e: BitVectorLiteral => s"${e.getWidth}'b${e.getBitsStringOn(e.getWidth, 'x')}"
                     case e: BoolLiteral => if (e.value) "1'b1" else "1'b0"
@@ -1036,6 +1059,7 @@ class ComponentEmitterVerilog(
   def referenceSetStart(): Unit ={
     _referenceSetEnabled = true
     _referenceSet.clear()
+    conditionDependenciesAdded = false
   }
 
   def referenceSetStop(): Unit ={
@@ -1060,6 +1084,7 @@ class ComponentEmitterVerilog(
   def referenceSetSorted() = _referenceSet
 
   var _referenceSetEnabled = false
+  private var conditionDependenciesAdded = false
   val _referenceSet        = mutable.LinkedHashSet[String]()
 
   def emitReference(that: DeclarationStatement, sensitive: Boolean): String ={
@@ -1099,7 +1124,7 @@ class ComponentEmitterVerilog(
     val syntax  = s"${emitSyntaxAttributes(baseType.instanceAttributes)}"
     val net     = (if(signalNeedProcess(baseType)) "reg" else "wire") + emitCommentEarlyAttributes(baseType.instanceAttributes)
     val comment = s"${emitCommentAttributes(baseType.instanceAttributes)}"
-    val section = emitType(baseType)
+    val section = emitType(baseType, this)
     s"${theme.maintab}${syntax}${expressionAlign(net, section, name)}${comment};\n"
   }
 
@@ -1134,7 +1159,7 @@ class ComponentEmitterVerilog(
 
   def emitBaseTypeWrap(baseType: BaseType, name: String): String = {
     val net = if(signalNeedProcess(baseType)) "reg" else "wire"
-    val section = emitType(baseType)
+    val section = emitType(baseType, this)
     baseType match {
       case struct: SpinalStruct => s"${theme.maintab}${expressionAlign(section, "", name)};\n"
       case _                    => s"${theme.maintab}${expressionAlign(net, section, name)};\n"
@@ -1145,6 +1170,7 @@ class ComponentEmitterVerilog(
     if(signal.isReg){
       if(signal.clockDomain.config.resetKind == BOOT && signal.hasInit) {
         var initExpression: Literal = null
+        var initStatement: InitAssignmentStatement = null
         var needFunc = false
 
         signal.foreachStatements {
@@ -1164,6 +1190,7 @@ class ComponentEmitterVerilog(
               case that => SpinalError(s"Can't resolve the literal value of $signal init")
             }
 
+            initStatement = s
             initExpression = s match {
               case s : Literal => s
               case _ => findLiteral(s.source)
@@ -1175,7 +1202,8 @@ class ComponentEmitterVerilog(
           ???
         else {
           //          assert(initStatement.parentScope == signal.parentScope)
-          return " = " + emitExpressionNoWrappeForFirstOne(initExpression)
+          return " = " + verilogBase.emitAssignmentSource(this, initStatement)
+            .getOrElse(emitExpressionNoWrappeForFirstOne(initExpression))
         }
       }
     }
@@ -1322,7 +1350,10 @@ class ComponentEmitterVerilog(
       }
       mem.addTag(MemSymbolesTag(mappings))
     }else{
-      declarations ++= s"  ${emitSyntaxAttributes(mem.instanceAttributes(Language.VERILOG))}reg ${emitCommentEarlyAttributes(mem.instanceAttributes(Language.VERILOG))}${emitRange(mem)} ${emitReference(mem,false)} [0:${mem.wordCount - 1}]${emitCommentAttributes(mem.instanceAttributes(Language.VERILOG))};\n"
+      val geometry = verilogBase.emitMemoryGeometry(this, mem)
+      val packedRange = geometry.map(_._1).getOrElse(emitRange(mem))
+      val depthRange = geometry.map(_._2).getOrElse(s"[0:${mem.wordCount - 1}]")
+      declarations ++= s"  ${emitSyntaxAttributes(mem.instanceAttributes(Language.VERILOG))}reg ${emitCommentEarlyAttributes(mem.instanceAttributes(Language.VERILOG))}$packedRange ${emitReference(mem,false)} $depthRange${emitCommentAttributes(mem.instanceAttributes(Language.VERILOG))};\n"
     }
 
     if (mem.initialContent != null) {
@@ -1617,27 +1648,9 @@ end
     logics ++= tmpBuilder
   }
 
-  private lazy val wrappersProvenRedundant =
-    VerilogEmitterExpressionInlining.redundantWrappers(component, spinalConfig)
-
-  private lazy val retainedVecOperationExpressions = {
-    val identities = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()
-    ParameterizedVec.retainedOperationExpressions(component)
-      .foreach(expression => identities.put(expression, java.lang.Boolean.TRUE))
-    identities
-  }
-
-  private[internals] def isRetainedVecOperationExpression(expression: Expression): Boolean =
-    retainedVecOperationExpressions.containsKey(expression)
-
-  override def canInlineRepeatedWhenCondition(condition: Expression): Boolean =
-    VerilogEmitterExpressionInlining.redundantSharedCondition(
-      component, spinalConfig, condition, wrappersProvenRedundant)
-
   def fillExpressionToWrap(): Unit = {
 
-    def applyTo(that: Expression) =
-      if (!wrappersProvenRedundant.containsKey(that)) expressionToWrap += that
+    def applyTo(that: Expression) = expressionToWrap += that
 
     def onEachExpression(e: Expression): Unit = {
       e match {
@@ -1675,13 +1688,19 @@ end
   def refImpl(e: BaseType): String = emitReference(e, true)
 
   def operatorImplAsBinaryOperator(verilog: String)(e: BinaryOperator): String = {
-    s"(${emitExpression(e.left)} $verilog ${emitExpression(e.right)})"
+    val left = verilogBase.emitNativeBinaryOperand(this, e, 0).getOrElse(emitExpression(e.left))
+    val right = verilogBase.emitNativeBinaryOperand(this, e, 1).getOrElse(emitExpression(e.right))
+    s"($left $verilog $right)"
   }
 
   private[spinal] def usesVerilogBase(base: VerilogBase): Boolean = verilogBase eq base
 
   private def emitSignedOperand(parent: Expression, slot: Int, operand: Expression): String = {
-    val emitted = emitExpression(operand)
+    val emitted = parent match {
+      case binary: BinaryOperator => verilogBase.emitNativeBinaryOperand(this, binary, slot)
+        .getOrElse(emitExpression(operand))
+      case _ => emitExpression(operand)
+    }
     if (verilogBase.canElideSignedCast(this, parent, slot, operand)) emitted
     else s"$$signed($emitted)"
   }
@@ -1716,49 +1735,8 @@ end
     emitExpression(func.input)
   }
 
-  private val expressionSelectFunctions = mutable.LinkedHashMap[(String, Int, Int), String]()
-  private lazy val expressionSelectWidthNamesReserved: Unit =
-    component.dslBody.walkDeclarations {
-      case value: BaseType => ParameterizedWidth.expressionOf(value).foreach { width =>
-        width.parameters.foreach(parameter => component.localNamingScope.lockName(parameter.name))
-      }
-      case _ =>
-    }
-
-  /** Verilog-2001 cannot select an arbitrary expression. A function argument
-    * evaluates in the full original unsigned width; the function's fixed
-    * result then supplies the exact slice before any comparison/mux context.
-    * A bitwise mask is not equivalent for X/Z, and narrowing the argument before
-    * a right shift would discard live input bits. No such rewrite is used here.
-    */
-  private def expressionSelect(owner: Expression, source: Expression, hi: Int, lo: Int): Option[String] = {
-    if (!wrappersProvenRedundant.containsKey(owner) || source.isInstanceOf[BaseType] ||
-        VerilogEmitterExpressionInlining.directSelectBase(component, source).nonEmpty ||
-        wrappedExpressionToName.contains(source)) return None
-    NativeWidthProvenance.optionalWidthOf(source).filter(width => width.minimum > hi && lo >= 0 && hi >= lo).map { width =>
-      // Width parameters may be published after native naming. MorphHDL also
-      // reserves the complete module parameter inventory in its pre-emission
-      // phase; these exact width names cover direct users of the core opt-in.
-      expressionSelectWidthNamesReserved
-      width.parameters.foreach(parameter => component.localNamingScope.lockName(parameter.name))
-      val key = (width.verilog, hi, lo)
-      val name = expressionSelectFunctions.getOrElseUpdate(key, {
-        val allocated = component.localNamingScope.allocateName("_morphhdl_slice")
-        val argument = component.localNamingScope.allocateName("value")
-        declarations ++= s"  function [${hi-lo}:0] $allocated;\n"
-        declarations ++= s"    input [${width.verilog}-1:0] $argument;\n"
-        declarations ++= s"    begin\n      $allocated = $argument[$hi:$lo];\n    end\n  endfunction\n"
-        allocated
-      })
-      s"$name(${emitExpression(source)})"
-    }
-  }
-
   def operatorImplResize(func: Resize): String = {
-    val selected = if (func.size > 0 && func.size < func.input.getWidth)
-      expressionSelect(func, func.input, func.size-1, 0) else None
-    if(selected.nonEmpty) selected.get
-    else if(func.size < func.input.getWidth)
+    if(func.size < func.input.getWidth)
       s"${emitExpression(func.input)}[${func.size-1}:0]"
     else if(func.size > func.input.getWidth)
       s"{${func.size - func.input.getWidth}'d0, ${emitExpression(func.input)}}"
@@ -1775,7 +1753,7 @@ end
       emitExpression(func.input)
   }
 
-  def shiftRightByIntImpl(e: Operator.BitVector.ShiftRightByInt): String = {
+  def shiftRightByIntImpl(e: Operator.BitVector.ShiftRightByInt): String = verilogBase.emitNativeConstantShift(this, e).getOrElse {
     s"(${emitExpression(e.source)} >>> ${log2Up(e.shift+1)}'d${e.shift})"
   }
 
@@ -1849,8 +1827,7 @@ end
   }
 
   def accessBoolFixed(e: BitVectorBitAccessFixed): String = {
-    expressionSelect(e, e.source, e.bitId, e.bitId).getOrElse(
-      s"${emitExpression(e.source)}[${e.bitId}]")
+    s"${emitExpression(e.source)}[${e.bitId}]"
   }
 
   def accessBoolFloating(e: BitVectorBitAccessFloating): String = {
@@ -1858,8 +1835,7 @@ end
   }
 
   def accessBitVectorFixed(e: BitVectorRangedAccessFixed): String = {
-    expressionSelect(e, e.source, e.hi, e.lo).getOrElse(
-      s"${emitExpression(e.source)}[${e.hi} : ${e.lo}]")
+    s"${emitExpression(e.source)}[${e.hi} : ${e.lo}]"
   }
 
   def accessBitVectorFloating(e: BitVectorRangedAccessFloating): String = {
@@ -1869,6 +1845,7 @@ end
   def dispatchExpression(e: Expression): String = e match {
     case  e: BaseType                                 => refImpl(e)
 
+    case e: TypedLocalUInt.Reference => e.render(component)
     case  e: BoolLiteral                              => boolLiteralImpl(e)
     case  e: BitVectorLiteral                         => emitBitVectorLiteral(e)
     case  e: EnumLiteral[_]                           => emitEnumLiteralWrap(e)

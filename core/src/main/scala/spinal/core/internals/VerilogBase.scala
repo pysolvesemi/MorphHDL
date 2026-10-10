@@ -54,7 +54,8 @@ object VerilogBase {
   final class DeclarationOccurrence private[VerilogBase] (
       val emitter: VerilogBase,
       val subject: AnyRef,
-      val role: DeclarationRole
+      val role: DeclarationRole,
+      val ansiPort: Boolean = false
   )
 
   /** Native cast site and the exact object that emitExpression will print.
@@ -98,6 +99,25 @@ object VerilogBase {
     def inputText: String = printer.emitExpression(resize.input)
   }
 
+  /** Exact native assignment callback for authenticated parameter publication.
+    * Concrete emission has no bound policy and keeps its historical path.
+    */
+  trait AssignmentPublicationPolicy {
+    def constantShift(printer: ComponentEmitterVerilog,
+        expression: Operator.BitVector.ShiftRightByInt): Option[String] = None
+    def blackBoxGeneric(printer: ComponentEmitterVerilog, blackBox: BlackBox,
+        association: (String, Any)): Option[String] = None
+    def memoryGeometry(printer: ComponentEmitterVerilog, memory: Mem[_]): Option[(String, String)] = None
+    def condition(printer: ComponentEmitterVerilog, statement: WhenStatement): Option[String] = None
+    def wrapperRange(printer: ComponentEmitterVerilog, expression: Expression): Option[String] = None
+    def binaryOperand(printer: ComponentEmitterVerilog, expression: BinaryOperator, slot: Int): Option[String] = None
+    def source(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String]
+    def target(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] = None
+    def statementSuffix(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): String = ""
+    def scope(printer: ComponentEmitterVerilog, tree: TreeStatement, scope: ScopeStatement,
+        output: StringBuilder, indentation: String, body: String => Int): Option[Int] = None
+  }
+
   /** Optional storage owned by the concrete emitter, not by the historical
     * VerilogBase interface. A field in that interface would add abstract JVM
     * accessors and break already-compiled implementations. The strong reference
@@ -106,6 +126,12 @@ object VerilogBase {
     */
   private[spinal] trait DeclarationPolicyOwner { self: VerilogBase =>
     @volatile private var boundPolicy: DeclarationPolicy = null
+    @volatile private var assignmentPolicy: AssignmentPublicationPolicy = null
+    private[VerilogBase] final def assignmentPublication: AssignmentPublicationPolicy = assignmentPolicy
+    private[VerilogBase] final def installAssignmentPublication(policy: AssignmentPublicationPolicy): Unit = synchronized {
+      require(policy != null && assignmentPolicy == null, "assignment publication must be bound exactly once")
+      assignmentPolicy = policy
+    }
 
     private[VerilogBase] final def currentDeclarationPolicy: DeclarationPolicy = boundPolicy
 
@@ -124,6 +150,7 @@ object VerilogBase {
     def signedLiteral(occurrence: SignedLiteralOccurrence): Boolean = false
     def signedResize(occurrence: SignedResizeOccurrence): Option[String] = None
     def functionRange(occurrence: DeclarationOccurrence): Option[String] = None
+    def scalarRange(occurrence: DeclarationOccurrence): Option[String] = None
   }
 }
 
@@ -148,6 +175,85 @@ trait VerilogBase extends VhdlVerilogBase{
     require(policy != null && declarationPolicy == null,
       "a Verilog declaration policy must be non-null and bound exactly once")
     declarationPolicy = policy
+  }
+
+  private[spinal] final def bindAssignmentPublication(policy: AssignmentPublicationPolicy): Unit = this match {
+    case owner: DeclarationPolicyOwner => owner.installAssignmentPublication(policy)
+    case _ => throw new IllegalArgumentException("assignment publication requires a policy-capable emitter")
+  }
+
+  private[spinal] final def emitNativeConstantShift(printer: ComponentEmitterVerilog,
+      expression: Operator.BitVector.ShiftRightByInt): Option[String] = {
+    require(printer.usesVerilogBase(this), "constant shift must use its exact native emitter")
+    this match {
+      case owner: DeclarationPolicyOwner => Option(owner.assignmentPublication)
+        .flatMap(_.constantShift(printer, expression))
+      case _ => None
+    }
+  }
+  private[spinal] final def emitNativeBinaryOperand(printer: ComponentEmitterVerilog,
+      expression: BinaryOperator, slot: Int): Option[String] = this match {
+    case owner: DeclarationPolicyOwner =>
+      Option(owner.assignmentPublication).flatMap(_.binaryOperand(printer, expression, slot))
+    case _ => None
+  }
+  private[spinal] final def emitNativeBlackBoxGeneric(printer: ComponentEmitterVerilog,
+      blackBox: BlackBox, association: (String, Any)): Option[String] = {
+    require(printer.usesVerilogBase(this) && (blackBox.parent eq printer.component) &&
+      blackBox.genericElements.exists(_ eq association), "generic must be its exact native instance association")
+    this match {
+      case owner: DeclarationPolicyOwner => Option(owner.assignmentPublication)
+        .flatMap(_.blackBoxGeneric(printer, blackBox, association))
+      case _ => None
+    }
+  }
+  private[spinal] final def emitNativeWhenCondition(printer: ComponentEmitterVerilog,
+      statement: WhenStatement): Option[String] = {
+    require(printer.usesVerilogBase(this), "condition must belong to this native emitter")
+    this match {
+      case owner: DeclarationPolicyOwner =>
+        Option(owner.assignmentPublication).flatMap(_.condition(printer, statement))
+      case _ => None
+    }
+  }
+  private[spinal] final def emitAssignmentSource(printer: ComponentEmitterVerilog,
+      assignment: AssignmentStatement): Option[String] = {
+    require(printer.usesVerilogBase(this), "assignment must belong to this native emitter")
+    this match {
+      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>
+        owner.assignmentPublication.source(printer, assignment)
+      case _ => None
+    }
+  }
+
+  private[spinal] final def emitAssignmentTarget(printer: ComponentEmitterVerilog,
+      assignment: AssignmentStatement): Option[String] = {
+    require(printer.usesVerilogBase(this), "assignment must belong to this native emitter")
+    this match {
+      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>
+        owner.assignmentPublication.target(printer, assignment)
+      case _ => None
+    }
+  }
+
+  private[spinal] final def emitStatementSuffix(printer: ComponentEmitterVerilog,
+      assignment: AssignmentStatement): String = {
+    require(printer.usesVerilogBase(this), "assignment lineage must belong to this native emitter")
+    this match {
+      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>
+        owner.assignmentPublication.statementSuffix(printer, assignment)
+      case _ => ""
+    }
+  }
+  private[spinal] final def emitPublicationScope(printer: ComponentEmitterVerilog,
+      tree: TreeStatement, scope: ScopeStatement, output: StringBuilder,
+      indentation: String, body: String => Int): Option[Int] = {
+    require(printer.usesVerilogBase(this), "scope must belong to this native emitter")
+    this match {
+      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>
+        owner.assignmentPublication.scope(printer, tree, scope, output, indentation, body)
+      case _ => None
+    }
   }
 
   private[spinal] final def hasDeclarationPolicy: Boolean = declarationPolicy != null
@@ -178,12 +284,12 @@ trait VerilogBase extends VhdlVerilogBase{
     if (declarationPolicy != null && declarationPolicy.signed(
         new DeclarationOccurrence(this, subject, role))) "signed " else ""
 
-  private def emitWrapperType(e: Expression, unsignedRange: Option[String] = None): String = {
-    if (declarationPolicy == null && unsignedRange.isEmpty) return emitType(e)
+  private def emitWrapperType(e: Expression): String = {
+    if (declarationPolicy == null) return emitType(e)
     val nativeType = emitUnqualifiedType(e)
-    val section = if (declarationPolicy == null) unsignedRange.getOrElse(nativeType) else {
+    val section = {
       val occurrence = new DeclarationOccurrence(this, e, ExpressionWrapper)
-      declarationPolicy.wrapperRange(occurrence).orElse(unsignedRange).getOrElse(nativeType)
+      declarationPolicy.wrapperRange(occurrence).getOrElse(nativeType)
     }
     declarationPrefix(e, ExpressionWrapper) + section
   }
@@ -195,40 +301,51 @@ trait VerilogBase extends VhdlVerilogBase{
     f"$net%-10s $section%-8s $name"
   }
 
-  def emitExpressionWrap(e: Expression, name: String): String =
-    emitExpressionWrapWithRange(e, name, None)
-
-  /** A retained late carrier has no BaseType for the parameterized declaration
-    * publisher to revisit. Its actual native allocation therefore preserves
-    * unsigned logical geometry directly from the typed expression graph. This
-    * is independent of signed declaration mode and never changes a real
-    * declaration or grants a signed interpretation.
-    */
-  private[internals] final def emitExpressionWrap(
-      e: Expression, name: String, printer: ComponentEmitterVerilog): String = {
-    require(printer != null && printer.usesVerilogBase(this),
-      "an expression wrapper must belong to this native emitter")
-    val range = if (VerilogEmitterExpressionInlining.isEnabled(printer.spinalConfig) &&
-        !e.isInstanceOf[BaseType] &&
-        !printer.isRetainedVecOperationExpression(e) &&
-        (e.getTypeObject == TypeUInt || e.getTypeObject == TypeBits)) {
-      VerilogEmitterExpressionInlining.availableWidthEvidence(NativeWidthProvenance.widthOf(e))
-        .flatten.filter(width => width.parameters.nonEmpty && width.minimum > 0 &&
-          width.default == e.asInstanceOf[WidthProvider].getWidth)
-        .map(width => s"[${width.verilog}-1:0]")
-    } else None
-    emitExpressionWrapWithRange(e, name, range)
-  }
-
-  private def emitExpressionWrapWithRange(
-      e: Expression, name: String, unsignedRange: Option[String]): String = {
+  def emitExpressionWrap(e: Expression, name: String): String = {
 //    s"  wire ${emitType(e)} ${name};\n"
     if (!e.isInstanceOf[SpinalStruct]) {
       val isReg = e.isInstanceOf[Multiplexer]
-      theme.maintab + expressionAlign(if(isReg) "reg" else "wire", emitWrapperType(e, unsignedRange), name) + ";\n"
+      theme.maintab + expressionAlign(if(isReg) "reg" else "wire", emitWrapperType(e), name) + ";\n"
     } else
       theme.maintab + expressionAlign(e.asInstanceOf[SpinalStruct].getTypeString, "", name) + ";\n"
   }
+
+  /** Exact owning printer for late native expression wrappers. */
+  def emitExpressionWrap(e: Expression, name: String, printer: ComponentEmitterVerilog): String = {
+    val signedRange = if (declarationPolicy == null) None else declarationPolicy.wrapperRange(
+      new DeclarationOccurrence(this, e, ExpressionWrapper))
+    if (signedRange.nonEmpty) return emitExpressionWrap(e, name)
+    val range = emitOwnedRange(printer, e)
+    range match {
+      case Some(value) => theme.maintab + expressionAlign(if(e.isInstanceOf[Multiplexer]) "reg" else "wire",
+        declarationPrefix(e, ExpressionWrapper) + value, name) + ";\n"
+      case None => emitExpressionWrap(e, name)
+    }
+  }
+
+  def emitExpressionWrap(e: Expression, name: String, nature: String, printer: ComponentEmitterVerilog): String =
+    emitOwnedRange(printer, e).map(range => theme.maintab +
+      expressionAlign(nature, declarationPrefix(e, ExpressionWrapper) + range, name) + ";\n")
+      .getOrElse(emitExpressionWrap(e, name, nature))
+
+  private[spinal] def emitMemoryGeometry(printer: ComponentEmitterVerilog, memory: Mem[_]): Option[(String, String)] = {
+    require(printer.usesVerilogBase(this), "memory must belong to this native emitter")
+    this match {
+      case owner: DeclarationPolicyOwner => Option(owner.assignmentPublication).flatMap(_.memoryGeometry(printer, memory))
+      case _ => None
+    }
+  }
+
+  private[spinal] def emitOwnedRange(printer: ComponentEmitterVerilog, e: Expression): Option[String] = {
+    require(printer.usesVerilogBase(this), "range must belong to this native emitter")
+    this match {
+      case owner: DeclarationPolicyOwner => Option(owner.assignmentPublication).flatMap(_.wrapperRange(printer, e))
+      case _ => None
+    }
+  }
+
+  def emitType(e: Expression, printer: ComponentEmitterVerilog): String =
+    emitOwnedRange(printer, e).map(declarationPrefix(e, ScalarDeclaration) + _).getOrElse(emitType(e))
 
   def emitExpressionWrap(e: Expression, name: String, nature: String): String = {
 //    s"  $nature ${emitType(e)} ${name};\n"
@@ -320,8 +437,19 @@ trait VerilogBase extends VhdlVerilogBase{
     return struct.getTypeString
   }
 
-  def emitType(e: Expression): String =
-    declarationPrefix(e, ScalarDeclaration) + emitUnqualifiedType(e)
+  def emitType(e: Expression): String = {
+    val range = if (declarationPolicy == null) None else declarationPolicy.scalarRange(
+      new DeclarationOccurrence(this, e, ScalarDeclaration))
+    declarationPrefix(e, ScalarDeclaration) + range.getOrElse(emitUnqualifiedType(e))
+  }
+
+  /** Called at the ANSI declaration site, never for a child-port body wrapper. */
+  def emitPortType(e: Expression): String = {
+    if (declarationPolicy == null) return emitType(e)
+    val range = declarationPolicy.scalarRange(
+      new DeclarationOccurrence(this, e, ScalarDeclaration, ansiPort = true))
+    declarationPrefix(e, ScalarDeclaration) + range.getOrElse(emitUnqualifiedType(e))
+  }
 
   def emitFunctionType(e: BaseType): String = {
     val prefix = declarationPrefix(e, FunctionResultDeclaration)

@@ -8,7 +8,6 @@
     "idslpayload/src/main",
     "idslplugin/src/main",
     "lib/src/main",
-    "morphhdl-passes/src/main",
     "morphhdl/src/main",
     "morphir/src/main",
     "morphplugin/src/main",
@@ -54,7 +53,6 @@
         "idslpayload/src/main/",
         "idslplugin/src/main/",
         "lib/src/main/",
-        "morphhdl-passes/src/main/",
         "morphhdl/src/main/",
         "morphir/src/main/",
         "morphplugin/src/main/",
@@ -132,6 +130,7 @@
     }
   ],
   "expected_plugin_components": [
+    "MorphHdlAreaCollectionComponent",
     "MorphHdlTypedElaborationControlComponent",
     "MorphHdlNaturalSymbolicConditionalComponent",
     "MorphHdlFrontendSymbolicEqualitySafetyComponent"

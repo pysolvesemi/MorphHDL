@@ -9,6 +9,15 @@ package morphhdl.frontend
   * provenance increments.
   */
 object formalParam {
+  /** Native scalar-formal boundary, preserving an ElabInt actual and fresh
+    * child-local declaration identity. Zero is legal for scalar domains.
+    */
+  def apply(actual: spinal.core.ElabInt, name: String): spinal.core.ElabInt =
+    spinal.core.ElabFormalParameter(actual, name)
+  def apply(actual: spinal.core.ElabInt, name: String,
+      minimum: BigInt, maximum: BigInt): spinal.core.ElabInt =
+    spinal.core.ElabFormalParameter(actual, name, minimum, maximum)
+
   private val DefaultFormalPackedWidthMaximum = BigInt(4096)
 
   /**

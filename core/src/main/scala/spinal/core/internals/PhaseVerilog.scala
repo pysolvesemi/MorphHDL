@@ -155,6 +155,14 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
   val allocateAlgoIncrementalBase = globalData.allocateAlgoIncremental()
   val usedDefinitionNames = mutable.HashSet[String]()
 
+  // Optional publication policy runs only for a new native trace, after native
+  // deduplication. Concrete generation keeps its original naming behavior.
+  private var definitionNamePublication: Component => Unit = (_: Component) => ()
+  def bindDefinitionNamePublication(policy: Component => Unit): Unit = {
+    require(policy != null, "definition naming policy must not be null")
+    definitionNamePublication = policy
+  }
+
 
   val romCache = mutable.HashMap[String, String]()
   def compile(component: Component): () => String = {
@@ -190,6 +198,7 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
     val oldComponent = emitedComponent.getOrElse(trace, null)
 
     if (oldComponent == null || component.definitionNameNoMerge && component.definitionName != oldComponent.definitionName) {
+      definitionNamePublication(component)
       assert(!usedDefinitionNames.contains(component.definitionName) || component.isInBlackBoxTree, s"Component '${component}' with definition name '${component.definitionName}' was already used once for a different layout\n${component.getScalaLocationLong}")
       usedDefinitionNames += component.definitionName
       emitedComponent += (trace -> component)

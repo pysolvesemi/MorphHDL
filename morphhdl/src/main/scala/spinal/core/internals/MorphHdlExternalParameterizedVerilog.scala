@@ -28,7 +28,7 @@ object MorphHdlExternalParameterizedVerilog {
       blocks: Vector[ModuleBlock]
   )
 
-  private final case class PortSchema(
+  private[internals] final case class PortSchema(
       name: String,
       direction: String,
       dataClass: String,
@@ -36,7 +36,7 @@ object MorphHdlExternalParameterizedVerilog {
       retained: Option[ElaborationIntegerExpression]
   )
 
-  private final case class ComponentSchema(
+  private[internals] final case class ComponentSchema(
       ports: Vector[PortSchema],
       parameters: Vector[ElaborationIntegerParameter],
       vecs: Vector[String]
@@ -165,11 +165,17 @@ object MorphHdlExternalParameterizedVerilog {
       val candidates = candidateBuffer.toVector
       val name = componentName(canonical)
       validateFormalCanonicalGroup(name, candidates)
-      val schemas = candidates.map(componentSchema).distinct
+      NativeScalarFormalSchema.validateGroup(candidates)
+      val candidateSchemas = candidates.map(componentSchema)
+      val schemas = candidateSchemas.distinct
       if (schemas.size != 1) {
+        val other = candidateSchemas.indexWhere(_ != candidateSchemas.head)
+        val difference = schemaDifference(candidateSchemas.head, candidateSchemas(other))
+        NativePublicationReport.rejected("SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT", difference, Vector(candidates.head,candidates(other)))
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
-          s"native module identity '$name' maps to ${schemas.size} distinct graph schemas"
+          s"native module identity '$name' maps to ${schemas.size} distinct graph schemas; " +
+            s"instances '${candidates.head.getPath()}' and '${candidates(other).getPath()}': $difference"
         )
       }
       name -> canonical
@@ -234,6 +240,9 @@ object MorphHdlExternalParameterizedVerilog {
       )
     }
 
+    val sharedWidthDefaults = exactGroups.map { case (canonical, candidates) =>
+      componentName(canonical) -> NativeWidthFormalSchema.sharedDefaults(candidates.toVector)
+    }.toMap
     val rewrittenByName = expectedModules.toVector.sorted.flatMap { name =>
       val component = canonicalPublicationByName(name)
       if (requiresPublicationRewrite(component)) {
@@ -245,9 +254,14 @@ object MorphHdlExternalParameterizedVerilog {
           else blockByName(name)
         val text = publication.lines.slice(block.start, block.end + 1).mkString("\n")
         val rewritten = withPulledExternalClockInputs(component) {
+          // Validate and size reset edges while the emitter's exact alias
+          // names still exist. Structural publication then authenticates each
+          // registered template before replacing it by its indexed Vec leaf.
+          val withInitializers = ExternalParameterizedVerilogNativeFallback.rewriteRetainedConstantInitializers(
+            component, text, nativeSignedLiterals = morphhdl.MorphSignedCasts.isEnabled(pc.config))
           val withMemories = ParameterizedVerilogMemories.rewrite(
             component,
-            text,
+            withInitializers,
             pc
           )
           val withProcesses = ParameterizedVerilogProcesses.rewrite(
@@ -262,16 +276,27 @@ object MorphHdlExternalParameterizedVerilog {
             canonicalOf
           )
           val withExpressions = if (requiresExpressionHierarchyRewrite(component)) {
-            ExternalParameterizedVerilogNativeFallback.rewrite(
+            ExternalParameterizedVerilogNativeFallback.rewriteAfterInitializers(
               component,
               withStructure,
               pc,
-              canonicalOf
+              canonicalOf,
+              sharedWidthDefaults(name)
             )
           } else withStructure
-          TypedBalancedReductionBackend.rewrite(component, withExpressions, pc, canonicalOf)
+          val withArrays = ParameterizedVerilogVecs.rewriteUnpacked(component,
+            TypedBalancedReductionBackend.rewrite(component, withExpressions, pc, canonicalOf), pc)
+          // Array dimensions are published after ordinary expression lowering.
+          // Lower their retained arithmetic through the same portable helper.
+          ExternalParameterizedVerilogNativeFallback.lowerRetainedIntegerHelpers(withArrays, component.definitionName)
         }
-        Some(name -> rewritten.split("\n", -1).toVector)
+        val documented = NativeFiniteStatementLineage.finish(component, RtlDocumentation.finishPublication(component, RtlDocumentation.publish(rewritten, ParameterizedVerilogVecs.documentationBindings(component, pc))))
+        Some(name -> NativeGenerateIndexNames.publish(component, documented).split("\n", -1).toVector)
+      } else if (RtlDocumentation.declarationBindings(component).nonEmpty || RtlDocumentation.emissions(component).nonEmpty) {
+        val publication = if (pc.config.oneFilePerComponent) splitPublications(name) else consolidated.get
+        val block = if (pc.config.oneFilePerComponent) publication.blocks.head else blockByName(name)
+        val text = publication.lines.slice(block.start, block.end + 1).mkString("\n")
+        Some(name -> RtlDocumentation.finishPublication(component, RtlDocumentation.publish(text, RtlDocumentation.declarationBindings(component))).split("\n", -1).toVector)
       } else None
     }.toMap
 
@@ -303,6 +328,7 @@ object MorphHdlExternalParameterizedVerilog {
         publishAtomically(publication.target, rewritten.result().mkString("\n"))
       }
     }
+    NativePublicationReport.record(exactGroups.toVector.map { case (owner, members) => owner -> members.toVector }, pc.config)
     top.userCache.update(PublishedWidthParametersKey, publishedWidthParameters)
   }
 
@@ -451,6 +477,8 @@ object MorphHdlExternalParameterizedVerilog {
       }
     }
 
+    TypedVecStaticSelect.entries(component).foreach(entry => retainInteger(entry.index.expression))
+    NativeLocalParameters.typedExpressions(component).foreach(retainInteger)
     ExternalParameterizedValueRegistry.valuesOf(component).foreach { case (_, record) =>
       retainInteger(record.expression)
     }
@@ -610,7 +638,10 @@ object MorphHdlExternalParameterizedVerilog {
     slotNames.headOption.getOrElse(Set.empty).toVector.sorted.foreach { name =>
       val slots = slotsByCandidate.map(_.find(_.name == name).get)
       val defaults = slots.map(_.formal.default).distinct
-      if (defaults.size != 1) {
+      val nativeWidthDefaults = candidates.zip(slots).forall { case (component, slot) =>
+        NativeWidthFormalSchema.parameterCompatible(candidates.head, component, slots.head.formal, slot.formal)
+      }
+      if (defaults.size != 1 && !nativeWidthDefaults) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-FORMAL-DEFAULT-CONFLICT",
           s"formal slot '$name' of native module '$definitionName' has incompatible defaults ${defaults.sorted.mkString(", ")}",
@@ -811,7 +842,52 @@ object MorphHdlExternalParameterizedVerilog {
       }
     }
 
-  private def componentSchema(component: Component): ComponentSchema = {
+  /** Diagnostic only: equality above remains the authority. Do not use rendered
+    * expressions, names or this bounded summary to decide module sharing.
+    */
+  private[internals] def schemaDifference(left: ComponentSchema, right: ComponentSchema): String = {
+    def shown(value: Any): String = {
+      val text = String.valueOf(value).replace('\n', ' ').replace('\r', ' ')
+      if (text.length <= 240) text else text.take(237) + "..."
+    }
+    def difference(field: String, a: Any, b: Any): Option[String] =
+      if (a == b) None else Some(s"$field: left=${shown(a)}; right=${shown(b)}")
+    def parameter(p: ElaborationIntegerParameter): String =
+      s"${p.name}(default=${p.default}, domain=[${p.minimum}, ${p.maximum}])"
+    def expression(value: Option[ElaborationIntegerExpression]): String = value.map { e =>
+      s"${e.verilog}(default=${e.default}, domain=[${e.minimum}, ${e.maximum}], " +
+        s"parameters=${e.parameters.map(parameter).mkString("[", ", ", "]")}, index=${e.generateIndex.getOrElse("<none>")})"
+    }.getOrElse("<missing>")
+    // Parameters first: equal rendered widths can have different legal domains.
+    val parameterNames = (left.parameters.map(_.name) ++ right.parameters.map(_.name)).distinct.sorted
+    parameterNames.iterator.flatMap { name =>
+      val a = left.parameters.find(_.name == name)
+      val b = right.parameters.find(_.name == name)
+      difference(s"parameter '$name'", a.map(parameter).getOrElse("<missing>"), b.map(parameter).getOrElse("<missing>"))
+    }.take(1).toVector.headOption.orElse {
+      val names = (left.ports.map(_.name) ++ right.ports.map(_.name)).distinct.sorted
+      names.iterator.flatMap { name =>
+        (left.ports.find(_.name == name), right.ports.find(_.name == name)) match {
+          case (Some(a), Some(b)) =>
+            difference(s"port '$name' direction", a.direction, b.direction)
+              .orElse(difference(s"port '$name' type", a.dataClass, b.dataClass))
+              .orElse(difference(s"port '$name' concrete width", a.concreteWidth, b.concreteWidth))
+              .orElse {
+                if (a.retained == b.retained) None
+                else Some(s"port '$name' retained expression: left=${shown(expression(a.retained))}; " +
+                  s"right=${shown(expression(b.retained))}; authenticated expression metadata differs")
+              }
+          case (a, b) => difference(s"port '$name' presence", a.isDefined, b.isDefined)
+        }
+      }.take(1).toVector.headOption
+    }.orElse {
+      (0 until math.max(left.vecs.size, right.vecs.size)).iterator.flatMap { index =>
+        difference(s"Vec schema entry $index", left.vecs.lift(index), right.vecs.lift(index))
+      }.take(1).toVector.headOption
+    }.getOrElse("ordered schema entries differ")
+  }
+
+  private[internals] def componentSchema(component: Component): ComponentSchema = {
     val ports = component.getOrdredNodeIo.toVector.filterNot(_.isSuffix).map { port =>
       val name = Option(port.getName()).filter(_.nonEmpty).getOrElse {
         fail(
@@ -827,10 +903,10 @@ object MorphHdlExternalParameterizedVerilog {
           else if (port.isInOut) "inout"
           else "directionless",
         dataClass = port.getClass.getName,
-        concreteWidth = port.getBitsWidth,
-        retained = ParameterizedWidth
+        concreteWidth = NativeWidthFormalSchema.portBinding(port).map(_.binding.formal.minimum.toInt).getOrElse(port.getBitsWidth),
+        retained = NativeWidthFormalSchema.portSchema(port).orElse(ParameterizedWidth
           .expressionOf(port)
-          .map(ExternalFormalParameterRegistry.normalizedDefinitionSchema)
+          .map(ExternalFormalParameterRegistry.normalizedDefinitionSchema))
       )
     }
     val duplicatePorts = ports.groupBy(_.name).collectFirst {
@@ -851,7 +927,7 @@ object MorphHdlExternalParameterizedVerilog {
     }
     ComponentSchema(
       orderedPorts,
-      componentParameters(component),
+      NativeScalarFormalSchema.definitionParameters(component, componentParameters(component), canonicalSchema = true),
       ParameterizedVerilogVecs.logicalSchema(component)
     )
   }
@@ -868,7 +944,9 @@ object MorphHdlExternalParameterizedVerilog {
         ParameterizedVerilogVecs.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
         ParameterizedProcess.parametersOf(component) ++
-        NativeSymbolicLegality.parametersOf(component)
+        NativeSymbolicLegality.parametersOf(component) ++
+        NativeLocalParameters.typedExpressions(component).flatMap(_.parameters) ++
+        forwardedParameters(component)
     val grouped = values.groupBy(_.name)
     grouped
       .collectFirst {
@@ -883,8 +961,22 @@ object MorphHdlExternalParameterizedVerilog {
     grouped.toVector.map(_._2.head).sortBy(_.name)
   }
 
+  /** Child formals are declaration-owned capabilities, including scalar formals
+    * whose only use is another child binding. Follow only required exact slots;
+    * a matching name or an unused formal does not make a parent parameter live.
+    */
+  private[internals] def forwardedParameters(component: Component): Vector[ElaborationIntegerParameter] =
+    component.children.toVector.flatMap { child =>
+      val required = componentParameters(child)
+      ExternalFormalParameterRegistry.completeTypedBindingsOf(child)
+        .filter(entry => required.exists(_ eq entry.binding.formal))
+        .flatMap(_.binding.actual.parameters)
+    }
+
   private def hasParameterizedMetadata(component: Component): Boolean =
     NativeSymbolicLegality.hasRequirements(component) ||
+    NativeLocalParameters.hasTyped(component) ||
+    ParameterizedProcess.hasConditionalLoops(component) ||
     ExternalParameterizedHierarchyResizeWidth.parametersOf(component).nonEmpty ||
       ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
       ParameterizedMemory.parametersOf(component).nonEmpty ||
@@ -913,6 +1005,8 @@ object MorphHdlExternalParameterizedVerilog {
       component: Component
   ): Boolean =
     NativeSymbolicLegality.hasRequirements(component) ||
+    NativeLocalParameters.hasTyped(component) ||
+    ParameterizedProcess.hasConditionalLoops(component) ||
     ExternalParameterizedHierarchyResizeWidth.parametersOf(component).nonEmpty ||
       ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
       ParameterizedMemory.parametersOf(component).nonEmpty ||

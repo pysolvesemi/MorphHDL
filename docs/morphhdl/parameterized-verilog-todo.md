@@ -13,6 +13,40 @@ and regression oracles; they are not constraints on the new implementation.
 
 ## Roadmap discipline
 
+**Original development plan, 1 October 2026 (59i integration updated below):** implement the remaining standalone
+work (CDC-LEG-01 and Increments 64, 65 and 66) one increment at a time on
+`work/remaining-parameterized-increments`. Increment 59i remains on its existing
+branch; it is not an implementation prerequisite for this development batch.
+Leave `parameterized-verilog` untouched until 59i merges. Run focused local
+validation after each increment, then reconcile the integration target and run
+targeted followed by full final-head CI after the batch is ready. Local completion
+records must distinguish implemented/locally validated work from remotely
+qualified and merged work; checkboxes remain open until the latter requirements
+are satisfied. Do not implement any item from
+`morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md` as part of this batch;
+that old work and its roadmap were removed on 2 October 2026.
+
+**Implementation status, 2 October 2026:** the unchecked boxes below track final
+qualification and merged closure, not whether implementation has been written.
+
+| Work item | Implementation and focused local validation | Remaining closure work |
+| --- | --- | --- |
+| CDC-LEG-01 | Complete; [receipts](remaining-increments-handoff.md) | Expanded local validation, targeted CI, full CI and merge |
+| Increment 64 | Complete; [receipts](increment-64-derived-localparams.md) | Expanded local validation, targeted CI, full CI and merge |
+| Increment 65 | Complete; [receipts](increment-65-scoped-legality.md) | Expanded local validation, targeted CI, full CI and merge |
+| Increment 66, including all five imported `~/prompt.txt` tasks | Complete; [receipts](evidence/increment66/README.md) | Expanded local validation, targeted CI, full CI and merge |
+| Increment 59i | Merged into this work branch at `bfed00f992281d83dde20dfabf319d8f1ea0bc57` | Combined qualification and integration merge |
+
+**Current validation state, 2 October 2026:** full local qualification and the
+hourly monitor are paused by the user. 59i has been merged into the work branch;
+wire-pass removal and focused repair checks are local work. Remote CI has not
+been launched. Before resuming qualification, reconcile historical source-review
+contracts with the removal, qualify the combined source locally, then run
+targeted CI before full CI. Do not run wire-pass formal proofs or wire-pass CI;
+inspect aggregate workflows for indirect invocation. Retained compiler and
+library simulation/formal checks remain in scope. Excluded checks are not passes.
+WA-11 remains parameterized-Verilog work and is retained.
+
 - The first unchecked increment remains the default sequential integration
   target. Explicitly declared parallel successors may start once every listed
   dependency is `[x]` on `parameterized-verilog`; increment numbering alone
@@ -1155,125 +1189,16 @@ dependency chain is unchanged and may proceed independently.
 
 ### WA-08 inherited workflow compatibility track (Increment 62)
 
-- [x] **Increment 62 — WA-08 inherited source-audit and workflow closure**
+- **Increments 62 and 63 — retired wire-pass work.** The optional wire-assignment
+  pipeline and its native expression-inlining extensions were removed by user
+  request on 2 October 2026. Their old roadmap has also been deleted. Historical
+  receipts remain in Git; these are no longer production features or CI gates.
 
-  **Status:** `COMPLETED`. The exact overlay, inherited mutation controls and
-  profile compatibility are implemented and qualified with WA-08 in
-  [PR #178](https://github.com/pysolvesemi/MorphHDL/pull/178). The complete
-  reviewed inventory is recorded in
-  `morphhdl/contracts/increment-62-wa08-source-overlay.json`.
-
-  **Dependencies:** Increment 60 and WA-07b implemented and merged. This is the
-  qualification-repair companion for the open WA-08 production handoff. It is
-  independent of Increment 59i and Increment 61 and must be completed before
-  WA-08 merges.
-
-  Fix the inherited workflow failures caused when the intentional WA-08
-  canonical-IR and pass-adapter changes are presented to older closed
-  source-scope checkers. The observed Increment 60d failure is a source-review
-  rejection of the new `CanonicalIrPassAdapter.scala` bytes, not evidence that
-  pure-`SInt` cast behavior or signed-Verilog semantics failed.
-
-  Add one exact, immutable WA-08 source-overlay compatibility contract covering
-  every intended production, test, boundary, signature and canonical-IR handoff
-  file. Bind each path to reviewed SHA-256 bytes, file mode, HEAD/index/worktree
-  identity and immutable baseline/final anchors. Historical checkers may project
-  only that fully verified WA-08 delta out of their own historical inventory;
-  the outer WA-08 gate must still validate the real current bytes. Do not add
-  branch-name, PR-number, component-name or emitted-text exceptions.
-
-  Update the inherited WA-07b, 59x, 60d, 60f and 60g reviewers only through
-  exact reversible spans or one common generic overlay helper. Keep their
-  original source inventories and semantic checks intact. Reject partial
-  rollout, missing or extra files, changed hashes, symlinks, executable-bit
-  changes, staged or untracked content, mismatched profile/facet claims and any
-  unknown production delta. Add self-tests for each attack and prove the overlay
-  cannot hide a genuine historical-source mutation.
-
-  Preserve `SimpleWireAssignmentsV1` only for explicit legacy fixtures. The
-  WA-08 production handoff and pass adapter must require
-  `PureWireExpressionsV1` and the `PureExpressions` completeness facet. Do not
-  weaken or skip workflows, convert failures to allowed failures, or modify
-  SInt or parameterized RTL merely to satisfy a source audit.
-
-  Completion requires the previously failing inherited workflows, the WA-08
-  pass workspace, baseline and Mill, both Scala lanes and all applicable formal,
-  determinism, strict-Verilog and source-audit gates to pass on one exact final
-  head. Record the original failure classification and complete reviewed overlay
-  inventory. This increment changes qualification/source-audit compatibility
-  only and does not change generated Verilog.
-
-### WA-09 named-expression optimization track (Increment 63)
-
-- [x] **Increment 63 — Named expression-wire elimination and provenance-first alias preference**
-
-  **Status:** `COMPLETED`. The implementation candidate
-  `d48687d0cca4d5f8437b877e480ca4fe09ad20c4` passed every applicable workflow
-  with both Scala production lanes, cross-Scala byte identity, the exact
-  1,982-test/194-suite full inventory per lane, and the two-run 16-shard proof
-  over all 512 bindings for each of 11 pass identities (11,264 equivalence and
-  11,264 reachability proofs). The final completion-only commit remains subject
-  to the identical complete gate set before merge.
-
-  **Dependencies:** Increment 62 and WA-08 implemented and merged. This
-  successor is independent of unfinished Increments 59i and 61.
-
-  Extend the one-flag production wire pipeline from its frozen historical five
-  stages to six by adding bounded named continuous wire-expression inlining
-  after the unnamed expression stage and before constant/ternary
-  simplification. Reuse the canonical expression safety and rewrite engine,
-  capture the exact native RHS, and fail closed when the expression, naming,
-  type, scope, receiver or metadata inventory is incomplete. Preserve explicit
-  opt-out and exact historical three-, four- and five-stage artifacts.
-
-  Native validation must capture the actual source and receiver RHS with
-  `NativeWireExpressionCodec`, replace only whole-RHS continuous receivers and
-  represent `TypeBool` at width one; it must not fabricate a representative
-  XOR or another expression. Reverse source removal requires the canonical
-  preference decision over both actual direct edges and independent native
-  safety. Expression-driven sources retain pass ownership: true unnamed
-  provenance dispatches to `UnnamedWireExpressionNativePhase`, while
-  explicit/reflected/generated provenance dispatches to
-  `NamedWireExpressionNativePhase`.
-
-  Refine direct-alias planning with provenance before length. A non-removable
-  port, register, hierarchy/preservation identity or otherwise ineligible
-  declaration always survives. Among independently removable declarations,
-  `Explicit`/`Reflected` names beat `Unnamed`/`Generated`; only meaningful names
-  are compared by length, then by deterministic name and symbol identity.
-  Never infer provenance from `_zz` or any emitted spelling, rename a survivor,
-  transfer a removed name, or reverse an assignment without the full existing
-  removal proof.
-
-  Close the separately reproduced emitter boundary where
-  `fillExpressionToWrap` creates anonymous expression carriers only after all
-  pre-emission passes have finished. Permit emission-time wrapper elision solely
-  for an exact homogeneous fixed-width unsigned `UInt` addition tree feeding a
-  whole-object fixed-width unsigned receiver. Its leaves are same-width fixed
-  `UInt` values or exact unsigned widening resizes from narrower fixed `UInt`
-  values, and every synthetic expression node must be unannotated and uniquely
-  used. Fixed native 16-to-18 `ResizeUInt` wrappers inline completely. Tagged
-  parameterized resize carriers remain declared and may serve as proven fixed
-  18-bit leaves while only their surrounding `Add` wrappers inline. The
-  positive witness uses four 16-bit inputs in an 18-bit domain (`0..262140`),
-  and a same-width 18-bit companion proves unchanged modular-overflow tree
-  semantics. Retain wrappers for mixed widths, signed values, narrowing,
-  selections, direct symbolic-width expression nodes, other operators or
-  incomplete facts. This is a graph/type-proven emitter policy, not a seventh
-  pass or emitted-text cleanup. The exact source is
-  `morphhdl/src/test/scala/nativeapplication/NestedUnsignedExtendedSumProductionArtifactWriter.scala`;
-  run `sbt "morph/Test/runMain morphhdl.examples.NestedUnsignedExtendedSumProductionArtifactWriter target/wa09-nested-sum"`.
-
-  The public ordinary-alias fixture must reduce the chain through `bitSource`
-  and `bitCloneAlias` to `assign clonedResult = (a ^ b);`, while retaining the
-  output port. Add both alias orientations, generated-short and explicitly
-  named `_zz` controls, equal-length ties, fanout, symbolic-width/signedness,
-  four-state and all safety exclusions, plus the unsigned-add positive and
-  wrapper-retention controls above. Require dual-Scala deterministic and
-  idempotent results, strict Verilog-2001, lint, synthesis, simulation,
-  functional mutation, formal equivalence and every inherited final-head gate
-  before marking this increment complete. The bounded contract is recorded in
-  [`wa09-named-expression-and-name-preference.md`](../../morphhdl-passes/wa09-named-expression-and-name-preference.md).
+- [x] **WA-11 — Typed Boolean/integer parameter normalization.** This is retained
+  parameterized-Verilog functionality, independent of the removed hardware wire
+  passes. Its [implementation and historical qualification](wa11-boolean-width-normalization.md)
+  and `morphhdl/scripts/check-wa11-boolean-width.py` now belong to this workstream.
+  Preserve exact parameter identity, domains, integer sizing and child bindings.
 
 ### Parameter-expression and structural-legality follow-ups (Increments 64 and 65)
 
@@ -1283,17 +1208,20 @@ executed Scala or actual generated Verilog. The current boundaries are recorded
 in [Independent HDL parameters](independent-parameter-domains.md). The planning
 baseline is `4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097`.
 
-**Dependencies and ordering:** both tracks require Increments 59i, 61 and 63
-implemented and merged, retaining the merged PR #188 independent-parameter and
-legality support, PR #189 consumer/compact-timeout fixes and PR #190 wire cleanup.
-They do not add prerequisites to 59i, which remains the first unchecked
-integration target. The recommended sequential order is 59i, then 64, then 65.
-After their common dependencies merge, 64 and 65 may also proceed independently:
-65's standalone scope does not require localparam factoring. Whichever track
-merges second must qualify their combined scope/ownership interactions on the
-latest integrated source, rather than relying on the first track's old results.
+**Dependencies and ordering (revised 1 October 2026):** implement both tracks from
+the existing merged typed-expression, hierarchy/publication and structural-legality
+facilities on `parameterized-verilog`, retaining the merged PR #188/#189/#190
+behavior. Neither track requires unmerged 59i functionality to begin or to obtain
+local feature qualification. Work through 64 and then 65 on the development
+branch; 65's standalone scope does not require localparam factoring. Integrate
+59i into this work branch before targeted CI and qualify combined scope/ownership and Vec/reduction
+interactions before final integration of this batch. This replaces the earlier
+planning dependency on merged 59i without waiving those interaction checks.
 
 - [ ] **Increment 64 — Derived `localparam` support**
+
+  **Implementation complete; focused local validation passed.** Final
+  qualification and merged closure remain pending; see the checkpoint below.
 
   Automatically retain and publish named, parameter-dependent typed calculations
   as non-overridable module-local constants through the normal MorphVerilog
@@ -1372,7 +1300,23 @@ latest integrated source, rather than relying on the first track's old results.
   Verilog with source-bound evidence before checking this item. No generated-
   Verilog text rewriting or replacement library algorithm is permitted.
 
+  **Local implementation checkpoint, 2 October 2026:** Increment 64 is
+  implemented on `work/remaining-parameterized-increments` at source
+  `0c2f07b4a49cacc918923663dbd0859f27b57c7d`. Final focused validation passed
+  59 tests on each Scala lane; the Scala 2.13 compatibility run passed all
+  311 tests, including widening byte determinism. Native-source and retirement
+  audits passed. [Implementation boundaries and receipts](increment-64-derived-localparams.md)
+  and [actual generated RecordLink RTL](evidence/increment64/RecordLink.v) are
+  retained. Remote qualification and merge remain deferred; this checkbox is
+  intentionally open. No 59i source or old wire-roadmap item was implemented.
+
 - [ ] **Increment 65 — Targeted structural-parameter extensions**
+
+  **Implementation complete; focused local validation passed.**
+
+  Local implementation and qualification details are tracked in
+  [the Increment 65 handoff](increment-65-scoped-legality.md). Remote gates and
+  merge remain deferred under the batch plan; this checkbox remains open.
 
   Extend the existing typed structural-capture and native legality machinery,
   beginning with parameter-dependent `require` inside an optional hardware
@@ -1486,6 +1430,831 @@ implementation or merge gates. Neither entry authorizes weakening existing
 proofs, changing application RTL, introducing a PROFILE workaround, or removing
 safety diagnostics outside its explicitly qualified replacement surface.
 
+### Integrated native parameter and RTL readability extensions (Increment 66)
+
+- [ ] **Increment 66 — Native loops, symbolic values, child formals and named local constants**
+
+  **All five imported tasks are implemented and passed focused local validation.**
+  Their unchecked boxes below retain the outstanding qualification/closure gates.
+
+  **Planning status, 1 October 2026:** the five unchecked tasks below are imported
+  from the user's `~/prompt.txt` as one integrated compiler increment. Preserve
+  every task's implementation and validation requirements. Internal sequencing
+  does not create separate delivered increments; references below to separate
+  increments mean separately validated internal steps if included in this scope.
+  Optional extensions remain optional, and supported surfaces must be explicit.
+
+  **Integration plan:** implement on `work/remaining-parameterized-increments`
+  from merged `parameterized-verilog` baseline
+  `db54d01e5b21c7664f7a0de3795f061d77a3d259`. This increment does not require
+  unfinished Increment 59i, 64 or 65 as an implementation prerequisite. Keep
+  `parameterized-verilog` untouched until 59i merges. Run focused local validation
+  during implementation; defer remote CI until the planned branch work is ready.
+  Incorporate the then-current integration target, qualify affected targeted
+  workflows and full final-head CI, and verify combined interactions before merge.
+  Implemented but unqualified work must remain unchecked.
+
+  **Local checkpoint, 2 October 2026:** all five internal feature steps are
+  implemented at `b6e83061d8c2b1ece94e76abadc956a2201a99dc`. Both Scala lanes pass
+  329 runtime, 35 native and 18 plugin tests, plus the legacy AXI4 formal suite.
+  See [supported APIs](increment-66-native-parameters.md) and
+  [retained local evidence](evidence/increment66/README.md). Another 118 interaction
+  tests per lane, binary compatibility and inherited source-review integration
+  also pass. Remote qualification remains outstanding; this is not closure.
+  See the [batch handoff](remaining-increments-handoff.md).
+
+  **Shared implementation with Increment 64:** the explicit typed-local-constant
+  API below and 64's automatic derived-binding retention should reuse declaration,
+  dependency, ownership and emission machinery. Neither checkbox substitutes for
+  the other's acceptance requirements. No application source, compiler pin or
+  generated-Verilog cleanup script is changed by this compiler increment.
+
+  Complete every mandatory task and its validation before checking this increment
+  or its constituent tasks. The examples and historical observations below retain
+  their stated evidence limits; proposed APIs are not claims of existing support.
+
+- [ ] Retain conditional procedural loops
+
+#### Future compiler task: retain conditional procedural loops
+Extend MorphHDL generically so a bounded Scala loop containing conditional indexed assignments can emit a procedural Verilog for loop instead of repeated statements. Work in the compiler's own repository under its current instructions. Do not modify Display Controller application source or its compiler pin for this task. Preserve existing loop lowering and cleanup coverage; do not implement this by recognizing application names or reparsing generated Verilog.
+
+##### Observed baseline
+At compiler commit db54d01e5b21c7664f7a0de3795f061d77a3d259, an ordinary Scala `0 until 4` loop unrolls. The retained parameterized procedural-loop path in morphruntime/src/main/scala/spinal/core/ParameterizedProcess.scala requires a parameter-dependent count, exactly one direct assignment and an indexed packed target slice, and rejects nested control statements. Verify these facts against the current compiler before changing anything; do not downgrade newer support.
+
+##### Simple Scala reproducer
+Place this component in an existing MorphVerilog test fixture and emit it through the normal production generation path. Use the imports/configuration from morphhdl/src/test/scala/morphhdl/GenericProcessLoweringTests.scala; adapt frontend qualification only as required by the current public API.
+
+```scala
+import spinal.core._
+import morphhdl.frontend._
+
+class ConditionalLaneLoop extends Component {
+  val previousData = in(morphhdl.frontend.Bits(120 bits))
+  val previousMask = in(morphhdl.frontend.Bits(4 bits))
+  val clear = in(Bool())
+  val selected = in(morphhdl.frontend.UInt(3 bits))
+  val pixel = in(morphhdl.frontend.Bits(30 bits))
+  val assembled = out(morphhdl.frontend.Bits(120 bits))
+  val mask = out(morphhdl.frontend.Bits(4 bits))
+
+  assembled := previousData
+  mask := previousMask
+  when(clear) {
+    assembled := 0
+    mask := 0
+  }
+  for (lane <- 0 until 4) {
+    when(selected === U(lane, 3 bits)) {
+      assembled(lane * 30 + 29 downto lane * 30) := pixel
+      mask(lane) := True
+    }
+  }
+}
+```
+
+This example has not been independently compiled as a standalone fixture; its loop/body mirror the inspected production Scala. First establish a compiling reproduction and preserve the emitted unrolled baseline for comparison.
+
+##### Desired equivalent Verilog shape (illustrative names)
+```verilog
+integer lane;
+always @(*) begin
+  assembled = previousData;
+  mask = previousMask;
+  if (clear) begin
+    assembled = 120'b0;
+    mask = 4'b0;
+  end
+  for (lane = 0; lane < 4; lane = lane + 1) begin
+    if (selected == lane) begin
+      assembled[lane * 30 +: 30] = pixel;
+      mask[lane] = 1'b1;
+    end
+  end
+end
+```
+
+Separate procedural loops for the two outputs are also acceptable if native process partitioning requires them. Do not require process merging merely for cosmetic output. This is a procedural for inside always, not a structural generate-for. Retaining a loop improves emitted readability; it does not imply reduced synthesized hardware.
+
+##### Implementation scope
+1. Inspect the existing frontend range capture, native process representation and procedural emitter. Reuse them. Start with this constant-bound example, then extend the same representation to supported parameterized bounds and lane widths. Keep ordinary Scala syntax where the frontend can capture it safely. If ordinary constant ranges cannot retain provenance with the current architecture, explain the limitation and use the smallest supported source-level capture mechanism; do not claim an unchanged ordinary loop is retained when only an alternative API works.
+2. Support conditional bodies and multiple assignments to distinct packed targets, preserving native assignment order, default/override priority, source ownership and process semantics. Include bit selects and fixed-width indexed part-selects. Preserve width/signedness of index comparisons and expressions; never infer parameter families from default elaboration alone.
+3. Preserve the order of clear and lane writes: when clear is asserted, the selected lane still receives pixel and its mask bit becomes one. For selected=4..7, neither lane write occurs. Preserve Verilog four-state conditional behavior for unknown indices and clear, including cases where previous data or pixel contains X/Z. Do not replace procedural if with a mux or dynamic write unless its semantics are proven equivalent.
+4. Fail closed or retain the existing unrolled form for unsupported bounds, strides, dependencies or control flow. Treat cross-iteration dependencies, overlapping writes, signed indices, nested loops and sequential targets explicitly; support them only when justified by native semantics. Keep loop-variable names deterministic and collision-free. Do not use a combinational loop index as a hardware register.
+
+##### Acceptance
+- Add a permanent regression for the exact ordinary-Scala reproducer and any explicit-capture variant needed. Assert actual emitted procedural loops, both target updates, absence of accidental latches, and deterministic generation.
+- Compare looped and unrolled output behavior using all selected values 0..7, clear low/high, randomized old data/mask/pixel, and four-state X/Z inputs. Check against an independent lane-update oracle as well as differential simulation.
+- Add parameterized lane-count and pixel-width cases using the same emitted artifact across valid parameter overrides. Include one lane and non-power-of-two lane counts. Keep the constant four-lane case independent of any newly introduced public parameter.
+- Qualify process partitioning, assignment priority and protected/named signal behavior. Add negative tests for unsupported constructs rather than silently changing their meaning.
+- Run existing structural generate, combinational/sequential procedural loop, slice, parameterization and cleanup regressions, plus applicable repository-required lint, synthesis and formal/equivalence checks. Distinguish two-state proofs from four-state simulation; report any unexecuted checks explicitly.
+
+Deliver the generic compiler change, minimal runnable example, generated before/after RTL and validation evidence. Keep this incremental; this request does not require developing an unrelated general-purpose optimizer.
+
+- [ ] Simplify symbolic resize lowering
+
+#### Improve MorphHDL symbolic resize lowering
+
+Implement a focused, generic improvement in the MorphHDL compiler so symbolic resize expressions simplify when their width relationships are provable. Work in the compiler repository under its current instructions. Do not modify Display Controller application RTL, its compiler pin, or its Python cleanup script for this task. Inspect the current integration target first; do not downgrade newer compiler work.
+
+##### Problem
+A real application contains:
+
+  val keepWide = io.s_keep.asUInt.resize(busBytes + 1)
+
+The source has width W = (1 << BUS_LOG2_BYTES) * 8 / 8 and the destination has width W + 1. The supported BUS_LOG2_BYTES domain is 2 through 5. Generated resize expressions contain generic padding and min-width selection. After a separate Python cleanup removes explicit zero padding, this redundant slice remains:
+
+  assign logic_keepWide = s_keep[((((1 << BUS_LOG2_BYTES) * 8 / 8 + 1 < (1 << BUS_LOG2_BYTES) * 8 / 8) ? ((1 << BUS_LOG2_BYTES) * 8 / 8 + 1) : ((1 << BUS_LOG2_BYTES) * 8 / 8)) - 1):0];
+
+The above line is postprocessed output, not claimed to be the exact native compiler output. Reproduce and capture the actual native output before changing the compiler.
+
+Conceptually, generic unsigned resize uses:
+  padding = max(destinationWidth - sourceWidth, 0)
+  copiedWidth = min(destinationWidth, sourceWidth)
+
+For destinationWidth = W + 1, the valid domain proves padding = 1 and copiedWidth = W. A clear, conservative native result for this whole assignment is:
+
+  assign keepWide = {1'b0, keep};
+
+With an unsigned source and a correctly declared wider destination, this is also equivalent to:
+
+  assign keepWide = keep;
+
+Implement explicit-padding simplification first. Implicit assignment extension is a separate, optional increment requiring context/type proof; it must not be a blanket expression rewrite.
+
+##### Minimal reproduction
+Create a standalone production MorphVerilog regression using the current public frontend APIs. Follow the imports and generation fixture in morphhdl/src/test/scala/morphhdl/GenericProcessLoweringTests.scala. A candidate component is:
+
+```scala
+import spinal.core._
+import morphhdl.frontend._
+
+class SymbolicResizeProbe(width: HdlInt) extends Component {
+  val keep = in(morphhdl.frontend.UInt(width bits))
+  val keepWide = out(morphhdl.frontend.UInt((width + 1) bits))
+  keepWide := keep.resize(width + 1)
+}
+
+// Instantiate through the repository's normal MorphVerilog test harness:
+// new SymbolicResizeProbe(HdlInt.param("WIDTH", default = 8, min = 1, max = 32))
+```
+
+This candidate fixture has not been compiled independently. Verify the exact public overloads against the current compiler and make only the small API adjustments needed. Add a second fixture with the derived bus-width expression above so the real expression shape is covered. Do not replace symbolic widths with elaboration-default constants to make tests pass.
+
+##### Incremental implementation
+1. Locate the existing symbolic-width representation, range/domain authority, resize lowering and expression simplifier. Reuse existing machinery; do not introduce a general-purpose compiler framework or a Verilog text postprocessor. Record where the redundant expression originates.
+2. Prove simple relations such as min(W + 1, W) = W and max((W + 1) - W, 0) = 1 under established valid parameter domains. Preserve the distinction between compiler width arithmetic and emitted Verilog integer arithmetic. Do not assume algebraic identities across overflow, signedness changes, invalid widths or unresolved domains. Use symbolic/range reasoning where supported rather than enumerating huge parameter spaces.
+3. Remove proven full-width source slices where their expression type is preserved. A Verilog part-select of a signed vector is unsigned, so dropping a full-width slice can change semantics. Preserve any required cast or type boundary. Handle equal-width and narrowing resize cases with the same generic rules.
+4. Retain explicit extension/truncation boundaries inside expressions unless a separate proof permits their removal. In particular, concatenations, arithmetic, comparisons, shifts and shift counts can depend on operand width and signedness. A rule that only excludes left shifts is insufficient. Constant-one padding is not sign extension; sign extension must repeat the actual sign bit.
+5. Optionally, in a separately validated increment, replace explicit zero extension with a bare unsigned source for a whole assignment when destination conversion is proven equivalent. Treat signed destinations/sources and surrounding expressions explicitly. Preserve X/Z behavior and required truncation.
+6. When proof is unavailable, retain the valid generic resize formula and existing diagnostics. Keep output deterministic and simplification terminating. Do not special-case application signal names, module names or the observed default parameter value.
+
+##### Validation and acceptance
+- Permanent structural regressions must demonstrate simpler native emitted RTL for W -> W + 1 and the derived bus-width example, with no redundant min-width full slice. Preserve public parameters.
+- Cover unsigned and signed sources, widening, equal widths and narrowing; W=1 and representative larger widths; positive, negative and X/Z payloads; unrelated source/destination width parameters; and cases near arithmetic domain limits where simplification must be refused.
+- Include nested concatenations, arithmetic, comparisons, left/right logical and arithmetic shifts, and self-determined shift counts. Verify negative controls retain necessary width/type boundaries.
+- Compare baseline and changed emitted RTL using the same parameterized artifact across supported overrides, including BUS_LOG2_BYTES=2,3,4,5 for the derived-width case. Use an independent resize oracle as well as differential simulation. Include four-state simulation; do not present a two-state formal proof as X/Z coverage.
+- Run existing parameterization, signedness, slice/resize, expression cleanup and generation regressions plus applicable repository-required lint, formal/equivalence and synthesis checks. Report any unexecuted checks clearly. Do not relax existing assertions or hide unsupported cases.
+- Deliver the minimal runnable example, focused compiler change, before/after native Verilog, exact source identity and validation evidence. Keep any optional whole-assignment optimization separate from the first proven width-expression simplification.
+
+- [ ] Support symbolic ElabInt hardware values
+
+#### Extend MorphHDL: symbolic ElabInt values in typed hardware constants
+
+Implement a focused, generic compiler/API extension that preserves an elaboration-parameter expression when it is used as the VALUE of a hardware UInt constant. Work in the MorphHDL compiler repository under its current instructions and qualification rules. Do not modify Display Controller application RTL, its compiler pin or its Python cleanup scripts in this task. Inspect the current compiler first and reuse any support already present; do not downgrade newer work.
+
+##### Width support is not value support
+Existing `UInt(busBytes bits)` declares a signal with a parameter-dependent WIDTH:
+
+  wire [BUS_BYTES-1:0] signal;
+
+The requested feature is a fixed-width hardware signal with a parameter-dependent VALUE:
+
+  wire [7:0] busBytesValue;
+  assign busBytesValue = BUS_BYTES;
+
+Proposed user syntax, subject to compatibility review:
+
+  val busBytesValue = U(busBytes, 8 bits)
+
+Here busBytes is an ElabInt, not a concrete Scala Int. Preserve its symbolic expression and parameter provenance rather than substituting the elaboration default. Do not change the meaning of the existing parameterized width constructors.
+
+##### Observed baseline and motivation
+Read-only inspection at commit db54d01e5b21c7664f7a0de3795f061d77a3d259 found concrete Int/Long/BigInt value overloads in core/src/main/scala/spinal/core/Literal.scala, but no ElabInt value overload or public ElabInt-to-UInt value conversion. This is a source-inspection finding, not a freshly compiled failure report. Establish the actual current behavior before implementation; an equivalent existing public API may change the required scope.
+
+The application currently obtains a hardware value equal to a symbolic width by counting a constant mask:
+
+  val busZero = Bits(busBytes bits)
+  busZero := 0
+  val busBytesValue = spinal.lib.CountOne((~busZero).resize(32)).resize(8)
+
+For busBytes in 4,8,16,32, the count is necessarily busBytes. This preserves parameter dependence but emits a verbose fixed-size population-count network. Synthesis should fold the constant network; reduced hardware area has not been measured or claimed. The goal is direct, correct symbolic-value representation and readable native RTL.
+
+##### Minimal reproduction
+Use the existing production MorphVerilog generation/test harness. The following uses parameter construction already present in the application generator; verify exact APIs and build setup against the current checkout.
+
+```scala
+import spinal.core._
+import morphhdl.MorphVerilog
+import morphhdl.frontend.HdlInt
+
+class SymbolicValueProbe(busBytes: ElabInt) extends Component {
+  val io = new Bundle {
+    val value = out UInt(8 bits)
+    val plusThree = out UInt(9 bits)
+  }
+
+  // Requested new value overload, not an assertion of current support:
+  io.value := U(busBytes, 8 bits)
+  io.plusThree := U(busBytes + 3, 9 bits)
+}
+
+object GenerateSymbolicValueProbe {
+  def main(args: Array[String]): Unit = {
+    require(args.length == 1, "Expected output directory")
+    val config = SpinalConfig(
+      targetDirectory = args(0),
+      oneFilePerComponent = true,
+      headerWithDate = false
+    )
+    MorphVerilog(config) {
+      val logBytes = HdlInt.param(
+        "BUS_LOG2_BYTES", default = 3, min = 2, max = 5
+      ).asElabInt
+      new SymbolicValueProbe(logBytes.pow2)
+    }
+  }
+}
+```
+
+This standalone example has not been compiled in the application workspace. First record whether the current compiler rejects it, supports it correctly, or loses symbolic identity. Compile a baseline variant with the existing zero-mask/CountOne construction if the requested overload is unavailable; do not patch the baseline compiler to create the baseline.
+
+Desired native output, with illustrative port names:
+
+```verilog
+module SymbolicValueProbe #(
+  parameter integer BUS_LOG2_BYTES = 3
+) (
+  output wire [7:0] io_value,
+  output wire [8:0] io_plusThree
+);
+  assign io_value = (1 << BUS_LOG2_BYTES);
+  assign io_plusThree = (1 << BUS_LOG2_BYTES) + 3;
+endmodule
+```
+
+Equivalent explicitly sized expressions are acceptable. The critical properties are retained parameter expressions and exact hardware width/signedness, not this particular spelling. No mask/population-count implementation should be needed for the requested direct-value API.
+
+##### Implementation requirements
+1. Reuse the existing ElabInt expression/domain authority and native expression/emission machinery. Add the smallest coherent public value-conversion API, preferably an appropriate U(ElabInt, width) overload if compatible with current literal factories. Do not create an unrelated compiler framework or repair emitted Verilog with text substitution.
+2. Preserve parameter identity and composite expressions through native representation, simplification, expression copying, canonical capture/proof, and publication wherever those paths apply. Never carry only the default witness or recover expression identity from signal names. Fail clearly for unsupported expression families.
+3. Give the hardware value an explicit packed type. Enforce unsigned range/width rules over the admitted domain, following existing literal semantics. Reject invalid values or require explicit truncation; never silently substitute a witness, clamp values or introduce an undocumented truncation policy. Respect exact domain constraints, not just an overly broad interval when precise evidence exists.
+4. Preserve the explicit hardware width when the value is embedded in arithmetic, concatenations, comparisons and shift operands/counts. A bare Verilog parameter expression often has integer width and signedness; emitting it in every context can change semantics even if whole-assignment examples work. Add sizing/casts or a typed carrier where necessary, using the project's supported Verilog dialect.
+5. Handle Verilog integer overflow and signedness consistently with ElabInt's admitted expression domain. Do not assume host arbitrary-precision arithmetic and emitted integer arithmetic are identical. Preserve parameter overrides on a single generated artifact.
+6. Start with explicitly sized unsigned values and literal widths. Then qualify parameterized destination widths and signed S(...) or bit-vector B(...) value construction as separate increments if required by the repository's API design. State the exact supported surface; do not claim unsigned support implies signed support. Preserve existing concrete literals and UInt(ElabInt bits) behavior.
+7. Keep stable names, parameter metadata and deterministic generation. Unsupported conversions must produce actionable diagnostics, not opaque Scala overload errors where the new API is applicable or silently frozen constants.
+
+##### Validation and acceptance
+- Add permanent positive and negative tests plus a runnable version of the reproducer.
+- Generate once, then compile/simulate that same parameterized RTL with BUS_LOG2_BYTES=2,3,4,5. Expect value=4,8,16,32 and plusThree=7,11,19,35 respectively. Also compare against the mask/population-count baseline or an independent oracle.
+- Cover direct parameters, derived expressions, constant ElabInt values, zero, maximum representable values, non-default overrides, and constrained domains. Include negative/out-of-range unsigned values, insufficient destination widths, unresolved or unsupported expressions, and arithmetic-domain boundaries.
+- Test nested arithmetic, comparisons, concatenations and both shift operands with runtime inputs, including four-state inputs where relevant. These tests must expose accidental 32-bit/signed parameter-expression leakage and lost explicit truncation boundaries. Distinguish two-state proof evidence from four-state simulation.
+- For separately supported signed or parameterized-width variants, test their full claimed semantics, including negative signed values and all admitted width/value combinations.
+- Run existing literal, symbolic-width, parameterization, native expression cleanup/copy, generation and applicable formal/equivalence/lint/synthesis suites under repository policy. Do not relax existing assertions, skip failures silently or present default-only checks as parameter-family validation.
+- Deliver source-bound evidence, exact compiler identity, before/after generated RTL, supported API documentation and remaining limitations. Application replacement of busBytesValue and the analogous ppcValue workaround is a subsequent source change after this compiler feature is qualified.
+
+
+- [ ] Support explicit child formals for native ElabInt expressions and preserve scalar formal bindings
+
+#### Fix the specific native parameter-boundary gaps in MorphHDL
+
+Work in the compiler repository under its current instructions. Reuse the existing
+formalParam, HdlInt, native ElabInt and hierarchy-publication machinery. Do not
+modify Display Controller application sources, its compiler pin, generated RTL or
+Python cleanup scripts. Inspect the current compiler first and preserve newer
+support. This item belongs to the single integrated increment requested above.
+
+##### Correct problem statement
+A child should be able to declare its own WIDTH parameter while the parent supplies
+a calculated bit width. For example, the desired output is:
+
+```verilog
+module Child #(parameter integer WIDTH = 64) (
+  input  wire [WIDTH-1:0] din,
+  output wire [WIDTH-1:0] dout
+);
+  assign dout = din;
+endmodule
+
+// Inside a parent declaring BUS_LOG2_BYTES:
+Child #(.WIDTH((1 << BUS_LOG2_BYTES) * 8)) child (...);
+```
+
+WIDTH means the number of data bits. Binding `.WIDTH(BUS_LOG2_BYTES)` would be
+incorrect for this interface. The child-local formal WIDTH and parent expression
+BUS_LOG2_BYTES must remain separate identities.
+
+Do not claim that all derived parameter bindings or pow2 arithmetic are broken.
+The following distinctions were freshly checked at compiler commit
+`db54d01e5b21c7664f7a0de3795f061d77a3d259`:
+
+A. ALREADY WORKS: a child accepting HdlInt and explicitly declaring
+   `formalParam(actualWidth, "WIDTH", 32, 256)` emits
+   `.WIDTH((BUS_BYTES * 8))` when given the derived HdlInt expression BUS_BYTES*8.
+   Both frontend width carriers and `width.asElabInt` consumers emit correctly.
+   The native-consumer output compiled at BUS_BYTES=8 and BUS_BYTES=16.
+   Preserve this behavior as a positive control; do not reimplement it.
+
+B. MISSING NATIVE API BOUNDARY: `logBytes.asElabInt.pow2 * 8` produces an ElabInt,
+   whereas the current public formalParam overloads accept HdlInt. No public
+   ElabInt-to-HdlInt bridge was found in the inspected pin. The requested support
+   is a coherent explicit child-formal API accepting a native ElabInt expression
+   while retaining its symbolic actual. A native overload is preferable to forcing
+   callers through a reverse bridge, but choose the smallest compatible design.
+   Never convert through a Scala Int/default witness.
+
+C. NO AUTOMATIC CHILD WIDTH: simply declaring `class Child(width: ElabInt)` does
+   not automatically introduce a fresh Verilog parameter called WIDTH. A direct
+   BUS_BITS root currently emits `.BUS_BITS(BUS_BITS)`. The exact native pow2
+   example below fails with HIERARCHY-BINDING-UNRESOLVED for BUS_LOG2_BYTES. That
+   failure does not prove explicit expression-valued bindings are unsupported.
+   Use an explicit formal declaration for the requested WIDTH interface; automatic
+   promotion of every Scala constructor argument is not required by this task.
+
+D. SEPARATE SCALAR-FORMAL FAILURE: a child explicitly declaring its own
+   `formalParam(HdlInt.literal(2), "BUS_LOG2_BYTES", 2, 5)` and deriving its port
+   width with `.asElabInt.pow2 * 8` also fails hierarchy publication. This tests
+   retention of a child-local scalar formal through derived widths. Its correct
+   binding is `.BUS_LOG2_BYTES(2)`, NOT `.WIDTH(...)`, because this different child
+   deliberately declares BUS_LOG2_BYTES as its public formal.
+
+E. SEPARATE ZERO-DOMAIN RESTRICTION: `formalParam(HdlInt.literal(0), "PPC4", 0, 1)`
+   is rejected as a nonpositive formal domain even when its derived packed width
+   `PPC4 * 3 + 1` is always positive. A zero scalar value is not a zero packed width.
+
+##### Runnable double-check: original failure and existing working explicit API
+This exact fixture was compiled and executed with the pinned production plugins
+and MorphVerilog. It includes a default-64-bit failing pow2 example, a direct
+native parameter control, and working explicit WIDTH bindings for HdlInt products.
+
+```scala
+package displaycontroller.diagnostics
+import spinal.core._
+import morphhdl.MorphVerilog
+import morphhdl.frontend.{HdlInt,formalParam}
+object DoubleCheck {
+ class Child(width: ElabInt) extends Component {
+  setDefinitionName("Child")
+  val din=in Bits(width bits)
+  val dout=out Bits(width bits)
+  dout:=din
+ }
+ class PlainTop(derived:Boolean) extends Component {
+  setDefinitionName("Top")
+  private val busBits:ElabInt=if(derived) HdlInt.param("BUS_LOG2_BYTES",3,2,5).asElabInt.pow2*8
+    else HdlInt.param("BUS_BITS",64,32,256).asElabInt
+  val din=in Bits(busBits bits)
+  val dout=out Bits(busBits bits)
+  val child=new Child(busBits)
+  child.din:=din
+  dout:=child.dout
+ }
+ class ExplicitChild(actual:HdlInt,native:Boolean) extends Component {
+  setDefinitionName("ExplicitChild")
+  @dontName private val width=formalParam(actual,"WIDTH",32,256)
+  val din=if(native) in Bits(width.asElabInt bits) else in Bits(width bits)
+  val dout=if(native) out Bits(width.asElabInt bits) else out Bits(width bits)
+  dout:=din
+ }
+ class ExplicitTop(native:Boolean) extends Component {
+  setDefinitionName("ExplicitTop")
+  @dontName private val busBits=HdlInt.param("BUS_BYTES",8,4,32)*HdlInt.literal(8)
+  val din=in Bits(busBits.asElabInt bits)
+  val dout=out Bits(busBits.asElabInt bits)
+  val child=new ExplicitChild(busBits,native)
+  child.din:=din
+  dout:=child.dout
+ }
+ def main(args:Array[String]):Unit={
+  for(mode<-Seq("exact","direct","explicit-native","explicit-frontend")) {
+   val config=SpinalConfig(targetDirectory=args(0)+"/"+mode,oneFilePerComponent=true,headerWithDate=false)
+   try{
+    val report=MorphVerilog(config) {
+     if(mode=="exact" || mode=="direct") new PlainTop(mode=="exact")
+     else new ExplicitTop(mode=="explicit-native")
+    }
+    println("CHECK "+mode+" EMITTED "+report.generatedSourcesPaths.mkString(","))
+   }catch{case e:Exception=>println("CHECK "+mode+" REJECTED "+e.getMessage)}
+  }
+ }
+}
+```
+
+Observed results:
+- exact: rejects publication with
+  `SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED` for scalar parameter
+  BUS_LOG2_BYTES of Child.
+- direct: emits both modules with BUS_BITS and `.BUS_BITS(BUS_BITS)`.
+- explicit-native and explicit-frontend: emit child WIDTH=64, WIDTH-sized ports,
+  parent BUS_BYTES=8 and `.WIDTH((BUS_BYTES * 8))`.
+
+The runner catches exceptions to execute every case. Its zero process exit is NOT
+proof that every case passed. Convert the intended successful cases into asserting
+permanent compiler regressions. Evidence/source are in the application workspace:
+`display-controller-morphhdl/diagnostics/parameter-restoration/DoubleCheck.scala`
+and `double-check-result.json` in the same directory.
+
+Reproduce there without editing build files:
+
+```sh
+cd /home/kartik/projects/py_francis/display_controller/display-controller-morphhdl
+sbt \
+  'set ddrPixelUnpacker / Compile / unmanagedSources += file("diagnostics/parameter-restoration/DoubleCheck.scala")' \
+  'ddrPixelUnpacker/runMain displaycontroller.diagnostics.DoubleCheck /tmp/morphhdl-child-width-check'
+```
+
+For compiler development, copy the small fixture into the compiler's own standard
+harness instead of depending on application directories.
+
+##### Requested native API example
+The following is the desired API shape, NOT a claim that this overload currently
+compiles. Establish the current type error and add the supported native equivalent:
+
+```scala
+import spinal.core._
+import morphhdl.frontend.{HdlInt, formalParam}
+
+class NativeWidthChild(actualWidth: ElabInt) extends Component {
+  // Proposed native ElabInt overload; preserve the actual expression and domain.
+  @dontName private val width = formalParam(actualWidth, "WIDTH", 32, 256)
+  val din = in Bits(width bits)
+  val dout = out Bits(width bits)
+  dout := din
+}
+
+class NativeWidthTop extends Component {
+  private val busBits =
+    HdlInt.param("BUS_LOG2_BYTES", 3, 2, 5).asElabInt.pow2 * 8
+  val din = in Bits(busBits bits)
+  val dout = out Bits(busBits bits)
+  val child = new NativeWidthChild(busBits)
+  child.din := din
+  dout := child.dout
+}
+```
+
+Required output: NativeWidthChild owns WIDTH and uses [WIDTH-1:0] ports; the parent
+binds `.WIDTH((1 << BUS_LOG2_BYTES) * 8)`. Preserve the symbolic expression rather
+than substituting 64. The actual supported API spelling may differ if compatibility
+requires it; document it and retain this native-expression semantic contract.
+
+##### Separate scalar-formal and zero-domain regressions
+The previously executed `ParameterBindingProbe.scala` remains a valid separate
+reproducer, not a substitute for the native WIDTH example above. Its two failures
+can be reproduced with this child and a fixed-width parent:
+
+```scala
+class ScalarFormalChild(zeroCase: Boolean) extends Component {
+  @dontName private val schema = if (zeroCase)
+    formalParam(HdlInt.literal(0), "PPC4", 0, 1)
+  else
+    formalParam(HdlInt.literal(2), "BUS_LOG2_BYTES", 2, 5)
+
+  private val bits = if (zeroCase) schema.asElabInt * 3 + 1
+    else schema.asElabInt.pow2 * 8
+  val din = in Bits(bits bits)
+  val dout = out Bits(bits bits)
+  dout := din
+}
+```
+
+Use the complete executed harness at
+`display-controller-morphhdl/diagnostics/parameter-restoration/ParameterBindingProbe.scala`
+(and adjacent result.json); it includes direct parent connections, a fixed root
+schema anchor and direct-width positive controls. The fragment above is extracted
+for explanation; retain that full harness when reproducing its observed errors.
+The scalar case fails with HIERARCHY-BINDING-UNRESOLVED. The zero case fails with
+MORPH-FRONTEND-FORMAL-PARAMETER-DOMAIN-INVALID, requiring a positive domain.
+After the fix, emit `.BUS_LOG2_BYTES(2)` with 32-bit ports in the scalar case and
+`.PPC4(0)` with one-bit ports in the zero case. Do not change these public names or
+encode zero as a different positive-only parameter.
+
+
+##### CDC-specific native child-formal regression (2026-09-28)
+Add this regression under the same child-formal/API task, not as a separate
+checkbox or a request to implement production CDC logic in the compiler.
+
+Fresh probes at pin db54d01e5b21c7664f7a0de3795f061d77a3d259 reproduced
+SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED for FIFO_LOG_DEPTH
+in both ProbeCdcSynchronizer and ProbeGrayToBinary when their parent supplies
+an ElabInt width of FIFO_LOG_DEPTH + 2. Their standalone parameterized forms
+both generate successfully. The current direct-constructor probes do not declare
+explicit local formals: use the supported explicit native formal API introduced
+by this task in the positive regression; automatic constructor-argument promotion
+is not required.
+
+Project reproducer and qualification files, relative to the display-controller
+repository root:
+- display-controller-morphhdl/diagnostics/cdc-hierarchy/CdcHierarchyProbe.scala
+- display-controller-morphhdl/diagnostics/cdc-hierarchy/qualify_standalone.py
+- display-controller-morphhdl/notes/cdc-helper-hierarchy-20260928.md
+- display-controller-morphhdl/evidence/cdc-helper-hierarchy-20260928/
+
+Run from display-controller-morphhdl/toolchain/clock-reset-cdc:
+
+```sh
+sbt 'set Compile / unmanagedSources += file("../../diagnostics/cdc-hierarchy/CdcHierarchyProbe.scala")' \
+  'runMain displaycontroller.cdc.CdcHierarchyProbe sync /tmp/cdc-probe-sync'
+sbt 'set Compile / unmanagedSources += file("../../diagnostics/cdc-hierarchy/CdcHierarchyProbe.scala")' \
+  'runMain displaycontroller.cdc.CdcHierarchyProbe decoder /tmp/cdc-probe-decoder'
+```
+
+The existing modes fail with a nonzero exit; do not interpret an exception-catching
+runner or a directory of internal witness RTL as successful hierarchy publication.
+For positive standalone controls, use modes standalone-sync and standalone-decoder.
+Those artifacts passed nine Icarus profiles: WIDTH=1,5,18 crossed with STAGES=2,3,4,
+512 samples each, checking latency, asynchronous active-low reset, midstream reset,
+and Gray decoding against an independent reduction-XOR oracle. This evidence is
+standalone simulation only, not hierarchy, formal or physical CDC qualification.
+
+Required native Scala parameter flow, using the new supported explicit formal API:
+
+```scala
+val fifoDepth = HdlInt.param("FIFO_LOG_DEPTH", 3, 2, 16).asElabInt
+val syncDepth = HdlInt.param("SYNC_STAGES", 2, 2, 4).asElabInt
+val counterWidth: ElabInt = fifoDepth + 2
+// Synchronizer declares child-local WIDTH and STAGES formals from these actuals.
+// Decoder declares its own child-local WIDTH formal from counterWidth.
+```
+
+Required parent bindings (illustrative instance/port names):
+
+```verilog
+CdcSynchronizer #(.WIDTH(FIFO_LOG_DEPTH + 2), .STAGES(SYNC_STAGES)) gray_sync (...);
+CdcSynchronizer #(.WIDTH(1), .STAGES(SYNC_STAGES)) flag_sync (...);
+GrayToBinary #(.WIDTH(FIFO_LOG_DEPTH + 2)) gray_decode (...);
+```
+
+Acceptance additions:
+- Expose a coherent public native ElabInt formal-binding API. The inspected
+  spinal.core.ElabFormalComponent adapter is private[spinal]; do not access it
+  through a forged library package, reflection, or patched compiled artifacts.
+- Preserve WIDTH and STAGES as independent child-local identities. STAGES must
+  remain bindable when used only in structural conditions/output-tap selection,
+  rather than packed widths. Include literal WIDTH=1 and sibling instances with
+  different widths, as well as derived counter widths and symbolic stage counts.
+- Generate a parameterized parent hierarchy once; test the same artifact at
+  FIFO_LOG_DEPTH=2,3,16 and SYNC_STAGES=2,3,4, including the one-bit sibling.
+  Retain the standalone WIDTH=1,5,18 controls. Verify declared ports/registers,
+  parameter bindings, selected latency, zero initialization and ASYNC_REG/CDC
+  attributes under every tested override. Reject unsupported/illegal overrides
+  through the supported contract; do not assume Scala require validates arbitrary
+  downstream Verilog overrides.
+- Preserve the existing library fromGray implementation in the decoder wrapper.
+  BufferCC currently accepts Option[Int] for depth; do not silently freeze an
+  ElabInt stage count to use it. Extending that library API is a distinct capability,
+  not a prerequisite for proving the native child-formal binding fix with the probe.
+- Check asynchronous active-low reset assertion, reset during traffic and exact
+  2/3/4-cycle latency. Compare Gray-to-binary results with an independent oracle,
+  exercise upper bits and X/Z behavior, and retain attributes through publication.
+- Verify deterministic standalone and hierarchical publication with real children,
+  lint and synthesis. A helper-only pass is not acceptance of the full production
+  ClockResetCdc refactor; application migration and child-manifest updates follow
+  separately once the compiler/API regressions pass.
+
+##### Implementation and acceptance
+1. Reuse the already-working explicit HdlInt formal/actual binding path. Extend
+   the native ElabInt boundary without losing symbolic identity, exact domain
+   evidence or source ownership. Preserve parent actual expressions separately
+   from child definition formals through capture/copy, arithmetic and publication.
+2. Preserve scalar child formals used only inside derived widths. Support zero-
+   based scalar/Boolean formals where their uses are valid, while rejecting real
+   zero/negative packed widths, out-of-domain actuals and incompatible connections.
+3. Test literal, direct symbolic, derived and multilevel actuals; differently named
+   parent/child parameters; siblings with different actuals; equal defaults with
+   independent identities. Do not infer a binding from a default width or name.
+4. Generate the native WIDTH artifact once and compile/simulate the same files at
+   BUS_LOG2_BYTES=2,3,4,5, expecting 32,64,128,256-bit pass-through respectively.
+   Exercise upper bits and four-state payloads with an independent oracle. Verify
+   child WIDTH remains local and the parent's expression appears in its binding.
+5. Preserve the working explicit HdlInt BUS_BYTES*8 tests and direct-width controls.
+   Separately qualify child-local BUS_LOG2_BYTES overrides and PPC4=0/1 giving
+   widths 1/4. Test standalone and oneFilePerComponent hierarchical publication,
+   deterministic generation, invalid domains and unsupported expression families.
+6. Do not special-case application names, patch generated Verilog, freeze witnesses
+   or introduce an unrelated compiler framework. Automatic local formals for all
+   Scala arguments and support for all possible host expressions are not required.
+7. The real normalizer also hit direct-child-connection restrictions for expression
+   uses of child outputs/inputs. Treat this as a separate integration finding:
+   qualify supported direct carriers or document the exact remaining restriction.
+   Do not claim full-controller success from these small parameter tests alone.
+8. Run applicable existing hierarchy/formal binding, typed-width, native ElabInt,
+   Boolean parameter, library, per-component generation and required lint/simulation/
+   formal-equivalence regressions. Keep two-state proof and four-state simulation
+   claims distinct. Report skipped/unavailable checks and remaining limitations.
+
+Deliver the focused compiler/API change, permanent runnable tests, supported API
+documentation, before/after RTL, exact compiler identity and validation evidence.
+Restoring application parameters and qualifying the complete real-child controller
+remain a subsequent application task after these capabilities are available.
+
+
+- [ ] Retain named typed local constants as native localparams in custom decoders and AXI slave factories
+
+#### Generic native local constants and readable register address decoding
+
+Extend the current MorphHDL compiler/library generically so an application can
+explicitly declare a named, module-local, typed elaboration constant and retain
+its identity in native generated Verilog. The main motivating use is fixed CSR
+byte addresses emitted as localparam declarations and referenced by name in case
+labels. These are NOT externally overridable register-address parameters.
+
+Work in the MorphHDL repository under its current instructions. Inspect existing
+support first, reuse it, and keep the Display Controller application, its compiler
+pin and its Python/Rust cleanup implementations unchanged during this compiler
+task. Integrate this checkbox into the single increment requested at the top of
+this document.
+
+##### Scope and current evidence
+At inspected pin db54d01e5b21c7664f7a0de3795f061d77a3d259:
+- FSM/enum state encodings already emit named localparams and case labels. Do not
+  describe the compiler as lacking all localparam support. Investigate reusing
+  the existing declaration, naming and emission machinery.
+- frontend StructuralExpressionBridge.rejectLocalParameters explicitly reports
+  MORPH-FRONTEND-STRUCTURAL-LOCAL-PARAMETER-UNSUPPORTED for the general frontend
+  local references on the inspected native bridge paths. ParamRtlFrontend has
+  local-parameter handles/declarations; that does not establish native single-
+  source MorphVerilog integration. Extend the public native path rather than
+  directing applications to a separate/deprecated RTL authoring framework.
+- A Scala val holding an Int is normally elaborated to a literal; its Scala name
+  alone is not a native localparam declaration. Preserve explicit constant
+  identity, not a guessed name reconstructed from emitted literals.
+- AxiLite4SlaveFactory builds switch branches for SingleMapping and separate
+  when(address.hit(...)) branches for typed ElabIntSingleMapping. Verilog permits
+  localparams AND parameters as case labels; comparisons are a library lowering
+  choice, not a language restriction. Inspect Axi4SlaveFactory independently.
+- The actual production DisplayControllerAxiLiteCsrCommit currently uses a custom
+  AXI-Lite decoder, not either slave factory. It must be possible to use the new
+  constant API there without migrating to a factory.
+
+Executed parameterization control, distinct from the requested feature:
+  display-controller-morphhdl/diagnostics/slave-factory-addresses/
+  SlaveFactoryAddressProbe.scala, generated/SlaveFactoryAddressProbe.v, result.json
+The public AxiLite4SlaveFactory typed-address example emitted CONTROL_WORD and
+STATUS_WORD integer parameters multiplied by four into morphhdl_typed_value_*
+wires and equality/if decoding. All 16 declared address combinations passed its
+focused Icarus checks; deterministic generation, lint with width warnings, and
+default synthesis passed. This proves configurable address values, NOT fixed
+named localparams or named case-label retention. The directory is application
+workspace evidence; locate it if available, otherwise reconstruct the equivalent
+small parameterized control in the compiler test harness.
+
+##### Minimal custom-decoder reproduction and desired API
+Use the established typed single-source MorphVerilog harness with the pinned
+plugins. The following is PROPOSED API PSEUDOCODE: namedUIntLocal is a placeholder
+for the smallest coherent public API chosen after reviewing current machinery;
+it is not a claim that this API already exists. Convert it to a runnable permanent
+Scala reproducer as part of implementation.
+
+```scala
+import spinal.core._
+
+class NamedAddressDecoderProbe extends Component {
+  val io = new Bundle {
+    val address = in UInt(12 bits)
+    val writeFire = in Bool()
+    val writeStrobe = in Bits(4 bits)
+    val statusWriteValid = out Bool()
+  }
+  // Explicitly typed elaboration constants, not UInt wires or runtime registers.
+  val addrStatusClear = namedUIntLocal("ADDR_STATUS_CLEAR", 12, 0x0c0)
+  val addrStatusMask  = namedUIntLocal("ADDR_STATUS_MASK",  12, 0x0c4)
+  val addrEventClear  = namedUIntLocal("ADDR_EVENT_CLEAR",  12, 0x104)
+
+  io.statusWriteValid := False
+  when(io.writeFire && io.address(1 downto 0) === 0) {
+    switch(io.address) {
+      is(addrStatusClear, addrStatusMask, addrEventClear) {
+        io.statusWriteValid := io.writeStrobe.orR
+      }
+    }
+  }
+}
+```
+
+Names in this example are illustrative, not an authoritative production CSR map.
+Desired native output, ignoring incidental signal names and formatting:
+
+```verilog
+localparam [11:0] ADDR_STATUS_CLEAR = 12'h0c0;
+localparam [11:0] ADDR_STATUS_MASK  = 12'h0c4;
+localparam [11:0] ADDR_EVENT_CLEAR  = 12'h104;
+
+always @(*) begin
+  statusWriteValid = 1'b0;
+  if(writeFire && address[1:0] == 2'b00) begin
+    case(address)
+      ADDR_STATUS_CLEAR, ADDR_STATUS_MASK, ADDR_EVENT_CLEAR:
+        statusWriteValid = |writeStrobe;
+    endcase
+  end
+end
+```
+
+Separate case arms are acceptable if the library does not merge identical bodies.
+The key requirements are native localparam declarations, retained symbolic case
+labels, and equivalent behavior. Do not meet this by emitting runtime carrier
+wires, externally overridable parameters, literal-only labels, or postprocessing
+Verilog. Ordinary comparisons must also retain local constant references.
+
+##### Implementation requirements
+1. Provide an explicit public application API for module-local elaboration
+   constants with stable names and packed width/signedness. Reuse enum/localparam
+   emission and existing typed-expression/ownership facilities where suitable;
+   do not misuse state enums to encode arbitrary register addresses.
+2. Preserve identity through native lowering, copying, simplification, canonical
+   capture, validation and deterministic publication. Keep declarations local to
+   their owning component; handle dependencies, name collisions, illegal names,
+   duplicate declarations and cross-component misuse with clear diagnostics.
+   Do not automatically convert every Scala val or repeated literal to localparam.
+3. Support unsigned fixed-width constants sufficient for address decoding, with
+   explicit range checks. Define supported signed forms separately and test them
+   if claimed. Preserve widths/signs in comparisons, arithmetic, concatenations
+   and shifts; do not leak unsized/signed 32-bit integer semantics into hardware.
+4. Support local constants derived from other locals and valid public elaboration
+   parameter expressions where the existing domain machinery can prove legality.
+   Such constants remain localparam, retain dependencies, and recompute under
+   overrides of their public roots. Fixed addresses must remain non-overridable.
+5. Support direct custom switch/is consumers and comparisons. Named typed locals
+   used as switch keys must remain compile-time constants in native case labels,
+   not runtime signals requiring a different decode architecture.
+6. Integrate shared BusSlaveFactory named single-address support into BOTH
+   AxiLite4SlaveFactory and Axi4SlaveFactory, including read, write, readAndWrite,
+   onRead and onWrite consumers as applicable. Use the same public local-constant
+   API as custom decoders. Preserve references as named case labels for exact
+   single-address mappings when safe; do not claim that one factory qualifies the
+   other or add application-name-specific rules.
+7. Preserve factory alignment, address masking, bus width, byte-strobe handling,
+   handshake, response, event, read/write side-effect and error behavior. Retain
+   fallback paths for ranges/masks and unsupported mapping forms. Do not combine
+   independent matching conditions into exclusive case arms unless disjointness
+   and intended grouping/priority are established across the admitted parameter
+   domain. Detect ambiguous/overlapping mappings under existing factory policy.
+8. Do not broadly rewrite if chains into case or change X/Z matching behavior.
+   Preserve default/no-match semantics and cases with shared addresses containing
+   multiple read/write jobs. Preserve existing literal maps and FSM enum output.
+   Avoid compiler forks, signal-name inference and generated-text repairs.
+
+##### Validation and acceptance
+- Establish the current baseline with runnable probes; distinguish source-only
+  findings from executed failures. Keep the working configurable-address control.
+- Add permanent custom-decoder, AxiLite4SlaveFactory and Axi4SlaveFactory examples
+  with named fixed local addresses. Inspect native output for declarations and
+  named case labels, not merely behavior or parameter-looking headers.
+- Test address 0, high valid aligned addresses, repeated reuse of one constant,
+  independent constants with equal values, shared read/write mappings, unaligned
+  and out-of-range values, name/ownership errors, and dependency cycles or forward
+  references according to the API contract. Reject unsupported cases explicitly.
+- Add derived localparam examples under public base-address parameter overrides;
+  generate once and test the same artifact at default, representative and boundary
+  admitted values. Check alignment/range and overlap over the supported domain.
+- Simulate the custom decoder across the complete small address space, strobes,
+  writeFire and representative X/Z values, comparing the existing literal decode
+  with the named-localparam decode. Exercise default/no-match behavior explicitly.
+- Exercise real factory read/write/event behavior, byte enables, stalls, resets and
+  responses; use applicable existing AXI4 burst/ID and AXI-Lite independent-channel
+  qualification rather than assuming these protocols are interchangeable. Compare
+  against the unchanged literal-map behavior with real factory implementations.
+- Run existing enum/FSM, literal-map, typed-address, symbolic-value and hierarchy
+  regressions plus applicable lint, simulation, formal/equivalence and synthesis
+  checks. Generate twice and compare output deterministically. Distinguish limited
+  emission/address tests from full protocol or production-CSR qualification.
+- Deliver supported API documentation, exact compiler/source identities, before/
+  after RTL and results. A later application task may replace the custom CSR's
+  literals with named constants; a factory migration is NOT required for that use.
+
+## Constant aggregate and loop publication (October 2 request)
+
+This addition follows the merged 59i source and wire-pass retirement on
+`work/remaining-parameterized-increments`. Qualification and monitoring remain
+paused; the items below describe implementation, not remote increment closure.
+
+- [x] Add generation-local `MorphAggregateOptions` with independent, default-off
+  `preserveConstantVecs` and `preserveConstantLoops` switches.
+- [x] Preserve constant Vec dimension factors in packed declarations, including
+  nested dimensions; retain Verilog-2001 packed interfaces in both layouts.
+- [x] Add `PackedVector` (default) and `UnpackedArray` internal Vec layouts,
+  including multidimensional arrays and named-field record arrays. Preserve
+  scalar wire/register semantics and leave memory inference to synthesis.
+- [x] Retain constant typed structural and procedural ranges as loops when enabled.
+- [x] Complete focused local validation: 177 cases across 13 suites on Scala
+  2.12.18 and 2.13.12; new functional cases also compile as Verilog-2001,
+  simulate with Icarus and synthesize with Yosys. Receipt retained in the paused
+  local qualification checkpoint; this is not full qualification.
+- [ ] Reconcile remaining qualification contracts, then run targeted and full CI
+  only after the explicit qualification pause is lifted. No retired wire proofs.
+
+Usage and boundaries: [aggregate publication options](aggregate-publication.md).
+
 ## Completion target
 
 The roadmap is complete when parameter-sensitive SpinalHDL algorithms retain
@@ -1507,6 +2276,11 @@ derived localparams and correctly activation-scoped structural requirements,
 with their bounded support contracts, compatibility gates and actual output
 evidence complete. Planning examples alone do not satisfy those requirements.
 
+Increment 66 additionally requires all five integrated native-extension tasks
+above to meet their stated acceptance criteria, with runnable compiler examples,
+actual generated RTL and source-bound local and final-head qualification evidence.
+Implementation checkpoints alone do not establish completion.
+
 ## September 20 CDC report — parameter-legality presentation
 
 This is a new, unchecked follow-up reported against compiler
@@ -1514,9 +2288,12 @@ This is a new, unchecked follow-up reported against compiler
 parameter domains, legality semantics, guard ownership or fatal termination.
 It does not reopen historical completion checkboxes or gate the existing next
 integration target. Wire-expression issues from the same report are tracked in
-[the existing wire-pass roadmap](../../morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md#september-20-cdc-report--recursive-expression-cleanup).
+the retired wire-pass work; its roadmap and implementation have been removed.
 
 - [ ] **CDC-LEG-01 — Product-neutral legality labels and user-only fatal messages.**
+
+  **Implementation complete; focused local validation passed.** Final
+  qualification and merged closure remain pending.
 
   Replace native generated `g_morphhdl_parameter_legality_0` with
   `G_PARAMETER_LEGALITY_0`, applying the same spelling to subsequent deterministic
@@ -1538,15 +2315,15 @@ integration target. Wire-expression issues from the same report are tracked in
 
   import spinal.core._
   import spinal.lib._
-  import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
+  import morphhdl.MorphVerilog
   import morphhdl.frontend.HdlInt
 
   object CdcLegalityMessageRepro extends App {
-    require(args.length == 2, "Expected output-directory and passes-enabled")
-    val config = MorphWireAssignmentPasses(SpinalConfig(
+    require(args.length == 1, "Expected output-directory")
+    val config = SpinalConfig(
       targetDirectory = args(0), oneFilePerComponent = true,
       headerWithDate = false, headerWithRepoHash = true
-    ), enabled = args(1).toBoolean)
+    )
     MorphVerilog(config) {
       new Component {
         setDefinitionName("CdcLegalityMessageRepro")
@@ -1562,23 +2339,22 @@ integration target. Wire-expression issues from the same report are tracked in
 
   ```sh
   sbt 'set morph / Test / unmanagedSources := Seq(file("/tmp/CdcLegalityMessageRepro.scala"))' \
-    'morph/Test/runMain roadmap.CdcLegalityMessageRepro /tmp/CdcLegalityMessageRepro-on true' \
-    'morph/Test/runMain roadmap.CdcLegalityMessageRepro /tmp/CdcLegalityMessageRepro-off false'
-  iverilog -g2012 -s CdcLegalityMessageRepro -o /tmp/CdcLegalityMessageRepro.vvp /tmp/CdcLegalityMessageRepro-on/CdcLegalityMessageRepro.v
+    'morph/Test/runMain roadmap.CdcLegalityMessageRepro /tmp/CdcLegalityMessageRepro'
+  iverilog -g2012 -s CdcLegalityMessageRepro -o /tmp/CdcLegalityMessageRepro.vvp /tmp/CdcLegalityMessageRepro/CdcLegalityMessageRepro.v
   ```
 
   **Expected emitted form:** the mixed-domain guard is labelled
   `G_PARAMETER_LEGALITY_0` and its fatal message contains only the user text.
   Neither lowercase nor `morphhdl` occurs in generated legality labels.
   Exercise multiple requirements and hierarchy/sibling scopes before closure;
-  do not rename user-authored labels. Both enabled and disabled wire-pass modes
-  must use the requested presentation and deterministic indices.
+  do not rename user-authored labels. The parameterized-Verilog flow must use the requested presentation and
+  deterministic indices.
 
   **Runtime reproduction:** compile the same artifact with
-  `iverilog -g2012 -s CdcLegalityMessageRepro -P CdcLegalityMessageRepro.LIVE_LANES=2 -o /tmp/cdc-invalid.vvp /tmp/CdcLegalityMessageRepro-on/CdcLegalityMessageRepro.v`,
+  `iverilog -g2012 -s CdcLegalityMessageRepro -P CdcLegalityMessageRepro.LIVE_LANES=2 -o /tmp/cdc-invalid.vvp /tmp/CdcLegalityMessageRepro/CdcLegalityMessageRepro.v`,
   then run `vvp /tmp/cdc-invalid.vvp`. It must terminate nonzero and report the
   user message without the compiler-added prefix. Overrides 1 and 4 must remain
-  legal; override 3 must also fail. Repeat with the `-off` artifact. Preserve
+  legal; override 3 must also fail. Preserve
   quotes, newlines, percent signs and backslashes in further message controls,
   empty-message/default-message behavior, and synthesis exclusion. These are
   acceptance obligations, not claims that the requested change is implemented.
@@ -1587,5 +2363,21 @@ integration target. Wire-expression issues from the same report are tracked in
   compiled with the repository's SBT/Scala 2.12.18 plugins and generated in both
   pass modes; Icarus compiled both artifacts. On the enabled artifact, overrides
   1/4 exited successfully and 2/3 terminated nonzero with the current prefixed
-  message. The actual label is still `g_morphhdl_parameter_legality_0`.
-  This confirms the reproduction only; the requested presentation remains TODO.
+  message. That baseline used `g_morphhdl_parameter_legality_0`; it is historical
+  reproduction evidence, not the status of the implementation below.
+
+  **Local implementation checkpoint, 2 October 2026:** implemented on
+  `work/remaining-parameterized-increments`; remote qualification and merge are
+  pending the batch-wide CI phase. The native emitter allocates
+  `G_PARAMETER_LEGALITY_<index>` through its existing name scope and passes the
+  escaped original message directly to the unchanged guarded `$fatal` call.
+  `NativeLegalityPresentationTests` and `SymbolicPublicationEvidenceTests` pass
+  together on Scala 2.12.18 and 2.13.12 (22 tests per lane). Coverage includes
+  repeated emission, both existing pass modes, sibling scopes, collisions with
+  user names, obligation ordering, default/empty/escaped messages, Icarus
+  valid/invalid overrides and four-state passthrough, synthesis exclusion,
+  Verilog-2001 parsing, Verilator lint and Yosys synthesis. The existing Python
+  diagnostic checker now requires exactly one original diagnostic and rejects
+  the removed prefix; all 15 policy tests pass. Local run log:
+  `/tmp/morphhdl-cdc-legality-final.log`. These are local implementation receipts,
+  not remote CI or merge receipts.

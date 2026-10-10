@@ -250,10 +250,10 @@ def mutate_tail_extension(text: str) -> str:
     # then combines it with a (W+2)-bit sum. Mutate that *actual native operand's*
     # sign replication to zeros, preserving the original low bits and widths.
     # In particular, this is not a changed miter observation or an input value.
-    right = 'morphhdl_balanced_2_l2_partial_pair_right'
+    right = 'balanced_2_l2_partial_pair_right'
     replication = re.compile(r'(\{\{[^{}]*\{)(' + re.escape(right) + r'\[[^\]]+\])(\}\},)')
     context = re.compile(r'(?m)^(\s*assign\s+\w+\s*=\s*)\$signed\(' + re.escape(right) + r'\)(\s*;)')
-    high_bit = re.compile(r'(?m)^(\s*assign\s+\w*morphhdl_high_bit\w*\s*=\s*)' +
+    high_bit = re.compile(r'(?m)^(\s*assign\s+\w*high_bit\w*\s*=\s*)' +
                           re.escape(right) + r'\[[^\n;]*\](\s*;)')
     repeated = list(replication.finditer(text))
     contextual = list(context.finditer(text))

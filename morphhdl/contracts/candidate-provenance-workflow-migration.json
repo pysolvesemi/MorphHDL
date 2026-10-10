@@ -1,0 +1,199 @@
+{
+  "schema": 1,
+  "policy": "current-head-authenticated-provenance-2026-10-06",
+  "baseline": "f70a20cebdc37319a6b74d0bfe227a0e4403101f",
+  "workflows": {
+    ".github/workflows/increment-59b-publication.yml": {
+      "before_sha256": "42172fba346d2248293d9145715fa7d39682caacd32d13db6affa2a5c81bfd33",
+      "after_sha256": "3796114c4d1c2bf48c138212ebd1c2b93192b37fb62b1575bacfc34b013c986d",
+      "patches": [
+        {
+          "before": "\npermissions:\n  contents: read\n\nconcurrency:\n  group: increment-59b-publication-${{ github.ref }}\n",
+          "after": "\npermissions:\n  contents: read\n  actions: read\n\nconcurrency:\n  group: increment-59b-publication-${{ github.ref }}\n"
+        },
+        {
+          "before": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Preserve exact-head evidence and validate native boundaries\n        shell: bash\n        run: |\n",
+          "after": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Consume authenticated candidate provenance\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py\n      - name: Preserve exact-head evidence and validate native boundaries\n        shell: bash\n        run: |\n"
+        }
+      ]
+    },
+    ".github/workflows/increment-59c-named-field-vectors.yml": {
+      "before_sha256": "fd0064d9d1b2a7e7de8463320861efff711ed13252114c991f098ed121d4dc0b",
+      "after_sha256": "e296104884aa730fa23d38ef4d24692aff509a374aef0556e392e806ea67221a",
+      "patches": [
+        {
+          "before": "\npermissions:\n  contents: read\n\nconcurrency:\n  group: increment-59c-named-field-vectors-${{ github.ref }}\n",
+          "after": "\npermissions:\n  contents: read\n  actions: read\n\nconcurrency:\n  group: increment-59c-named-field-vectors-${{ github.ref }}\n"
+        },
+        {
+          "before": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Compose the frozen 59c source review with Increment 61\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          output=\"$GITHUB_WORKSPACE/target/increment-59c\"\n          predecessor=\"$output/predecessor-source\"\n",
+          "after": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Consume authenticated candidate provenance\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py\n      - name: Compose the frozen 59c source review with Increment 61\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          output=\"$GITHUB_WORKSPACE/target/increment-59c\"\n          predecessor=\"$output/predecessor-source\"\n"
+        },
+        {
+          "before": "          git archive HEAD | gzip > \"$output/source.tar.gz\"\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test\n          base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)\n          git worktree add --detach \"$predecessor\" \"$base\"\n          trap 'git worktree remove --force \"$predecessor\"' EXIT\n          (\n            cd \"$predecessor\"\n            python3 morphhdl/scripts/check-increment-59c-source-review.py --self-test\n            python3 morphhdl/scripts/check-increment-59c-source-review.py\n            python3 morphhdl/scripts/test-increment-59c-inherited-source-scope.py\n          )\n          python3 morphhdl/scripts/check-native-source-preservation.py\n          python3 morphhdl/scripts/check-increment-58-retirement.py\n          python3 morphhdl/scripts/check-typed-layering-ir.py\n",
+          "after": "          git archive HEAD | gzip > \"$output/source.tar.gz\"\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test\n          # The Increment 61 predecessor and its evidence are authenticated by the producer.\n          python3 morphhdl/scripts/check-native-source-preservation.py\n          python3 morphhdl/scripts/check-increment-58-retirement.py\n          python3 morphhdl/scripts/check-typed-layering-ir.py\n"
+        }
+      ]
+    },
+    ".github/workflows/increment-59d-widening.yml": {
+      "before_sha256": "34fc93c42b8843eccac9e508d35050662397ed29ec9cd95daa7d51f35658ef96",
+      "after_sha256": "133b8360ce4b5789e5b448a29a33ac8007f62ac2de2d59f0ae88c628e0e7f143",
+      "patches": [
+        {
+          "before": "\npermissions:\n  contents: read\n\nconcurrency:\n  group: increment-59d-widening-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}\n",
+          "after": "\npermissions:\n  contents: read\n  actions: read\n\nconcurrency:\n  group: increment-59d-widening-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}\n"
+        },
+        {
+          "before": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Preserve exact-head evidence and validate native boundaries\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          mkdir -p target/increment-59d-widening/bootstrap\n          git rev-parse HEAD > target/increment-59d-widening/head.txt\n",
+          "after": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Consume authenticated candidate provenance\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py\n      - name: Preserve exact-head evidence and validate native boundaries\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          mkdir -p target/increment-59d-widening/bootstrap\n          git rev-parse HEAD > target/increment-59d-widening/head.txt\n"
+        }
+      ]
+    },
+    ".github/workflows/increment-59f-callback-graphs.yml": {
+      "before_sha256": "c4f54300f94d4644c9c49bd68c365523137bbf5c74c8bd89628adf5825c4ad67",
+      "after_sha256": "f37f6b44097ccad2337c038e82eb621344e7453c1354858f85008a9ce176d04f",
+      "patches": [
+        {
+          "before": "\npermissions:\n  contents: read\n\nconcurrency:\n  group: increment-59f-callback-graphs-${{ github.ref }}\n",
+          "after": "\npermissions:\n  contents: read\n  actions: read\n\nconcurrency:\n  group: increment-59f-callback-graphs-${{ github.ref }}\n"
+        },
+        {
+          "before": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Preserve exact-head evidence and audit native boundaries\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          output=\"$GITHUB_WORKSPACE/target/increment-59f-callback-graphs\"\n          mkdir -p \"$output/bootstrap\"\n",
+          "after": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Consume authenticated candidate provenance\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py\n      - name: Preserve exact-head evidence and audit native boundaries\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          output=\"$GITHUB_WORKSPACE/target/increment-59f-callback-graphs\"\n          mkdir -p \"$output/bootstrap\"\n"
+        }
+      ]
+    },
+    ".github/workflows/increment-59g-register-bridges.yml": {
+      "before_sha256": "7550f1c2d03df276cef036743159326c3ecc9446ad58dddc8d9dcba0bbc7e9f2",
+      "after_sha256": "59bd23eb7e3221f8bb77ee1d9a6b27b33da8af980c1b67be9d5279f8eb04bd12",
+      "patches": [
+        {
+          "before": "\npermissions:\n  contents: read\n\nconcurrency:\n  group: increment-59g-register-bridges-${{ github.ref }}\n",
+          "after": "\npermissions:\n  contents: read\n  actions: read\n\nconcurrency:\n  group: increment-59g-register-bridges-${{ github.ref }}\n"
+        },
+        {
+          "before": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Compose frozen register-bridge reviews with Increment 61\n        shell: bash\n        run: |\n",
+          "after": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Consume authenticated candidate provenance\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py\n      - name: Compose frozen register-bridge reviews with Increment 61\n        shell: bash\n        run: |\n"
+        },
+        {
+          "before": "          mkdir -p \"$output/bootstrap\"\n          git rev-parse HEAD > \"$output/head.txt\"\n          git archive HEAD | gzip > \"$output/source.tar.gz\"\n          python3 morphhdl/scripts/check-parameterized-integration-source.py\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test\n",
+          "after": "          mkdir -p \"$output/bootstrap\"\n          git rev-parse HEAD > \"$output/head.txt\"\n          git archive HEAD | gzip > \"$output/source.tar.gz\"\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test\n"
+        }
+      ]
+    },
+    ".github/workflows/increment-59h-nested-owners.yml": {
+      "before_sha256": "0f2f6e3a1649e2f67070ff0b6020192b0f6cb7de345b419bdb8da6a7f8c8e38c",
+      "after_sha256": "d5c54c0d533b61d13dd6e6df434ca2f3cf8dde15a023739ade4eae8f88880b2f",
+      "patches": [
+        {
+          "before": "\npermissions:\n  contents: read\n\nconcurrency:\n  group: increment-59h-nested-owners-${{ github.ref }}\n",
+          "after": "\npermissions:\n  contents: read\n  actions: read\n\nconcurrency:\n  group: increment-59h-nested-owners-${{ github.ref }}\n"
+        },
+        {
+          "before": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Preserve exact-head evidence and audit native boundaries\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          output=\"$GITHUB_WORKSPACE/target/increment-59h-nested-owners\"\n          mkdir -p \"$output/bootstrap\"\n",
+          "after": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Consume authenticated candidate provenance\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py\n      - name: Preserve exact-head evidence and audit native boundaries\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          output=\"$GITHUB_WORKSPACE/target/increment-59h-nested-owners\"\n          mkdir -p \"$output/bootstrap\"\n"
+        }
+      ]
+    },
+    ".github/workflows/increment-59i-combined-closure.yml": {
+      "before_sha256": "0ccb2929aae569550d78abf7c8738fb5ef8f2f3c232222e1a9d423195bac5e60",
+      "after_sha256": "08d836ab7858dc787fb46ff56d3ac879ac2e0bd5c7516dd7919f0cfa797778f6",
+      "patches": [
+        {
+          "before": "\npermissions:\n  contents: read\n\nconcurrency:\n  group: increment-59i-combined-${{ github.ref }}\n",
+          "after": "\npermissions:\n  contents: read\n  actions: read\n\nconcurrency:\n  group: increment-59i-combined-${{ github.ref }}\n"
+        },
+        {
+          "before": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Preserve exact source and run bounded primary audits\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          python3 morphhdl/scripts/check-native-source-preservation.py\n          output=\"$GITHUB_WORKSPACE/target/increment-59i-combined-source\"\n",
+          "after": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Consume authenticated candidate provenance\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py\n      - name: Preserve exact source and run bounded primary audits\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          python3 morphhdl/scripts/check-native-source-preservation.py\n          output=\"$GITHUB_WORKSPACE/target/increment-59i-combined-source\"\n"
+        },
+        {
+          "before": "          git rev-parse HEAD > \"$output/head.txt\"\n          git archive HEAD | gzip > \"$output/source.tar.gz\"\n\n          # The feature and target sides each have immutable native-source\n          # reviews. Validate those exact parents separately, then require all\n          # joined 59i successor reviews below on the current checkout.\n          test \"$(git rev-parse \"$INTEGRATION_MERGE^2\")\" = \"$TARGET_HEAD\"\n          git merge-base --is-ancestor \"$INTEGRATION_MERGE\" HEAD\n          feature_native=\"/tmp/59i-native-feature-$SCALA_VERSION\"\n          target_native=\"/tmp/59i-native-target-$SCALA_VERSION\"\n          rm -rf \"$feature_native\" \"$target_native\"\n          cleanup_native_worktrees() {\n            git worktree remove --force \"$feature_native\" >/dev/null 2>&1 || true\n            git worktree remove --force \"$target_native\" >/dev/null 2>&1 || true\n          }\n          trap cleanup_native_worktrees EXIT\n          git worktree add --detach \"$feature_native\" \"$INTEGRATION_MERGE^1\"\n          git worktree add --detach \"$target_native\" \"$INTEGRATION_MERGE^2\"\n          (cd \"$feature_native\" && python3 morphhdl/scripts/check-native-source-preservation.py) \\\n            | tee \"$output/native-feature-parent.log\"\n          (cd \"$target_native\" && python3 morphhdl/scripts/check-native-source-preservation.py) \\\n            | tee \"$output/native-target-parent.log\"\n          (cd \"$feature_native\" && python3 morphhdl/scripts/check-typed-native-source-overlay.py) \\\n            | tee \"$output/overlay-feature-parent.log\"\n          (cd \"$target_native\" && python3 morphhdl/scripts/check-typed-native-source-overlay.py) \\\n            | tee \"$output/overlay-target-parent.log\"\n          cleanup_native_worktrees\n          trap - EXIT\n\n          for layer in 59i 59g 59h; do\n            python3 morphhdl/scripts/run-parameterized-inherited-audit.py \"morphhdl/scripts/check-increment-$layer-source-review.py\" --self-test > \"$output/$layer-source-self-test.log\" 2>&1 || { tail -n 100 \"$output/$layer-source-self-test.log\"; exit 1; }\n",
+          "after": "          git rev-parse HEAD > \"$output/head.txt\"\n          git archive HEAD | gzip > \"$output/source.tar.gz\"\n\n          # Both native-source parent certificates are enrolled in candidate provenance.\n          test \"$(git rev-parse \"$INTEGRATION_MERGE^2\")\" = \"$TARGET_HEAD\"\n          git merge-base --is-ancestor \"$INTEGRATION_MERGE\" HEAD\n\n          for layer in 59i 59g 59h; do\n            python3 morphhdl/scripts/run-parameterized-inherited-audit.py \"morphhdl/scripts/check-increment-$layer-source-review.py\" --self-test > \"$output/$layer-source-self-test.log\" 2>&1 || { tail -n 100 \"$output/$layer-source-self-test.log\"; exit 1; }\n"
+        },
+        {
+          "before": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Preserve exact source and run bounded inherited audits\n        shell: bash\n        run: |\n",
+          "after": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Consume authenticated candidate provenance\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py\n      - name: Preserve exact source and run bounded inherited audits\n        shell: bash\n        run: |\n"
+        }
+      ]
+    },
+    ".github/workflows/increment-60c-signed-declarations.yml": {
+      "before_sha256": "2fb34523005c768ba82446c36e62ccbc2427ae8d113bbe4e05378d12c1c39080",
+      "after_sha256": "7cf3c3fce61463d578570feecf0c10f201f367a6bd159a7d3a60d1cc0aea02d9",
+      "patches": [
+        {
+          "before": "\npermissions:\n  contents: read\nconcurrency:\n  group: increment-60c-${{ github.workflow }}-${{ github.ref }}\n  cancel-in-progress: true\n",
+          "after": "\npermissions:\n  contents: read\n  actions: read\nconcurrency:\n  group: increment-60c-${{ github.workflow }}-${{ github.ref }}\n  cancel-in-progress: true\n"
+        },
+        {
+          "before": "          ref: ${{ github.event.pull_request.head.sha || github.sha }}\n          fetch-depth: 0\n          submodules: recursive\n      - name: Compose sealed signed-declaration source with Increment 61\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          output=\"$GITHUB_WORKSPACE/target/increment-60c\"\n          predecessor=\"$output/predecessor-source\"\n          mkdir -p \"$output\"\n          git rev-parse HEAD > \"$output/head.txt\"\n          git archive HEAD | gzip > \"$output/source.tar.gz\"\n          # Immutable recursive audits share this runner's CPU budget. Execute\n          # both unchanged commands sequentially; keep every nested deadline.\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test\n          base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)\n          git worktree add --detach \"$predecessor\" \"$base\"\n          trap 'git worktree remove --force \"$predecessor\"' EXIT\n          (\n            cd \"$predecessor\"\n            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only\n          )\n          python3 morphhdl/scripts/check-increment-58-retirement.py\n          python3 morphhdl/scripts/check-production-retirement.py\n          python3 morphhdl/scripts/check-native-source-preservation.py\n",
+          "after": "          ref: ${{ github.event.pull_request.head.sha || github.sha }}\n          fetch-depth: 0\n          submodules: recursive\n      - name: Consume authenticated candidate provenance\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py\n      - name: Compose sealed signed-declaration source with Increment 61\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          output=\"$GITHUB_WORKSPACE/target/increment-60c\"\n          predecessor=\"$output/predecessor-source\"\n          mkdir -p \"$output\"\n          git rev-parse HEAD > \"$output/head.txt\"\n          git archive HEAD | gzip > \"$output/source.tar.gz\"\n          # These scopes consume the once-per-candidate provenance result.\n          # Current behavioral qualification below retains its original budget.\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test\n          # The Increment 61 predecessor and its evidence are authenticated by the producer.\n          python3 morphhdl/scripts/check-increment-58-retirement.py\n          python3 morphhdl/scripts/check-production-retirement.py\n          python3 morphhdl/scripts/check-native-source-preservation.py\n"
+        }
+      ]
+    },
+    ".github/workflows/increment-60d-pure-sint-casts.yml": {
+      "before_sha256": "5acf96dd23ebbc719cc031f288173660b7af536889de3ea4826b06828f1afe7b",
+      "after_sha256": "05cce03d17b434cf8efe23f65efae3a2aaf6cf7cae725a682f9d93074c22bf3e",
+      "patches": [
+        {
+          "before": "\npermissions:\n  contents: read\nconcurrency:\n  group: increment-60d-${{ github.workflow }}-${{ github.ref }}\n  cancel-in-progress: true\n",
+          "after": "\npermissions:\n  contents: read\n  actions: read\nconcurrency:\n  group: increment-60d-${{ github.workflow }}-${{ github.ref }}\n  cancel-in-progress: true\n"
+        },
+        {
+          "before": "          ref: ${{ github.event.pull_request.head.sha || github.sha }}\n          fetch-depth: 0\n          submodules: recursive\n      - name: Sealed historical source scope and current native audits\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          mkdir -p target/increment-60d\n          git archive HEAD | gzip > target/increment-60d/source.tar.gz\n          # Immutable recursive audits share this runner's CPU budget. Execute\n          # both unchanged commands sequentially; keep every nested deadline.\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test\n          predecessor=\"$GITHUB_WORKSPACE/target/increment-61-predecessor-60d-${{ matrix.scala }}\"\n          git worktree add --detach \"$predecessor\" 5a9294363c7b74ae584f1702160fe1f7e468f58a\n          trap 'git worktree remove --force \"$predecessor\"' EXIT\n          (\n            cd \"$predecessor\"\n            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only\n            python3 morphhdl/scripts/check-increment-58-retirement.py\n            python3 morphhdl/scripts/check-production-retirement.py\n          )\n          python3 morphhdl/scripts/check-native-source-preservation.py\n          python3 morphhdl/scripts/check-typed-native-source-overlay.py\n      - name: Declaration roles, opt-in isolation, wrappers and deterministic generation\n",
+          "after": "          ref: ${{ github.event.pull_request.head.sha || github.sha }}\n          fetch-depth: 0\n          submodules: recursive\n      - name: Consume authenticated candidate provenance\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py\n      - name: Sealed historical source scope and current native audits\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          mkdir -p target/increment-60d\n          git archive HEAD | gzip > target/increment-60d/source.tar.gz\n          # These scopes consume the once-per-candidate provenance result.\n          # Current behavioral qualification below retains its original budget.\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test\n          # The Increment 61 predecessor and its evidence are authenticated by the producer.\n          python3 morphhdl/scripts/check-native-source-preservation.py\n          python3 morphhdl/scripts/check-typed-native-source-overlay.py\n      - name: Declaration roles, opt-in isolation, wrappers and deterministic generation\n"
+        }
+      ]
+    },
+    ".github/workflows/increment-60e-signedness-boundaries.yml": {
+      "before_sha256": "1c9b320558318e84f9fbca23ff1b59b2b737245364a08ba2972bf9b460861265",
+      "after_sha256": "fe07e3d85d03517e6396567ebdfea47f412f60d775cc0baab057d76dbd9eba68",
+      "patches": [
+        {
+          "before": "\npermissions:\n  contents: read\nconcurrency:\n  group: increment-60e-${{ github.workflow }}-${{ github.ref }}\n  cancel-in-progress: true\n",
+          "after": "\npermissions:\n  contents: read\n  actions: read\nconcurrency:\n  group: increment-60e-${{ github.workflow }}-${{ github.ref }}\n  cancel-in-progress: true\n"
+        },
+        {
+          "before": "          ref: ${{ github.event.pull_request.head.sha || github.sha }}\n          fetch-depth: 0\n          submodules: recursive\n      - name: Compose sealed boundary source with Increment 61\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          output=\"$GITHUB_WORKSPACE/target/increment-60e\"\n          predecessor=\"$output/predecessor-source\"\n          mkdir -p \"$output\"\n          git rev-parse HEAD > \"$output/head.txt\"\n          git archive HEAD | gzip > \"$output/source.tar.gz\"\n          # Immutable recursive audits share this runner's CPU budget. Execute\n          # both unchanged commands sequentially; keep every nested deadline.\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test\n          base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)\n          git worktree add --detach \"$predecessor\" \"$base\"\n          trap 'git worktree remove --force \"$predecessor\"' EXIT\n          (\n            cd \"$predecessor\"\n            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only\n          )\n          python3 morphhdl/scripts/check-increment-58-retirement.py\n          python3 morphhdl/scripts/check-production-retirement.py\n          python3 morphhdl/scripts/check-native-source-preservation.py\n",
+          "after": "          ref: ${{ github.event.pull_request.head.sha || github.sha }}\n          fetch-depth: 0\n          submodules: recursive\n      - name: Consume authenticated candidate provenance\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py\n      - name: Compose sealed boundary source with Increment 61\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          output=\"$GITHUB_WORKSPACE/target/increment-60e\"\n          predecessor=\"$output/predecessor-source\"\n          mkdir -p \"$output\"\n          git rev-parse HEAD > \"$output/head.txt\"\n          git archive HEAD | gzip > \"$output/source.tar.gz\"\n          # These scopes consume the once-per-candidate provenance result.\n          # Current behavioral qualification below retains its original budget.\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test\n          # The Increment 61 predecessor and its evidence are authenticated by the producer.\n          python3 morphhdl/scripts/check-increment-58-retirement.py\n          python3 morphhdl/scripts/check-production-retirement.py\n          python3 morphhdl/scripts/check-native-source-preservation.py\n"
+        }
+      ]
+    },
+    ".github/workflows/increment-60f-equivalence-closure.yml": {
+      "before_sha256": "4cca6c90ed36a5b875f019bd64814acbc002d0ab8226f7a2940d22aa6e1d4967",
+      "after_sha256": "659eb7dc845f7c468bde49202c498d6abb5389db9cb02ff97643be29fea1c68b",
+      "patches": [
+        {
+          "before": "\npermissions:\n  contents: read\nconcurrency:\n  group: increment-60f-${{ github.workflow }}-${{ github.ref }}\n  cancel-in-progress: true\n",
+          "after": "\npermissions:\n  contents: read\n  actions: read\nconcurrency:\n  group: increment-60f-${{ github.workflow }}-${{ github.ref }}\n  cancel-in-progress: true\n"
+        },
+        {
+          "before": "  qualify:\n    name: Signedness closure Scala ${{ matrix.scala }}\n    runs-on: ubuntu-latest\n    # The direct source audit and retained harness each repeat the full joined\n    # traversal (measured 1621.921s once). Leave time for both plus RTL gates.\n    timeout-minutes: 180\n    strategy:\n      fail-fast: false\n",
+          "after": "  qualify:\n    name: Signedness closure Scala ${{ matrix.scala }}\n    runs-on: ubuntu-latest\n    # Preserve the full qualification deadline after migrating historical\n    # source replay to the authenticated current-candidate provenance result.\n    timeout-minutes: 180\n    strategy:\n      fail-fast: false\n"
+        },
+        {
+          "before": "          ref: ${{ github.event.pull_request.head.sha || github.sha }}\n          fetch-depth: 0\n          submodules: recursive\n      - name: Compose sealed signedness closure with Increment 61\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          output=\"$GITHUB_WORKSPACE/target/increment-60f\"\n          predecessor=\"$output/predecessor-source\"\n",
+          "after": "          ref: ${{ github.event.pull_request.head.sha || github.sha }}\n          fetch-depth: 0\n          submodules: recursive\n      - name: Consume authenticated candidate provenance\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py\n      - name: Compose sealed signedness closure with Increment 61\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          output=\"$GITHUB_WORKSPACE/target/increment-60f\"\n          predecessor=\"$output/predecessor-source\"\n"
+        },
+        {
+          "before": "          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --self-test\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test\n          base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)\n          git worktree add --detach \"$predecessor\" \"$base\"\n          trap 'git worktree remove --force \"$predecessor\"' EXIT\n          (\n            cd \"$predecessor\"\n            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only\n            python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py\n            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --self-test\n            python3 morphhdl/scripts/test-wa07b-inherited-review.py\n          )\n          python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test\n          python3 morphhdl/scripts/check-increment-58-retirement.py\n          python3 morphhdl/scripts/check-production-retirement.py\n",
+          "after": "          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --self-test\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test\n          # The Increment 61 predecessor and its evidence are authenticated by the producer.\n          python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test\n          python3 morphhdl/scripts/check-increment-58-retirement.py\n          python3 morphhdl/scripts/check-production-retirement.py\n"
+        }
+      ]
+    },
+    ".github/workflows/morphhdl-native-source-guard.yml": {
+      "before_sha256": "2d56e9e23c9af9a112732ad780cf6857d76a34a46c2f39f4c641732d5b419bb3",
+      "after_sha256": "f4c437482d3aa970d86b3a64f000bdd934771eec539ac0dd8fcfb94e80d85fc0",
+      "patches": [
+        {
+          "before": "        with:\n          ref: ${{ github.event.pull_request.head.sha || github.sha }}\n          fetch-depth: 0\n      - name: Syntax-check and self-test the exact native boundary\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          python3 morphhdl/scripts/test-parameterized-inherited-audit.py\n          python3 morphhdl/scripts/test-increment-59i-inherited-audit-budgets.py\n          python3 morphhdl/scripts/test-audit-git-batch.py\n          test -x morphhdl/scripts/check-native-streamfifocc-boundary.sh\n",
+          "after": "        with:\n          ref: ${{ github.event.pull_request.head.sha || github.sha }}\n          fetch-depth: 0\n      - name: Authenticate candidate provenance once\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py --produce\n      - name: Syntax-check and self-test the exact native boundary\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          python3 morphhdl/scripts/check-retained-parameterized-regressions.py --self-test\n          python3 morphhdl/scripts/test-parameterized-inherited-audit.py\n          python3 morphhdl/scripts/test-candidate-provenance.py\n          python3 morphhdl/scripts/test-candidate-provenance-ci.py\n          python3 morphhdl/scripts/test-increment-59i-inherited-audit-budgets.py\n          python3 morphhdl/scripts/test-audit-git-batch.py\n          test -x morphhdl/scripts/check-native-streamfifocc-boundary.sh\n"
+        },
+        {
+          "before": "          path: target/parameterized-inherited-audits\n          if-no-files-found: error\n          retention-days: 30\n",
+          "after": "          path: target/parameterized-inherited-audits\n          if-no-files-found: error\n          retention-days: 30\n      - name: Retain authenticated candidate provenance\n        uses: actions/upload-artifact@v4\n        with:\n          name: candidate-provenance-${{ env.MORPHHDL_PROVENANCE_HEAD }}-${{ github.run_attempt }}\n          path: target/parameterized-inherited-audits/candidate-provenance/receipt.json\n          if-no-files-found: error\n          retention-days: 30\n"
+        }
+      ]
+    }
+  }
+}

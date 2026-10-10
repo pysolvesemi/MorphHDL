@@ -617,6 +617,72 @@ object HdlInt extends LowPriorityHdlIntImplicits {
     )
   }
 
+  /** Bring a direct, certified native parameter into the structural frontend.
+    * The existing typed packed-width boundary checks its authority and rejects
+    * active branch projections. Retain the exact schema and declaration root;
+    * reconstructing a parameter by name would create a different owner.
+    *
+    * This deliberately accepts only positive direct parameters, as provided by
+    * native component-formal constructors. Express logical control encodings
+    * with ordinary HdlInt arithmetic after crossing this boundary.
+    */
+  def fromElabIntParameter(value: spinal.core.ElabInt)(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): HdlInt = {
+    val origin = SourceOrigin.capture
+    if (value eq null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-TYPED-PARAMETER-NULL",
+        "typed parameter import requires a non-null ElabInt",
+        origin
+      )
+    }
+    val width = value.bits
+    val (schema, retained) = (width.parameter, width.expression) match {
+      case (Some(parameter), Some(expression))
+          if expression.parameters.size == 1 &&
+            (expression.parameters.head eq parameter) &&
+            expression.parameterRoots.size == 1 &&
+            expression.parameterRoots.head.name == parameter.name &&
+            expression.verilog == parameter.name &&
+            expression.generateIndex.isEmpty &&
+            expression.default == parameter.default &&
+            expression.minimum == parameter.minimum &&
+            expression.maximum == parameter.maximum =>
+        parameter -> expression
+      case _ =>
+        FrontendException.failAt(
+          "MORPH-FRONTEND-TYPED-PARAMETER-NOT-DIRECT",
+          "typed parameter import requires one complete certified direct parameter, without arithmetic or a branch projection",
+          origin
+        )
+    }
+    val declaration = IntegerParameter(
+      schema.name,
+      schema.default,
+      Vector[IntConstraint](MinInclusive(schema.minimum), MaxInclusive(schema.maximum))
+    )
+    val token = new ParameterToken(
+      declaration,
+      origin,
+      initialSchema = Some(schema),
+      initialRoot = Some(retained.parameterRoots.head)
+    )
+    new HdlInt(
+      schema.default,
+      ParameterRef(schema.name),
+      declaration = Some(token),
+      parameters = Set(token),
+      booleanParameters = Set.empty,
+      localDeclaration = None,
+      localParameters = Set.empty,
+      booleanLocalParameters = Set.empty,
+      scope = None,
+      origin = origin
+    )
+  }
+
   private[frontend] def formal(
       actual: HdlInt,
       name: String,
@@ -652,7 +718,7 @@ object HdlInt extends LowPriorityHdlIntImplicits {
       origin,
       initialSchema = Some(binding.formal)
     )
-    new HdlInt(
+    val result = new HdlInt(
       binding.formal.default,
       ParameterRef(name),
       declaration = Some(token),
@@ -665,6 +731,8 @@ object HdlInt extends LowPriorityHdlIntImplicits {
       origin = origin,
       formalBinding = Some(binding)
     )
+    ExternalFormalParameterRegistry.retainComponentDeclaration(owner, binding, result.asElabInt)
+    result
   }
 
   /** Retain one positive, bounded formal actual with complete symbolic
@@ -687,26 +755,20 @@ object HdlInt extends LowPriorityHdlIntImplicits {
     val retained = analyzed.expression
     if (
       retained.default != actual.witness ||
-      retained.minimum < 1 || retained.maximum < retained.minimum ||
+      retained.minimum < 0 || retained.maximum < retained.minimum ||
       retained.maximum > BigInt(Int.MaxValue) ||
       retained.default < retained.minimum || retained.default > retained.maximum ||
       !retained.default.isValidInt
     ) {
       FrontendException.failAt(
         "MORPH-FRONTEND-FORMAL-ACTUAL-DOMAIN-INVALID",
-        s"$role expression '${retained.verilog}' must have concrete witness ${actual.witness} and a finite positive Int-sized domain, received default ${retained.default} in [${retained.minimum}, ${retained.maximum}]",
+        s"$role expression '${retained.verilog}' must have concrete witness ${actual.witness} and a finite nonnegative Int-sized scalar domain, received default ${retained.default} in [${retained.minimum}, ${retained.maximum}]",
         origin
       )
     }
     val authoritative = exactSingleRootElabInt(analyzed) match {
       case Some(exact) =>
-        exact.bits.expression.getOrElse {
-          FrontendException.failAt(
-            "MORPH-FRONTEND-FORMAL-ACTUAL-EXACT-EXPRESSION-MISSING",
-            s"$role single-root expression '${retained.verilog}' lost its exact symbolic carrier",
-            origin
-          )
-        }
+        ExternalFormalParameterRegistry.projectActual(exact, role)
       case None => retained
     }
     actual.formalBinding match {
@@ -754,10 +816,10 @@ object HdlInt extends LowPriorityHdlIntImplicits {
         origin
       )
     }
-    if (minimum < 1 || maximum < minimum || maximum > BigInt(Int.MaxValue)) {
+    if (minimum < 0 || maximum < minimum || maximum > BigInt(Int.MaxValue)) {
       FrontendException.failAt(
         "MORPH-FRONTEND-FORMAL-PARAMETER-DOMAIN-INVALID",
-        s"formal parameter '$name' requires a positive non-empty Int-sized domain, received [$minimum, $maximum]",
+        s"formal parameter '$name' requires a nonnegative non-empty Int-sized scalar domain, received [$minimum, $maximum]",
         origin
       )
     }

@@ -132,6 +132,13 @@ private[core] final class ExternalFormalComponentIdentityRef(
   * type is changed.
   */
 object ExternalFormalParameterRegistry {
+  /** Authenticated scalar projection for the frontend formal boundary. Unlike
+    * a bit-count conversion, this does not impose packed-width positivity.
+    */
+  def projectActual(value: ElabInt, role: String): ElaborationIntegerExpression =
+    ElaborationPublicationValue.projected(value, role,
+      "SPINAL-ELAB-FORMAL-ACTUAL-EXACT-DOMAIN-REQUIRED", requireProjectedExactExtrema = false)
+
   private val bitCountQueue = new ReferenceQueue[ParameterizedBitCount]()
   private val leafQueue = new ReferenceQueue[BaseType]()
   private val rootQueue = new ReferenceQueue[Component]()
@@ -161,6 +168,20 @@ object ExternalFormalParameterRegistry {
     ExternalFormalComponentIdentityRef,
     Vector[ExternalTypedFormalBinding]
   ]
+  // Only the atomic constructor installs this complete, identity-bound vector.
+  // A collection of individually minted capabilities is not batch authority.
+  private val typedCompleteInventories = mutable.HashMap.empty[
+    ExternalFormalComponentIdentityRef,
+    Vector[ExternalTypedFormalBinding]
+  ]
+  private final case class TypedDependentPort(
+      port: WeakReference[BaseType],
+      nativeClass: Class[_], kind: AnyRef,
+      direction: (Boolean, Boolean, Boolean),
+      width: ElaborationIntegerExpression,
+      entries: Vector[ExternalTypedFormalBinding])
+  private val typedDependentPorts = mutable.HashMap.empty[
+    ExternalFormalComponentIdentityRef, Vector[TypedDependentPort]]
 
   private def reapBitCounts(): Unit = {
     var reference = bitCountQueue.poll().asInstanceOf[ExternalFormalBitCountIdentityRef]
@@ -193,6 +214,8 @@ object ExternalFormalParameterRegistry {
     while (reference != null) {
       instanceBindings.remove(reference)
       typedInstanceBindings.remove(reference)
+      typedCompleteInventories.remove(reference)
+      typedDependentPorts.remove(reference)
       reference = componentQueue.poll().asInstanceOf[ExternalFormalComponentIdentityRef]
     }
   }
@@ -270,7 +293,24 @@ object ExternalFormalParameterRegistry {
       formal: ElaborationIntegerParameter,
       actual: ElaborationIntegerExpression,
       sourceLocation: Option[String]
-  ): ExternalTypedFormalBinding = synchronized {
+  ): ExternalTypedFormalBinding = retainTyped(component, formal, actual, sourceLocation, multiple = false)
+
+  private[core] def retainDeclaredTypedComponent(component: Component,
+      formal: ElaborationIntegerParameter, actual: ElaborationIntegerExpression,
+      sourceLocation: Option[String]): ExternalTypedFormalBinding =
+    retainTyped(component, formal, actual, sourceLocation, multiple = true)
+
+  private object MultipleTypedFormals
+  private final class MultipleTypedOwner(val component: Component)
+  private[spinal] def supportsMultipleTypedFormals(component: Component): Boolean =
+    Option(component).flatMap(_.userCache.get(MultipleTypedFormals)).exists {
+      case owner: MultipleTypedOwner => owner.component eq component
+      case _ => false
+    }
+
+  private def retainTyped(component: Component, formal: ElaborationIntegerParameter,
+      actual: ElaborationIntegerExpression, sourceLocation: Option[String],
+      multiple: Boolean): ExternalTypedFormalBinding = synchronized {
     if (component == null)
       throw new IllegalArgumentException("typed formal component must not be null")
     if (formal == null)
@@ -291,8 +331,9 @@ object ExternalFormalParameterRegistry {
     reapLeaves()
 
     val componentLookup = new ExternalFormalComponentIdentityRef(component, null)
-    val existing = typedInstanceBindings.getOrElse(componentLookup, Vector.empty)
-    existing.headOption.foreach { previous =>
+    val existing = typedBindingsOf(component)
+    existing.find(previous => !multiple || !supportsMultipleTypedFormals(component) ||
+      previous.binding.formal.name == formal.name).foreach { previous =>
       fail(
         "SPINAL-ELAB-FORMAL-TYPED-TOKEN-DUPLICATE",
         s"exact typed child component already retains opaque formal capability '${previous.binding.formal.name}' and cannot add '${formal.name}'",
@@ -346,6 +387,7 @@ object ExternalFormalParameterRegistry {
       new ExternalFormalComponentIdentityRef(component, componentQueue),
       existing :+ retainedBinding
     )
+    if (multiple) component.userCache.put(MultipleTypedFormals, new MultipleTypedOwner(component))
     dependentPorts.foreach { port =>
       typedRetained.update(
         new ExternalFormalLeafIdentityRef(port, leafQueue),
@@ -362,9 +404,129 @@ object ExternalFormalParameterRegistry {
     if (component == null) Vector.empty
     else {
       reapComponents()
-      typedInstanceBindings
+      val current = typedInstanceBindings
         .get(new ExternalFormalComponentIdentityRef(component, null))
         .getOrElse(Vector.empty)
+      validateTypedInventory(component, current)
+      current
+    }
+  }
+
+  /** Enroll one complete constructor inventory after validating every slot and
+    * dependent leaf. Nothing is retained if any validation fails.
+    */
+  private[spinal] def retainTypedComponentParameters(
+      component: Component,
+      formals: Vector[(ElaborationIntegerParameter, ElaborationIntegerExpression, Option[String])]
+  ): Unit = synchronized {
+    if (component == null || formals == null || formals.isEmpty ||
+        formals.exists(value => value == null || value._1 == null || value._2 == null || value._3 == null))
+      throw new IllegalArgumentException("typed formal inventory requires a component and nonempty complete slots")
+    reapComponents()
+    reapLeaves()
+    val lookup = new ExternalFormalComponentIdentityRef(component, null)
+    if (typedInstanceBindings.get(lookup).exists(_.nonEmpty) || typedCompleteInventories.contains(lookup))
+      fail("SPINAL-ELAB-FORMAL-TYPED-TOKEN-DUPLICATE",
+        "exact typed child component already retains a formal capability inventory", formals.head._3)
+    if (instanceBindings.get(lookup).exists(_.nonEmpty))
+      fail("SPINAL-PARAMETERIZED-VERILOG-FORMAL-AUTHORITY-MIXED",
+        "exact child component cannot mix typed inventory with legacy formal authority", formals.head._3)
+    if (formals.map(_._1.name).distinct.size != formals.size ||
+        formals.indices.exists(i => formals.take(i).exists(value => value._1 eq formals(i)._1)))
+      fail("SPINAL-ELAB-FORMAL-INVENTORY-DUPLICATE",
+        "typed formal inventory contains a duplicate declaration or slot name", formals.head._3)
+    formals.foreach { case (formal, actual, source) => validateTypedBindingPayload(formal, actual, source) }
+    val entries = formals.map { case (formal, actual, source) =>
+      ExternalTypedFormalBinding(ExternalFormalParameterBinding(formal, actual,
+        s"typed-elab::${formal.name}", component.getClass.getName, source),
+        new ExternalTypedFormalDeclarationToken())
+    }
+    val ports = component.getOrdredNodeIo.toVector
+    val attachments = ports.flatMap { port =>
+      ParameterizedWidth.expressionOf(port).flatMap { width =>
+        val selected = entries.filter(entry => width.completedParameterRoots.exists(
+          _ eq entry.binding.formal.declarationRoot))
+        if (selected.isEmpty) None else Some((port, width, selected))
+      }
+    }
+    attachments.foreach { case (port, width, selected) =>
+      val location = selected.head.binding.sourceLocation
+      if (port.component ne component)
+        fail("SPINAL-ELAB-FORMAL-TYPED-LEAF-OWNER-MISMATCH",
+          "typed inventory selected a port outside its exact child component", location)
+      val key = new ExternalFormalLeafIdentityRef(port, null)
+      if (typedRetained.contains(key))
+        fail("SPINAL-ELAB-FORMAL-TYPED-LEAF-CONFLICT",
+          "one exact child port already carries a typed formal capability", location)
+      if (retained.contains(key))
+        fail("SPINAL-PARAMETERIZED-VERILOG-FORMAL-AUTHORITY-MIXED",
+          "one exact child port cannot mix typed and legacy formal authority", location)
+      ElaborationWidthAuthority.requireAuthoritative(width, "typed inventory port width",
+        "SPINAL-ELAB-FORMAL-TYPED-LEAF-WIDTH-AUTHORITY")
+      if (width.completedParameterRoots.size != selected.size ||
+          width.parameters.size != selected.size || selected.exists { entry =>
+            !width.parameters.exists(_ eq entry.binding.formal)
+          } || width.default != BigInt(port.getBitsWidth) || width.minimum < 1)
+        fail("SPINAL-ELAB-FORMAL-TYPED-LEAF-FAMILY-CONFLICT",
+          "a dependent port must retain width authority entirely within its complete formal inventory", location)
+    }
+    val dependentPorts = attachments.map { case (port, width, selected) =>
+      TypedDependentPort(new WeakReference(port), port.getClass, port.getTypeObject.asInstanceOf[AnyRef],
+        (port.isInput, port.isOutput, port.isInOut), width, selected)
+    }
+    // All checks precede this publication. Each slot receives its own opaque
+    // capability, and the exact complete vector is sealed against this child.
+    typedInstanceBindings.update(new ExternalFormalComponentIdentityRef(component, componentQueue), entries)
+    typedCompleteInventories.update(new ExternalFormalComponentIdentityRef(component, componentQueue), entries)
+    typedDependentPorts.update(new ExternalFormalComponentIdentityRef(component, componentQueue), dependentPorts)
+    attachments.foreach { case (port, _, selected) =>
+      if (selected.size == 1)
+        typedRetained.update(new ExternalFormalLeafIdentityRef(port, leafQueue), selected.head)
+    }
+  }
+
+  /** Read an authenticated complete inventory. Historical single-formal
+    * capabilities keep their existing path; unrelated tokens cannot become a
+    * multi-formal inventory by being collected into one vector.
+    */
+  private[spinal] def completeTypedBindingsOf(component: Component): Vector[ExternalTypedFormalBinding] =
+    typedBindingsOf(component)
+
+  private def validateTypedInventory(component: Component,
+      current: Vector[ExternalTypedFormalBinding]): Unit = {
+    typedCompleteInventories.get(new ExternalFormalComponentIdentityRef(component, null)) match {
+      case Some(sealedEntries) =>
+        if (current.size != sealedEntries.size ||
+            !current.zip(sealedEntries).forall { case (actual, expected) => actual eq expected })
+          fail("SPINAL-ELAB-FORMAL-INVENTORY-IDENTITY-CONFLICT",
+            "exact child lost, duplicated, reordered or replaced part of its complete typed formal inventory",
+            sealedEntries.flatMap(_.binding.sourceLocation).headOption)
+      case None if current.size > 1 && !supportsMultipleTypedFormals(component) =>
+        fail("SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
+          "multiple typed capabilities do not constitute an atomic constructor inventory",
+          current.flatMap(_.binding.sourceLocation).headOption)
+      case _ =>
+    }
+    typedDependentPorts.get(new ExternalFormalComponentIdentityRef(component, null)).foreach { snapshots =>
+      val ports = component.getOrdredNodeIo.toVector
+      snapshots.foreach { snapshot =>
+        val port = snapshot.port.get()
+        if (port == null || (port.component ne component) || !ports.exists(_ eq port) ||
+            port.getClass != snapshot.nativeClass || (port.getTypeObject.asInstanceOf[AnyRef] ne snapshot.kind) ||
+            (port.isInput, port.isOutput, port.isInOut) != snapshot.direction ||
+            !ParameterizedWidth.expressionOf(port).exists(_ eq snapshot.width) ||
+            BigInt(port.getBitsWidth) != snapshot.width.default ||
+            snapshot.entries.exists(entry => !current.exists(_ eq entry)) ||
+            (snapshot.entries match {
+              case Vector(single) => !typedRetained.get(
+                new ExternalFormalLeafIdentityRef(port, null)).exists(_ eq single)
+              case _ => typedRetained.contains(new ExternalFormalLeafIdentityRef(port, null))
+            }) ||
+            retained.contains(new ExternalFormalLeafIdentityRef(port, null)))
+          fail("SPINAL-ELAB-FORMAL-TYPED-LEAF-FAMILY-CONFLICT",
+            "a dependent port lost its exact owner, width function, scalar token or complete formal inventory membership",
+            snapshot.width.sourceLocation)
+      }
     }
   }
 
@@ -375,6 +537,7 @@ object ExternalFormalParameterRegistry {
     if (data == null) None
     else {
       reapLeaves()
+      typedBindingsOf(data.component)
       typedRetained.get(new ExternalFormalLeafIdentityRef(data, null))
     }
   }
@@ -391,13 +554,26 @@ object ExternalFormalParameterRegistry {
         .toVector
         .flatMap(_.valuesIterator.flatMap(_.iterator))
         .map(_.binding)
-      val typed = typedInstanceBindings
-        .get(new ExternalFormalComponentIdentityRef(component, null))
-        .toVector
-        .flatten
-        .map(_.binding)
+      val typed = typedBindingsOf(component).map(_.binding)
       distinctBindings(values ++ typed)
         .sortBy(binding => (binding.formal.name, binding.declarationKey, binding.actual.verilog))
+    }
+  }
+
+  /** Definition-formal and instance-actual metadata for one native leaf. */
+  private[spinal] def derivedFrontendBinding(component: Component,
+      expression: ElaborationIntegerExpression): Option[ExternalFormalParameterBinding] = synchronized {
+    reapComponents()
+    val candidates = instanceBindings.get(new ExternalFormalComponentIdentityRef(component, null))
+      .toVector.flatMap(_.valuesIterator.flatMap(_.iterator)).filter { slot =>
+        val roots = expression.completedParameterRoots
+        val declared = slot.definitionExpression.completedParameterRoots
+        expression.parameters.size == 1 && (expression.parameters.head eq slot.binding.formal) &&
+          roots.size == 1 && declared.size == 1 && (roots.head eq declared.head)
+      }.map(_.binding)
+    distinctBindings(candidates) match {
+      case Vector(binding) => Some(binding)
+      case _ => None
     }
   }
 
@@ -406,12 +582,33 @@ object ExternalFormalParameterRegistry {
     if (data == null) None
     else {
       reapLeaves()
-      typedRetained
-        .get(new ExternalFormalLeafIdentityRef(data, null))
+      typedBindingOf(data)
         .map(_.binding)
         .orElse(retained.get(new ExternalFormalLeafIdentityRef(data, null)))
         .orElse(recoverBinding(data))
     }
+  }
+
+  /** Frontend declaration retention does not depend on a direct packed-width
+    * use. Derived widths and structural-only scalar formals share the same
+    * validated exact component registry as direct-width declarations.
+    */
+  def retainComponentDeclaration(component: Component,
+      binding: ExternalFormalParameterBinding, formalValue: ElabInt): Unit = synchronized {
+    require(component != null && (Component.current eq component),
+      "a frontend formal must be declared on its active Component")
+    validateBinding(binding)
+    if (component.getClass.getName != binding.ownerClassName)
+      fail("SPINAL-PARAMETERIZED-VERILOG-FORMAL-OWNER-MISMATCH",
+        "frontend formal declaration belongs to another Component class", binding.sourceLocation)
+    val definition = projectActual(formalValue, "frontend formal declaration")
+    val expected = formalExpression(binding.formal, binding.sourceLocation)
+    if (!equivalentCanonicalFormalSchema(definition, expected) ||
+        !definition.parameters.exists(_ eq binding.formal))
+      fail("SPINAL-PARAMETERIZED-VERILOG-FORMAL-WIDTH-SCHEMA-MISMATCH",
+        "frontend formal declaration does not carry its canonical formal schema", binding.sourceLocation)
+    validateInstanceBinding(component, binding, definition)
+    retainInstanceBinding(component, binding, definition)
   }
 
   /** Retain each actual expression against the exact concrete component
@@ -604,13 +801,13 @@ object ExternalFormalParameterRegistry {
       sourceLocation = None,
       parameterRoots = distinctRoots(expression.completedParameterRoots)
     )
-    expression.preserveExactAuthorityOn(
+    NativeLocalParameters.projected(expression, expression.preserveExactAuthorityOn(
       expression.preserveProjectionOn(
         normalized,
         "formal actual normalization"
       ),
       "formal actual normalization"
-    )
+    ))
   }
 
   private def normalizedSchema(
@@ -880,14 +1077,14 @@ object ExternalFormalParameterRegistry {
     }
     if (
       formal.default == null || formal.minimum == null ||
-      formal.maximum == null || formal.minimum < 1 ||
+      formal.maximum == null || formal.minimum < 0 ||
       formal.maximum < formal.minimum ||
       formal.default < formal.minimum || formal.default > formal.maximum ||
       !formal.default.isValidInt || formal.maximum > BigInt(Int.MaxValue)
     ) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-FORMAL-DOMAIN-INVALID",
-        s"formal slot '${formal.name}' must have a positive finite Int-sized domain containing default ${formal.default}",
+        s"formal slot '${formal.name}' must have a nonnegative finite Int-sized scalar domain containing default ${formal.default}",
         sourceLocation
       )
     }
@@ -915,7 +1112,7 @@ object ExternalFormalParameterRegistry {
     if (
       actual.default != formal.default ||
       actual.minimum < formal.minimum || actual.maximum > formal.maximum ||
-      actual.minimum < 1 || actual.maximum < actual.minimum
+      actual.minimum < 0 || actual.maximum < actual.minimum
     ) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-FORMAL-ACTUAL-DOMAIN-UNSUPPORTED",

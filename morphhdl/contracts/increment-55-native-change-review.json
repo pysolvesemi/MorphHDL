@@ -5,13 +5,13 @@
   "files": [
     {
       "path": "core/src/main/scala/spinal/core/BaseType.scala",
-      "baseline_path": "core/src/main/scala/spinal/core/BaseType.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
         "Increment 59d: generic symbolic result-width provenance and widening reductions"
       ],
       "reason": "Retain exact typed result geometry at the native weak-clone and cast construction seams without changing the native graph or concrete width inference.",
+      "baseline_path": "core/src/main/scala/spinal/core/BaseType.scala",
       "edits": [
         {
           "id": "basetype-result-width-01",
@@ -43,7 +43,6 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/BitVector.scala",
-      "baseline_path": "core/src/main/scala/spinal/core/BitVector.scala",
       "change": "modified",
       "classification": "typed-overload",
       "introduced_by": [
@@ -51,9 +50,11 @@
         "Increment 55: audit concrete compatibility",
         "Increment 59d: generic symbolic result-width provenance and widening reductions",
         "Increment 59e: composite and nested Bundle/Vec reductions",
-        "Increment 59f: certified callback graphs and captured inputs"
+        "Increment 59f: certified callback graphs and captured inputs",
+        "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026"
       ],
-      "reason": "Retain the compatible ElabInt resize overload and mechanically preserve native high-bit, clone and mux width provenance without changing concrete arithmetic or inferred widths.",
+      "reason": "Retain the compatible ElabInt resize overload and mechanically preserve native high-bit, clone and mux width provenance without changing concrete arithmetic or inferred widths. Keep asBools original extract identities and writable bit views; record compiler-owned constant-loop view evidence only under opted-in aggregate preservation.",
+      "baseline_path": "core/src/main/scala/spinal/core/BitVector.scala",
       "edits": [
         {
           "id": "bitvector-native-msb-width-01",
@@ -95,6 +96,32 @@
           ]
         },
         {
+          "id": "bitvector-compiler-repair-20261004-4",
+          "kind": "mechanical-propagation",
+          "owner": "core/src/main/scala/spinal/core/BitVector.scala",
+          "reason": "Keep asBools original extract identities and writable bit views; record compiler-owned constant-loop view evidence only under opted-in aggregate preservation.",
+          "required_exact_text": [
+            {
+              "side": "baseline",
+              "text": "    val vec = ArrayBuffer[Bool]()\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bitvector-compiler-repair-20261004-5",
+          "kind": "mechanical-propagation",
+          "owner": "core/src/main/scala/spinal/core/BitVector.scala",
+          "reason": "Keep asBools original extract identities and writable bit views; record compiler-owned constant-loop view evidence only under opted-in aggregate preservation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val vec = ArrayBuffer[Bool]()\n    for (i <- 0 until bitCount) vec += this(i)\n    val result = Vec(vec)\n    if (bitCount > 0 &&\n        (VerilogAggregateOptions.current.preserveConstantVecs || VerilogAggregateOptions.current.preserveConstantLoops) &&\n        ParameterizedWidth.expressionOf(this).forall(_.parameters.isEmpty))\n      ParameterizedVec.recordNativeBitViews(result)\n    result",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "bitvector-native-mux-width-01",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.BitVector.getMuxType",
@@ -111,7 +138,6 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/Bits.scala",
-      "baseline_path": "core/src/main/scala/spinal/core/Bits.scala",
       "change": "modified",
       "classification": "typed-overload",
       "introduced_by": [
@@ -119,9 +145,11 @@
         "Increment 40: external symbolic width and data-shape retention",
         "Increment 53d: typed StreamWidthAdapter architecture",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 55: audit concrete compatibility"
+        "Increment 55: audit concrete compatibility",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
       ],
-      "reason": "Expose typed width construction and resize overloads without changing ordinary concrete Bits behavior.",
+      "reason": "Retain typed width construction and resize overloads, and mechanically propagate the exact source width through the unchanged native asBits assignment; ordinary concrete arithmetic and width inference remain authoritative.",
+      "baseline_path": "core/src/main/scala/spinal/core/Bits.scala",
       "edits": [
         {
           "id": "bits-typed-width-01",
@@ -132,6 +160,19 @@
             {
               "side": "approved",
               "text": "ParameterizedWidth.validatedWidthWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bits-native-asbits-width-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Bits.asBits",
+          "reason": "Keep the existing fresh Bits assignment and record the source width before the native cast clone loses its symbolic geometry.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainResult(ret, this)",
               "count": 1
             }
           ]
@@ -153,13 +194,13 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/BlackBox.scala",
-      "baseline_path": "core/src/main/scala/spinal/core/BlackBox.scala",
       "change": "modified",
       "classification": "typed-overload",
       "introduced_by": [
         "Increment 59: typed BlackBox parameter and generic binding"
       ],
       "reason": "Accept neutral typed integer and Boolean generic actuals while preserving every inherited concrete BlackBox generic lane.",
+      "baseline_path": "core/src/main/scala/spinal/core/BlackBox.scala",
       "edits": [
         {
           "id": "blackbox-typed-generics-01",
@@ -187,15 +228,54 @@
       ]
     },
     {
+      "path": "core/src/main/scala/spinal/core/ClockDomain.scala",
+      "change": "modified",
+      "classification": "platform-integration-hook",
+      "introduced_by": [
+        "October 3 compiler issue: implicit clock alias synchrony"
+      ],
+      "reason": "Use the existing exact single-driver query when tracing clock aliases, including native ExternalDriverTag top-level pulls. Keep combinational-only traversal; foreign clock crossings remain rejected.",
+      "baseline_path": "core/src/main/scala/spinal/core/ClockDomain.scala",
+      "edits": [
+        {
+          "id": "clock-external-driver-alias",
+          "kind": "platform-integration",
+          "owner": "spinal.core.ClockDomain.getSyncronous",
+          "reason": "Resolve exact root-scope aliases and native top-level external-driver identities through the established getSingleDriver API; no inferred equality or clock-domain exemption.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "that.getSingleDriver.filter(_.isComb).foreach { driver =>",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
       "path": "core/src/main/scala/spinal/core/Component.scala",
-      "baseline_path": "core/src/main/scala/spinal/core/Component.scala",
       "change": "modified",
       "classification": "backend-isolation-hook",
       "introduced_by": [
-        "CDC-WIRE-01 publication cleanup follow-up: reserve explicit names before generated allocation"
+        "CDC-WIRE-01 publication cleanup follow-up: reserve explicit names before generated allocation",
+        "Increment 64: typed native derived local parameters"
       ],
-      "reason": "The normal native allocator must preserve explicit signal spellings when a propagated weak name occurs earlier. Move reservation before allocation; retain duplicate explicit-name diagnostics and the existing generated-name suffix allocator. This is a native backend naming correction, not an RTL expression change.",
+      "reason": "The normal native allocator must preserve explicit signal spellings when a propagated weak name occurs earlier. Move reservation before allocation; retain duplicate explicit-name diagnostics and the existing generated-name suffix allocator. This is a native backend naming correction, not an RTL expression change. The existing compiler member callback supplies ElabInt binding hints to exact component-owned local-parameter records; names do not confer identity or authority.",
+      "baseline_path": "core/src/main/scala/spinal/core/Component.scala",
       "edits": [
+        {
+          "id": "component-derived-local-binding-64",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.Component.valCallbackRec",
+          "reason": "The existing compiler member callback supplies ElabInt binding hints to exact component-owned local-parameter records; names do not confer identity or authority.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "case value: ElabInt => NativeLocalParameters.bind(this, value, name)",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "component-explicit-name-reservation-01",
           "kind": "backend-isolation",
@@ -226,7 +306,6 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/Data.scala",
-      "baseline_path": "core/src/main/scala/spinal/core/Data.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
@@ -234,6 +313,7 @@
         "Increment 55: audit concrete compatibility"
       ],
       "reason": "Propagate retained typed leaf geometry through the inherited hierarchy pull cloning path.",
+      "baseline_path": "core/src/main/scala/spinal/core/Data.scala",
       "edits": [
         {
           "id": "data-pull-shape-01",
@@ -265,18 +345,17 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/ElabBalancedReduction.scala",
-      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
         "Increment 59b: native balanced-reduction capture boundary"
       ],
       "reason": "Neutral scoped callback dispatch with exception-safe restoration and exact symbolic Vec receiver retention; no reduction algorithm or RTL implementation.",
+      "baseline_path": null,
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ElabInt.scala",
-      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
@@ -287,62 +366,78 @@
         "Increment 59d: generic symbolic result-width provenance and widening reductions",
         "WA-11: authenticated symbolic Boolean/integer conversion normalization",
         "Independent-parameter domain composition corrective repair (2026-09-14)",
-        "PR188: separate symbolic publication provenance from structural proof"
+        "PR188: separate symbolic publication provenance from structural proof",
+        "Increment 64: typed native derived local parameters",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
       ],
-      "reason": "Provide neutral typed integer and Boolean carriers. Preserve existing single-root coverage, root/schema identity, projection and arithmetic safety checks; route genuinely independent native arithmetic and predicates through private compositional proofs. Validate finished native owner scopes through the same authoritative single-root checker. Existing WA-11 Boolean encoding origins, integer sizing fences and single-root normalization remain intact. Separate native arithmetic/publication dispatch from explicit exact extrema queries. Keep exact/provenance validation and concrete/default width errors; use authenticated safe physical width only with a separate legality obligation.",
+      "reason": "Provide neutral typed integer and Boolean carriers. Preserve existing single-root coverage, root/schema identity, projection and arithmetic safety checks; route genuinely independent native arithmetic and predicates through private compositional proofs. Validate finished native owner scopes through the same authoritative single-root checker. Existing WA-11 Boolean encoding origins, integer sizing fences and single-root normalization remain intact. Separate native arithmetic/publication dispatch from explicit exact extrema queries. Keep exact/provenance validation and concrete/default width errors; use authenticated safe physical width only with a separate legality obligation. Capture typed arithmetic operands before normalization and retain presentation identity only through trusted unrestricted projection; no arithmetic, root or domain proof is changed. Integrated 59i: Provide neutral typed integer and Boolean carriers. Preserve existing single-root coverage, root/schema identity, projection and arithmetic safety checks; route genuinely independent native arithmetic and predicates through private compositional proofs. Validate finished native owner scopes through the same authoritative single-root checker. Existing WA-11 Boolean encoding origins, integer sizing fences and single-root normalization remain intact. Separate native arithmetic/publication dispatch from explicit exact extrema queries. Keep exact/provenance validation and concrete/default width errors; use authenticated safe physical width only with a separate legality obligation. Retained 59i review: Provide the neutral exact elaboration integer and boolean expression carriers used by reviewed native overloads. Width conversion and projection additionally consume private width-composition authority for independently rooted scalar geometry; the general elaboration integer domain contract stays unchanged. WA-11 retains private Boolean encoding origins, normalizes typed round trips, and uses direct integer parameters only for authenticated full-domain 0/1 identity; integer sizing and fresh projection evidence remain mandatory. Increment 59i additionally retains the internal read-only width query for one exact native leaf; certified callbacks do not inspect mutable registry carriers or runtime values.",
+      "baseline_path": null,
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElabValue.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 66: native parameter and RTL readability extensions",
+        "CA-018: user-requested neutral generated helper names"
+      ],
+      "reason": "Relocate the existing typed unsigned hardware-value adapter unchanged into core so the public core U overload can delegate without a reverse module dependency. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged.",
+      "baseline_path": null,
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ElaborationExactDomain.scala",
-      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
         "Increment 53e: typed StreamFifo depth architecture (#128)",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "PR188: separate symbolic publication provenance from structural proof"
+        "PR188: separate symbolic publication provenance from structural proof",
+        "Increment 65: exact activation-scoped symbolic legality and bounded structural products"
       ],
-      "reason": "Provide exact finite-domain reasoning for parameter-sensitive native operations. Expose only a read-only active-restriction query so deferred requirements cannot escape captured branches; exact-domain authority and projection checks are unchanged.",
+      "reason": "Provide exact finite-domain reasoning for parameter-sensitive native operations. Expose only a read-only active-restriction query so deferred requirements cannot escape captured branches; exact-domain authority and projection checks are unchanged. Expose a read-only admitted-root query so exact native captured owners can validate retained obligations after dynamic scope restoration.",
+      "baseline_path": null,
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ElaborationProductDomain.scala",
-      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
         "Independent-parameter domain composition corrective repair (2026-09-14)",
         "PR188: separate symbolic publication provenance from structural proof",
-        "PR189: authentic compact declaration and explicit publication authority"
+        "PR189: authentic compact declaration and explicit publication authority",
+        "Increment 65: exact activation-scoped symbolic legality and bounded structural products"
       ],
-      "reason": "Private identity-bound compositional value-function proofs over authenticated declaration roots and schemas. Preserve all dependency axes including canceled and branch-restricted roots, join partially overlapping dependencies, compose attainable extrema for independent groups, and fail closed beyond bounded exact joint evaluation. Bind publication evidence to exact native owners without fabricating a single-root domain or enumerating large Cartesian products. Retain private expression-identity AST certificates and authentic root/schema/scope inventories independently of exact proof. Derive checked compositional publication enclosures without Cartesian calls; keep the existing stronger exact evaluator on demand and authenticate safe physical width as its own AST. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration.",
+      "reason": "Private identity-bound compositional value-function proofs over authenticated declaration roots and schemas. Preserve all dependency axes including canceled and branch-restricted roots, join partially overlapping dependencies, compose attainable extrema for independent groups, and fail closed beyond bounded exact joint evaluation. Bind publication evidence to exact native owners without fabricating a single-root domain or enumerating large Cartesian products. Retain private expression-identity AST certificates and authentic root/schema/scope inventories independently of exact proof. Derive checked compositional publication enclosures without Cartesian calls; keep the existing stronger exact evaluator on demand and authenticate safe physical width as its own AST. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. Retain private, exact-condition-bound finite structural tuple evidence under the unchanged 65,536 tuple cap. Classify diagnostics under authenticated activation without granting integer or width authority; compact and oversized structural products remain rejected.",
+      "baseline_path": null,
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ElaborationProjectionRegistry.scala",
-      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
         "Increment 53e: typed StreamFifo depth architecture (#128)"
       ],
       "reason": "Retain reviewed projection ownership for exact typed elaboration expressions.",
+      "baseline_path": null,
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ElaborationPublicationValue.scala",
-      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
         "PR189: authenticated independent-parameter publication consumers"
       ],
       "reason": "Authenticate retained expression identity before and after consumer-specific projection; do not grant finite structural elaboration authority.",
+      "baseline_path": null,
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ElaborationWidthAuthority.scala",
-      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
@@ -351,11 +446,11 @@
         "PR188: separate symbolic publication provenance from structural proof"
       ],
       "reason": "Retain the reviewed finite width-specific evaluator and its identity authority. Also consume private compositional product proofs for large independent packed widths, exact attainable extrema, fixed typed relations, branch projection and conditional widths; never turn rendered expressions, copied summaries, or default tuples into proof authority. Clarify that symbolic publication certificates and the retained finite-table/exact-query paths are distinct; no executable change to this file in the symbolic rework.",
+      "baseline_path": null,
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ExternalCompilerPermit.scala",
-      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
@@ -364,22 +459,58 @@
         "PR189: authentic compact declaration and explicit publication authority"
       ],
       "reason": "Define the narrow compiler-owned permit boundary for external typed elaboration. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration.",
+      "baseline_path": null,
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ExternalParameterizedValueRegistry.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 66: native parameter and RTL readability extensions"
+      ],
+      "reason": "Relocate the existing exact value/leaf/assignment registry unchanged into core alongside its adapter. Preserve all freshness, owner and authority validation; this is not a new copyable proof mechanism.",
+      "baseline_path": null,
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ExternalStructuralPredicatePermit.scala",
-      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
         "Increment 53f: typed parameter-sensitive primitive closure (#129)"
       ],
       "reason": "Define the narrow structural-predicate permit used by parameter-sensitive native branches.",
+      "baseline_path": null,
       "edits": []
     },
     {
+      "path": "core/src/main/scala/spinal/core/Literal.scala",
+      "change": "modified",
+      "classification": "typed-overload",
+      "introduced_by": [
+        "Increment 66: native parameter and RTL readability extensions"
+      ],
+      "reason": "Add the explicit fixed-width unsigned ElabInt value overload, delegating to the existing exact typed value registry. Existing literal overloads and native arithmetic remain unchanged.",
+      "baseline_path": "core/src/main/scala/spinal/core/Literal.scala",
+      "edits": [
+        {
+          "id": "increment66-literal-1",
+          "kind": "overload",
+          "owner": "spinal.core.U.apply(ElabInt, BitCount)",
+          "reason": "Add the explicit fixed-width unsigned ElabInt value overload, delegating to the existing exact typed value registry. Existing literal overloads and native arithmetic remain unchanged.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  /** Explicitly sized unsigned hardware value retaining its ElabInt authority.\n    * Width and value remain independent; unsupported values fail before emission.\n    */\n  def apply(value: ElabInt, width: BitCount): UInt =\n    ElabValue.uintLike(value, UInt(width), null)\n\n",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
       "path": "core/src/main/scala/spinal/core/Mem.scala",
-      "baseline_path": "core/src/main/scala/spinal/core/Mem.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
@@ -391,6 +522,7 @@
         "Increment 55: audit concrete compatibility"
       ],
       "reason": "Add the typed Mem depth overload and mechanically retain exact address geometry through native port normalization.",
+      "baseline_path": "core/src/main/scala/spinal/core/Mem.scala",
       "edits": [
         {
           "id": "mem-typed-depth-01",
@@ -669,7 +801,6 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/Misc.scala",
-      "baseline_path": "core/src/main/scala/spinal/core/Misc.scala",
       "change": "modified",
       "classification": "typed-overload",
       "introduced_by": [
@@ -679,6 +810,7 @@
         "Increment 59e: composite and nested Bundle/Vec reductions"
       ],
       "reason": "Keep exact typed log2Up/isPow2 overloads and mechanically retain scalar leaf width provenance through the ordinary cloneOf/HardType construction path.",
+      "baseline_path": "core/src/main/scala/spinal/core/Misc.scala",
       "edits": [
         {
           "id": "misc-typed-math-01",
@@ -722,47 +854,75 @@
       ]
     },
     {
-      "path": "core/src/main/scala/spinal/core/NativeSymbolicLegality.scala",
+      "path": "core/src/main/scala/spinal/core/NativeLocalParameters.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 64: typed native derived local parameters",
+        "Increment 66: native parameter and RTL readability extensions",
+        "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026",
+        "Qualification closure: named-local arithmetic lint, 4 October 2026"
+      ],
+      "reason": "Capture exact typed arithmetic operands and compiler-supplied member hints; select only live exact-owner uses, order declarations by operand identity, reject cycles, reserve collision-safe names, and render native local parameters without introducing proof authority. Restricted structural calculations retain direct expression publication. Component-owned state cannot leak names between generations or owners. Extend the existing component-local dependency graph with explicitly named packed unsigned declarations, exact owner checks, deterministic collision rejection and dependency ordering. Explicit names replace an automatic hint for the same expression; metadata never grants arithmetic authority. Publish explicitly sized typed UInt local constants through compiler-owned 32-bit integer intermediates, preserving exact expression dependencies and signed 32-bit elaboration domains before slicing or extending to the declared packed width. When a packed local is reused by ElabInt arithmetic, publish its exact nonnegative Int-domain value as a signed 32-bit operand: zero-extend narrow declarations, sign the 32-bit view, or select the low 32 bits of a wider zero-extended declaration. Keep ordinary hardware uses packed. Wider local declarations use an explicitly sized 32-bit expression before zero extension, including zero-valued parameter aliases; no lint warning is suppressed and no domain, ownership or dependency validation is bypassed.",
       "baseline_path": null,
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/NativeSymbolicLegality.scala",
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
         "PR188: separate symbolic publication provenance from structural proof",
         "PR188: one synthesis-guarded fatal for failed symbolic require",
-        "PR189: authentic compact declaration and explicit publication authority"
+        "PR189: authentic compact declaration and explicit publication authority",
+        "CDC-LEG-01: product-neutral legality labels and user-only fatal messages",
+        "Increment 65: exact activation-scoped symbolic legality and bounded structural products",
+        "Increment 66: native parameter and RTL readability extensions"
       ],
-      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Reject mixed structural-scope obligations, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration.",
+      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Originally reject mixed structural-scope obligations; now reject them without an exact activation owner, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. CDC-LEG-01 changes only native diagnostic presentation: allocate G_PARAMETER_LEGALITY_<index> in the existing component name scope and pass the escaped original message directly to $fatal(1, \"%s\", message). Domain classification, record ownership, ordering, fatal termination and synthesis guards are unchanged. Increment 65 replaces the structural-scope rejection only for exact runtime-issued owners: component-local records carry full activation, root inventories and transactional rollback. Scope classification can omit implied diagnostics; active false requirements stay deferred, while unconditionally false top-level requirements still reject. Validate finished owner identity before native synthesis-guarded fatal publication. Retain validated declaration-domain guards for the explicit native formal API so downstream overrides cannot silently leave the proved domain. Existing user requirements retain their prior classification, scope, escaping and fatal semantics.",
+      "baseline_path": null,
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/NativeVecZeroConstruction.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
+      ],
+      "reason": "Provide a scoped observer interface around actual native clone events and the unchanged inherited Vec zero algorithm. Concrete Vec zero construction remains native; symbolic calls without a backend retain the original unsupported guard. Scope presence alone does not authorize a receiver: the Morph-owned bridge provider must prove exact clone ancestry and immutable owner/geometry/freshness per request. Restore the prior scope in finally; do not retain global clone lineage or implement a replacement zero or reduction algorithm.",
+      "baseline_path": null,
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/NativeWidthProvenance.scala",
-      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
         "Increment 59d: generic symbolic result-width provenance and widening reductions",
         "Increment 59e: composite and nested Bundle/Vec reductions",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry",
         "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup",
         "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI",
         "Enum-condition repair: resolved native enum packed-width authority"
       ],
-      "reason": "Derive width provenance from exact native scalar IR and transfer it at construction/clone/mux seams; retain exact-node msb evidence while preserving the original native operators, memory representation and concrete width inference. Delegate clone geometry validation to the recursive authored-layout checker before transferring exact scalar or Vec metadata. CDC-WIRE-01 derives exact symbolic result width for Bool-valued expressions, fixed and variable shifts, and ranged access using the existing typed width authority. Shift amounts remain self-determined; no concrete construction witness substitutes for a symbolic width domain. Qualification adds an explicit optional late-evidence query without changing construction-time widthOf behavior. Only SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION and SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED indicate unavailable optional proof and retain the original graph; malformed metadata and every unrelated compiler error still propagate. Resolved enum values derive width only from the exact native enum definition and encoding authority; unresolved or anticipated encodings remain unrepresented. No width, branch, projection or parameter authority is invented.",
+      "reason": "Retain immutable native width provenance through construction, casts, resize, widening, mux, source-relative saturation ranges/results and all-ones literals. Freshness compares complete width functions and exact root/domain identities, including under narrowed singleton domains; native operators and inference remain authoritative. After existing copyCloneMetadata completes at the actual native cloneOf seam, notify the invocation-local Vec zero observer of that exact source/result pair; metadata copying alone cannot create clone ancestry or enable zero construction. Derive width provenance from exact native scalar IR and transfer it at construction/clone/mux seams; retain exact-node msb evidence while preserving the original native operators, memory representation and concrete width inference. Delegate clone geometry validation to the recursive authored-layout checker before transferring exact scalar or Vec metadata. CDC-WIRE-01 derives exact symbolic result width for Bool-valued expressions, fixed and variable shifts, and ranged access using the existing typed width authority. Shift amounts remain self-determined; no concrete construction witness substitutes for a symbolic width domain. Qualification adds an explicit optional late-evidence query without changing construction-time widthOf behavior. Only SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION and SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED indicate unavailable optional proof and retain the original graph; malformed metadata and every unrelated compiler error still propagate. Resolved enum values derive width only from the exact native enum definition and encoding authority; unresolved or anticipated encodings remain unrepresented. No width, branch, projection or parameter authority is invented.",
+      "baseline_path": null,
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ParameterizedExpressionCarrier.scala",
-      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
         "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup"
       ],
       "reason": "Identity-scoped compiler-owned packed-geometry marker. Native simplification remains prohibited; optional wire optimization can recognize only this exact marker and must independently prove width/type equivalence. The marker contains no native references and gives no authority to remove other tags, explicit names, vital intent or user dontSimplifyIt protection.",
+      "baseline_path": null,
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ParameterizedMemory.scala",
-      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
@@ -775,11 +935,11 @@
         "Increment 54: clean typed layering and canonical IR"
       ],
       "reason": "Own typed memory depth and address metadata outside the inherited Mem algorithm.",
+      "baseline_path": null,
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ParameterizedVec.scala",
-      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
@@ -787,25 +947,31 @@
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
         "Increment 59e: composite and nested Bundle/Vec reductions",
         "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence",
-        "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI"
+        "Increment 59i: combined recursive widening, captures and native saturation geometry",
+        "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI",
+        "October 2 user request: opt-in constant aggregates and typed loops",
+        "Compiler issues CA-001/CA-002/CA-003, October 3",
+        "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026",
+        "CA-018: user-requested neutral generated helper names"
       ],
-      "reason": "Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence. CDC-WIRE-01 qualification exposes a read-only identity inventory from retained Vec operation and completed-write journals. Visit only the closed compiler-owned record families and their exact native expressions with identity-based cycle suppression, so optional late wrapper planning preserves the publisher's witness slices, carriers and assignment evidence. No native Vec algorithm, journal contents, parameter domain or public layout is changed. Packed-assignment support tracing follows only exact fixed slices, reviewed Bits casts, and same-component directionless combinational intermediates with one root-scope assignment; it stops at the recorded carrier or source identities. Supporting-driver traversal is read-only and cannot relax the publisher's existing proof obligations.",
+      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged. Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence. CDC-WIRE-01 qualification exposes a read-only identity inventory from retained Vec operation and completed-write journals. Visit only the closed compiler-owned record families and their exact native expressions with identity-based cycle suppression, so optional late wrapper planning preserves the publisher's witness slices, carriers and assignment evidence. No native Vec algorithm, journal contents, parameter domain or public layout is changed. Packed-assignment support tracing follows only exact fixed slices, reviewed Bits casts, and same-component directionless combinational intermediates with one root-scope assignment; it stops at the recorded carrier or source identities. Supporting-driver traversal is read-only and cannot relax the publisher's existing proof obligations. The October 2 request adds explicitly opted-in constant geometry retention and exact literal-depth metadata for constant typed-loop Vec operands; no symbolic root or witness domain is fabricated. Static writes preserve anonymous literal identity without pinning its width; exact native literal-clone receipts retain normalization lineage. Capture complete static scope paths and enclosing When identities across native switches. Retain lazy, exact original bit-view extraction identities on the Vec object, validate before consuming once, and retain constant loop operand shape without changing native read/write semantics. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged.",
+      "baseline_path": null,
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ParameterizedVecElementLayout.scala",
-      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
-        "Increment 59e: composite and nested Bundle/Vec reductions"
+        "Increment 59e: composite and nested Bundle/Vec reductions",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
       ],
-      "reason": "Own bounded identity-checked recursive Bundle/Vec shape and factorized logical packing evidence, including exact leaf ordering, scalar types, dimension functions, offsets and active-index guards.",
+      "reason": "Retain authoritative recursive Bundle/Vec geometry and exact finite packing. Pure certified leaf-width substitution preserves scalar kinds, field paths, independent dimension identities and capacities, rejects missing or unequal finite copies, and computes logical nested offsets without treating carrier maxima as active depths.",
+      "baseline_path": null,
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
-      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
@@ -822,14 +988,28 @@
         "Increment 58: legacy adapter and shadow-path retirement",
         "Increment 59d: generic symbolic result-width provenance and widening reductions",
         "Increment 59e: composite and nested Bundle/Vec reductions",
-        "Increment 59f: certified callback graphs and captured inputs"
+        "Increment 59f: certified callback graphs and captured inputs",
+        "Increment 64: typed native derived local parameters",
+        "Increment 66: native parameter and RTL readability extensions",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
       ],
-      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the historical deprecated factory aliases. Preserve recursive authored clone layout before copying metadata, retain exact native graph-derived scalar widths, and update fresh mux clone metadata only after the full native maximum-width proof.",
+      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the historical deprecated factory aliases. Preserve recursive authored clone layout before copying metadata, retain exact native graph-derived scalar widths, and update fresh mux clone metadata only after the full native maximum-width proof. Retain private calculation and trusted projection-origin metadata on exact expression objects; public case-class copies deliberately inherit neither field. Add an internal typed-local owner marker to exact expression presentation metadata, preventing foreign constant dependencies without granting or changing width/domain authority. Integrated 59i: Retain exact typed width/resize/formal metadata while preserving native construction. A private fresh-clone transaction snapshots the original registry entry plus fixed, observed and inferred native widths, clears only unused clone construction observations, and restores exact state without reprojection on rejection; general getWidth and inference behavior remain unchanged.",
+      "baseline_path": null,
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/RtlDocumentation.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
+      ],
+      "reason": "Define optional typed documentation metadata, configuration, identity-preserving APIs, exception-safe regions, declaration publication and exact relocation envelopes. Decode optional source coordinates in the metadata owner while preserving valid and malformed location behavior; the canonical producer consumes typed coordinates without parsing source text.",
+      "baseline_path": null,
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/SInt.scala",
-      "baseline_path": "core/src/main/scala/spinal/core/SInt.scala",
       "change": "modified",
       "classification": "typed-overload",
       "introduced_by": [
@@ -840,6 +1020,7 @@
         "Increment 55: audit concrete compatibility"
       ],
       "reason": "Expose typed SInt construction and resize while preserving concrete native paths.",
+      "baseline_path": "core/src/main/scala/spinal/core/SInt.scala",
       "edits": [
         {
           "id": "sint-typed-width-01",
@@ -871,14 +1052,28 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/Trait.scala",
-      "baseline_path": "core/src/main/scala/spinal/core/Trait.scala",
       "change": "modified",
       "classification": "backend-isolation-hook",
       "introduced_by": [
-        "Increment 53: permanent native StreamFifo structure repair"
+        "Increment 53: permanent native StreamFifo structure repair",
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
       ],
-      "reason": "Provide a narrow tag that prevents only reviewed parameter-sensitive registers from backend sync-process merging.",
+      "reason": "Provide a narrow tag that prevents only reviewed parameter-sensitive registers from backend sync-process merging. Expose the fluent documentation API on existing tag hosts without changing the returned hardware value.",
+      "baseline_path": "core/src/main/scala/spinal/core/Trait.scala",
       "edits": [
+        {
+          "id": "trait-comments-01",
+          "kind": "mechanical-propagation",
+          "owner": "core/src/main/scala/spinal/core/Trait.scala documentation integration",
+          "reason": "Expose the fluent documentation API on existing tag hosts without changing the returned hardware value. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  /** Attach documentation without retaining or modifying hardware. */\n  def doc(message: String): this.type = RtlDocumentation.attach(this, message)\n\n\n",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "sync-merge-isolation-01",
           "kind": "backend-isolation",
@@ -895,8 +1090,29 @@
       ]
     },
     {
+      "path": "core/src/main/scala/spinal/core/TypedLocalUInt.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 66: native parameter and RTL readability extensions"
+      ],
+      "reason": "Provide immutable exact-owner packed unsigned local constants, checked width/range, eager dependencies, fresh native reference nodes and full-domain switch disjointness validation. Named references are not literals and cannot be folded to their default witness.",
+      "baseline_path": null,
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/TypedVecStaticSelect.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "CA-021: ordinary-import parameter-constant Vec indexing"
+      ],
+      "reason": "Relocate the unchanged authenticated static selector from runtime to core for the ordinary-import extension without a circular dependency or duplicate lowering.",
+      "baseline_path": null,
+      "edits": []
+    },
+    {
       "path": "core/src/main/scala/spinal/core/UInt.scala",
-      "baseline_path": "core/src/main/scala/spinal/core/UInt.scala",
       "change": "modified",
       "classification": "typed-overload",
       "introduced_by": [
@@ -905,9 +1121,11 @@
         "Increment 40: external symbolic width and data-shape retention",
         "Increment 53d: typed StreamWidthAdapter architecture",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 55: audit concrete compatibility"
+        "Increment 55: audit concrete compatibility",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
       ],
-      "reason": "Expose typed UInt construction and resize while preserving concrete native paths.",
+      "reason": "Preserve ordinary UInt construction, resize and saturation algorithms while recording exact source-relative result/range geometry and the all-ones literal used by native saturation; no arithmetic or runtime branch is replaced.",
+      "baseline_path": "core/src/main/scala/spinal/core/UInt.scala",
       "edits": [
         {
           "id": "uint-typed-width-01",
@@ -918,6 +1136,32 @@
             {
               "side": "approved",
               "text": "ParameterizedWidth.validatedWidthWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "uint-native-saturation-upper-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.UInt._sat",
+          "reason": "Record the unchanged native saturation result width and overflow range relative to the exact source width; admission validates the full finite domain.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainRelativeWidth(this, UInt(getWidth-m bit), -m)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "uint-native-saturation-lower-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.UInt._sat",
+          "reason": "Record the unchanged native low-bit saturation range with its exact source-relative high bound and fixed zero low bound.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "this(getWidth-m-1 downto 0), -m-1, false,",
               "count": 1
             }
           ]
@@ -934,12 +1178,24 @@
               "count": 1
             }
           ]
+        },
+        {
+          "id": "uint-native-allones-width-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.UInt.setAll",
+          "reason": "Construct the same native maximum-value literal and retain its exact fill geometry on the fresh value; zero-width concrete assignment remains native.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainAllOnes(this, U(maxValue))",
+              "count": 1
+            }
+          ]
         }
       ]
     },
     {
       "path": "core/src/main/scala/spinal/core/Vec.scala",
-      "baseline_path": "core/src/main/scala/spinal/core/Vec.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
@@ -947,9 +1203,14 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 55: audit concrete compatibility",
         "Increment 59e: composite and nested Bundle/Vec reductions",
-        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence"
+        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence",
+        "Increment 59i: exact composite static-read identity qualification",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry",
+        "October 2 user request: opt-in constant aggregates and typed loops",
+        "CA-018: user-requested neutral generated helper names"
       ],
-      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c.",
+      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Extend read-only wrapper identity evidence to already-audited recursive Data; native assignment and source-hook behavior remains byte-identical. The October 2 opt-in flag additionally retains exact constant tabulation geometry; disabled native behavior is unchanged. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged.",
+      "baseline_path": "core/src/main/scala/spinal/core/Vec.scala",
       "edits": [
         {
           "id": "vec-nested-write-evidence-imports-59c",
@@ -991,6 +1252,24 @@
             {
               "side": "approved",
               "text": "setElementsParents",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-constant-tabulate-retention-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.VecFactory.Vec.tabulate(Int)",
+          "reason": "When the generation-local preserveConstantVecs flag is enabled, attach exact literal-depth geometry after unchanged native tabulation. The default returns the original native result.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "if (VerilogAggregateOptions.current.preserveConstantVecs)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.attachConcreteDepthIfSymbolicElement(vector, size)",
               "count": 1
             }
           ]
@@ -1097,7 +1376,7 @@
           "id": "vec-static-index-assignment-59c",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.ParameterizedVecStaticAccessAssign",
-          "reason": "Capture exact static-index scalar assignment/control evidence and any delegated nested write invocations while restoring the prior native composite assignment path after exceptions. The 59h scalar callback preflight accepts this final wrapper only with exact retained native Vec and scalar identities and a fully known previous chain terminating at null; no assignment/source hook or composite flatten is invoked.",
+          "reason": "Capture exact static-index scalar assignment/control evidence and any delegated nested write invocations while restoring the prior native composite assignment path after exceptions. The 59h scalar callback preflight accepts this final wrapper only with exact retained native Vec and scalar identities and a fully known previous chain terminating at null; no assignment/source hook or composite flatten is invoked. The 59i composite counterpart accepts only a caller-audited containment snapshot, exact native element and leaf identities, matching retained carrier and leaf counts, and a bounded known previous chain; it never invokes flatten or assignment/source hooks.",
           "required_exact_text": [
             {
               "side": "approved",
@@ -1127,6 +1406,26 @@
             {
               "side": "approved",
               "text": "case wrapped: ParameterizedVecStaticAccessAssign => wrapped.isCertifiedReadOf(expected)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val leaves = auditedLeaves.get(element)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "(leaves(wrapped.elementLeafIndex) eq expected)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "case previous: ParameterizedVecStaticAccessAssign => inspect(previous, remaining - 1)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "auditedLeaves != null && inspect(this, 64)",
               "count": 1
             }
           ]
@@ -1187,11 +1486,11 @@
           "id": "vec-typed-geometry-11",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec indexed access",
-          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
+          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access. CA-018 uses the neutral typed_vec_read_address stem with the same weak-name allocator and exact native address carrier.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "ParameterizedVec.shapeOf",
+              "text": "ParameterizedVec.shapeOf(this) match {\n      case Some(shape) =>\n        val carrierWidth = log2Up(shape.carrierCapacity)\n        if (carrierWidth > 0) {\n          // This resized node belongs only to the finite audited carrier graph.\n          // Publication consumes the operation record and original typed\n          // address, never this witness implementation detail.\n          finalAddress = address.resize(carrierWidth)\n            .setName(\"typed_vec_read_address\", weak = true)\n            .dontSimplifyIt()\n            .setAsVital()\n        }\n      case None =>\n        ",
               "count": 1
             }
           ]
@@ -1369,7 +1668,7 @@
           "id": "vec-typed-geometry-25",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec packing, assignment and cloning",
-          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations. Route retained recursive or multi-leaf Vec packing through the exact audited full-carrier helper, preserving scalar and untyped packing and all existing packed-assignment validation. The native-carrier geometry scope suppresses recursive logical witness resizing inside unchanged outer packing and assignment.",
+          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations. Route retained recursive or multi-leaf Vec packing through the exact audited full-carrier helper, preserving scalar and untyped packing and all existing packed-assignment validation. The native-carrier geometry scope suppresses recursive logical witness resizing inside unchanged outer packing and assignment. Route getZero through scoped native construction observation while keeping the unchanged inherited MultiData zero algorithm. Ordinary symbolic zero calls retain their unsupported guard; a Morph bridge proof must independently authenticate exact native clone ancestry, owner, immutable recursive geometry and fresh unaliased declarations before allowing that native call. Closed bridge graph and replay remain the authority for reset values, register assignments and clocks.",
           "required_exact_text": [
             {
               "side": "approved",
@@ -1394,6 +1693,11 @@
             {
               "side": "approved",
               "text": "if (ParameterizedVec.usesNativeCarrierGeometry) super.asBits",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "NativeVecZeroConstruction.construct(this)(super.getZero).asInstanceOf[this.type]",
               "count": 1
             }
           ]
@@ -1427,24 +1731,41 @@
       ]
     },
     {
+      "path": "core/src/main/scala/spinal/core/VerilogAggregateOptions.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "October 2 user request: opt-in constant aggregates and typed loops"
+      ],
+      "reason": "Immutable generation-local aggregate publication choices. Both constant preservation flags default off; packed internal layout remains the default. Access reads only the current SpinalConfig flags and does not alter native algorithms or add a storage-inference policy.",
+      "baseline_path": null,
+      "edits": []
+    },
+    {
       "path": "core/src/main/scala/spinal/core/core.scala",
-      "baseline_path": "core/src/main/scala/spinal/core/core.scala",
       "change": "modified",
       "classification": "typed-overload",
       "introduced_by": [
-        "Increment 53d: typed StreamWidthAdapter architecture"
+        "Increment 53d: typed StreamWidthAdapter architecture",
+        "CA-021: ordinary-import parameter-constant Vec indexing"
       ],
-      "reason": "Expose a parameter-preserving counterpart of widthOf for typed native algorithms.",
+      "reason": "Expose parameter-preserving widthOf and scalar Vec indexing while preserving native and frontend structural overload resolution.",
+      "baseline_path": "core/src/main/scala/spinal/core/core.scala",
       "edits": [
         {
           "id": "widthofexpr-01",
           "kind": "overload",
-          "owner": "spinal.core.widthOfExpr",
-          "reason": "Add the exact packed-width helper without changing widthOf.",
+          "owner": "spinal.core.widthOfExpr and spinal.core.ElabVecOps",
+          "reason": "Add typed width and Vec selection extensions without changing existing native members; delegate selection to its single authenticated implementation.",
           "required_exact_text": [
             {
               "side": "approved",
               "text": "ElabInt.packedWidthOf",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "TypedVecStaticSelect(vector, index)",
               "count": 1
             }
           ]
@@ -1453,24 +1774,25 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/ComponentEmitter.scala",
-      "baseline_path": "core/src/main/scala/spinal/core/internals/ComponentEmitter.scala",
       "change": "modified",
       "classification": "backend-isolation-hook",
       "introduced_by": [
         "Increment 53: permanent native StreamFifo structure repair",
-        "Lane/when follow-up: typed lane extension and generated combinational condition repair"
+        "Lane/when follow-up: typed lane extension and generated combinational condition repair",
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
       ],
-      "reason": "Honor the reviewed per-register sync-process isolation tag inside the inherited emitter grouping algorithm. Add a default-false backend-specific hook for declining only proven redundant repeated-condition materialization. Preserve the original grouping, assignments, scopes, and every other wrapping reason.",
+      "reason": "Honor the reviewed per-register sync-process isolation tag inside the inherited emitter grouping algorithm. Add a default-false backend-specific hook for declining only proven redundant repeated-condition materialization. Preserve the original grouping, assignments, scopes, and every other wrapping reason. Normalize comment text newlines before the existing definition and instance comment renderer.",
+      "baseline_path": "core/src/main/scala/spinal/core/internals/ComponentEmitter.scala",
       "edits": [
         {
-          "id": "component-emitter-lane-condition-sharing-hook",
+          "id": "componentemitter-comments-01",
           "kind": "backend-isolation",
-          "owner": "spinal.core.internals.ComponentEmitter.canInlineRepeatedWhenCondition",
-          "reason": "Default false preserves ordinary backends; only the exact Verilog-side proof may decline a condition-sharing wrap request.",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitter.scala documentation integration",
+          "reason": "Normalize comment text newlines before the existing definition and instance comment renderer. Existing symbolic publication hooks in this span remain intact.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "def canInlineRepeatedWhenCondition(condition: Expression): Boolean = false",
+              "text": "RtlDocumentation.text(t.comment)",
               "count": 1
             }
           ]
@@ -1487,25 +1809,11 @@
               "count": 1
             }
           ]
-        },
-        {
-          "id": "component-emitter-lane-condition-sharing-request",
-          "kind": "backend-isolation",
-          "owner": "spinal.core.internals.ComponentEmitter repeated when condition planning",
-          "reason": "Conjoin the per-expression backend proof with the unchanged sharing count. No existing mandatory wrapper is removed by this hook.",
-          "required_exact_text": [
-            {
-              "side": "approved",
-              "text": " && !canInlineRepeatedWhenCondition(c)",
-              "count": 1
-            }
-          ]
         }
       ]
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
-      "baseline_path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
       "change": "modified",
       "classification": "backend-isolation-hook",
       "introduced_by": [
@@ -1517,15 +1825,91 @@
         "Lane/when follow-up: typed lane extension and generated combinational condition repair",
         "PR188: separate symbolic publication provenance from structural proof",
         "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup",
-        "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI"
+        "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI",
+        "Increment 64: typed native derived local parameters",
+        "Increment 66: native parameter and RTL readability extensions",
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation",
+        "CA-005 ANSI declaration context repair",
+        "Compiler repair: ANSI derived widths and native unsigned temporary/operand sizing",
+        "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026",
+        "Qualification repair: authenticated BOOT initializer publication",
+        "CA-023: authenticated memory and synchronous read geometry before native canonical grouping",
+        "Default enum debug string suppression",
+        "CA-028: authenticated retained Area collection publication"
       ],
-      "reason": "Retain native symbolic-legality publication and the generation-scoped signed declaration, cast, literal, resize and unsigned-transport callbacks. The typed expression planner controls optional wrapper suppression; every mandatory wrapper present before depth cutting remains, and CDC-WIRE-01 suppresses new depth wrappers only when complete expansion and all receiving widths are proven. Approved unsigned expression slices use a deterministic Verilog-2001 function with the full authoritative source input width and exact constant result range, preserving truncation and four-state semantics. Helper and argument names are allocated in the same namespace after reserving component/width parameter identities, and functions are cached by symbolic width and range. Signed/unknown or otherwise unproven expressions and the ordinary backend keep inherited emission. Qualification repair reserves declaration-local width names without composing finished branch domains, and passes the exact emitter owner when preserving a retained unsigned wrapper's authoritative logical range. All old public wrapper entry points and ordinary backend behavior remain intact.",
+      "reason": "Retain native symbolic-legality publication and the generation-scoped signed declaration, cast, literal, resize and unsigned-transport callbacks. The typed expression planner controls optional wrapper suppression; every mandatory wrapper present before depth cutting remains, and CDC-WIRE-01 suppresses new depth wrappers only when complete expansion and all receiving widths are proven. Approved unsigned expression slices use a deterministic Verilog-2001 function with the full authoritative source input width and exact constant result range, preserving truncation and four-state semantics. Helper and argument names are allocated in the same namespace after reserving component/width parameter identities, and functions are cached by symbolic width and range. Signed/unknown or otherwise unproven expressions and the ordinary backend keep inherited emission. Qualification repair reserves declaration-local width names without composing finished branch domains, and passes the exact emitter owner when preserving a retained unsigned wrapper's authoritative logical range. All old public wrapper entry points and ordinary backend behavior remain intact. Emit dependency-ordered typed local parameters through the native localparams buffer after the parameterized backend prepares exact live uses. Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative. Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. CA-005 adds explicit native ANSI-port context while preserving body declaration behavior. Include actual ANSI context and parameter-aware unsigned native temporary/operand publication. Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative. Route BOOT initial assignments through the existing default-disabled owner-bound source publication hook, retaining the exact init statement; preserve ordinary literal emission when the hook returns no replacement. CA-023 preserves child-owned symbolic memory geometry before native identity comparison using optional exact-owner hooks. Enum report formatting follows the existing native enum-string setting and falls back to numeric encoding when disabled.",
+      "baseline_path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
       "edits": [
+        {
+          "id": "componentemitterverilog-comments-01",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
+          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  private val emittedRegionNotes = mutable.HashSet.empty[RtlDocumentation.RegionNote]\n  private def emitRegionNotes(host: RtlDocumentationAnchor, b: StringBuilder, indent: String): Unit = {\n    val notes = host.rtlDocumentation.filter(n => n.valid && (n.component eq component) && n.generatedOwners.isEmpty && emittedRegionNotes.add(n))\n    b ++= RtlDocumentation.lines(notes.map(_.content), indent)\n  }\n\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-comments-02",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
+          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "new StringBuilder(RtlDocumentation.signature(component)) :: ",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-comments-03",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
+          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val rtl = ",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-comments-04",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
+          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "    if (spinalConfig.flags.contains(RtlDocumentation.Deferred)) rtl\n    else RtlDocumentation.publish(rtl, RtlDocumentation.declarationBindings(component))\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "compiler-port-wrapper-componentemitterverilog-5",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "Port",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "symbolic-legality-native-emission-01",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog.emitArchitecture",
-          "reason": "Emit exact-owner authenticated parameter legality via the native architecture buffer, under ifndef SYNTHESIS with deterministic native names. Hardware and width expressions remain outside the simulation-only guard.",
+          "reason": "Emit exact-owner authenticated parameter legality via the native architecture buffer, under ifndef SYNTHESIS with deterministic native names. Hardware and width expressions remain outside the simulation-only guard. Emit dependency-ordered typed local parameters through the native localparams buffer after the parameterized backend prepares exact live uses.",
           "required_exact_text": [
             {
               "side": "approved",
@@ -1536,44 +1920,184 @@
               "side": "approved",
               "text": "component.localNamingScope.allocateName(name)",
               "count": 1
-            }
-          ]
-        },
-        {
-          "id": "componentemitterverilog-wa10-depthcut-snapshot",
-          "kind": "backend-isolation",
-          "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "Record exact mandatory wrapper identities before unchanged depth cutting, so optional typed expression cleanup never discards a pre-existing wrapper.",
-          "required_exact_text": [
+            },
             {
               "side": "approved",
-              "text": " {\n      val requiredBeforeDepthCut = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()\n      expressionToWrap.foreach(expression => requiredBeforeDepthCut.put(expression, java.lang.Boolean.TRUE))",
+              "text": "localparams ++= NativeLocalParameters.declarations(component)",
               "count": 1
             }
           ]
         },
         {
-          "id": "componentemitterverilog-wa10-depthcut-and-signed-transport",
+          "id": "ca023-memory-read-symbolic-range",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "CDC-WIRE-01 removes only newly added depth wrappers whose full expansion and every receiving context already passed the bounded typed proof; every pre-existing mandatory wrapper and the inherited unsigned-transport declaration-policy callback remain retained.",
-          "required_exact_text": [
-            {
-              "side": "approved",
-              "text": "      // The typed planner already bounds the complete expanded expression and\n      // proves every receiving context. Do not recreate its eliminated chain\n      // solely because the legacy breadth-frontier depth cutter sees it again.\n      // Mandatory wraps installed before this optional depth cut still win.\n      expressionToWrap.retain { expression =>\n        requiredBeforeDepthCut.containsKey(expression) || !wrappersProvenRedundant.containsKey(expression)\n      }\n    }\n    // A declaration policy may require a real unsigned carrier at an exact\n    // typed conversion. Keep the inherited expression/cast printers unchanged.\n    if (verilogBase.hasDeclarationPolicy) {\n      component.dslBody.walkStatements { statement =>\n        statement.walkDrivingExpressions { expression =>\n          if (verilogBase.needsUnsignedTransport(expression)) expressionToWrap += expression\n        }\n      }\n    }\n",
-              "count": 1
-            }
-          ]
-        },
-        {
-          "id": "cdc-wire-retained-wrapper-owner",
-          "kind": "backend-isolation",
-          "owner": "spinal.core.internals.ComponentEmitterVerilog.emitArchitecture",
-          "reason": "Pass the actual native printer to the internal owner-checked retained-wrapper overload; the opt-in may preserve an unsigned symbolic range while the inherited allocation and wrapper identity remain unchanged. The byte-minimized insertion is only the printer argument at this exact call site.",
+          "reason": "Publish authenticated child-owned memory geometry before native canonical identity comparison; retain the original concrete fallback and attributes. No text deduplication or schema bypass.",
           "required_exact_text": [
             {
               "side": "approved",
               "text": ", this",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-7",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": ", this",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "parameterized-unsigned-transport-retained",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Retain signed declaration policy transport carriers after restoring native depth cutting; no wire optimizer or wrapper suppression remains.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "if (verilogBase.needsUnsignedTransport(expression)) expressionToWrap += expression",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "compiler-port-wrapper-componentemitterverilog-8",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": ", this",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-10",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "wireName.contains('\\'')) \"\" else emitOwnedRange(this, data)\n          .getOrElse(if(data.getBitsWidth == 1) \"\" else s\"[${data.getBitsWidth - 1}:0]\")",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-comments-07",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
+          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "RtlDocumentation.envelope(component, child, commentTagsToString(child, \"  //\")",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-12",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "mitNativeBlackBoxGeneric(this, bb, e).map(e._1 -> _).getOrElse(e",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-13",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": ")",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-comments-08",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
+          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "    emittedRegionNotes.clear()\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-componentemitterverilog-5",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  private def emitAssignmentSource(assignment: AssignmentStatement): String =\n    verilogBase.emitAssignmentSource(this, assignment).getOrElse(emitExpression(assignment.source))\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-comments-10",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
+          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "    emittedRegionNotes.clear()\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-comments-11",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
+          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact. CA-028: reviewed opt-in exact native assignment target/lineage handoff; no-policy native output is unchanged. Structural legality remains owned and checked in MorphHDL.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "AssignmentSource(s",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "verilogBase.emitAssignmentTarget(this, s).getOrElse(emitAssignedExpression(s.target))",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-18",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val sensitivity = if (conditionDependenciesAdded) referenceSetSorted().mkString(\" or \") else \"*\"\n          logics ++= s\"  always @($sensitivity",
               "count": 1
             }
           ]
@@ -1605,50 +2129,258 @@
           ]
         },
         {
-          "id": "componentemitterverilog-wa10-expression-planning",
+          "id": "componentemitterverilog-comments-14",
           "kind": "backend-isolation",
-          "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning. The same generation-local approved identity set now guards the repeated-condition-sharing override; other wrapping reasons remain authoritative. An emitter-local lazy identity set additionally preserves exact retained Vec operation expressions for their authoritative later publisher; no generated name or emitted spelling determines membership.",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
+          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "  private lazy val wrappersProvenRedundant =\n    VerilogEmitterExpressionInlining.redundantWrappers(component, spinalConfig)\n\n",
-              "count": 1
-            },
-            {
-              "side": "approved",
-              "text": "  override def canInlineRepeatedWhenCondition(condition: Expression): Boolean =\n    VerilogEmitterExpressionInlining.redundantSharedCondition(\n      component, spinalConfig, condition, wrappersProvenRedundant)\n",
-              "count": 1
-            },
-            {
-              "side": "approved",
-              "text": "  private lazy val retainedVecOperationExpressions = {\n    val identities = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()\n    ParameterizedVec.retainedOperationExpressions(component)\n      .foreach(expression => identities.put(expression, java.lang.Boolean.TRUE))\n    identities\n  }\n\n  private[internals] def isRetainedVecOperationExpression(expression: Expression): Boolean =\n    retainedVecOperationExpressions.containsKey(expression)\n",
+              "text": "        emitRegionNotes(statement, b, tab)\n",
               "count": 1
             }
           ]
         },
         {
-          "id": "componentemitterverilog-wa10-required-wrapper-filter",
+          "id": "increment66-componentemitterverilog-9",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "Apply the generation-local typed proof to the existing expression wrapper planning hook; unproven expression identities retain the original materialization path.",
+          "reason": "Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative. CA-028: reviewed opt-in exact native assignment target/lineage handoff; no-policy native output is unchanged. Structural legality remains owned and checked in MorphHDL.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "\n      if (!wrappersProvenRedundant.containsKey(that))",
+              "text": "verilogBase.emitAssignmentTarget(this, assignment).getOrElse(emitAssignedExpression(assignment.target))} ${assignmentKind} ${emitAssignmentSource(assignment",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "verilogBase.emitStatementSuffix(this,",
               "count": 1
             }
           ]
         },
         {
-          "id": "signed-boundary-60e-componentemitterverilog-4",
+          "id": "enum-report-without-debug-strings-1",
           "kind": "backend-isolation",
-          "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog.emitAssert",
+          "reason": "Use enum helper text only when native enum-string emission is enabled; otherwise use the existing numeric expression/report path so no helper is referenced without a declaration.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "  private[spinal] def usesVerilogBase(base: VerilogBase): Boolean = verilogBase eq base\n\n  private def emitSignedOperand(parent: Expression, slot: Int, operand: Expression): String = {\n    val emitted = emitExpression(operand)\n    if (verilogBase.canElideSignedCast(this, parent, slot, operand)) emitted\n    else s\"$$signed($emitted)\"\n  }\n\n",
+              "text": "if spinalConfig._withEnumString ",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "enum-report-without-debug-strings-2",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog.emitAssert",
+          "reason": "Use enum helper text only when native enum-string emission is enabled; otherwise use the existing numeric expression/report path so no helper is referenced without a declaration.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "if spinalConfig._withEnumString ",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-comments-16",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
+          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val publishedScope = verilogBase.emitPublicationScope(this, treeStatement, scopePtr, b, tab,\n          indentation => emitLeafStatements(statements, statementIndex, scopePtr, assignmentKind, b, indentation))\n        if (publishedScope.nonEmpty) {\n          statementIndex = publishedScope.get\n          lastWhen = null\n        } else ",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "emitRegionNotes(treeStatement, b, tab)\n        val publishedScope = verilogBase.emitPublicationScope(this, treeStatement, scopePtr, b, tab,\n          indentation => emitLeafStatements(statements, statementIndex, scopePtr, assignmentKind, b, indentation))\n        if (publishedScope.nonEmpty) {\n          statementIndex = publishedScope.get\n          lastWhen = null\n        } else ",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-24",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "            def condition = verilogBase.emitNativeWhenCondition(this, treeStatement) match {\n              case Some(value) => conditionDependenciesAdded = true; value\n              case None => emitExpression(treeStatement.cond)\n            }\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-25",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "condition",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-26",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "condition",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-componentemitterverilog-11",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "              case _: TypedLocalUInt.Reference => true\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-componentemitterverilog-12",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "                    case e: TypedLocalUInt.Reference => e.render(component)\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-29",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "    conditionDependenciesAdded = false\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-30",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  private var conditionDependenciesAdded = false\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-31",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": ", this",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-32",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": ", this",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-boot-init-20261004-1",
+          "kind": "backend-isolation",
+          "owner": "ComponentEmitterVerilog.getBaseTypeSignalInitBoot",
+          "reason": "Route BOOT initial assignments through the existing default-disabled owner-bound source publication hook, retaining the exact init statement; preserve ordinary literal emission when the hook returns no replacement.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "        var initStatement: InitAssignmentStatement = null\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-boot-init-20261004-2",
+          "kind": "backend-isolation",
+          "owner": "ComponentEmitterVerilog.getBaseTypeSignalInitBoot",
+          "reason": "Route BOOT initial assignments through the existing default-disabled owner-bound source publication hook, retaining the exact init statement; preserve ordinary literal emission when the hook returns no replacement.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "            initStatement = s\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-boot-init-20261004-3",
+          "kind": "backend-isolation",
+          "owner": "ComponentEmitterVerilog.getBaseTypeSignalInitBoot",
+          "reason": "Route BOOT initial assignments through the existing default-disabled owner-bound source publication hook, retaining the exact init statement; preserve ordinary literal emission when the hook returns no replacement.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "verilogBase.emitAssignmentSource(this, initStatement)\n            .getOrElse(emitExpressionNoWrappeForFirstOne(initExpression)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "ca023-memory-declaration-geometry",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Publish authenticated child-owned memory geometry before native canonical identity comparison; retain the original concrete fallback and attributes. No text deduplication or schema bypass.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val geometry = verilogBase.emitMemoryGeometry(this, mem)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-33",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative. Retained surrounding reviewed behavior: Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val left = verilogBase.emitNativeBinaryOperand(this, e, 0).getOrElse(emitExpression(e.left))\n    val right = verilogBase.emitNativeBinaryOperand(this, e, 1).getOrElse(emitExpression(e.right))\n    s\"($left $verilog $right)\"\n  }\n\n  private[spinal] def usesVerilogBase(base: VerilogBase): Boolean = verilogBase eq base\n\n  private def emitSignedOperand(parent: Expression, slot: Int, operand: Expression): String = {\n    val emitted = parent match {\n      case binary: BinaryOperator => verilogBase.emitNativeBinaryOperand(this, binary, slot)\n        .getOrElse(emitExpression(operand))\n      case _ => emitExpression(operand)\n    }\n    if (verilogBase.canElideSignedCast(this, parent, slot, operand)) emitted\n    else s\"$$signed($emitted",
               "count": 1
             }
           ]
@@ -1693,42 +2425,6 @@
           ]
         },
         {
-          "id": "cdc-wire-expression-select-helper",
-          "kind": "backend-isolation",
-          "owner": "spinal.core.internals.ComponentEmitterVerilog.expressionSelect",
-          "reason": "For proven unsigned expressions emit a collision-safe Verilog-2001 pure function with the complete authoritative symbolic input width and exact fixed output range; preserve four-state values and cache by width/range. Reserve retained component/width parameter names before allocating helpers or arguments; the Morph-owned phase separately reserves the full externally published parameter inventory. Read width parameter identities directly from retained local declarations; do not revalidate or expand finished branch domains merely to reserve names. Optional native width lookup refuses only unavailable scoped evidence and retains the inherited select path instead of granting new width authority.",
-          "required_exact_text": [
-            {
-              "side": "approved",
-              "text": "private def expressionSelect(owner: Expression",
-              "count": 1
-            },
-            {
-              "side": "approved",
-              "text": "  private lazy val expressionSelectWidthNamesReserved: Unit =\n    component.dslBody.walkDeclarations {\n      case value: BaseType => ParameterizedWidth.expressionOf(value).foreach { width =>\n        width.parameters.foreach(parameter => component.localNamingScope.lockName(parameter.name))\n      }\n      case _ =>\n    }\n",
-              "count": 1
-            },
-            {
-              "side": "approved",
-              "text": "NativeWidthProvenance.optionalWidthOf(source).filter(width => width.minimum > hi && lo >= 0 && hi >= lo)",
-              "count": 1
-            }
-          ]
-        },
-        {
-          "id": "cdc-wire-narrow-resize-select",
-          "kind": "backend-isolation",
-          "owner": "spinal.core.internals.ComponentEmitterVerilog.operatorImplResize",
-          "reason": "Use the approved full-input-width select function only for an exact narrowing resize; preserve inherited emission for all other resize cases.",
-          "required_exact_text": [
-            {
-              "side": "approved",
-              "text": "expressionSelect(func, func.input, func.size-1, 0)",
-              "count": 1
-            }
-          ]
-        },
-        {
           "id": "signed-boundary-60e-componentemitterverilog-8",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
@@ -1737,6 +2433,19 @@
             {
               "side": "approved",
               "text": "verilogBase.emitSignedResize(this, func).getOrElse ",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-compiler-repair-20261004-38",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "verilogBase.emitNativeConstantShift(this, e).getOrElse ",
               "count": 1
             }
           ]
@@ -1781,27 +2490,14 @@
           ]
         },
         {
-          "id": "cdc-wire-fixed-bit-select",
+          "id": "increment66-componentemitterverilog-27",
           "kind": "backend-isolation",
-          "owner": "spinal.core.internals.ComponentEmitterVerilog.accessBoolFixed",
-          "reason": "Use the approved full-input-width function for a proven one-bit fixed select; retain inherited declared-source selection otherwise.",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "expressionSelect(e, e.source, e.bitId, e.bitId)",
-              "count": 1
-            }
-          ]
-        },
-        {
-          "id": "cdc-wire-fixed-range-select",
-          "kind": "backend-isolation",
-          "owner": "spinal.core.internals.ComponentEmitterVerilog.bitVectorRangedAccessFixedImpl",
-          "reason": "Use the same approved exact range function when selecting a pure expression; retain inherited declared-source selection otherwise.",
-          "required_exact_text": [
-            {
-              "side": "approved",
-              "text": "expressionSelect(e, e.source, e.hi, e.lo).getOrElse(",
+              "text": "    case e: TypedLocalUInt.Reference => e.render(component)\n",
               "count": 1
             }
           ]
@@ -1810,13 +2506,13 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala",
-      "baseline_path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala",
       "change": "modified",
       "classification": "backend-isolation-hook",
       "introduced_by": [
         "Enum-condition full-CI repair: preserve scoped PSL semantics on supported GHDL builds"
       ],
       "reason": "Emit scoped VHDL assert and assume properties as the Boolean-equivalent not-scope-or-condition form. This preserves the complete native scope, condition, abort and trigger while avoiding the unsupported N_IMP_BOOL synthesis node in the repository's pinned GHDL formal backend. Cover retains its inherited sequence operator and ordinary unscoped properties remain byte-equivalent.",
+      "baseline_path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala",
       "edits": [
         {
           "id": "componentemittervhdl-retire-implication-builder",
@@ -1871,31 +2567,17 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/NativeEnumExpressionAuthority.scala",
-      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
         "Enum-condition repair: exact native enum definition, encoding and element authority"
       ],
       "reason": "Resolve late enum-expression eligibility only after native inference has fixed or inferred one authoritative encoding. Record exact enum-definition, encoding-object and element identities together with every encoded value and packed width; reject unresolved, anticipated, incompatible, negative or overflowing authorities. Comparisons require the operator and both operands to carry the same exact authority, and literals must belong to that exact definition. No emitted spelling, declaration position, default witness or parsed Verilog supplies authority.",
-      "edits": []
-    },
-    {
-      "path": "core/src/main/scala/spinal/core/internals/NativePureExpressionCopy.scala",
       "baseline_path": null,
-      "change": "added",
-      "classification": "typed-support-file",
-      "introduced_by": [
-        "WA-10: general typed expression inlining through native capture and structured emission",
-        "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup",
-        "Enum-condition repair: fresh exact-authority enum expression copies"
-      ],
-      "reason": "Copy only explicitly supported pure native expression classes for validated wire substitution. Preserve signal reference identity, inferred widths and source locations; reject cycles, unsupported subclasses, excessive expansion, tagged expressions and symbolic resize metadata that cannot be copied exactly. This helper never copies declarations or registers into combinational expressions. CDC-WIRE-01 adds structural copies for exact fixed-width native shift classes. The enum repair adds only resolved EnumLiteral and Enum Equal/NotEqual nodes, allocates fresh operator and literal nodes, copies native encoding configuration and exact element identity, and retains referenced signal identities. Case equality, unresolved or incompatible enum authority and poison remain unsupported. Copies retain operand identity, width metadata and shift amount through the existing bounded cycle/tag/type checks; declarations and registers are never copied into an expression.",
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/ParameterizedBlackBoxGeneric.scala",
-      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
@@ -1903,18 +2585,21 @@
         "PR189: retain authenticated independent parameter roots in BlackBox integer generics"
       ],
       "reason": "Retain exact typed BlackBox generic and packed-port expressions by BlackBox object identity while native emitters consume concrete witnesses. PR189 routes integer projection through ElaborationPublicationValue while retaining the existing final-owner and schema checks.",
+      "baseline_path": null,
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
-      "baseline_path": "core/src/main/scala/spinal/core/internals/Phase.scala",
       "change": "modified",
       "classification": "platform-integration-hook",
       "introduced_by": [
         "Increment 57a: typed StreamFifoCC architecture",
-        "Increment 60g: scheduler-owned registration lifecycle"
+        "Increment 60g: scheduler-owned registration lifecycle",
+        "Increment 66: native parameter and RTL readability extensions",
+        "CA-003 exact native literal-clone lineage"
       ],
-      "reason": "Preserve structured parameterized-Verilog diagnostics across the inherited Verilog elaboration retry boundary. Expose read-only per-context execution state before any phase runs without altering native phase order or behavior.",
+      "reason": "Preserve structured parameterized-Verilog diagnostics across the inherited Verilog elaboration retry boundary. Expose read-only per-context execution state before any phase runs without altering native phase order or behavior. Mechanically copy immutable named-constant reference tokens through ordinary anonymous carrier propagation and validate exact named-key disjointness before native parallel-case emission. Never fold a symbolic default witness or alter ordinary literal propagation and coverage checks.",
+      "baseline_path": "core/src/main/scala/spinal/core/internals/Phase.scala",
       "edits": [
         {
           "id": "phase-context-execution-evidence",
@@ -1943,6 +2628,37 @@
           ]
         },
         {
+          "id": "increment66-phase-3",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.internals.PhaseSimplifyNodes / PhaseCompletSwitchCases",
+          "reason": "Mechanically copy immutable named-constant reference tokens through ordinary anonymous carrier propagation and validate exact named-key disjointness before native parallel-case emission. Never fold a symbolic default witness or alter ordinary literal propagation and coverage checks. Record the exact cloned literal identity for captured static Vec writes without changing native literal propagation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "case DataAssignmentStatement(_, local: TypedLocalUInt.Reference)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.recordStaticLiteralNormalization(s, e, lit, replacement)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-phase-4",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.internals.PhaseSimplifyNodes / PhaseCompletSwitchCases",
+          "reason": "Mechanically copy immutable named-constant reference tokens through ordinary anonymous carrier propagation and validate exact named-key disjointness before native parallel-case emission. Never fold a symbolic default witness or alter ordinary literal propagation and coverage checks.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "        TypedLocalUInt.validateSwitch(s)\n",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "spinal-verilog-parameterized-exception-01",
           "kind": "platform-integration",
           "owner": "spinal.core.internals.SpinalVerilogBoot.apply retry boundary",
@@ -1964,13 +2680,14 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala",
-      "baseline_path": "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala",
       "change": "modified",
       "classification": "backend-isolation-hook",
       "introduced_by": [
-        "PR #187 qualification repair: preserve upstream VerilogBase JVM compatibility"
+        "PR #187 qualification repair: preserve upstream VerilogBase JVM compatibility",
+        "CA-025: canonical definition naming"
       ],
-      "reason": "Supply optional instance-owned declaration-policy storage on the concrete PhaseVerilog emitter, leaving all ordinary emission, construction arguments, process traversal and width behavior unchanged. No new abstract requirements are added to the historical VerilogBase interface.",
+      "reason": "Supply optional instance-owned declaration-policy storage on the concrete PhaseVerilog emitter, leaving all ordinary emission, construction arguments, process traversal and width behavior unchanged. No new abstract requirements are added to the historical VerilogBase interface. Add a default-inert callback after native trace deduplication to publish canonical definition names.",
+      "baseline_path": "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala",
       "edits": [
         {
           "id": "verilog-policy-owner-pr187-1",
@@ -1984,12 +2701,75 @@
               "count": 1
             }
           ]
+        },
+        {
+          "id": "ca025-definition-name-publication-1",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.PhaseVerilog",
+          "reason": "Bind an optional instance-owned naming callback with an inert concrete default.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Optional publication policy runs only for a new native trace, after native\n  // deduplication. Concrete generation keeps its original naming behavior.\n  private var definitionNamePublication: Component => Unit = (_: Component) => ()\n  def bindDefinitionNamePublication(policy: Component => Unit): Unit = {\n    require(policy != null, \"definition naming policy must not be null\")\n    definitionNamePublication = policy\n  }\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "ca025-definition-name-publication-2",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.PhaseVerilog",
+          "reason": "Invoke final naming only for a new canonical native trace; preserve existing trace comparison and reference map.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "      definitionNamePublication(component)\n",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/Statement.scala",
+      "change": "modified",
+      "classification": "backend-isolation-hook",
+      "introduced_by": [
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
+      ],
+      "reason": "Snapshot optional region documentation at native statement/scope construction without modifying statement ownership or expressions.",
+      "baseline_path": "core/src/main/scala/spinal/core/internals/Statement.scala",
+      "edits": [
+        {
+          "id": "statement-comments-01",
+          "kind": "mechanical-propagation",
+          "owner": "core/src/main/scala/spinal/core/internals/Statement.scala documentation integration",
+          "reason": "Snapshot optional region documentation at native statement/scope construction without modifying statement ownership or expressions. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "extends RtlDocumentationAnchor ",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "statement-comments-02",
+          "kind": "mechanical-propagation",
+          "owner": "core/src/main/scala/spinal/core/internals/Statement.scala documentation integration",
+          "reason": "Snapshot optional region documentation at native statement/scope construction without modifying statement ownership or expressions. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": " with RtlDocumentationAnchor",
+              "count": 1
+            }
+          ]
         }
       ]
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
-      "baseline_path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
       "change": "modified",
       "classification": "backend-isolation-hook",
       "introduced_by": [
@@ -1997,58 +2777,45 @@
         "Increment 60d: pure-SInt redundant cast elimination",
         "Increment 60e: signedness boundaries, aggregates and hierarchy closure",
         "PR #187 qualification repair: preserve upstream VerilogBase JVM compatibility",
-        "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI"
+        "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI",
+        "Increment 64: typed native derived local parameters",
+        "Increment 66: native parameter and RTL readability extensions",
+        "CA-005 ANSI declaration context repair",
+        "Compiler repair: ANSI derived widths and native unsigned temporary/operand sizing",
+        "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026",
+        "CA-023: authenticated memory and synchronous read geometry before native canonical grouping",
+        "CA-028: authenticated retained Area collection publication"
       ],
-      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results. CDC-WIRE-01 qualification preserves the historical two-argument wrapper method and adds an internal owner-checked overload for retained unsigned symbolic carriers. The default backend remains on inherited concrete emission; signed declaration policy ranges retain precedence, with no new state in the historical interface.",
+      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results. CDC-WIRE-01 qualification preserves the historical two-argument wrapper method and adds an internal owner-checked overload for retained unsigned symbolic carriers. The default backend remains on inherited concrete emission; signed declaration policy ranges retain precedence, with no new state in the historical interface. Add a default-disabled exact-occurrence scalar range callback so the native printer can reference module-local typed constants without changing ordinary concrete emission. Add owner-checked optional assignment/source/target/scope callbacks with storage confined to DeclarationPolicyOwner. Keep the historical interface stateless, preserve existing declaration and signedness hooks, and retain default native printing when no policy applies. CA-005 adds explicit native ANSI-port context while preserving body declaration behavior. Include actual ANSI context and parameter-aware unsigned native temporary/operand publication. Extend the existing optional owner-bound publication policy with concrete default methods for native conditions, ranges, operands, constant shifts and BlackBox generics. Validate exact emitter/instance association identity, retain historical public wrapper entry points and avoid new abstract VerilogBase accessors. CA-023 preserves child-owned symbolic memory geometry before native identity comparison using optional exact-owner hooks.",
+      "baseline_path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
       "edits": [
         {
-          "id": "signed-boundary-60e-verilogbase-1",
+          "id": "verilogbase-compiler-repair-20261004-1",
           "kind": "backend-isolation",
-          "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results.",
+          "owner": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
+          "reason": "Extend the existing optional owner-bound publication policy with concrete default methods for native conditions, ranges, operands, constant shifts and BlackBox generics. Validate exact emitter/instance association identity, retain historical public wrapper entry points and avoid new abstract VerilogBase accessors. Retained surrounding reviewed behavior: Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL. CA-023 adds optional exact-owner memory geometry and read-wrapper range publication, retaining concrete fallback without a policy. CA-028: reviewed opt-in exact native assignment target/lineage handoff; no-policy native output is unchanged. Structural legality remains owned and checked in MorphHDL.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "/** The native printer owns declaration occurrences. No occurrence contains an\n  * emitted identifier, source location or a guessed concrete-width type.\n  */\nobject VerilogBase {\n  sealed trait DeclarationRole\n  case object ScalarDeclaration extends DeclarationRole\n  case object FunctionResultDeclaration extends DeclarationRole\n  case object ExpressionWrapper extends DeclarationRole\n  case object MemoryElementDeclaration extends DeclarationRole\n\n  final class DeclarationOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val subject: AnyRef,\n      val role: DeclarationRole\n  )\n\n  /** Native cast site and the exact object that emitExpression will print.\n    * The reference classification comes from the real native wrapper plan,\n    * never from the resulting Verilog text or a caller-provided signed flag.\n    */\n  final class SignedCastOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val parent: Expression,\n      val slot: Int,\n      val operand: Expression\n  ) {\n    def component: Component = printer.component\n    def isSignedLiteral: Boolean = operand match {\n      case literal: BitVectorLiteral => emitter.literalIsSigned(literal)\n      case _ => false\n    }\n    def referenceRole: Option[DeclarationRole] = {\n      if (printer.wrappedExpressionToName.contains(operand)) Some(ExpressionWrapper)\n      else operand match {\n        case value: BaseType if (value.component eq component) && !value.isSuffix &&\n            !printer.referencesOverrides.contains(value) => Some(ScalarDeclaration)\n        case _ => None\n      }\n    }\n  }\n\n  final class SignedLiteralOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val literal: BitVectorLiteral\n  )\n\n  final class SignedResizeOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val resize: Resize\n  ) {\n    def inputReferenceRole: Option[DeclarationRole] =\n      new SignedCastOccurrence(emitter, printer, resize, 0, resize.input).referenceRole\n    def inputText: String = printer.emitExpression(resize.input)\n  }\n\n  /** Optional storage owned by the concrete emitter, not by the historical\n    * VerilogBase interface. A field in that interface would add abstract JVM\n    * accessors and break already-compiled implementations. The strong reference\n    * lives exactly as long as its owner; no global or thread-local registry is\n    * involved, even when a policy itself retains the emitter.\n    */\n  private[spinal] trait DeclarationPolicyOwner { self: VerilogBase =>\n    @volatile private var boundPolicy: DeclarationPolicy = null\n\n    private[VerilogBase] final def currentDeclarationPolicy: DeclarationPolicy = boundPolicy\n\n    private[VerilogBase] final def installDeclarationPolicy(policy: DeclarationPolicy): Unit = synchronized {\n      require(policy != null && boundPolicy == null,\n        \"a Verilog declaration policy must be non-null and bound exactly once\")\n      boundPolicy = policy\n    }\n  }\n\n  trait DeclarationPolicy {\n    def signed(occurrence: DeclarationOccurrence): Boolean\n    def wrapperRange(occurrence: DeclarationOccurrence): Option[String]\n    def unsignedTransport(expression: Expression): Boolean\n    def elideSignedCast(occurrence: SignedCastOccurrence): Boolean = false\n    def signedLiteral(occurrence: SignedLiteralOccurrence): Boolean = false\n    def signedResize(occurrence: SignedResizeOccurrence): Option[String] = None\n    def functionRange(occurrence: DeclarationOccurrence): Option[String] = None\n  }\n}\n\n",
+              "text": "def memoryGeometry(printer: ComponentEmitterVerilog, memory: Mem[_])",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "def statementSuffix(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): String = \"\"",
               "count": 1
             }
           ]
         },
         {
-          "id": "signed-boundary-60e-verilogbase-2",
+          "id": "verilogbase-compiler-repair-20261004-2",
           "kind": "backend-isolation",
-          "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results. A supplied opt-in unsigned logical range is used only when no signed-policy range exists; absent both policy and range, the exact inherited emitType path remains.",
+          "owner": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
+          "reason": "Extend the existing optional owner-bound publication policy with concrete default methods for native conditions, ranges, operands, constant shifts and BlackBox generics. Validate exact emitter/instance association identity, retain historical public wrapper entry points and avoid new abstract VerilogBase accessors. Retained surrounding reviewed behavior: Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL. CA-028: reviewed opt-in exact native assignment target/lineage handoff; no-policy native output is unchanged. Structural legality remains owned and checked in MorphHDL.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "  import VerilogBase._\n\n  // Concrete default accessors keep old VerilogBase implementations stateless\n  // and unsigned. Only an explicitly policy-capable emitter owns a policy slot.\n  private def declarationPolicy: DeclarationPolicy = this match {\n    case owner: DeclarationPolicyOwner => owner.currentDeclarationPolicy\n    case _ => null\n  }\n\n  private def declarationPolicy_=(policy: DeclarationPolicy): Unit = this match {\n    case owner: DeclarationPolicyOwner => owner.installDeclarationPolicy(policy)\n    case _ => throw new IllegalArgumentException(\n      \"binding a Verilog declaration policy requires DeclarationPolicyOwner\")\n  }\n\n  /** One generation-local opt-in; an ordinary native emitter has no policy. */\n  private[spinal] final def bindDeclarationPolicy(policy: DeclarationPolicy): Unit = {\n    require(policy != null && declarationPolicy == null,\n      \"a Verilog declaration policy must be non-null and bound exactly once\")\n    declarationPolicy = policy\n  }\n\n  private[spinal] final def hasDeclarationPolicy: Boolean = declarationPolicy != null\n\n  private[spinal] final def needsUnsignedTransport(expression: Expression): Boolean =\n    declarationPolicy != null && declarationPolicy.unsignedTransport(expression)\n\n  private[spinal] final def canElideSignedCast(printer: ComponentEmitterVerilog,\n      parent: Expression, slot: Int, operand: Expression): Boolean = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed cast occurrence must belong to this native emitter\")\n    declarationPolicy != null && declarationPolicy.elideSignedCast(\n      new SignedCastOccurrence(this, printer, parent, slot, operand))\n  }\n\n  private[spinal] final def literalIsSigned(literal: BitVectorLiteral): Boolean =\n    declarationPolicy != null && declarationPolicy.signedLiteral(new SignedLiteralOccurrence(this, literal))\n\n  private[spinal] final def emitSignedResize(printer: ComponentEmitterVerilog,\n      resize: Resize): Option[String] = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed resize occurrence must belong to this native emitter\")\n    if (declarationPolicy == null) None\n    else declarationPolicy.signedResize(new SignedResizeOccurrence(this, printer, resize))\n  }\n\n  private def declarationPrefix(subject: AnyRef, role: DeclarationRole): String =\n    if (declarationPolicy != null && declarationPolicy.signed(\n        new DeclarationOccurrence(this, subject, role))) \"signed \" else \"\"\n\n  private def emitWrapperType(e: Expression, unsignedRange: Option[String] = None): String = {\n    if (declarationPolicy == null && unsignedRange.isEmpty) return emitType(e)\n    val nativeType = emitUnqualifiedType(e)\n    val section = if (declarationPolicy == null) unsignedRange.getOrElse(nativeType) else {\n      val occurrence = new DeclarationOccurrence(this, e, ExpressionWrapper)\n      declarationPolicy.wrapperRange(occurrence).orElse(unsignedRange).getOrElse(nativeType)\n    }\n    declarationPrefix(e, ExpressionWrapper) + section\n  }\n\n",
-              "count": 1
-            }
-          ]
-        },
-        {
-          "id": "cdc-wire-retained-wrapper-width",
-          "kind": "backend-isolation",
-          "owner": "spinal.core.internals.VerilogBase.emitExpressionWrap",
-          "reason": "Keep the existing two-argument JVM entry point as a concrete default with no width override. The additional internal overload verifies printer/emitter identity and, only under the generation-scoped expression opt-in, preserves native-proven positive parameterized width for non-BaseType UInt/Bits carriers whose default equals the actual native width. Unavailable scoped evidence yields no range; no new declaration, signed interpretation, global registry or interface field is introduced. Exact retained Vec operation expressions are excluded so their native witness support widths remain owned by the later authoritative publisher.",
-          "required_exact_text": [
-            {
-              "side": "approved",
-              "text": "\n    emitExpressionWrapWithRange(e, name, None)\n\n  /** A retained late carrier has no BaseType for the parameterized declaration\n    * publisher to revisit. Its actual native allocation therefore preserves\n    * unsigned logical geometry directly from the typed expression graph. This\n    * is independent of signed declaration mode and never changes a real\n    * declaration or grants a signed interpretation.\n    */\n  private[internals] final def emitExpressionWrap(\n      e: Expression, name: String, printer: ComponentEmitterVerilog): String = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"an expression wrapper must belong to this native emitter\")\n    val range = if (VerilogEmitterExpressionInlining.isEnabled(printer.spinalConfig) &&\n        !e.isInstanceOf[BaseType] &&\n        !printer.isRetainedVecOperationExpression(e) &&\n        (e.getTypeObject == TypeUInt || e.getTypeObject == TypeBits)) {\n      VerilogEmitterExpressionInlining.availableWidthEvidence(NativeWidthProvenance.widthOf(e))\n        .flatten.filter(width => width.parameters.nonEmpty && width.minimum > 0 &&\n          width.default == e.asInstanceOf[WidthProvider].getWidth)\n        .map(width => s\"[${width.verilog}-1:0]\")\n    } else None\n    emitExpressionWrapWithRange(e, name, range)\n  }\n\n  private def emitExpressionWrapWithRange(\n      e: Expression, name: String, unsignedRange: Option[String]): String =",
-              "count": 1
-            }
-          ]
-        },
-        {
-          "id": "signed-boundary-60e-verilogbase-3",
-          "kind": "backend-isolation",
-          "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Thread only the reviewed optional unsigned range into the inherited wire/reg declaration alignment; the structural wrapper branch is unchanged.",
-          "required_exact_text": [
-            {
-              "side": "approved",
-              "text": "WrapperType(e, unsignedRang",
+              "text": "private[spinal] final def emitStatementSuffix",
               "count": 1
             }
           ]
@@ -2067,14 +2834,45 @@
           ]
         },
         {
-          "id": "signed-boundary-60e-verilogbase-5",
+          "id": "verilogbase-compiler-repair-20261004-4",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
+          "reason": "Extend the existing optional owner-bound publication policy with concrete default methods for native conditions, ranges, operands, constant shifts and BlackBox generics. Validate exact emitter/instance association identity, retain historical public wrapper entry points and avoid new abstract VerilogBase accessors. Retained surrounding reviewed behavior: Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL. CA-023 adds optional exact-owner memory geometry and read-wrapper range publication, retaining concrete fallback without a policy.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  /** Exact owning printer for late native expression wrappers. */\n  def emitExpressionWrap(e: Expression, name: String, printer: ComponentEmitterVerilog): String = {\n    val signedRange = if (declarationPolicy == null) None else declarationPolicy.wrapperRange(\n      new DeclarationOccurrence(this, e, ExpressionWrapper))\n    if (signedRange.nonEmpty) return emitExpressionWrap(e, name)\n    val range = emitOwnedRange(printer, e)\n    range match {\n      case Some(value) => theme.maintab + expressionAlign(if(e.isInstanceOf[Multiplexer]) \"reg\" else \"wire\",\n        declarationPrefix(e, ExpressionWrapper) + value, name) + \";\\n\"\n      case None => emitExpressionWrap(e, name)\n    }\n  }\n\n  def emitExpressionWrap(e: Expression, name: String, nature: String, printer: ComponentEmitterVerilog): String =\n    emitOwnedRange(printer, e).map(range => theme.maintab +\n      expressionAlign(nature, declarationPrefix(e, ExpressionWrapper) + range, name) + \";\\n\")\n      .getOrElse(emitExpressionWrap(e, name, nature))\n\n  private[spinal] def emitMemoryGeometry(printer: ComponentEmitterVerilog, memory: Mem[_]): Option[(String, String)] = {\n    require(printer.usesVerilogBase(this), \"memory must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner => Option(owner.assignmentPublication).flatMap(_.memoryGeometry(printer, memory))\n      case _ => None\n    }\n  }\n\n  private[spinal] def emitOwnedRange(printer: ComponentEmitterVerilog, e: Expression): Option[String] = {\n    require(printer.usesVerilogBase(this), \"range must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner => Option(owner.assignmentPublication).flatMap(_.wrapperRange(printer, e))\n      case _ => None\n    }\n  }\n\n  def emitType(e: Expression, printer: ComponentEmitterVerilog): String =\n    emitOwnedRange(printer, e).map(declarationPrefix(e, ScalarDeclaration) + _).getOrElse(emitType(e))\n\n",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "private[spinal] def emitMemoryGeometry(printer: ComponentEmitterVerilog, memory: Mem[_])",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-boundary-60e-verilogbase-4-span-4",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
           "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "\n    declarationPrefix(e, ScalarDeclaration) + emitUnqualifiedType(e)\n\n  def emitFunctionType(e: BaseType): String = {\n    val prefix = declarationPrefix(e, FunctionResultDeclaration)\n    val range = if (declarationPolicy == null) None else declarationPolicy.functionRange(\n      new DeclarationOccurrence(this, e, FunctionResultDeclaration))\n    prefix + range.getOrElse(emitUnqualifiedType(e))\n  }\n\n  private def emitUnqualifiedType(e: Expression): String =",
+              "text": "Wrapper",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "compiler-port-wrapper-verilogbase-6",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.VerilogBase",
+          "reason": "Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "{\n    val range = if (declarationPolicy == null) None else declarationPolicy.scalarRange(\n      new DeclarationOccurrence(this, e, ScalarDeclaration))\n    declarationPrefix(e, ScalarDeclaration) + range.getOrElse(emitUnqualifiedType(e))\n  }\n\n  /** Called at the ANSI declaration site, never for a child-port body wrapper. */\n  def emitPortType(e: Expression): String = {\n    if (declarationPolicy == null) return emitType(e)\n    val range = declarationPolicy.scalarRange(\n      new DeclarationOccurrence(this, e, ScalarDeclaration, ansiPort = true))\n    declarationPrefix(e, ScalarDeclaration) + range.getOrElse(emitUnqualifiedType(e))\n  }\n\n  def emitFunctionType(e: BaseType): String = {\n    val prefix = declarationPrefix(e, FunctionResultDeclaration)\n    val range = if (declarationPolicy == null) None else declarationPolicy.functionRange(\n      new DeclarationOccurrence(this, e, FunctionResultDeclaration))\n    prefix + range.getOrElse(emitUnqualifiedType(e))\n  }\n\n  private def emitUnqualifiedType(e: Expression): String = ",
               "count": 1
             }
           ]
@@ -2095,31 +2893,132 @@
       ]
     },
     {
-      "path": "core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala",
-      "baseline_path": null,
+      "path": "core/src/main/scala/spinal/core/when.scala",
+      "change": "modified",
+      "classification": "typed-overload",
+      "introduced_by": [
+        "Increment 66: native parameter and RTL readability extensions"
+      ],
+      "reason": "Accept an immutable owner-checked unsigned local constant as one native switch key, requiring an exact selector width. Existing key consumers and scope construction remain unchanged.",
+      "baseline_path": "core/src/main/scala/spinal/core/when.scala",
+      "edits": [
+        {
+          "id": "increment66-when-1",
+          "kind": "overload",
+          "owner": "spinal.core.is.list",
+          "reason": "Accept an immutable owner-checked unsigned local constant as one native switch key, requiring an exact selector width. Existing key consumers and scope construction remain unchanged.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "      case value: TypedLocalUInt => switchValue match {\n        case selector: UInt => switchElement.keys += value.reference(selector.getWidth)\n        case _ => SpinalError(\"typed unsigned local requires an UInt switch selector\")\n      }\n",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "idslpayload/src/main/scala/spinal/idslplugin/RtlDocumentationRegion.scala",
       "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "PR195 targeted CI layering repair"
+      ],
+      "reason": "Generic StaticAnnotation marks hardware-region methods at the dependency-neutral payload boundary; compiled frontend methods opt in while the low-level plugin remains isolated.",
+      "baseline_path": null,
+      "edits": []
+    },
+    {
+      "path": "idslpayload/src/main/scala/spinal/idslplugin/RtlSourceDoc.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
+      ],
+      "reason": "Embed source documentation metadata in compiled Scala declarations so generation never needs source files.",
+      "baseline_path": null,
+      "edits": []
+    },
+    {
+      "path": "idslplugin/src/main/scala/spinal/idslplugin/IdslPlugin.scala",
+      "change": "modified",
       "classification": "backend-isolation-hook",
       "introduced_by": [
-        "Increment 63 WA-09: safe named expressions and emitter wrapper elimination",
-        "WA-10: general typed expression inlining through native capture and structured emission",
-        "Lane/when follow-up: typed lane extension and generated combinational condition repair",
-        "PR190: native sequential condition and exact unsigned direct-select consumers",
-        "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup",
-        "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI",
-        "Enum-condition repair: post-proof enum-expression emission"
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
       ],
-      "reason": "Generation-scoped typed structured emission proof; ordinary SpinalVerilog remains disabled and caller configuration is copied without mutation. Historical WA-09/WA-10/lane/sequential stages establish same-owner unsigned expressions, self-determined Boolean operands, supported whole-register RHS and disjoint fixed selections. CDC-WIRE-01 extends that proof recursively through unsigned shifts, bitwise operations, casts, exact slices and resizes using authoritative all-domain width equivalence and parameter identity. The enum repair admits resolved enum leaves, literals and equality/inequality only through exact native authority, including enum packed width, so the emitter does not rematerialize a post-cleanup `_zz_when` wrapper. Every receiving occurrence must independently pass the exact sizing context; shared subtrees times occurrence count remain bounded to 256 nodes with at most 32 uses. Cycles, unknown annotations, protected targets, unsupported signed or symbolic boundaries, overlapping/dynamic selections and unknown expression forms fail closed. Typed direct-reference selection still requires identical kind and width. Mandatory existing wrappers and procedural structure remain retained. No component, generated-name, example or emitted-text recognition selects candidates. Qualification repair treats only SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION and SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED from optional late width composition/equality as unavailable proof, retaining the wrapper without reopening a finished elaboration branch. Every other metadata, graph and backend error still propagates; no safety diagnostic is broadly swallowed. Exact expression identities owned by retained Vec operation and completed-write journals remain excluded from wrapper suppression, preserving later symbolic publication and factorized geometry without candidate selection by names or emitted text. Before optional scalar width lookup, an identity-based dependency walk refuses expressions that reach the retained Vec publication inventory, including inferred single-assignment BitVector drivers. Dependency cycles supply no scalar proof. The final wrapper exclusion reuses that same inventory, preserving factorized publication geometry without broadening any exception catch or changing structural proof authority.",
+      "reason": "Register pre-namer source-comment capture and post-typer explicit/automatic documentation transport before existing naming transformations.",
+      "baseline_path": "idslplugin/src/main/scala/spinal/idslplugin/IdslPlugin.scala",
+      "edits": [
+        {
+          "id": "idslplugin-comments-01",
+          "kind": "mechanical-propagation",
+          "owner": "idslplugin/src/main/scala/spinal/idslplugin/IdslPlugin.scala documentation integration",
+          "reason": "Register pre-namer source-comment capture and post-typer explicit/automatic documentation transport before existing naming transformations. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "{MainTransformer, DocumentationTransformer, SourceDocumentationTransformer}",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "idslplugin-comments-02",
+          "kind": "mechanical-propagation",
+          "owner": "idslplugin/src/main/scala/spinal/idslplugin/IdslPlugin.scala documentation integration",
+          "reason": "Register pre-namer source-comment capture and post-typer explicit/automatic documentation transport before existing naming transformations. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "SourceDocumentationTransformer(global), new DocumentationTransformer(global), new ",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "idslplugin/src/main/scala/spinal/idslplugin/components/DocumentationTransformer.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
+      ],
+      "reason": "Translate supported annotations and exact hardware DSL call comments to typed identity-preserving runtime metadata calls. Recognize frontend-owned hardware control regions through a generic payload annotation; retain core control identities without lower-layer frontend package references.",
+      "baseline_path": null,
+      "edits": []
+    },
+    {
+      "path": "idslplugin/src/main/scala/spinal/idslplugin/components/SourceDocumentation.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
+      ],
+      "reason": "Lex Scala comments with quoted literal and nested-block handling; determine attachment only at explicit lexical boundaries.",
+      "baseline_path": null,
+      "edits": []
+    },
+    {
+      "path": "idslplugin/src/main/scala/spinal/idslplugin/components/SourceDocumentationTransformer.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
+      ],
+      "reason": "Capture declaration comments with compiler source ranges before namer and embed annotations with ambiguity and missing-range diagnostics.",
+      "baseline_path": null,
       "edits": []
     },
     {
       "path": "lib/src/main/scala/spinal/lib.scala",
-      "baseline_path": "lib/src/main/scala/spinal/lib.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
         "Increment 59b: native balanced-reduction capture boundary"
       ],
       "reason": "Preserve the exact typed Vec receiver before collection conversion; retain historical conversion for every concrete input.",
+      "baseline_path": "lib/src/main/scala/spinal/lib.scala",
       "edits": [
         {
           "id": "reduce-balanced-receiver-59b",
@@ -2138,7 +3037,6 @@
     },
     {
       "path": "lib/src/main/scala/spinal/lib/Counter.scala",
-      "baseline_path": "lib/src/main/scala/spinal/lib/Counter.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
@@ -2149,6 +3047,7 @@
         "Increment 55: audit concrete compatibility"
       ],
       "reason": "Add typed Counter overloads and one exact geometry adapter around the authoritative native stepping algorithm, with a reviewed singleton guard that prevents a zero-bit concrete step.",
+      "baseline_path": "lib/src/main/scala/spinal/lib/Counter.scala",
       "edits": [
         {
           "id": "counter-typed-bounds-01",
@@ -2377,6 +3276,29 @@
           ]
         },
         {
+          "id": "counter-concise-rtl-names",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Counter native signal naming",
+          "reason": "Publish area-qualified clear, incr and next RTL signal names while retaining the existing Scala control API and unchanged counter assignments.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "willClear.setCompositeName(this, \"clear\")",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "willIncrement.setCompositeName(this, \"incr\")",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "valueNext.setCompositeName(this, \"next\")",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "counter-typed-bounds-18",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter stepping algorithm",
@@ -2445,13 +3367,13 @@
     },
     {
       "path": "lib/src/main/scala/spinal/lib/CrossClock.scala",
-      "baseline_path": "lib/src/main/scala/spinal/lib/CrossClock.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
         "Increment 57a: typed StreamFifoCC architecture"
       ],
       "reason": "Mechanically retain exact symbolic pointer width through the native BufferCC boundary while keeping concrete behavior and reject the Int-only blackbox replacement before it mutates a retained-width synchronizer.",
+      "baseline_path": "lib/src/main/scala/spinal/lib/CrossClock.scala",
       "edits": [
         {
           "id": "buffercc-typed-width-01",
@@ -2545,13 +3467,13 @@
     },
     {
       "path": "lib/src/main/scala/spinal/lib/Flow.scala",
-      "baseline_path": "lib/src/main/scala/spinal/lib/Flow.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
         "Increment 57: broad native library migration and proof"
       ],
       "reason": "Add typed Flow pipeline selection and synchronous queue ingress while retaining the ordinary Boolean register and native StreamFifo algorithms.",
+      "baseline_path": "lib/src/main/scala/spinal/lib/Flow.scala",
       "edits": [
         {
           "id": "flow-pipeline-control-01",
@@ -2622,7 +3544,6 @@
     },
     {
       "path": "lib/src/main/scala/spinal/lib/Stream.scala",
-      "baseline_path": "lib/src/main/scala/spinal/lib/Stream.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
@@ -2640,6 +3561,7 @@
         "PR188: separate symbolic publication provenance from structural proof"
       ],
       "reason": "Add typed Stream pipeline, synchronous- and cross-clock queue ingress plus StreamFifo, StreamFifoCC and StreamWidthAdapter geometry, including joint StreamFifoCC depth/payload-width memory roles and a width-safe invalid specialization, while mechanically retaining the authoritative native algorithms and concrete output. Keep the existing typed pipeline hardware-construction precondition proof-required using requireStructuralCondition; deferred user requirements must not authorize library structure. No native data-path algorithm change.",
+      "baseline_path": "lib/src/main/scala/spinal/lib/Stream.scala",
       "edits": [
         {
           "id": "stream-pipeline-control-01",
@@ -3744,15 +4666,16 @@
     },
     {
       "path": "lib/src/main/scala/spinal/lib/Utils.scala",
-      "baseline_path": "lib/src/main/scala/spinal/lib/Utils.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
         "Increment 57a: typed StreamFifoCC architecture",
         "Increment 59b: native balanced-reduction capture boundary",
-        "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup"
+        "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup",
+        "CA-014: native logarithmic Gray stage array"
       ],
-      "reason": "Mechanically retain exact symbolic width through native Gray-code helpers and provide owner-local uncached reset-domain construction for generated CDC bodies while preserving concrete implementations. Route typed Vec counts through the neutral callback boundary while retaining the unchanged generic helper and concrete descriptors. CDC-WIRE-01 marks the five compiler-created symbolic Gray-code packed-geometry carriers with ParameterizedExpressionCarrier instead of user dontSimplifyIt intent. Native simplification still retains them. Optional expression removal requires exact typed geometry proof and cannot remove explicit user protection. Gray encode/decode equations, domain validation, loop topology and concrete paths are unchanged.",
+      "reason": "Retain exact symbolic width through native Gray helpers and owner-local reset domains. Preserve the existing concrete path and typed balanced-reduction dispatch. CA-014 replaces the symbolic decoder's maximum-width prefix carriers with an authenticated Vec of ceil(log2(width))+1 stages and a finite generate loop. Each stage uses the same logarithmic XOR/shift equation; width one has no XOR and a direct connection, including direct four-state propagation. Typed loop indices, power shifts and the constant final-stage selector retain exact native lineage. No emitted RTL is patched and no lint warning is suppressed.",
+      "baseline_path": "lib/src/main/scala/spinal/lib/Utils.scala",
       "edits": [
         {
           "id": "gray-typed-width-01",
@@ -3771,7 +4694,7 @@
           "id": "gray-typed-width-02",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.fromGray typed decoder",
-          "reason": "Use an exact-domain fixed parallel-prefix decode topology whose shifts remain width-retained. Compiler-owned geometry boundaries keep native carriers retained until optional exact-width expression proof discharges them; explicit user dontSimplifyIt remains separate.",
+          "reason": "Publish the authoritative symbolic Gray prefix network as a parameter-sized stage Vec, with proven affine next-stage writes, an index-owned power-of-two shift, and a bounded constant final-stage read. Preserve logarithmic depth and a zero-iteration width-one specialization.",
           "required_exact_text": [
             {
               "side": "approved",
@@ -3780,7 +4703,22 @@
             },
             {
               "side": "approved",
-              "text": "val maximumWidth = width.maximum",
+              "text": "val count = width.log2Up",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val stages = Vec(UInt(width bits), count + 1)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ElabFiniteRange.foreach(count, \"decode_prefix\")",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "TypedVecStaticSelect(stages, count",
               "count": 1
             }
           ]
@@ -3846,13 +4784,13 @@
     },
     {
       "path": "lib/src/main/scala/spinal/lib/bus/amba3/ahblite/AhbLite3SlaveFactory.scala",
-      "baseline_path": "lib/src/main/scala/spinal/lib/bus/amba3/ahblite/AhbLite3SlaveFactory.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
         "Increment 57: broad native library migration and proof"
       ],
       "reason": "Route exact typed single-address mappings through the existing delayed AHB-Lite transaction decoder.",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/amba3/ahblite/AhbLite3SlaveFactory.scala",
       "edits": [
         {
           "id": "ahb-lite-generic-mapping-01",
@@ -3871,14 +4809,80 @@
     },
     {
       "path": "lib/src/main/scala/spinal/lib/bus/amba4/axi/Axi4SlaveFactory.scala",
-      "baseline_path": "lib/src/main/scala/spinal/lib/bus/amba4/axi/Axi4SlaveFactory.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
-        "Increment 57: broad native library migration and proof"
+        "Increment 57: broad native library migration and proof",
+        "Increment 66: native parameter and RTL readability extensions"
       ],
-      "reason": "Declare the native AXI4 masked-address alignment for generic typed mappings without changing its transaction decoder.",
+      "reason": "Declare the native AXI4 masked-address alignment for generic typed mappings without changing its transaction decoder. Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/amba4/axi/Axi4SlaveFactory.scala",
       "edits": [
+        {
+          "id": "increment66-axi4slavefactory-1",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axi.Axi4SlaveFactory.build",
+          "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "    validateNamedAddressCases()\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-axi4slavefactory-2",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axi.Axi4SlaveFactory.build",
+          "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "        case address: TypedLocalSingleMapping =>\n          is(address.local) {\n            doMappedWriteElements(jobs, writeJoinEvent.valid, writeOccur, bus.writeData.data)\n          }\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-axi4slavefactory-3",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axi.Axi4SlaveFactory.build",
+          "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": " && !address.isInstanceOf[TypedLocalSingleMapping]",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-axi4slavefactory-4",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axi.Axi4SlaveFactory.build",
+          "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "        case address: TypedLocalSingleMapping =>\n          is(address.local) {\n            doMappedReadElements(jobs, readDataStage.valid, readOccur, readRsp.data)\n          }\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-axi4slavefactory-5",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axi.Axi4SlaveFactory.build",
+          "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": " && !address.isInstanceOf[TypedLocalSingleMapping]",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "axi4-typed-alignment-01",
           "kind": "mechanical-propagation",
@@ -3896,14 +4900,80 @@
     },
     {
       "path": "lib/src/main/scala/spinal/lib/bus/amba4/axilite/AxiLite4SlaveFactory.scala",
-      "baseline_path": "lib/src/main/scala/spinal/lib/bus/amba4/axilite/AxiLite4SlaveFactory.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
-        "Increment 57: broad native library migration and proof"
+        "Increment 57: broad native library migration and proof",
+        "Increment 66: native parameter and RTL readability extensions"
       ],
-      "reason": "Declare the native AXI4-Lite masked-address alignment for generic typed mappings without changing its transaction decoder.",
+      "reason": "Declare the native AXI4-Lite masked-address alignment for generic typed mappings without changing its transaction decoder. Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/amba4/axilite/AxiLite4SlaveFactory.scala",
       "edits": [
+        {
+          "id": "increment66-axilite4slavefactory-1",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axilite.AxiLite4SlaveFactory.build",
+          "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "    validateNamedAddressCases()\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-axilite4slavefactory-2",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axilite.AxiLite4SlaveFactory.build",
+          "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "        case address: TypedLocalSingleMapping =>\n          is(address.local) {\n            doMappedWriteElements(jobs, writeJoinEvent.valid, writeOccur, bus.writeData.data)\n          }\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-axilite4slavefactory-3",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axilite.AxiLite4SlaveFactory.build",
+          "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": " && !address.isInstanceOf[TypedLocalSingleMapping]",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-axilite4slavefactory-4",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axilite.AxiLite4SlaveFactory.build",
+          "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "        case address: TypedLocalSingleMapping =>\n          is(address.local) {\n            doMappedReadElements(jobs, readDataStage.valid, readOccur, readRsp.data)\n          }\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-axilite4slavefactory-5",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axilite.AxiLite4SlaveFactory.build",
+          "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": " && !address.isInstanceOf[TypedLocalSingleMapping]",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "axi4-lite-typed-alignment-01",
           "kind": "mechanical-propagation",
@@ -3921,13 +4991,13 @@
     },
     {
       "path": "lib/src/main/scala/spinal/lib/bus/bram/BRAMSlaveFactory.scala",
-      "baseline_path": "lib/src/main/scala/spinal/lib/bus/bram/BRAMSlaveFactory.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
         "Increment 57: broad native library migration and proof"
       ],
       "reason": "Route exact typed single-address mappings through the existing one-cycle BRAM read and live write transaction paths.",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/bram/BRAMSlaveFactory.scala",
       "edits": [
         {
           "id": "bram-generic-mapping-01",
@@ -3959,13 +5029,14 @@
     },
     {
       "path": "lib/src/main/scala/spinal/lib/bus/misc/BusSlaveFactory.scala",
-      "baseline_path": "lib/src/main/scala/spinal/lib/bus/misc/BusSlaveFactory.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
-        "Increment 57: broad native library migration and proof"
+        "Increment 57: broad native library migration and proof",
+        "Increment 66: native parameter and RTL readability extensions"
       ],
-      "reason": "Add explicit typed single-address overloads and mechanical mapping propagation while retaining every ordinary concrete and bus-family transaction algorithm.",
+      "reason": "Add explicit typed single-address overloads and mechanical mapping propagation while retaining every ordinary concrete and bus-family transaction algorithm. Add explicit named-address read/write/event/readAndWrite overloads through existing primitives and alignment checks. Prove promoted single-address cases disjoint over exact domains while preserving existing shared-address and double-read checks, concrete mappings and transaction algorithms.",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/misc/BusSlaveFactory.scala",
       "edits": [
         {
           "id": "bus-slave-typed-alignment-policy-01",
@@ -3981,14 +5052,14 @@
           ]
         },
         {
-          "id": "bus-slave-typed-address-01",
-          "kind": "signature",
-          "owner": "spinal.lib.bus.misc.BusSlaveFactory typed address validation",
-          "reason": "Validate a complete exact typed address domain against the native bus shape before any concrete or symbolic mapping is admitted.",
+          "id": "increment66-busslavefactory-2",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory / BusSlaveFactoryDelayed",
+          "reason": "Add explicit named-address read/write/event/readAndWrite overloads through existing primitives and alignment checks. Prove promoted single-address cases disjoint over exact domains while preserving existing shared-address and double-read checks, concrete mappings and transaction algorithms.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "requireProjectedExactExtrema = true",
+              "text": "  private def requireTypedAddress(address: ElabInt): Unit = {\n    require(address != null, \"typed bus-slave address requires a non-null ElabInt\")\n  }\n\n  private def validatedTypedAddress(\n      address: ElabInt,\n      busAddress: UInt\n  ): ElabIntSingleMapping = {\n    requireTypedAddress(address)\n    val addressWidth = ParameterizedWidth.expressionOf(busAddress) match {\n      case Some(expression) if expression.parameters.nonEmpty =>\n        ElabInt\n          .fromExpression(expression)\n          .authoritativeProjectedExpression(\n            role = \"typed bus-slave bus-address width\",\n            failureCode =\n              \"SPINAL-PARAMETERIZED-VERILOG-BUS-ADDRESS-WIDTH-EXACT-DOMAIN-REQUIRED\",\n            requireProjectedExactExtrema = true\n          )\n          .minimum\n          .toInt\n      case _ => widthOf(busAddress)\n    }\n    ElabIntSingleMapping(address).validateForBus(\n      // The smallest admitted address width is sufficient even when its\n      // parameter root is independent of the typed address root.\n      addressWidth = addressWidth,\n      alignmentBytes = typedAddressAlignmentBytes\n    )\n  }\n\n  private def validatedNamedAddress(address: TypedLocalUInt, busAddress: UInt): TypedLocalSingleMapping = {\n    require(address != null, \"named bus address must not be null\")\n    require(address.bitWidth == widthOf(busAddress), \"named bus address width must match the bus address width\")\n    new TypedLocalSingleMapping(address, validatedTypedAddress(address.elab, busAddress))\n  }\n\n  def read[T <: Data](that: T, address: TypedLocalUInt): T = read(that, address, 0, null)\n  def read[T <: Data](that: T, address: TypedLocalUInt, bitOffset: Int): T = read(that, address, bitOffset, null)\n  def read[T <: Data](that: T, address: TypedLocalUInt, documentation: String): T = read(that, address, 0, documentation)\n  def read[T <: Data](that: T, address: TypedLocalUInt, bitOffset: Int, documentation: String): T = {\n    readPrimitive(that, validatedNamedAddress(address, readAddress()), bitOffset, documentation)\n    that\n  }\n\n  def write[T <: Data](that: T, address: TypedLocalUInt): T = write(that, address, 0, null)\n  def write[T <: Data](that: T, address: TypedLocalUInt, bitOffset: Int): T = write(that, address, bitOffset, null)\n  def write[T <: Data](that: T, address: TypedLocalUInt, documentation: String): T = write(that, address, 0, documentation)\n  def write[T <: Data](that: T, address: TypedLocalUInt, bitOffset: Int, documentation: String): T = {\n    writePrimitive(that, validatedNamedAddress(address, writeAddress()), bitOffset, documentation)\n    that\n  }\n\n  def onRead(address: TypedLocalUInt)(body: => Unit): Unit = onRead(address, null)(body)\n  def onRead(address: TypedLocalUInt, documentation: String)(body: => Unit): Unit =\n    onReadPrimitive(validatedNamedAddress(address, readAddress()), true, documentation)(body)\n\n  def onWrite(address: TypedLocalUInt)(body: => Unit): Unit = onWrite(address, null)(body)\n  def onWrite(address: TypedLocalUInt, documentation: String)(body: => Unit): Unit =\n    onWritePrimitive(validatedNamedAddress(address, writeAddress()), true, documentation)(body)\n\n  def readAndWrite(that: Data, address: TypedLocalUInt): Unit = readAndWrite(that, address, 0, null)\n  def readAndWrite(that: Data, address: TypedLocalUInt, bitOffset: Int): Unit = readAndWrite(that, address, bitOffset, null)\n  def readAndWrite(that: Data, address: TypedLocalUInt, documentation: String): Unit = readAndWrite(that, address, 0, documentation)\n  def readAndWrite(that: Data, address: TypedLocalUInt, bitOffset: Int, documentation: String): Unit = {\n    write(that, address, bitOffset, documentation)\n    read(that, address, bitOffset, documentation)\n  }\n\n",
               "count": 1
             }
           ]
@@ -4085,6 +5156,19 @@
           ]
         },
         {
+          "id": "increment66-busslavefactory-10",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory / BusSlaveFactoryDelayed",
+          "reason": "Add explicit named-address read/write/event/readAndWrite overloads through existing primitives and alignment checks. Prove promoted single-address cases disjoint over exact domains while preserving existing shared-address and double-read checks, concrete mappings and transaction algorithms.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  /** Only exact single-address mappings enter the native case. Generic ranges\n    * and masks keep their established independent matching/priority path.\n    */\n  protected def validateNamedAddressCases(): Unit = {\n    if (!elementsPerAddress.keys.exists(_.isInstanceOf[TypedLocalSingleMapping])) return\n    val singles = elementsPerAddress.keys.toVector.collect {\n      case named: TypedLocalSingleMapping => (named: AddressMapping, named.local.elab)\n      // Typed elaboration values are Int-bounded; larger fixed addresses\n      // cannot overlap a named address and retain their historical path.\n      case fixed: SingleMapping if fixed.address.isValidInt => (fixed: AddressMapping, ElabInt.fromBigInt(fixed.address))\n    }\n    for (i <- singles.indices; j <- 0 until i\n        if singles(i)._1.isInstanceOf[TypedLocalSingleMapping] || singles(j)._1.isInstanceOf[TypedLocalSingleMapping]) {\n      if (!singles(i)._2.elabEq(singles(j)._2).isAlwaysFalse)\n        throw new ParameterizedVerilogException(\"SPINAL-LOCALPARAM-BUS-ADDRESS-OVERLAP\",\n          \"named case addresses must be disjoint over their complete admitted domains\", None)\n    }\n  }\n\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "bus-slave-typed-address-09",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.bus.misc.BusSlaveFactoryDelayed read-overlap diagnostic",
@@ -4114,13 +5198,14 @@
     },
     {
       "path": "lib/src/main/scala/spinal/lib/bus/misc/Misc.scala",
-      "baseline_path": "lib/src/main/scala/spinal/lib/bus/misc/Misc.scala",
       "change": "modified",
       "classification": "typed-support-file",
       "introduced_by": [
-        "Increment 57: broad native library migration and proof"
+        "Increment 57: broad native library migration and proof",
+        "Increment 66: native parameter and RTL readability extensions"
       ],
-      "reason": "Provide one generic exact typed single-address mapping for existing native bus decoders, with fail-closed complete-domain validation and identity-safe grouping.",
+      "reason": "Provide one generic exact typed single-address mapping for existing native bus decoders, with fail-closed complete-domain validation and identity-safe grouping. Retain the immutable public local-constant handle beside an existing exact typed address mapping. Exact-equivalent mappings preserve grouping. Nonzero address offsets keep the existing generic typed fallback; ordinary mapping classes are unchanged.",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/misc/Misc.scala",
       "edits": [
         {
           "id": "typed-single-address-mapping-01",
@@ -4136,14 +5221,14 @@
           ]
         },
         {
-          "id": "typed-single-address-mapping-02",
-          "kind": "mechanical-propagation",
-          "owner": "spinal.lib.bus.misc.ElabIntSingleMapping source boundary",
-          "reason": "Record beside the inherited file terminator that the new helper remains generic rather than bus-family-specific.",
+          "id": "increment66-misc-2",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.TypedLocalSingleMapping",
+          "reason": "Retain the immutable public local-constant handle beside an existing exact typed address mapping. Exact-equivalent mappings preserve grouping. Nonzero address offsets keep the existing generic typed fallback; ordinary mapping classes are unchanged.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "ElabIntSingleMapping intentionally remains a generic AddressMapping.",
+              "text": "\n// ElabIntSingleMapping intentionally remains a generic AddressMapping.\n\n/** One named, compile-time address. Equivalent exact address functions retain\n  * the factory's existing shared-address grouping and double-read checks.\n  */\nfinal class TypedLocalSingleMapping(val local: TypedLocalUInt,\n    private[misc] val underlying: ElabIntSingleMapping) extends AddressMapping {\n  override def hit(address: UInt): Bool = address === local.asUInt\n  override def hit(address: BigInt): Boolean = underlying.hit(address)\n  override def removeOffset(address: UInt): UInt = U(0)\n  override def lowerBound: BigInt = underlying.lowerBound\n  override def highestBound: BigInt = underlying.highestBound\n  override def randomPick(): BigInt = underlying.randomPick()\n  override def foreach(body: BigInt => Unit): Unit = underlying.foreach(body)\n  override def withOffset(offset: BigInt): AddressMapping =\n    if (offset == 0) this else underlying.withOffset(offset)\n  override def equals(that: Any): Boolean = that match {\n    case other: TypedLocalSingleMapping => underlying == other.underlying\n    case _ => false\n  }\n  override def hashCode(): Int = underlying.hashCode()\n  override def toString: String = s\"Named address ${local.name}\"\n}\n",
               "count": 1
             }
           ]
@@ -4152,13 +5237,13 @@
     },
     {
       "path": "lib/src/main/scala/spinal/lib/bus/tilelink/SlaveFactory.scala",
-      "baseline_path": "lib/src/main/scala/spinal/lib/bus/tilelink/SlaveFactory.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
         "Increment 57: broad native library migration and proof"
       ],
       "reason": "Declare the native TileLink word-address normalization for generic typed mappings without changing its transaction decoder.",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/tilelink/SlaveFactory.scala",
       "edits": [
         {
           "id": "tilelink-typed-alignment-01",
@@ -4177,13 +5262,13 @@
     },
     {
       "path": "lib/src/main/scala/spinal/lib/bus/wishbone/WishboneSlaveFactory.scala",
-      "baseline_path": "lib/src/main/scala/spinal/lib/bus/wishbone/WishboneSlaveFactory.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
         "Increment 57: broad native library migration and proof"
       ],
       "reason": "Declare the effective native Wishbone byte-address alignment for generic typed mappings without changing its transaction decoder.",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/wishbone/WishboneSlaveFactory.scala",
       "edits": [
         {
           "id": "wishbone-typed-alignment-01",

@@ -19,6 +19,21 @@ import spinal.core._
   * packed declaration ranges. No fixture-specific ParamRTL graph is involved.
   */
 private[internals] object ExternalParameterizedVerilogNativeFallback {
+  /** The native wrapper callback supplies the exact expression identity.
+    * Its range uses the same width inference as ordinary declarations. */
+  private[internals] def expressionRangeResolver(component: Component, pc: PhaseContext): Expression => Option[String] = {
+    val analysis = new Analysis(component, pc, Vector.empty, false)
+    expression => analysis.wrapperRange(expression)
+  }
+  private[internals] def constantShiftResolver(component: Component, pc: PhaseContext):
+      (ComponentEmitterVerilog, Operator.BitVector.ShiftRightByInt) => Option[String] = {
+    val analysis = new Analysis(component, pc, Vector.empty, false)
+    (printer, expression) => analysis.constantShift(printer, expression)
+  }
+  private[internals] def binaryOperandResolver(component: Component, pc: PhaseContext): (ComponentEmitterVerilog, BinaryOperator, Int) => Option[String] = {
+    val analysis = new Analysis(component, pc, Vector.empty, false)
+    (printer, expression, slot) => analysis.binaryOperand(printer, expression, slot)
+  }
   private val eligibleGateFailures = Set(
     "SPINAL-PARAMETERIZED-VERILOG-REGISTER-INIT-UNSUPPORTED",
     "SPINAL-PARAMETERIZED-VERILOG-INITIAL-ASSIGNMENT-UNSUPPORTED",
@@ -43,6 +58,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     eligibleGateFailures.contains(failure.code) &&
       (
         NativeSymbolicLegality.hasRequirements(component) ||
+        NativeLocalParameters.hasTyped(component) ||
+        ParameterizedProcess.hasConditionalLoops(component) ||
         ExternalParameterizedHierarchyResizeWidth.parametersOf(component).nonEmpty ||
           ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
           ParameterizedMemory.parametersOf(component).nonEmpty ||
@@ -53,6 +70,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           ParameterizedStructure.parametersOf(component).nonEmpty ||
           component.children.exists { child =>
             NativeSymbolicLegality.hasRequirements(child) ||
+            NativeLocalParameters.hasTyped(child) ||
+            ParameterizedProcess.hasConditionalLoops(child) ||
             ExternalParameterizedHierarchyResizeWidth.parametersOf(child).nonEmpty ||
             ExternalParameterizedAutoResize.parametersOf(child).nonEmpty ||
             ParameterizedMemory.parametersOf(child).nonEmpty ||
@@ -73,9 +92,23 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       verilog: String,
       pc: PhaseContext,
       canonicalOf: Component => Component
+  ): String = rewriteAfterInitializers(component,
+    rewriteRetainedConstantInitializers(component, verilog,
+      nativeSignedLiterals = morphhdl.MorphSignedCasts.isEnabled(pc.config)), pc, canonicalOf)
+
+  /** Continue expression publication after initializer edges have been checked
+    * and sized on their exact native targets, before structural relocation. */
+  private[internals] def rewriteAfterInitializers(
+      component: Component,
+      verilog: String,
+      pc: PhaseContext,
+      canonicalOf: Component => Component,
+      sharedWidthDefaults: Set[String] = Set.empty
   ): String = ExternalParameterizedHighBit.withPublicationValidation(component) {
     ExternalParameterizedNativeResize.withPublicationValidation(component) {
-      rewriteValidated(component, verilog, pc, canonicalOf)
+      ExternalParameterizedNativeGeometry.withPublicationValidation(component) {
+        rewriteValidated(component, verilog, pc, canonicalOf, sharedWidthDefaults)
+      }
     }
   }
 
@@ -83,8 +116,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       component: Component,
       verilog: String,
       pc: PhaseContext,
-      canonicalOf: Component => Component
+      canonicalOf: Component => Component,
+      sharedWidthDefaults: Set[String]
   ): String = {
+    NativeConditionalProcessEmitter.validate(component)
+    NativeBoundedProcessEmitter.validate(component)
+    NativeScopedProcessEmitter.validate(component)
     val hierarchy = ExternalParameterizedVerilogHierarchy.analyze(component, pc, canonicalOf)
     MorphHdlExternalParameterizedVerilog.validateComponentParameterRootInventory(
       component,
@@ -99,18 +136,24 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         ParameterizedVerilogVecs.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
         ParameterizedProcess.parametersOf(component) ++
-        NativeSymbolicLegality.parametersOf(component),
+        NativeSymbolicLegality.parametersOf(component) ++
+        NativeLocalParameters.typedExpressions(component).flatMap(_.parameters),
       hierarchy.hasParameterizedInstances
     )
     analysis.validate()
 
+    val withoutSelectionWitnesses = NativeConditionalProcessEmitter.removeUnusedSelectionWitnesses(component, verilog)
     val withHeader =
-      if (analysis.parameters.isEmpty) verilog
+      if (analysis.parameters.isEmpty) withoutSelectionWitnesses
       else
         ensureParameterHeader(
-          verilog,
+          withoutSelectionWitnesses,
           component.definitionName,
-          analysis.parameters
+          analysis.parameters,
+          NativeScalarFormalSchema.definitionParameters(component, analysis.parameters).map { parameter =>
+            if (sharedWidthDefaults.contains(parameter.name)) parameter.copy(default = parameter.minimum)
+            else parameter
+          }
         )
 
     val (withHierarchy, hierarchyWidths) = hierarchy.rewrite(withHeader)
@@ -126,33 +169,40 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       .foreach { name =>
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-DECLARATION-WIDTH-CONFLICT",
-          s"symbolic analysis inferred conflicting packed ranges for declaration '$name'"
+          s"symbolic analysis inferred conflicting packed ranges for declaration '$name': ${groupedWidths(name).map(_._2).distinct.mkString(", ")}"
         )
       }
     val widthsByName = groupedWidths.toVector
       .map { case (name, values) => name -> values.head._2 }
       .sortBy { case (name, _) => -name.length }
+    // The retained expression is already expanded from authoritative width
+    // provenance. Body publication aliases are never substituted into ports.
+    val portWidthsByName = (analysis.symbolicDeclarationWidths.map { case (name, expression) =>
+      name -> (if (expression.publicationRender == expression.render) expression.range
+        else s"[${expression.render}-1:0]")
+    } ++ hierarchyWidths).groupBy(_._1).toVector.map { case (name, values) =>
+      name -> values.head._2
+    }.sortBy { case (name, _) => -name.length }
     val rewrittenDeclarations = withHierarchy
       .split("\\n", -1)
-      .map(line => rewriteDeclarationLine(line, widthsByName))
+      .map { line =>
+        val port = "^\\s*(?:\\(\\*.*?\\*\\)\\s*)*(?:input|output|inout)\\b".r.findPrefixOf(line).nonEmpty
+        rewriteDeclarationLine(line, if (port) portWidthsByName else widthsByName)
+      }
       .mkString("\n")
-    val rewrittenConstants = rewriteRetainedZeroAssignments(
+    val rewrittenConstants = rewriteRetainedLiteralAssignments(
       component,
       rewrittenDeclarations,
       nativeSignedLiterals = morphhdl.MorphSignedCasts.isEnabled(pc.config)
     )
-    val rewrittenInitializers = rewriteRetainedConstantInitializers(
-      component,
-      rewrittenConstants,
-      nativeSignedLiterals = morphhdl.MorphSignedCasts.isEnabled(pc.config)
-    )
     val rewrittenValues = rewriteRetainedValueAssignments(
       component,
-      rewrittenInitializers
+      rewrittenConstants
     )
     val rewrittenResizes = rewriteRetainedResizeAssignments(
       component,
-      ExternalParameterizedHighBit.rewrite(component, rewrittenValues),
+      ExternalParameterizedNativeGeometry.rewrite(component,
+        ExternalParameterizedHighBit.rewrite(component, rewrittenValues)),
       nativeSignedResize = morphhdl.MorphSignedCasts.isEnabled(pc.config)
     )
     val rewrittenNormalizedTypedResizes =
@@ -174,13 +224,15 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       withVectors,
       pc
     )
-    lowerRetainedIntegerHelpers(withFiniteFolds, component.definitionName)
+    NativeWidthFormalSchema.literalPortPadding(component,
+      lowerRetainedIntegerHelpers(withFiniteFolds, component.definitionName), sharedWidthDefaults)
   }
 
   private def ensureParameterHeader(
       verilog: String,
       definitionName: String,
-      parameters: Vector[ElaborationIntegerParameter]
+      parameters: Vector[ElaborationIntegerParameter],
+      definitionParameters: Vector[ElaborationIntegerParameter]
   ): String = {
     val lines = verilog.split("\n", -1).toVector
     val modulePattern =
@@ -244,8 +296,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         )
       }
 
-    val declarations = parameters.zipWithIndex.map { case (parameter, index) =>
-      val comma = if (index == parameters.size - 1) "" else ","
+    val declarations = definitionParameters.zipWithIndex.map { case (parameter, index) =>
+      val comma = if (index == definitionParameters.size - 1) "" else ","
       s"${indent}  parameter integer ${parameter.name} = ${parameter.default}$comma"
     }
     (
@@ -624,36 +676,45 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     if (!declarationLine) return line
 
     widthsByName.foldLeft(line) { case (current, (name, range)) =>
-      val quotedName = Pattern.quote(name)
-      val declarationEnd = "(?=\\s*(?:/\\*.*?\\*/\\s*)*(?:[,;]|$))"
-      val packedPattern =
-        ("(\\[[^\\]]+\\])(\\s+)(" + quotedName + ")" + declarationEnd).r
-      var replaced = false
-      val withRange = packedPattern.replaceAllIn(
-        current,
-        matched => {
-          if (replaced) Matcher.quoteReplacement(matched.matched)
-          else {
-            replaced = true
-            Matcher.quoteReplacement(range + matched.group(2) + matched.group(3))
-          }
-        }
-      )
-      if (replaced) withRange
+      // A literal-name occurrence is necessary for either existing exact
+      // declaration pattern to match. Avoid compiling/running both patterns
+      // for every unrelated leaf in large combined aggregate/reduction graphs.
+      // Check the current text, not the initial line: an earlier replacement
+      // may introduce text used by a later entry. This is only a negative
+      // filter; the original declaration parser remains the sole authority.
+      if (!current.contains(name)) current
       else {
-        val scalarPattern =
-          ("(\\s+)(" + quotedName + ")" + declarationEnd).r
-        var inserted = false
-        scalarPattern.replaceAllIn(
-          withRange,
+        val quotedName = Pattern.quote(name)
+        val declarationEnd = "(?=\\s*(?:/\\*.*?\\*/\\s*)*(?:[,;]|$))"
+        val packedPattern =
+          ("(\\[[^\\]]+\\])(\\s+)(" + quotedName + ")" + declarationEnd).r
+        var replaced = false
+        val withRange = packedPattern.replaceAllIn(
+          current,
           matched => {
-            if (inserted) Matcher.quoteReplacement(matched.matched)
+            if (replaced) Matcher.quoteReplacement(matched.matched)
             else {
-              inserted = true
-              Matcher.quoteReplacement(matched.group(1) + range + " " + matched.group(2))
+              replaced = true
+              Matcher.quoteReplacement(range + matched.group(2) + matched.group(3))
             }
           }
         )
+        if (replaced) withRange
+        else {
+          val scalarPattern =
+            ("(\\s+)(" + quotedName + ")" + declarationEnd).r
+          var inserted = false
+          scalarPattern.replaceAllIn(
+            withRange,
+            matched => {
+              if (inserted) Matcher.quoteReplacement(matched.matched)
+              else {
+                inserted = true
+                Matcher.quoteReplacement(matched.group(1) + range + " " + matched.group(2))
+              }
+            }
+          )
+        }
       }
     }
   }
@@ -839,17 +900,35 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         "{{" + padding + "{1'b" + fill + "}}, " + bits + "'b" +
           initializer.literal.getBitsStringOn(bits, 'x') + "}"
       }
+      val published = nativeInitializerEmissions(component)
+      var nativeEdges = 0
+      component.dslBody.walkLeafStatements {
+        case statement: AssignmentStatement if (statement.finalTarget eq initializer.target) &&
+            published.containsKey(statement) =>
+          if (published.get(statement) != replacement)
+            fail("SPINAL-PARAMETERIZED-VERILOG-CONSTANT-INIT-EMITTED-LINEAGE-MISMATCH",
+              "native initializer publication changed its authenticated value or width", initializer.width.sourceLocation)
+          nativeEdges += 1
+        case _ =>
+      }
+      val nativePattern = ("^(\\s*" + Pattern.quote(initializer.name) +
+        "\\s*(?:<=|=)\\s*)" + Pattern.quote(replacement) + "(;.*)$").r
       var exactEdges = 0
+      var exactNativeEdges = 0
       lines = lines.map {
+        case nativePattern(prefix, suffix) if nativeEdges > 0 =>
+          exactNativeEdges += 1
+          prefix + replacement + suffix
         case pattern(prefix, suffix) =>
           exactEdges += 1
           prefix + replacement + suffix
         case line => line
       }
-      if (authorizedEdges == 0 || exactEdges != authorizedEdges) {
+      if (authorizedEdges == 0 || exactEdges + exactNativeEdges != authorizedEdges ||
+          exactNativeEdges != nativeEdges) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-CONSTANT-INIT-EMITTED-LINEAGE-MISMATCH",
-          s"retained-width constant initializer '${initializer.name}' maps to $exactEdges exact emitted witness edges, but the graph authorizes $authorizedEdges exact constant assignments",
+          s"retained-width constant initializer '${initializer.name}' maps to $exactEdges exact emitted witness edges and $exactNativeEdges native edges (recorded=$nativeEdges), but the graph authorizes $authorizedEdges exact constant assignments",
           initializer.width.sourceLocation
         )
       }
@@ -861,11 +940,24 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     * Publish its own symbolic result width, including combinational carriers
     * inside ordinary helper graphs. Only one direct, poison-free literal edge
     * on the exact live typed carrier authorizes an emitted replacement.
+    * This compatibility entry retains the zero-only mutation-test surface.
     */
   private[internals] def rewriteRetainedZeroAssignments(
       component: Component,
       verilog: String,
       nativeSignedLiterals: Boolean = false
+  ): String = rewriteRetainedLiteralAssignments(component, verilog, nativeSignedLiterals, false)
+
+  /** Fit-proven native UInt constants also require a retained-width spelling:
+    * normalization's witness-sized literal must not truncate at a smaller
+    * shared-definition default. The graph and publication-owner checks are
+    * identical to the zero case, and every admitted width must hold the value.
+    */
+  private def rewriteRetainedLiteralAssignments(
+      component: Component,
+      verilog: String,
+      nativeSignedLiterals: Boolean = false,
+      includeUnsignedConstants: Boolean = true
   ): String = {
     // An ElabValue carrier's literal and a finite fold's zero anchor are
     // construction witnesses. Their exact registries own publication.
@@ -887,11 +979,15 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
               if (assignment.finalTarget eq target) &&
                 (target.component eq component) && target.isComb &&
                 !retainedValues.containsKey(target) &&
+                !ExternalParameterizedNativeGeometry.ownsAssignment(component, assignment) &&
                 target.hasOnlyOneStatement && (target.head eq assignment) &&
-                !literal.hasPoison() && literal.getValue() == 0 &&
+                !literal.hasPoison() &&
+                (literal.getValue() == 0 || (includeUnsignedConstants &&
+                  target.isInstanceOf[UInt] && literal.isInstanceOf[UIntLiteral] && literal.getValue() > 0)) &&
                 literal.getWidth == target.getBitsWidth =>
             ParameterizedWidth.expressionOf(target)
-              .filter(_.parameters.nonEmpty).foreach { width =>
+              .filter(width => width.parameters.nonEmpty &&
+                (literal.getValue() == 0 || width.minimum >= math.max(1,literal.getValue().bitLength))).foreach { width =>
                 // Reconstruct only the domain belonging to this exact live
                 // declaration. The same owner check covers one-root projections
                 // and composed width authority without reopening a finished
@@ -920,7 +1016,13 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                 lines = lines.map {
                   case exactPattern(prefix, suffix) =>
                     exactEdges += 1
-                    prefix + "{" + width.verilog + "{1'b0}}" + suffix
+                    val value = literal.getValue()
+                    val replacement = if (value == 0) "{" + width.verilog + "{1'b0}}"
+                      else {
+                        val bits = math.max(1,value.bitLength)
+                        s"{{((${width.verilog}) - $bits){1'b0}}, ${bits}'h${value.toString(16)}}"
+                      }
+                    prefix + replacement + suffix
                   case line => line
                 }
                 if (targetEdges != 1 || exactEdges != 1) {
@@ -941,6 +1043,133 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     * emitted name is read from that object after normal Spinal naming. No port,
     * component or user signal name is used as a discovery key.
     */
+  private object NativeValueEmissions
+  private object NativeInitializerEmissions
+  private def nativeInitializerEmissions(component: Component): IdentityHashMap[AssignmentStatement, String] =
+    component.userCache.getOrElseUpdate(NativeInitializerEmissions,
+      new IdentityHashMap[AssignmentStatement, String]()).asInstanceOf[IdentityHashMap[AssignmentStatement, String]]
+
+  /** Size exact native constant reset edges before native definition comparison.
+    * This preserves the emitter's complete body comparison while removing the
+    * instance width witness from an authenticated explicit-formal declaration.
+    */
+  private[internals] def emitNativeInitializer(printer: ComponentEmitterVerilog,
+      assignment: AssignmentStatement): Option[String] = {
+    val component = printer.component
+    (assignment.target, assignment.source) match {
+      case (target: BitVector, literal: BitVectorLiteral) if (assignment.finalTarget eq target) &&
+          (target.component eq component) && target.isReg && !literal.hasPoison() &&
+          literal.getWidth == target.getBitsWidth &&
+          (literal.getTypeObject.asInstanceOf[AnyRef] eq target.getTypeObject.asInstanceOf[AnyRef]) =>
+        var matchingReset = false
+        target.foreachStatements {
+          case init: InitAssignmentStatement if (init.target eq target) => init.source match {
+            case reset: BitVectorLiteral if !reset.hasPoison() && reset.getWidth == literal.getWidth &&
+                reset.getTypeObject == literal.getTypeObject && reset.getValue() == literal.getValue() =>
+              matchingReset = true
+            case _ =>
+          }
+          case _ =>
+        }
+        val owned = NativeWidthFormalSchema.bindings(component)
+        ParameterizedWidth.expressionOf(target).filter(width => matchingReset && width.parameters.nonEmpty &&
+          width.parameters.forall(p => owned.exists(_.binding.formal eq p))).map { width =>
+          NativePublicationWidth.validate(width, component, target, "native canonical initializer width")
+          if (width.minimum < 1 || width.default != target.getBitsWidth)
+            fail("SPINAL-PARAMETERIZED-VERILOG-CONSTANT-INIT-WIDTH-MISMATCH",
+              "native canonical initializer lost its declaration width", width.sourceLocation)
+          val value = literal.getValue()
+          val fill = if (literal.isSignedKind && value < 0) '1' else '0'
+          val replacement = if (value == 0 || value == -1) "{" + width.verilog + "{1'b" + fill + "}}"
+          else {
+            val bits = literal.minimalValueBitWidth.max(1)
+            val w = width.verilog
+            val padding = if (width.minimum >= bits) s"($w - $bits)" else s"(($w > $bits) ? ($w - $bits) : 0)"
+            "{{" + padding + "{1'b" + fill + "}}, " + bits + "'b" + literal.getBitsStringOn(bits, 'x') + "}"
+          }
+          nativeInitializerEmissions(component).put(assignment, replacement)
+          replacement
+        }
+      case _ => None
+    }
+  }
+  private object NativeValueLocalNames
+  private def nativeValueEmissions(component: Component): IdentityHashMap[DataAssignmentStatement, java.lang.Boolean] =
+    component.userCache.getOrElseUpdate(NativeValueEmissions,
+      new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]())
+      .asInstanceOf[IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]]
+
+  private def sizedNativeValue(printer: ComponentEmitterVerilog, assignment: DataAssignmentStatement,
+      value: UInt, expression: ElaborationIntegerExpression): String = {
+    val component = printer.component
+    val local = NativeLocalParameters.reference(component, expression)
+    val direct = expression.parameters match {
+      case Vector(parameter) if expression.verilog == parameter.name && expression.generateIndex.isEmpty =>
+        Some(parameter.name -> 32)
+      case _ => None
+    }
+    val reference = local.map(name => name -> NativeLocalParameters.referenceWidth(component, expression).get)
+      .orElse(direct).orElse {
+        // A genvar-dependent expression must stay in its generated scope.
+        // Module parameters and compiler-owned module locals are visible here.
+        if (expression.generateIndex.nonEmpty) None
+        else {
+          val perPrinter = component.userCache.getOrElseUpdate(NativeValueLocalNames,
+            new IdentityHashMap[ComponentEmitterVerilog, IdentityHashMap[DataAssignmentStatement, String]]())
+            .asInstanceOf[IdentityHashMap[ComponentEmitterVerilog, IdentityHashMap[DataAssignmentStatement, String]]]
+          var names = perPrinter.get(printer)
+          if (names == null) {
+            names = new IdentityHashMap[DataAssignmentStatement, String]()
+            perPrinter.put(printer, names)
+          }
+          var name = names.get(assignment)
+          if (name == null) {
+            name = component.localNamingScope.allocateName("param_value")
+            names.put(assignment, name)
+            printer.localparams ++= s"  localparam [31:0] $name = ${expression.verilog};\n"
+          }
+          Some(name -> 32)
+        }
+      }
+    reference.map { case (name, sourceWidth) =>
+      val width = ParameterizedWidth.expressionOf(value)
+      val text = width.map(_.verilog).getOrElse(value.getBitsWidth.toString)
+      val minimum = width.map(_.minimum).getOrElse(BigInt(value.getBitsWidth))
+      val maximum = width.map(_.maximum).getOrElse(BigInt(value.getBitsWidth))
+      if (minimum == sourceWidth && maximum == sourceWidth) name
+      else if (maximum <= sourceWidth) s"$name[($text)-1:0]"
+      else if (minimum >= sourceWidth) s"{{(($text)-$sourceWidth){1'b0}},$name}"
+      else s"{{((($text)>$sourceWidth)?(($text)-$sourceWidth):0){1'b0}},$name[((($text)<$sourceWidth)?($text):$sourceWidth)-1:0]}"
+    }.getOrElse("(" + expression.verilog + ")")
+  }
+
+  /** Publish the authenticated typed value at its exact native assignment.
+    * The retained UInt declaration supplies packed width and unsignedness in
+    * every surrounding hardware expression, including self-determined operands.
+    */
+  private[internals] def emitNativeValue(printer: ComponentEmitterVerilog,
+      assignment: AssignmentStatement): Option[String] = assignment match {
+    case data: DataAssignmentStatement =>
+      val component = printer.component
+      ExternalParameterizedValueRegistry.valuesOf(component).find { case (_, record) =>
+        record.assignment.exists(_ eq data)
+      }.map { case (value, record) =>
+        MorphHdlExternalParameterizedVerilog.validateComponentParameterRootInventory(component,
+          includeChildActuals = false)
+        val live = ArrayBuffer.empty[DataAssignmentStatement]
+        component.dslBody.walkStatements {
+          case statement: DataAssignmentStatement => live += statement
+          case _ =>
+        }
+        validateRetainedValueAssignmentLineage(component, value, record, live.toVector,
+          new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]())
+        validateRetainedValueProjection(component, value, record)
+        nativeValueEmissions(component).put(data, java.lang.Boolean.TRUE)
+        sizedNativeValue(printer, data, value, record.expression)
+      }
+    case _ => None
+  }
+
   private[internals] def rewriteRetainedValueAssignments(
       component: Component,
       verilog: String
@@ -966,6 +1195,14 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       )
       validateRetainedValueProjection(component, value, record)
       (value, record, witnessLiteral)
+    }
+
+    val published = nativeValueEmissions(component)
+    if (!published.isEmpty) {
+      if (!validated.forall { case (_, record, _) => record.assignment.exists(published.containsKey) })
+        fail("SPINAL-PARAMETERIZED-VERILOG-VALUE-EMITTED-LINEAGE-MISMATCH",
+          "only part of the retained value inventory passed through native emission")
+      return verilog
     }
 
     val named = validated.map { case (value, record, witnessLiteral) =>
@@ -1978,6 +2215,75 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     private val treeStatements = ArrayBuffer.empty[TreeStatement]
     private val widthInference = new WidthInference
 
+    def constantShift(printer: ComponentEmitterVerilog,
+        expression: Operator.BitVector.ShiftRightByInt): Option[String] = synchronized {
+      require(printer.component eq component, "shift width must use its exact component")
+      // Verilog-2001 can slice a native declaration or an existing native
+      // expression wrapper. Compound expressions without such a reference
+      // retain the ordinary printer; never append a select to arbitrary text.
+      def referenceOf(value: Expression): Option[Expression] = value match {
+        case _ if value.isInstanceOf[BaseType] || printer.wrappedExpressionToName.contains(value) => Some(value)
+        case cast: CastBitVectorToBitVector if cast.getWidth == cast.input.getWidth => referenceOf(cast.input)
+        case _ => None
+      }
+      val reference = referenceOf(expression.source)
+      if (reference.isEmpty || expression.shift <= 0) return None
+      val width = widthInference.ofExpression(expression.source)
+      if (width.minimum <= expression.shift || width.default != expression.source.getWidth ||
+          expression.getWidth != expression.source.getWidth - expression.shift) return None
+      val high = if (width.isSymbolic) s"(${width.publicationRender})-1" else (width.default - 1).toString
+      val slice = s"${printer.emitExpression(reference.get)}[$high:${expression.shift}]"
+      Some(if (expression.isInstanceOf[Operator.SInt.ShiftRightByInt]) s"$$signed($slice)" else slice)
+    }
+
+    def binaryOperand(printer: ComponentEmitterVerilog, expression: BinaryOperator, slot: Int): Option[String] = synchronized {
+      require(slot == 0 || slot == 1, "binary operand slot must be exact")
+      val operand = if (slot == 0) expression.left else expression.right
+      val (left, right) = widthInference.binaryWidths(expression)
+      val common = widthMax(left, right)
+      if (!common.isSymbolic) return None
+      val count = common.publicationRender
+      if (operand.getTypeObject == TypeSInt) {
+        val own = if (slot == 0) left else right
+        if (equivalentWidthExpression(own, common)) return None
+        val sign = operand match {
+          case literal: SIntLiteral if !literal.hasPoison() =>
+            if (literal.value < 0) "1'b1" else "1'b0"
+          case _: BitVectorLiteral => return None
+          case _ if operand.isInstanceOf[BaseType] || printer.wrappedExpressionToName.contains(operand) =>
+            s"${printer.emitExpression(operand)}[(${own.publicationRender})-1]"
+          case _ => return None
+        }
+        return Some(s"$$signed({{(($count) - (${own.publicationRender})){$sign}}, ${printer.emitExpression(operand)}})")
+      }
+      operand match {
+        case literal: UIntLiteral if !literal.hasPoison() && literal.value >= 0 =>
+          val bits = math.max(1, literal.value.bitLength)
+          if (common.minimum < bits) None
+          else if (literal.value == 0) Some(s"{($count){1'b0}}")
+          else Some(s"{{(($count) - $bits){1'b0}}, ${bits}'h${literal.value.toString(16)}}")
+        case _: BitVectorLiteral => None
+        case _ =>
+          val own = if (slot == 0) left else right
+          if (equivalentWidthExpression(own, common)) None
+          else Some(s"{{(($count) - (${own.publicationRender})){1'b0}}, ${printer.emitExpression(operand)}}")
+      }
+    }
+
+    def wrapperRange(expression: Expression): Option[String] = synchronized {
+      val width = widthInference.ofExpression(expression)
+      if (!width.isSymbolic) None
+      else {
+        require(width.minimum > 0 && width.maximum <= pc.config.bitVectorWidthMax,
+          "native wrapper width is outside the admitted positive domain")
+        expression match {
+          case value: WidthProvider => require(width.default == value.getWidth, "native wrapper width witness mismatch")
+          case _ => throw new IllegalArgumentException("native wrapper has no packed-width carrier")
+        }
+        Some(width.range)
+      }
+    }
+
     private lazy val exactPackedReadSupportAssignments =
       ParameterizedVerilogVecs.exactPackedReadSupportAssignments(component)
 
@@ -2197,7 +2503,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       }
       // Native memories are validated and canonically lowered before this
       // generic declaration-width pass.
-      if (parameters.isEmpty && !hasParameterizedHierarchy) {
+      if (parameters.isEmpty && !hasParameterizedHierarchy && !ParameterizedProcess.hasConditionalLoops(component) && !NativeLocalParameters.hasTyped(component) &&
+          !ParameterizedVerilogVecs.hasVectors(component) && !ParameterizedVerilogStructural.hasRegions(component) &&
+          !component.children.exists(ParameterizedVerilogVecs.hasVectors) &&
+          !ParameterizedVerilogProcesses.hasLoops(component)) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-NO-SYMBOLIC-PORTS",
           s"component '${component.definitionName}' has no retained or inferred symbolic packed widths"
@@ -2213,7 +2522,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
             component,
             ports.toVector
           )
-      if (!ordinaryPortSurface && !exactStructuralVecOutputSurface) {
+      val exactValueOutputSurface = hasNativeOutput && !hasNativeInput &&
+        !ports.exists(_.isInOut) && ExternalParameterizedValueRegistry.valuesOf(component).nonEmpty
+      if (!ordinaryPortSurface && !exactStructuralVecOutputSurface && !exactValueOutputSurface) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-PORT-DIRECTIONS-UNSUPPORTED",
           s"component '${component.definitionName}' must expose at least one native input and one native output, or one exact output-only finite structural typed-Vec surface"
@@ -2826,6 +3137,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           expression: ElaborationIntegerExpression
       ): WidthExpr = {
         val value = retainedWidthExpression(expression)
+        value.publicationReference = NativeLocalParameters.reference(component, expression)
         retainedOrigins.put(value, expression)
         value
       }
@@ -3268,6 +3580,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         }
 
       private def inferUntaggedBitVector(bitVector: BitVector): WidthExpr = {
+        // A fixed input is a declaration boundary in this module. Its driving
+        // assignment belongs to the parent, whose expressions and child-formal
+        // roots cannot establish widths inside this definition. Explicit typed
+        // port widths have already been resolved by ofBase before this fallback.
+        if ((bitVector.component eq component) && bitVector.isInput && bitVector.isFixedWidth)
+          return WidthLiteral(bitVector.getBitsWidth)
         val fullAssignments = ArrayBuffer.empty[DataAssignmentStatement]
         bitVector.foreachStatements {
           case assignment: DataAssignmentStatement
@@ -3309,6 +3627,35 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       def ofExpression(expression: Expression): WidthExpr = {
         expressionCache.getOrElseUpdate(expression, inferExpression(expression))
       }
+      def binaryWidths(expression: BinaryOperator): (WidthExpr, WidthExpr) = {
+        val left = operandWidth(expression.left)
+        val right = operandWidth(expression.right)
+        // Native normalization pads unsized UInt literals to the elaboration
+        // witness. That padding is not an authored width constraint. Recover
+        // only their value requirement in common-width UInt operations; retain
+        // explicit widths, symbolic fills and every non-contextual operation.
+        val contextual = expression match {
+          case _: Operator.UInt.Add | _: Operator.UInt.Sub |
+              _: Operator.UInt.And | _: Operator.UInt.Or | _: Operator.UInt.Xor |
+              _: Operator.UInt.Equal | _: Operator.UInt.EqualSim |
+              _: Operator.UInt.NotEqual | _: Operator.UInt.Smaller |
+              _: Operator.UInt.SmallerOrEqual => true
+          case _ => false
+        }
+        def required(value: Expression, own: WidthExpr, other: WidthExpr): WidthExpr = value match {
+          case literal: UIntLiteral if contextual && other.isSymbolic && other.minimum > 0 &&
+              !literal.hasSpecifiedBitCount && !literal.hasPoison() && literal.value >= 0 &&
+              ExternalParameterizedNativeGeometry.widthOf(component, literal).isEmpty =>
+            WidthLiteral(math.max(1, literal.value.bitLength))
+          case _ => own
+        }
+        required(expression.left, left, right) -> required(expression.right, right, left)
+      }
+
+      private def commonBinaryWidth(expression: BinaryOperator): WidthExpr = {
+        val (left, right) = binaryWidths(expression)
+        widthMax(left, right)
+      }
 
       /** Spinal input normalization inserts concrete-witness Resize nodes around
         * operands.  Those nodes are not user-visible resizes and must retain the
@@ -3339,15 +3686,15 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         case operator: Operator.Bits.Cat =>
           widthAdd(operandWidth(operator.left), operandWidth(operator.right))
         case operator: Operator.BitVector.Add =>
-          widthMax(operandWidth(operator.left), operandWidth(operator.right))
+          commonBinaryWidth(operator)
         case operator: Operator.BitVector.Sub =>
-          widthMax(operandWidth(operator.left), operandWidth(operator.right))
+          commonBinaryWidth(operator)
         case operator: Operator.BitVector.And =>
-          widthMax(operandWidth(operator.left), operandWidth(operator.right))
+          commonBinaryWidth(operator)
         case operator: Operator.BitVector.Or =>
-          widthMax(operandWidth(operator.left), operandWidth(operator.right))
+          commonBinaryWidth(operator)
         case operator: Operator.BitVector.Xor =>
-          widthMax(operandWidth(operator.left), operandWidth(operator.right))
+          commonBinaryWidth(operator)
         case operator: Operator.BitVector.Mul =>
           widthAdd(operandWidth(operator.left), operandWidth(operator.right))
         case operator: Operator.BitVector.Div => operandWidth(operator.left)
@@ -3382,7 +3729,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         case access: BitVectorRangedAccessFloating => inferFloatingRange(access)
         case access: BitVectorBitAccessFixed       => inferFixedBit(access)
         case _: BitVectorBitAccessFloating         => WidthLiteral(1)
-        case literal: BitVectorLiteral             => WidthLiteral(literal.getWidth)
+        case local: TypedLocalUInt.Reference => WidthLiteral(local.getWidth)
+        case literal: BitVectorLiteral             =>
+          ExternalParameterizedNativeGeometry.widthOf(component, literal)
+            .map(retained).getOrElse(WidthLiteral(literal.getWidth))
         case _: BoolLiteral                        => WidthLiteral(1)
         case port: MemReadSync =>
           ParameterizedMemory.metadataOf(port.mem) match {
@@ -3623,11 +3973,15 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       }
 
       private def inferFixedRange(access: BitVectorRangedAccessFixed): WidthExpr = {
+        NativeScopedProcessEmitter.widthOf(component, access).foreach(width => return retained(width))
+        ExternalParameterizedNativeGeometry.widthOf(component, access).foreach { width =>
+          return retained(width)
+        }
         val source = ofExpression(access.source)
         if (source.isSymbolic && BigInt(access.hi) >= source.minimum) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-SLICE-DOMAIN-UNSUPPORTED",
-            s"fixed slice ${access.hi} downto ${access.lo} is not valid for the complete symbolic source-width domain '${source.render}' in [${source.minimum}, ${source.maximum}]"
+            s"fixed slice ${access.hi} downto ${access.lo} of ${access.source} in component '${component.definitionName}' is not valid for the complete symbolic source-width domain '${source.render}' in [${source.minimum}, ${source.maximum}]"
           )
         }
         WidthLiteral(access.getWidth)
@@ -3666,10 +4020,11 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     def parameterRoots: Vector[ElaborationIntegerParameterRoot]
     def precedence: Int
     def render: String
+    def publicationRender: String = render
 
     final def isSymbolic: Boolean = parameters.nonEmpty
     final def range: String =
-      if (precedence >= 100) s"[$render-1:0]" else s"[($render)-1:0]"
+      if (precedence >= 100) s"[$publicationRender-1:0]" else s"[($publicationRender)-1:0]"
   }
 
   private final case class WidthLiteral(value: BigInt) extends WidthExpr {
@@ -3692,6 +4047,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       exactDomain: Option[ElaborationExactDomain[BigInt]],
       projection: Option[WidthProjectionSignature]
   ) extends WidthExpr {
+    var publicationReference: Option[String] = None
+    override def publicationRender: String = publicationReference.getOrElse(render)
     override val precedence: Int = 100
   }
 
@@ -3797,8 +4154,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       minimum: BigInt,
       maximum: BigInt
   ) extends WidthExpr {
+    private def comparisonOperand(value: WidthExpr): String =
+      if (value.precedence <= 50) s"(${value.render})" else value.render
     private val condition =
-      s"${whenTrue.render} ${selection.comparison} ${whenFalse.render}"
+      s"${comparisonOperand(whenTrue)} ${selection.comparison} ${comparisonOperand(whenFalse)}"
     override val parameters: Vector[ElaborationIntegerParameter] =
       (whenTrue.parameters ++ whenFalse.parameters).distinct.sortBy(_.name)
     override val parameterRoots: Vector[ElaborationIntegerParameterRoot] =

@@ -1,8 +1,5 @@
 package spinal.core
 
-import java.lang.ref.{ReferenceQueue, WeakReference}
-import scala.collection.mutable
-
 /** Native, simulation-only parameter legality. This registry is not proof that
   * an obligation holds, nor may structural consumers use it to narrow a domain.
   * Only authenticated typed expressions can enter; records belong to the exact
@@ -18,28 +15,66 @@ object NativeSymbolicLegality {
     config.copy(flags = flags)
   }
   private val Missing = "SPINAL-ELAB-DOMAIN-PRODUCT-AUTHORITY-MISSING"
+  /** Runtime supplies an exact, identity-validated lexical owner. Core keeps
+    * no dependency on the structural capture implementation. The owner must
+    * validate its completed path before returning any publication authority.
+    */
+  private[spinal] trait Scope {
+    def component: Component
+    def validate(): Unit
+    def classify(condition: ElabBool, baseline: ElabBool.Truth): ElabBool.Truth = baseline
+    def admitted(root: ElaborationIntegerParameterRoot, universe: Set[BigInt]): Set[BigInt]
+    def parameters: Vector[ElaborationIntegerParameter]
+    def roots: Vector[ElaborationIntegerParameterRoot]
+    def wrap(body: String, allocate: String => String): String
+  }
   private final case class Obligation(condition: ElaborationBooleanExpression,
-      encoded: ElaborationIntegerExpression, message: String, location: Option[String])
-  private final class Identity(value: Component, queue: ReferenceQueue[Component])
-      extends WeakReference[Component](value, queue) {
-    private val hash = System.identityHashCode(value)
-    override def hashCode(): Int = hash
-    override def equals(other: Any): Boolean = other match {
-      case that: Identity => (this eq that) || ((get ne null) && (get eq that.get))
-      case _ => false
-    }
+      encoded: ElaborationIntegerExpression, message: String, location: Option[String],
+      scope: Option[Scope])
+  private object StorageKey
+  private final class Storage(val component: Component) {
+    var obligations = Vector.empty[Obligation]
+    var declarationDomains = Vector.empty[ElaborationIntegerParameter]
   }
-  private val queue = new ReferenceQueue[Component]()
-  private val storage = mutable.HashMap.empty[Identity, Vector[Obligation]]
-  private def reap(): Unit = {
-    var reference = queue.poll()
-    while (reference != null) {
-      storage.remove(reference.asInstanceOf[Identity]); reference = queue.poll()
-    }
+  /** The native publication phase supplies the validated parameter inventory
+    * for explicit formal APIs. These declaration contracts must also reject
+    * downstream overrides outside the domain used to prove the hardware.
+    */
+  private[spinal] def retainDeclarationDomains(component: Component,
+      parameters: Vector[ElaborationIntegerParameter]): Unit = {
+    val retained = storage(component)
+    require(retained.declarationDomains.isEmpty, "parameter domain publication prepared twice")
+    require(parameters.map(_.name).distinct.size == parameters.size, "ambiguous parameter domains")
+    retained.declarationDomains = parameters
   }
-  private def records(component: Component): Vector[Obligation] = synchronized {
-    reap()
-    if (component == null) Vector.empty else storage.getOrElse(new Identity(component, null), Vector.empty)
+  private def checked(component: Component, retained: Storage): Storage = {
+    if (retained.component ne component)
+      ParameterizedVerilogException.fail("SPINAL-ELAB-REQUIRE-OWNER-MISMATCH",
+        "legality records cannot transfer to another Component", None)
+    retained
+  }
+  private def storage(component: Component): Storage =
+    checked(component, component.userCache.getOrElseUpdate(StorageKey, new Storage(component)).asInstanceOf[Storage])
+  private def records(component: Component): Vector[Obligation] =
+    Option(component).flatMap(_.userCache.get(StorageKey)).map(value => checked(component, value.asInstanceOf[Storage]).obligations)
+      .getOrElse(Vector.empty)
+  private val activeScope = new ScopeProperty[Option[() => Scope]] {
+    override def default: Option[() => Scope] = None
+  }
+
+  private[spinal] def withScope[T](factory: () => Scope)(body: => T): T = {
+    val previous = activeScope.set(Some(factory))
+    try body finally previous.restore()
+  }
+  private[spinal] def checkpoint(component: Component): Int = records(component).size
+  private[spinal] def rollback(component: Component, size: Int): Unit = {
+    val retained = records(component)
+    require(size >= 0 && size <= retained.size, "invalid legality capture checkpoint")
+    if (retained.size != size) storage(component).obligations = retained.take(size)
+  }
+  private[spinal] def transaction[T](component: Component)(body: => T): T = {
+    val before = checkpoint(component)
+    try body catch { case error: Throwable => rollback(component, before); throw error }
   }
   private def enabled: Boolean =
     try Component.current != null && GlobalData.get.config.flags.contains(Enabled)
@@ -55,45 +90,38 @@ object NativeSymbolicLegality {
     else ElabBool.projectedTruth(condition)
   }
 
-  private def validate(record: Obligation): Unit = {
-    // Top-level obligations have no captured branch restrictions. The exact
-    // owner object is the private registry key; the AST must retain its own
-    // native authority as well. Validating does not ask for universal truth.
-    // The private obligation registry binds a full-domain predicate to the
-    // exact Component. requireSymbolic rejects all structural restrictions.
+  private def validate(record: Obligation, completed: Boolean = true): Unit = {
+    if (completed) record.scope.foreach(_.validate())
     ElaborationProductDomain.ownerWithCompact(record.encoded, "symbolic legality publication", record.location)(
-      (_, universe) => universe,
+      (root, universe) => if (completed) record.scope.map(_.admitted(root, universe)).getOrElse(universe)
+        else ElaborationDomainContext.admitted(root, universe),
       (_, _) => ()
     ).getOrElse(ParameterizedVerilogException.fail(Missing, "legality expression lost native authority", record.location))
     ()
   }
 
   private[spinal] def requireSymbolic(condition: ElabBool, message: => Any, location: Option[String]): Unit = {
-    classification(condition) match {
-      case ElabBool.AlwaysTrue => ()
-      case ElabBool.AlwaysFalse =>
-        ParameterizedVerilogException.fail("SPINAL-ELAB-REQUIRE-ALWAYS-FALSE", String.valueOf(message), location)
-      case ElabBool.Unknown =>
-        if (!enabled)
-          ParameterizedVerilogException.fail("SPINAL-ELAB-REQUIRE-PUBLICATION-CONTEXT-MISSING",
-            "a deferred requirement needs a native parameterized Component", location)
-        // A requirement scoped under structural capture cannot be made global.
-        // Keep this boundary fail-closed until obligations have structural-owner
-        // activation predicates and participate in capture rollback.
-        if (ElaborationDomainContext.hasActiveRestrictions)
-          ParameterizedVerilogException.fail("SPINAL-ELAB-REQUIRE-STRUCTURAL-SCOPE-UNSUPPORTED",
-            "mixed symbolic legality under a structural branch needs an owner-scoped obligation", location)
-        val projected = condition.projectedExpression("symbolic legality")
-        val encoded = condition.toElabInt.projectedExpression("symbolic legality")
-        val record = Obligation(projected, encoded, String.valueOf(message), location)
-        validate(record)
-        synchronized {
-          reap()
-          val component = Component.current
-          val key = new Identity(component, queue)
-          storage.update(key, storage.getOrElse(key, Vector.empty) :+ record)
-        }
-    }
+    val baseline = classification(condition)
+    if (baseline == ElabBool.AlwaysTrue) return
+    val scope = activeScope.get.map(_())
+    val truth = scope.map(_.classify(condition, baseline)).getOrElse(baseline)
+    if (truth == ElabBool.AlwaysTrue) return
+    if (truth == ElabBool.AlwaysFalse && scope.isEmpty)
+      ParameterizedVerilogException.fail("SPINAL-ELAB-REQUIRE-ALWAYS-FALSE", String.valueOf(message), location)
+    if (!enabled)
+      ParameterizedVerilogException.fail("SPINAL-ELAB-REQUIRE-PUBLICATION-CONTEXT-MISSING",
+        "a deferred requirement needs a native parameterized Component", location)
+    if (scope.isEmpty && ElaborationDomainContext.hasActiveRestrictions)
+      ParameterizedVerilogException.fail("SPINAL-ELAB-REQUIRE-STRUCTURAL-SCOPE-UNSUPPORTED",
+        "mixed symbolic legality under a structural branch needs an owner-scoped obligation", location)
+    scope.foreach(value => require(value.component eq Component.current,
+      "legality scope belongs to another component"))
+    val projected = condition.projectedExpression("symbolic legality")
+    val encoded = condition.toElabInt.projectedExpression("symbolic legality")
+    val record = Obligation(projected, encoded, String.valueOf(message), location, scope)
+    validate(record, completed = false)
+    val retained = storage(Component.current)
+    retained.obligations :+= record
   }
 
   private[core] def packedWidth(raw: ElaborationIntegerExpression, role: String): ElaborationIntegerExpression = {
@@ -107,21 +135,22 @@ object NativeSymbolicLegality {
 
   private[spinal] def parametersOf(component: Component): Vector[ElaborationIntegerParameter] = {
     val values = records(component)
-    values.foreach(validate)
-    values.flatMap(_.encoded.parameters).distinct
+    values.foreach(value => validate(value))
+    values.flatMap(value => value.encoded.parameters ++ value.scope.toVector.flatMap(_.parameters)).distinct
   }
   private[spinal] def rootsOf(component: Component): Vector[ElaborationIntegerParameterRoot] = {
     val values = records(component)
-    values.foreach(validate)
-    values.flatMap(_.encoded.completedParameterRoots).distinct
+    values.foreach(value => validate(value))
+    values.flatMap(value => value.encoded.completedParameterRoots ++ value.scope.toVector.flatMap(_.roots)).distinct
   }
   private[spinal] def hasRequirements(component: Component): Boolean = records(component).nonEmpty
 
   /** Called by ComponentEmitterVerilog, not a generated-text post-processor. */
   private[core] def render(component: Component, allocate: String => String): String = {
     val values = records(component)
-    if (values.isEmpty) return ""
-    values.foreach(validate)
+    val domains = component.userCache.get(StorageKey).map(value => checked(component, value.asInstanceOf[Storage]).declarationDomains).getOrElse(Vector.empty)
+    if (values.isEmpty && domains.isEmpty) return ""
+    values.foreach(value => validate(value))
     def quote(text: String): String = text.flatMap {
       case '\\' => "\\\\"
       case '"' => "\\\""
@@ -132,9 +161,17 @@ object NativeSymbolicLegality {
       case c => c.toString
     }
     val guards = values.zipWithIndex.map { case (value, index) =>
-      val label = allocate(s"g_morphhdl_parameter_legality_$index")
-      s"""    if (!(${value.condition.verilog})) begin : $label
-         |      initial $$fatal(1, "%s", "${quote("MorphHDL parameter legality failed: " + value.message)}");
+      val label = allocate(s"G_PARAMETER_LEGALITY_$index")
+      val diagnostic = s"""    if (!(${value.condition.verilog})) begin : $label
+         |      initial $$fatal(1, "%s", "${quote(value.message)}");
+         |    end
+         |""".stripMargin
+      value.scope.map(_.wrap(diagnostic, allocate)).getOrElse(diagnostic)
+    }.mkString
+    val domainGuards = domains.map { parameter =>
+      val label = allocate(s"G_PARAMETER_DOMAIN_${parameter.name}")
+      s"""    if ((${parameter.name} < ${parameter.minimum}) || (${parameter.name} > ${parameter.maximum}) || (^${parameter.name} === 1'bx)) begin : $label
+         |      initial $$fatal(1, "%s", "${parameter.name} must be in ${parameter.minimum}..${parameter.maximum}");
          |    end
          |""".stripMargin
     }.mkString
@@ -142,6 +179,6 @@ object NativeSymbolicLegality {
     // task carrying the original message, with a fixed format so user '%' text
     // is literal. The finish_number is 1; the simulator determines its nonzero
     // process status. This diagnostic is never synthesized hardware.
-    "\n`ifndef SYNTHESIS\n  generate\n" + guards + "  endgenerate\n`endif\n"
+    "\n`ifndef SYNTHESIS\n  generate\n" + guards + domainGuards + "  endgenerate\n`endif\n"
   }
 }

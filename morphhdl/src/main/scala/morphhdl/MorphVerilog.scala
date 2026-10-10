@@ -10,10 +10,12 @@ import spinal.core.{Component, SpinalConfig, SpinalReport, SystemVerilog, VHDL, 
 import spinal.core.internals.{
   ExternalParameterizedAutoResize,
   ExternalParameterizedHighBit,
+  ExternalParameterizedNativeGeometry,
   ExternalParameterizedNativeResize,
   MorphHdlCanonicalIrProducer,
   MorphHdlExternalEnumLocalizer,
   MorphHdlExternalParameterizedVerilog,
+  MorphHdlEmitterParameterNames,
   MorphHdlRecursivePerComponentPublication,
   TypedBalancedReductionBackend
 }
@@ -172,6 +174,14 @@ object MorphVerilog {
     )
   }
 
+  /** Generate normally and return an optional explanation of authenticated publication decisions. */
+  def generateWithPublicationReport[T <: Component](config: SpinalConfig)(component: => T): MorphPublicationReport =
+    spinal.core.internals.NativePublicationReport.capture(generateSingleSource(config)(component))
+
+  /** Return structured diagnostics on failure, retaining ordinary exception behavior above. */
+  def tryGenerateWithPublicationReport[T <: Component](config: SpinalConfig)(component: => T): Either[MorphPublicationFailure, MorphPublicationReport] =
+    spinal.core.internals.NativePublicationReport.attempt(generateSingleSource(config)(component))
+
   /** Invoke a read-only optional consumer only after generation succeeds. */
   def publishCanonicalIr[T <: Component](
       config: SpinalConfig,
@@ -294,6 +304,7 @@ object MorphVerilog {
   ): Either[MorphVerilogFailure, ExternalSpinalVerilogReport[T, NativeGraphSnapshot]] =
     try {
       val nativeConfig = copyForSingleSource(config, workspace)
+      spinal.core.internals.NativePublicationReport.observe(nativeConfig)
       val external = ExternalSpinalVerilog.transformWithCanonicalIdentity(nativeConfig) {
         val value = TypedBalancedReductionBackend.elaborate(component)
         if (value == null) {
@@ -573,12 +584,18 @@ object MorphVerilog {
         if (config.keepAll) {
           errors += "keepAll is not supported by the direct parameterized emitter"
         }
+        val aggregateOptions = config.flags.collect { case value: spinal.core.VerilogAggregateOptions => value }
+        if (aggregateOptions.size > 1 || aggregateOptions.exists(_.vecLayout == null))
+          errors += "aggregate publication requires one non-null layout configuration"
+        val hardwareFlags = config.flags.filterNot(MorphDebugOptions.isSelection)
+        val generationFlags = if (allowSingleSourceFormal)
+          hardwareFlags.filterNot(v => v.isInstanceOf[spinal.core.VerilogAggregateOptions] || v.isInstanceOf[spinal.core.RtlDocumentationOptions]) else hardwareFlags
         val supportedSingleSourceFormal =
           allowSingleSourceFormal &&
-            config.flags.size == 1 &&
-            config.flags.contains(spinal.core.GenerationFlags.formal) &&
+            generationFlags.size == 1 &&
+            generationFlags.contains(spinal.core.GenerationFlags.formal) &&
             config.formalAsserts
-        if (config.flags.nonEmpty && !supportedSingleSourceFormal) {
+        if (generationFlags.nonEmpty && !supportedSingleSourceFormal) {
           errors += "generation flags are not supported by the direct parameterized emitter"
         }
         if (
@@ -739,7 +756,7 @@ object MorphVerilog {
   }
 
   private def copyForWitness(config: SpinalConfig, witnessDirectory: Path): SpinalConfig =
-    spinal.core.NativeSymbolicLegality.configure(ParameterizedVerilogMode.disable(config.copy(
+    MorphDebugOptions.forPublication(spinal.core.NativeSymbolicLegality.configure(ParameterizedVerilogMode.disable(config.copy(
       mode = Verilog,
       flags = config.flags.clone(),
       debugComponents = config.debugComponents.clone(),
@@ -749,7 +766,7 @@ object MorphVerilog {
       transformationPhases = config.transformationPhases.clone(),
       memBlackBoxers = config.memBlackBoxers.clone(),
       scopeProperties = config.scopeProperties.clone()
-    )), enabled = false)
+    )), enabled = false))
 
   private def copyForSingleSource(config: SpinalConfig, workspace: Path): SpinalConfig = {
     val phaseInserters = config.phasesInserters.clone()
@@ -762,10 +779,11 @@ object MorphVerilog {
     phaseInserters += ExternalParameterizedNativeResize.install _
     phaseInserters += ExternalParameterizedAutoResize.install _
     phaseInserters += ExternalParameterizedHighBit.install _
+    phaseInserters += ExternalParameterizedNativeGeometry.install _
     phaseInserters += TypedBalancedReductionBackend.install _
     // Resolve the publication default on a private copy, never on the caller's
     // native configuration or the independent dual-factory witness path.
-    val nativeConfig = spinal.core.NativeSymbolicLegality.configure(ParameterizedVerilogMode.enable(config.copy(
+    val nativeConfig = MorphDebugOptions.forPublication(spinal.core.NativeSymbolicLegality.configure(ParameterizedVerilogMode.enable(config.copy(
       mode = Verilog,
       flags = config.flags.clone(),
       debugComponents = config.debugComponents.clone(),
@@ -774,8 +792,12 @@ object MorphVerilog {
       transformationPhases = config.transformationPhases.clone(),
       memBlackBoxers = config.memBlackBoxers.clone(),
       scopeProperties = config.scopeProperties.clone()
-    )), enabled = true)
-    MorphWireAssignmentPasses.forPublication(MorphSignedDeclarations.forPublication(nativeConfig))
+    )), enabled = true))
+    nativeConfig.flags += spinal.core.RtlDocumentation.Deferred
+    val publication = MorphSignedDeclarations.forPublication(nativeConfig)
+    val publicationInserters = publication.phasesInserters.clone()
+    publicationInserters += MorphHdlEmitterParameterNames.install _
+    publication.copy(phasesInserters = publicationInserters)
   }
 
   private def readSingleSourceParameters[T <: Component](
@@ -927,7 +949,16 @@ object MorphVerilog {
             )
           )
         } else {
-          Right(lines.slice(firstModule, lastEndmodule + 1).mkString("\n") + "\n")
+          // The native banner is discarded, but the first module's definition
+          // documentation belongs to its retained Component identity.
+          val definitionNotes = scala.collection.mutable.ArrayBuffer.empty[Vector[String]]
+          report.toplevel.walkComponents { component =>
+            if (component.definitionName == moduleNames.head)
+              definitionNotes += spinal.core.RtlDocumentation.comments(component.definition)
+          }
+          require(definitionNotes.distinct.size == 1, "first published module has ambiguous documentation ownership")
+          val prefix = spinal.core.RtlDocumentation.lines(definitionNotes.head)
+          Right(prefix + lines.slice(firstModule, lastEndmodule + 1).mkString("\n") + "\n")
         }
       }
     } catch {

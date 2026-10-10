@@ -188,7 +188,7 @@ def source_suites(root: Path) -> dict:
             'changed sequential parameterized testcase inventory')
     sequential_cases |= {label + ' ' + kind + ' remains a named identity for register consumers'
                          for label in labels for kind in ('direct alias', 'condition')}
-    return {
+    specs = {
         EMITTER: {'project': 'core', 'cases': sorted(emitter), 'inherited_tests': 25,
                   'added_cases': sorted(EMITTER_ADDITIONS)},
         COPY: {'project': 'core', 'cases': sorted(copied), 'inherited_tests': 0,
@@ -208,6 +208,16 @@ def source_suites(root: Path) -> dict:
         SEQUENTIAL: {'project': 'morphhdl', 'cases': sorted(sequential_cases), 'inherited_tests': 18,
                      'added_cases': [], 'projected_by_sequential_catalog': True},
     }
+    successor = root/'morphhdl/scripts/check-parameter-extension-source.py'
+    if successor.exists():
+        import importlib.util
+        loader = importlib.util.spec_from_file_location('parameter_extension_reports', successor)
+        module = importlib.util.module_from_spec(loader)
+        loader.loader.exec_module(module)
+        additional = module.regression_specs(root)
+        require(not set(additional).intersection(specs), 'overlapping successor suite identities')
+        specs.update(additional)
+    return specs
 
 
 def report_path(root: Path, name: str, spec: dict) -> Path:
@@ -310,9 +320,17 @@ def self_test(root: Path) -> None:
         initial = {'core': {'tests': 30, 'suites': [EMITTER, 'original.core'], 'skipped': 0},
                    'morphhdl': {'tests': 20,
                                 'suites': [CODEC, 'original.morph', SEQUENTIAL], 'skipped': 0}}
+        for name, spec in specs.items():
+            if spec['project'] not in initial:
+                initial[spec['project']] = {'tests': 1, 'suites': ['original.'+spec['project']], 'skipped': 0}
+            project = initial[spec['project']]
+            if spec['inherited_tests'] and name not in project['suites']:
+                project['suites'].append(name)
+                project['tests'] += spec['inherited_tests']
+        inherited_total = sum(value['tests'] for value in initial.values())
         merged = merge_inventory(initial, receipt, specs)
         added = sum(len(spec['added_cases']) for spec in specs.values())
-        require(sum(value['tests'] for value in merged.values()) == 50 + added,
+        require(sum(value['tests'] for value in merged.values()) == inherited_total + added,
                 'additive receipt removed inherited tests')
         require(initial['core']['tests'] == 30, 'merge mutated inherited receipt')
         for name, spec in specs.items():

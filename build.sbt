@@ -10,7 +10,7 @@ val defaultSettings = Defaults.coreDefaultSettings ++ xerial.sbt.Sonatype.sonaty
   version      := SpinalVersion.all,
   crossScalaVersions := SpinalVersion.compilers,
   scalaVersion := SpinalVersion.compilers(0),
-  scalacOptions ++= Seq("-unchecked","-target:jvm-1.8"/*, "-feature" ,"-deprecation"*/),
+  scalacOptions ++= Seq("-unchecked","-Yrangepos","-target:jvm-1.8"/*, "-feature" ,"-deprecation"*/),
   scalacOptions += "-language:reflectiveCalls",
   javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
   fork := true,
@@ -230,17 +230,6 @@ lazy val morph = (project in file("morphhdl"))
     },
     Test / scalacOptions += "-Xplugin-require:morphhdl",
     name := "MorphHDL-orchestration",
-    // WA-08 compiles the reviewed pass implementations from their single source.
-    Compile / unmanagedSourceDirectories += baseDirectory.value.getParentFile /
-      "morphhdl-passes" / "src" / "main" / "scala",
-    Compile / unmanagedSources ++= {
-      val examples = baseDirectory.value.getParentFile / "morphhdl-passes" / "examples"
-      Seq("ParameterizedStreamFifo", "UnnamedWireAliasNativeBridge",
-        "NamedWireAliasNativeBridge", "UnnamedWireExpressionNativeBridge",
-        "NativeWireExpressionCodec", "NamedWireExpressionNativeBridge",
-        "ConstantOperandNativeBridge", "BooleanTernaryNativeBridge")
-        .map(name => examples / (name + ".scala"))
-    },
     version := SpinalVersion.core,
     libraryDependencies += "org.ow2.asm" % "asm-tree" % "9.2",
     libraryDependencies += "com.lihaoyi" %% "sourcecode" % "0.3.0",

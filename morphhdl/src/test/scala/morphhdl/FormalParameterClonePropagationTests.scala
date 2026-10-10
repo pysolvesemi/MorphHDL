@@ -11,7 +11,7 @@ import spinal.core._
 import morphhdl.frontend.{formalParam, HdlInt}
 
 object FormalParameterClonePropagationSmoke {
-  final class Leaf(actualWidth: HdlInt) extends Component {
+  final class Leaf(actualWidth: HdlInt, retainVec: Boolean = false) extends Component {
     setDefinitionName("FormalCloneLeaf")
 
     @dontName
@@ -44,6 +44,8 @@ object FormalParameterClonePropagationSmoke {
     private val values =
       morphhdl.frontend.Vec(morphhdl.frontend.Bits(width bits), 2)
 
+    if (retainVec) values.foreach(_.dontSimplifyIt())
+
     prototype := din
     hardValue := prototype
     values(0) := registerArea.state
@@ -56,7 +58,7 @@ object FormalParameterClonePropagationSmoke {
     requireFormal(values(1), "Vec element 1")
   }
 
-  final class Top(leftWidth: HdlInt, rightWidth: HdlInt) extends Component {
+  final class Top(leftWidth: HdlInt, rightWidth: HdlInt, retainVec: Boolean = false) extends Component {
     setDefinitionName("FormalCloneTop")
 
     val clk = in(Bool())
@@ -65,9 +67,9 @@ object FormalParameterClonePropagationSmoke {
     val rightIn = in(morphhdl.frontend.Bits(rightWidth bits))
     val rightOut = out(morphhdl.frontend.Bits(rightWidth bits))
 
-    val left = new Leaf(leftWidth)
+    val left = new Leaf(leftWidth, retainVec)
     left.setName("left")
-    val right = new Leaf(rightWidth)
+    val right = new Leaf(rightWidth, retainVec)
     right.setName("right")
 
     left.clk := clk
@@ -95,10 +97,10 @@ object FormalParameterClonePropagationSmoke {
     dout := leaf.dout
   }
 
-  def component(): Component = {
+  def component(retainVec: Boolean = false): Component = {
     val leftWidth = HdlInt.param("LEFT_WIDTH", default = 8, min = 1, max = 16)
     val rightWidth = HdlInt.param("RIGHT_WIDTH", default = 8, min = 2, max = 32)
-    new Top(leftWidth, rightWidth)
+    new Top(leftWidth, rightWidth, retainVec)
   }
 
   private def requireFormal(data: Data, role: String): Unit = {
@@ -360,7 +362,10 @@ class FormalParameterClonePropagationTests extends AnyFunSuite {
   test("retained formal Vec carriers still reject an insufficient packed width budget") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(targetDirectory = directory.toString)
-      MorphVerilog.tryGenerate(config)(component()) match {
+      // Retain native carriers explicitly; retired wire passes no longer protect them.
+      // Two 4096-bit formal leaves exceed the default packed limit.
+      config.flags += VerilogAggregateOptions(preserveConstantVecs = true)
+      MorphVerilog.tryGenerate(config)(component(retainVec = true)) match {
         case Left(failure) =>
           assert(failure.detail.contains("SPINAL-PARAMETERIZED-VERILOG-VEC-TOTAL-WIDTH-TOO-LARGE"),
             failure.detail)

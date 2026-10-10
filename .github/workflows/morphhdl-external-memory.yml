@@ -19,6 +19,9 @@ concurrency:
   group: morphhdl-external-memory-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   source-boundary:
     name: Native memory source boundary
@@ -66,6 +69,12 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
+      - name: Require RTL validation tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          for tool in iverilog vvp verilator yosys; do command -v "$tool"; done
+
       - name: Validate native memory reuse and inherited contracts
         shell: bash
         run: |
@@ -73,6 +82,8 @@ jobs:
           /tmp/morphhdl-mill frontend[${{ matrix.scala_version }}].testOnly \
             morphhdl.frontend.HdlIntTests
           /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.FiniteBitsAndRamSharingTests \
+            spinal.core.FiniteMemIdentityAdversarialTests \
             morphhdl.NativeSymbolicMemoryTests \
             morphhdl.NativeLibraryReuseTests \
             morphhdl.ParameterizedStreamFifoDepthTests \

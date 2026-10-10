@@ -42,6 +42,15 @@ package object core extends BaseTypeFactory with BaseTypeCast {
   /** Parameter-preserving counterpart of [[widthOf]] for typed native APIs. */
   def widthOfExpr[T <: Data](that: T): ElabInt = ElabInt.packedWidthOf(that)
 
+  /** Parameter-constant scalar Vec reads, available with spinal.core._.
+    * Keep this an extension: a native member would take precedence over the
+    * frontend's structural index extension after its HdlInt-to-ElabInt conversion.
+    */
+  implicit final class ElabVecOps[T <: BaseType](private val vector: Vec[T]) {
+    def apply(index: ElabInt): T = TypedVecStaticSelect(vector, index)
+  }
+
+
   /**
     * Scala implicit
     */

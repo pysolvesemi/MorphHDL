@@ -42,7 +42,7 @@ class FiniteBitsIndexTests extends AnyFunSuite {
       assert(verilog.contains("for ("), verilog)
       assert(verilog.contains("< COUNT;"), verilog)
       assert(
-        compact.contains("source[finite_bits_index_index_") &&
+        compact.contains("source[i+") &&
           compact.contains("+:1]"),
         verilog
       )

@@ -49,13 +49,18 @@ private[spinal] object TypedBalancedReductionCallbackPolicy {
   def requireSupportedOperator(callback: AnyRef): Unit = check(callback, bridge = false)
   def requireSupportedBridge(callback: AnyRef): Unit = check(callback, bridge = true)
 
+  /** Report a construction requirement only after the complete existing audit.
+    * This selects the narrow provider; it does not authorize a zero receiver. */
+  private[internals] def bridgeUsesNativeVecZero(callback: AnyRef): Boolean =
+    check(callback, bridge = true)
+
   private val scalarNames = Set("Bool", "Bits", "UInt", "SInt").map("spinal/core/" + _)
   private val dataNames = scalarNames ++ Set("spinal/core/Data", "spinal/core/BaseType", "spinal/core/BitVector")
   private val dataDescriptors = dataNames.map(name => "L" + name + ";")
   private val binaryNames = Set("$amp", "$bar", "$up", "$plus", "$plus$up", "$times", "min", "max")
   private val nativeModules = Set("RegNext", "RegNextWhen", "U", "S", "B", "package").map("spinal/core/" + _ + "$")
 
-  private def check(callback: AnyRef, bridge: Boolean): Unit = {
+  private def check(callback: AnyRef, bridge: Boolean): Boolean = {
     if (callback == null) fail("callback must be present")
     val cls = callback.getClass
     if (!cls.isSynthetic || !java.lang.reflect.Modifier.isFinal(cls.getModifiers) ||
@@ -105,6 +110,7 @@ private[spinal] object TypedBalancedReductionCallbackPolicy {
     if (!exactCallSite) fail("callback body lacks its exact capture-free JVM lambda call site")
     val active = scala.collection.mutable.Set.empty[(String, String)]
     val done = scala.collection.mutable.Set.empty[(String, String)]
+    var usesNativeVecZero = false
 
     def audit(name: String, descriptor: String, depth: Int): Unit = {
       val key = name -> descriptor
@@ -163,8 +169,17 @@ private[spinal] object TypedBalancedReductionCallbackPolicy {
           case insn: MethodInsnNode =>
             if (insn.owner == owner && insn.getOpcode == Opcodes.INVOKESTATIC)
               audit(insn.name, insn.desc, depth + 1)
-            else if (!nativeCall(insn, bridge) && !composites.nativeCall(insn, bridge))
-              fail("unsupported callback call " + insn.owner + "." + insn.name + insn.desc)
+            else {
+              if (!nativeCall(insn, bridge) && !composites.nativeCall(insn, bridge))
+                fail("unsupported callback call " + insn.owner + "." + insn.name + insn.desc)
+              // Only admitted inherited native calls can select this scope.
+              // A known scalar receiver cannot reach Vec zero construction.
+              val scalarOwner = scalarNames(insn.owner) ||
+                Set("spinal/core/BaseType", "spinal/core/BitVector")(insn.owner)
+              if (bridge && !scalarOwner && Set("getZero", "getZeroUnconstrained")(insn.name) &&
+                  Type.getArgumentTypes(insn.desc).isEmpty)
+                usesNativeVecZero = true
+            }
           case insn: JumpInsnNode =>
             val allowed = Set(Opcodes.GOTO, Opcodes.IFEQ, Opcodes.IFNE, Opcodes.IFLT,
               Opcodes.IFGE, Opcodes.IFGT, Opcodes.IFLE, Opcodes.IF_ICMPEQ,
@@ -183,6 +198,7 @@ private[spinal] object TypedBalancedReductionCallbackPolicy {
       done += key
     }
     audit(serialized.getImplMethodName, serialized.getImplMethodSignature, 0)
+    usesNativeVecZero
   }
 
   private def nativeCall(call: MethodInsnNode, bridge: Boolean): Boolean = {

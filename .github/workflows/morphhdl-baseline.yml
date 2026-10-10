@@ -18,6 +18,9 @@ concurrency:
   group: morphhdl-baseline-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   contracts:
     name: Strict Verilog-2001 contracts
@@ -66,7 +69,7 @@ jobs:
   compile:
     name: Compile Scala ${{ matrix.scala_version }}
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 240
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
     strategy:

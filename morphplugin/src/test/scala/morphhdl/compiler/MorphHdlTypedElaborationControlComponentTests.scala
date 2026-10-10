@@ -60,6 +60,48 @@ class MorphHdlTypedElaborationControlComponentTests extends AnyFunSuite {
       |}
       |""".stripMargin
 
+  test("typed Boolean matches lower exhaustive branches without changing ordinary matches") {
+    val source = neutralDefinitions + """
+      |package typedmatches {
+      |  import spinal.core._
+      |  object Selection {
+      |    def typed(value: ElabBool): Int = value match {
+      |      case true => 1
+      |      case false => 0
+      |    }
+      |    def reversed(value: ElabBool): Int = value match {
+      |      case false => 0
+      |      case true => 1
+      |    }
+      |    def fallback(value: ElabBool): Int = value match {
+      |      case false => 0
+      |      case _ => 1
+      |    }
+      |    def ordinary(value: Boolean): Int = value match {
+      |      case true => 1
+      |      case false => 0
+      |    }
+      |  }
+      |}
+      |""".stripMargin
+    val errors = compile(source, "TypedBooleanMatch.scala")
+    assert(errors.isEmpty, errors.mkString("\n"))
+  }
+
+  test("guarded and non-exhaustive typed Boolean matches fail at their source") {
+    for (cases <- Seq("case true => 1", "case true if true => 1; case false => 0")) {
+      val source = neutralDefinitions + s"""
+        |package typedmatchnegative {
+        |  object Selection {
+        |    def typed(value: spinal.core.ElabBool): Int = value match { $cases }
+        |  }
+        |}
+        |""".stripMargin
+      val errors = compile(source, "TypedBooleanMatchNegative.scala")
+      assert(errors.exists(_.message.contains("MORPHDL-TYPED-BOOLEAN-MATCH-UNSUPPORTED")), errors.mkString("\n"))
+    }
+  }
+
   test("canonical carrier imports, aliases and rooted names enable typed control") {
     val source = neutralDefinitions +
       """

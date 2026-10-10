@@ -1,0 +1,173 @@
+name: Increment 59i local-enable current-head validation
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - '.github/workflows/increment-59i-local-enable-current-head-validation.yml'
+      - 'morphhdl/repair-59i-composite-local-enable/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59i-local-enable-current-head-validation
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Current-head local-enable Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SCALA_VERSION: ${{ matrix.scala }}
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+      SBT_TEST_PARALLEL: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Bind exact integrated predecessor
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-current"
+          mkdir -p "$out"
+          git rev-parse HEAD > "$out/head.txt"
+          git rev-parse 'HEAD^{tree}' > "$out/tree.txt"
+          git status --porcelain > "$out/status-before.txt"
+          test ! -s "$out/status-before.txt"
+          git merge-base --is-ancestor 2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6 HEAD
+          printf '%s\n' \
+            'Native and overlay authorities are checked on the exact feature and target parents by the guarded promotion; this job validates only the applied combined successor.' \
+            > "$out/source-audit-scope.txt"
+
+      - name: Apply complete source-bound local-enable successor
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-current"
+          python3 morphhdl/repair-59i-composite-local-enable/apply.py | tee "$out/application.log"
+          python3 morphhdl/repair-59i-composite-local-enable/fix-generated.py | tee -a "$out/application.log"
+          python3 morphhdl/repair-59i-composite-local-enable/include-statements.py | tee -a "$out/application.log"
+          git diff --check
+          git diff --binary > "$out/applied.patch"
+          test -s "$out/applied.patch"
+          grep -q 'callbackStatements = ArrayBuffer.empty\[Statement\]' \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala
+          grep -q 'controlValues: Vector\[BaseType\]' \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala
+          grep -q 'BRIDGE-CONTROL-REGISTER' \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
+          grep -q 'callback.assignments ++ callback.statements' \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
+          grep -q 'external and registered peer controls remain rejected' \
+            morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala
+          cp morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala "$out/"
+          cp morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala "$out/"
+          cp morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala "$out/"
+          cp morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala "$out/"
+          sha256sum "$out"/*.scala > "$out/source-sha256.txt"
+
+      - name: Bootstrap pinned SBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-current"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base" -o "$out/sbt-launch.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base.sha1" -o "$out/sbt-launch.jar.sha1"
+          python3 - <<'PY'
+          import hashlib, re
+          from pathlib import Path
+          root = Path('target/increment-59i-local-enable-current')
+          expected = (root / 'sbt-launch.jar.sha1').read_text().strip().lower()
+          assert re.fullmatch('[0-9a-f]{40}', expected)
+          assert hashlib.sha1((root / 'sbt-launch.jar').read_bytes()).hexdigest() == expected
+          PY
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$out/repositories"
+
+      - name: Compile and run local-enable plus inherited reduction suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-current"
+          java -Xmx4G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$out/repositories" -Dsbt.override.build.repos=true \
+            -jar "$out/sbt-launch.jar" "++$SCALA_VERSION" \
+            'morph/Test/compile' \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeLocalEnableTests spinal.core.internals.TypedBalancedReductionBridgeReplayTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCombinedTests spinal.core.internals.TypedBalancedReductionNestedOwnerTests spinal.core.internals.TypedBalancedReductionPublicationTests' \
+            > "$out/tests.log" 2>&1 || { tail -n 400 "$out/tests.log"; exit 1; }
+          tail -n 120 "$out/tests.log"
+          grep -q 'All tests passed' "$out/tests.log"
+          ! grep -q '\*\*\* FAILED \*\*\*' "$out/tests.log"
+          mkdir -p "$out/test-reports"
+          find morphhdl/target -type f -name '*.xml' -exec cp {} "$out/test-reports/" \; 2>/dev/null || true
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          reports = list(Path('target/increment-59i-local-enable-current/test-reports').glob('*.xml'))
+          assert reports, 'no JUnit reports preserved'
+          tests = failures = errors = skipped = 0
+          names = set()
+          for path in reports:
+              root = ET.parse(path).getroot()
+              tests += int(root.get('tests', '0'))
+              failures += int(root.get('failures', '0'))
+              errors += int(root.get('errors', '0'))
+              skipped += int(root.get('skipped', '0'))
+              names.add(root.get('name', path.stem))
+          assert failures == errors == skipped == 0, (failures, errors, skipped)
+          assert any('TypedBalancedReductionCompositeLocalEnableTests' in name for name in names), names
+          Path('target/increment-59i-local-enable-current/test-summary.txt').write_text(
+              f'tests={tests}\nfailures={failures}\nerrors={errors}\nskipped={skipped}\n')
+          print('qualified tests:', tests)
+          PY
+
+      - name: Upload exact current-head evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-local-enable-current-${{ matrix.scala }}
+          path: target/increment-59i-local-enable-current
+          if-no-files-found: error
+          retention-days: 14
+
+  cross-scala:
+    name: Local-enable cross-Scala source identity
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: increment-59i-local-enable-current-*
+          path: evidence
+      - name: Compare exact source and test summaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          a=evidence/increment-59i-local-enable-current-2.12.18
+          b=evidence/increment-59i-local-enable-current-2.13.12
+          cmp "$a/head.txt" "$b/head.txt"
+          cmp "$a/tree.txt" "$b/tree.txt"
+          cmp "$a/source-sha256.txt" "$b/source-sha256.txt"
+          cmp "$a/applied.patch" "$b/applied.patch"
+          grep -q '^failures=0$' "$a/test-summary.txt"
+          grep -q '^failures=0$' "$b/test-summary.txt"
