@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "fbc8365b046da15535dd33a8bf3227fa3d409c47"
+      "approved_tree": "d34e8a6dcaf8b1ab5bb8380409d3869652763b21"
     },
     {
       "path": "idslpayload/src/main",
@@ -3075,7 +3075,8 @@
         "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026",
         "Qualification repair: authenticated BOOT initializer publication",
         "CA-023: authenticated memory and synchronous read geometry before native canonical grouping",
-        "Default enum debug string suppression"
+        "Default enum debug string suppression",
+        "CA-028: authenticated retained Area collection publication"
       ],
       "reason": "Retain native symbolic-legality publication and the generation-scoped signed declaration, cast, literal, resize and unsigned-transport callbacks. The typed expression planner controls optional wrapper suppression; every mandatory wrapper present before depth cutting remains, and CDC-WIRE-01 suppresses new depth wrappers only when complete expansion and all receiving widths are proven. Approved unsigned expression slices use a deterministic Verilog-2001 function with the full authoritative source input width and exact constant result range, preserving truncation and four-state semantics. Helper and argument names are allocated in the same namespace after reserving component/width parameter identities, and functions are cached by symbolic width and range. Signed/unknown or otherwise unproven expressions and the ordinary backend keep inherited emission. Qualification repair reserves declaration-local width names without composing finished branch domains, and passes the exact emitter owner when preserving a retained unsigned wrapper's authoritative logical range. All old public wrapper entry points and ordinary backend behavior remain intact. Emit dependency-ordered typed local parameters through the native localparams buffer after the parameterized backend prepares exact live uses. Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative. Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. CA-005 adds explicit native ANSI-port context while preserving body declaration behavior. Include actual ANSI context and parameter-aware unsigned native temporary/operand publication. Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative. Route BOOT initial assignments through the existing default-disabled owner-bound source publication hook, retaining the exact init statement; preserve ordinary literal emission when the hook returns no replacement. CA-023 preserves child-owned symbolic memory geometry before native identity comparison using optional exact-owner hooks. Enum report formatting follows the existing native enum-string setting and falls back to numeric encoding when disabled.",
       "baseline": {
@@ -3087,8 +3088,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
-        "blob": "c34ed318882095d8fce45e3da524187736a56de9",
-        "sha256": "e3f3128773f506b25c96e149c5ab75381ed700183457adaf7f826c3b94a78663"
+        "blob": "197d25f720009483038a9a26a400a9c2f7c4a000",
+        "sha256": "eafe7ce3739b356dc41896b799fcdf3b887e8e68e525f9dacb8681be7047a602"
       },
       "edits": [
         {
@@ -3496,7 +3497,7 @@
           "id": "componentemitterverilog-comments-11",
           "kind": "backend-isolation",
           "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
-          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact.",
+          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact. CA-028: reviewed opt-in exact native assignment target/lineage handoff; no-policy native output is unchanged. Structural legality remains owned and checked in MorphHDL.",
           "baseline_span": {
             "start": 28611,
             "end": 28696,
@@ -3504,8 +3505,8 @@
           },
           "approved_span": {
             "start": 30287,
-            "end": 30542,
-            "sha256": "8264935bf9a9a52e3f4966d189c7e88b8b3cbce0295ef15fc8f129b357632e8a"
+            "end": 30595,
+            "sha256": "dfd72f631e53b1425e2c50e9262afaba6ccb909e5d82dbf6a8bb3c30b5ac6c66"
           },
           "required_exact_text": [
             {
@@ -3515,7 +3516,7 @@
             },
             {
               "side": "approved",
-              "text": "val notes = new StringBuilder\n              emitRegionNotes(s, notes, \"  \")\n              logics ++= RtlDocumentation.envelope(component, s, notes.toString)\n              logics ++= s\"  assign ${emitAssignedExpression(s.target)} = ${emitAssignmentSource(s",
+              "text": "verilogBase.emitAssignmentTarget(this, s).getOrElse(emitAssignedExpression(s.target))",
               "count": 1
             }
           ]
@@ -3531,8 +3532,8 @@
             "sha256": "427fc1d018836ecb79319064cdfd846a47932f57f9b49526858c5a95631d78fe"
           },
           "approved_span": {
-            "start": 30896,
-            "end": 31039,
+            "start": 30949,
+            "end": 31092,
             "sha256": "3fb57b9a9ac37cc7841ce977b6d7dbcc4cfc14f8244fff484e42fb5e30a13afa"
           },
           "required_exact_text": [
@@ -3554,8 +3555,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 31430,
-            "end": 31438,
+            "start": 31483,
+            "end": 31491,
             "sha256": "c803710302d5769d8fcd51958c516ff27f2a3c5ad9373c348d1d180c04a74624"
           },
           "required_exact_text": [
@@ -3577,8 +3578,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 32399,
-            "end": 32407,
+            "start": 32452,
+            "end": 32460,
             "sha256": "c803710302d5769d8fcd51958c516ff27f2a3c5ad9373c348d1d180c04a74624"
           },
           "required_exact_text": [
@@ -3600,8 +3601,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 33316,
-            "end": 33359,
+            "start": 33369,
+            "end": 33412,
             "sha256": "1794ecaa1c3a1eef7b39e6b6f5be5733901984a97cb93f96ea7198c9f73d24ec"
           },
           "required_exact_text": [
@@ -3616,21 +3617,26 @@
           "id": "increment66-componentemitterverilog-9",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative.",
+          "reason": "Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative. CA-028: reviewed opt-in exact native assignment target/lineage handoff; no-policy native output is unchanged. Structural legality remains owned and checked in MorphHDL.",
           "baseline_span": {
             "start": 31429,
-            "end": 31524,
-            "sha256": "49ed5ac77f535fdd0429efc33547fb56e8b449725edc77c8ef7a228b07fcfb58"
+            "end": 31542,
+            "sha256": "01a2089c40a92f3b297f39a78a68717b51f6cd7891d2ef73202b322264aa1546"
           },
           "approved_span": {
-            "start": 33452,
-            "end": 33608,
-            "sha256": "0f07a6088d1d1c1c865295e5024ba5276ee58996e0b403b4c5a35eae521034ae"
+            "start": 33505,
+            "end": 33731,
+            "sha256": "88de62fb2343ad2e2fb539986b5e4b07cb80a375814ee0398366cefabd35c191"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "verilogBase.emitAssignmentTarget(this, assignment).getOrElse(emitAssignedExpression(assignment.target))} ${assignmentKind} ${emitAssignmentSource(assignment",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "verilogBase.emitStatementSuffix(this,",
               "count": 1
             }
           ]
@@ -3646,8 +3652,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 34340,
-            "end": 34372,
+            "start": 34445,
+            "end": 34477,
             "sha256": "5ed9c53493ff8a0cd206862b672b27ebe2812b9604fcf0163ccbcb7113198f03"
           },
           "required_exact_text": [
@@ -3669,8 +3675,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 34784,
-            "end": 34816,
+            "start": 34889,
+            "end": 34921,
             "sha256": "5ed9c53493ff8a0cd206862b672b27ebe2812b9604fcf0163ccbcb7113198f03"
           },
           "required_exact_text": [
@@ -3692,8 +3698,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 37990,
-            "end": 38371,
+            "start": 38095,
+            "end": 38476,
             "sha256": "dcf9157377ec34fda03e2dd9bfd8938003f9d11fe017123e073865e09378482c"
           },
           "required_exact_text": [
@@ -3720,8 +3726,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 38440,
-            "end": 38684,
+            "start": 38545,
+            "end": 38789,
             "sha256": "2882c877c3467137bda71d615172edbcd8a738871335f64221cdda2a57fd1fde"
           },
           "required_exact_text": [
@@ -3743,8 +3749,8 @@
             "sha256": "d75a074b03d426e310a7f1def1943ebcdc14835b161f8a472a237f374855decd"
           },
           "approved_span": {
-            "start": 38769,
-            "end": 38778,
+            "start": 38874,
+            "end": 38883,
             "sha256": "596d40a4ed24c02a31b19d6e633f46f64304a672b40f793d8c6deab868beb0e2"
           },
           "required_exact_text": [
@@ -3766,8 +3772,8 @@
             "sha256": "d75a074b03d426e310a7f1def1943ebcdc14835b161f8a472a237f374855decd"
           },
           "approved_span": {
-            "start": 39212,
-            "end": 39221,
+            "start": 39317,
+            "end": 39326,
             "sha256": "596d40a4ed24c02a31b19d6e633f46f64304a672b40f793d8c6deab868beb0e2"
           },
           "required_exact_text": [
@@ -3789,8 +3795,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 39552,
-            "end": 39607,
+            "start": 39657,
+            "end": 39712,
             "sha256": "6042b1972c4d763f5fd04c89b6a83c71df291ea0e06c5bbb99ae3c12c3f886a1"
           },
           "required_exact_text": [
@@ -3812,8 +3818,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 42733,
-            "end": 42809,
+            "start": 42838,
+            "end": 42914,
             "sha256": "f671cdd69a92da60879a9557acffbcdb5e06944433bfdc67901dea138f375ea7"
           },
           "required_exact_text": [
@@ -3835,8 +3841,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 46096,
-            "end": 46135,
+            "start": 46201,
+            "end": 46240,
             "sha256": "0197ec1f122bfde6c08bae644032794aef7080ee2d50aabc73de0077e7939912"
           },
           "required_exact_text": [
@@ -3858,8 +3864,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 46579,
-            "end": 46628,
+            "start": 46684,
+            "end": 46733,
             "sha256": "0b4b7b080f1784c7096c7df53a3807748655700db4664a0612abf4ab49a41042"
           },
           "required_exact_text": [
@@ -3881,8 +3887,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 48446,
-            "end": 48452,
+            "start": 48551,
+            "end": 48557,
             "sha256": "0cba10bc1f335de9d4e1eac6c4f7aa62e523aa54144b9482ffddc09d32a279cf"
           },
           "required_exact_text": [
@@ -3904,8 +3910,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 50344,
-            "end": 50350,
+            "start": 50449,
+            "end": 50455,
             "sha256": "0cba10bc1f335de9d4e1eac6c4f7aa62e523aa54144b9482ffddc09d32a279cf"
           },
           "required_exact_text": [
@@ -3927,8 +3933,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 50776,
-            "end": 50834,
+            "start": 50881,
+            "end": 50939,
             "sha256": "eba8edacc4c1d2dabaedc3bd41b2d03ae7f1397f6998e33d6d4fb45473394834"
           },
           "required_exact_text": [
@@ -3950,8 +3956,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 51596,
-            "end": 51626,
+            "start": 51701,
+            "end": 51731,
             "sha256": "2f76cb5530fec66aa067821b521e1d4220de0bba6c058aef734c5dd4dad22b48"
           },
           "required_exact_text": [
@@ -3973,8 +3979,8 @@
             "sha256": "bcc1ae295e0226637c244b5841cd5caa43896af4545f00b72ae5d9479a1554e3"
           },
           "approved_span": {
-            "start": 51945,
-            "end": 52071,
+            "start": 52050,
+            "end": 52176,
             "sha256": "85fec5dd172d5b13dfe77d34a4cf3f5cb9d50976039962296ca6425d2ec17b46"
           },
           "required_exact_text": [
@@ -3996,8 +4002,8 @@
             "sha256": "69af64d494ef07db908023094ede88292d99c677154c0e4e513476dd95abfcd5"
           },
           "approved_span": {
-            "start": 57507,
-            "end": 57933,
+            "start": 57612,
+            "end": 58038,
             "sha256": "922a4e40562347a20cb4bf09f0846c78f3140482556bf3791e72362c6de3df54"
           },
           "required_exact_text": [
@@ -4019,8 +4025,8 @@
             "sha256": "224f2e0625b2bc43531b17b127daf159ae9fd4063570519957dab3e45aca5a5e"
           },
           "approved_span": {
-            "start": 76303,
-            "end": 77037,
+            "start": 76408,
+            "end": 77142,
             "sha256": "5b1cb27397675b20ebaf1e0f2141d817f2f3820e520db1d789449eb793beed39"
           },
           "required_exact_text": [
@@ -4042,8 +4048,8 @@
             "sha256": "ca47fea6d8fe4bc58f1df50ee7561d0d009b5392895796780e725c8fe9027e70"
           },
           "approved_span": {
-            "start": 77139,
-            "end": 77217,
+            "start": 77244,
+            "end": 77322,
             "sha256": "2081c0d75cf652f45b4fe49b37a2b8d4063bafa35ee2fde26cbfb9129c5c19d5"
           },
           "required_exact_text": [
@@ -4065,8 +4071,8 @@
             "sha256": "5ab9cf83395528e05ec149d6439e8d00a22eb4da89d5e53c19ba9269c966e10b"
           },
           "approved_span": {
-            "start": 77323,
-            "end": 77358,
+            "start": 77428,
+            "end": 77463,
             "sha256": "326bf2045ad9d01e74b5f534adf9fd5b5029b0b8b8d14a0d4083c47e0229a7ad"
           },
           "required_exact_text": [
@@ -4088,8 +4094,8 @@
             "sha256": "89bc1fe93bb1cc8830095ff2a7a90cd0867955fef57f6b6d00f0afdc5de52bd1"
           },
           "approved_span": {
-            "start": 77886,
-            "end": 77921,
+            "start": 77991,
+            "end": 78026,
             "sha256": "e9ebbfd545de2822adbac4c549192adaca12ddcf7fb2e402b382df26c3cf81ca"
           },
           "required_exact_text": [
@@ -4111,8 +4117,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 78541,
-            "end": 78592,
+            "start": 78646,
+            "end": 78697,
             "sha256": "610b6a0d6cab0ce9fc13c6efcd9a54bd25c0b5c24be5f6d734715b0118fc9573"
           },
           "required_exact_text": [
@@ -4134,8 +4140,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 78994,
-            "end": 79049,
+            "start": 79099,
+            "end": 79154,
             "sha256": "af29fb703f43eb5753c8ab99b789e07fce193db9044e4004beacab8820d2da1a"
           },
           "required_exact_text": [
@@ -4157,8 +4163,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 80083,
-            "end": 80146,
+            "start": 80188,
+            "end": 80251,
             "sha256": "6883a57b205d14f99fda4bb6fb61a0b54cb6b2e1cc3bc38d6281dca30b10738f"
           },
           "required_exact_text": [
@@ -4180,8 +4186,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 80210,
-            "end": 80217,
+            "start": 80315,
+            "end": 80322,
             "sha256": "a7e394f7029082eb74696a89f0aa7eb78b10270ba0714adf19d82856a8636f04"
           },
           "required_exact_text": [
@@ -4203,8 +4209,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 80287,
-            "end": 80294,
+            "start": 80392,
+            "end": 80399,
             "sha256": "a7e394f7029082eb74696a89f0aa7eb78b10270ba0714adf19d82856a8636f04"
           },
           "required_exact_text": [
@@ -4226,8 +4232,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 82851,
-            "end": 82911,
+            "start": 82956,
+            "end": 83016,
             "sha256": "f020273bb7525f0220e1be119610447feaaafda59154e2ee21fb712d2f6992aa"
           },
           "required_exact_text": [
@@ -4705,7 +4711,8 @@
         "CA-005 ANSI declaration context repair",
         "Compiler repair: ANSI derived widths and native unsigned temporary/operand sizing",
         "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026",
-        "CA-023: authenticated memory and synchronous read geometry before native canonical grouping"
+        "CA-023: authenticated memory and synchronous read geometry before native canonical grouping",
+        "CA-028: authenticated retained Area collection publication"
       ],
       "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results. CDC-WIRE-01 qualification preserves the historical two-argument wrapper method and adds an internal owner-checked overload for retained unsigned symbolic carriers. The default backend remains on inherited concrete emission; signed declaration policy ranges retain precedence, with no new state in the historical interface. Add a default-disabled exact-occurrence scalar range callback so the native printer can reference module-local typed constants without changing ordinary concrete emission. Add owner-checked optional assignment/source/target/scope callbacks with storage confined to DeclarationPolicyOwner. Keep the historical interface stateless, preserve existing declaration and signedness hooks, and retain default native printing when no policy applies. CA-005 adds explicit native ANSI-port context while preserving body declaration behavior. Include actual ANSI context and parameter-aware unsigned native temporary/operand publication. Extend the existing optional owner-bound publication policy with concrete default methods for native conditions, ranges, operands, constant shifts and BlackBox generics. Validate exact emitter/instance association identity, retain historical public wrapper entry points and avoid new abstract VerilogBase accessors. CA-023 preserves child-owned symbolic memory geometry before native identity comparison using optional exact-owner hooks.",
       "baseline": {
@@ -4717,15 +4724,15 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
         "mode": "100644",
-        "blob": "8472adb9b2d3efa8ee0d604836e3fed080656a78",
-        "sha256": "5050bd2598bd3a7c36543e85e806a01c6d39cc872d42a754703b705f9ab1c4cd"
+        "blob": "b9a09cd64403d6c314c8e8a8d8c2b65f83ffe4ca",
+        "sha256": "5655fa1189c6a7d517b1295bbf283c2fb882149c6eca5c751d35b6d014ec1865"
       },
       "edits": [
         {
           "id": "verilogbase-compiler-repair-20261004-1",
           "kind": "backend-isolation",
           "owner": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
-          "reason": "Extend the existing optional owner-bound publication policy with concrete default methods for native conditions, ranges, operands, constant shifts and BlackBox generics. Validate exact emitter/instance association identity, retain historical public wrapper entry points and avoid new abstract VerilogBase accessors. Retained surrounding reviewed behavior: Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL. CA-023 adds optional exact-owner memory geometry and read-wrapper range publication, retaining concrete fallback without a policy.",
+          "reason": "Extend the existing optional owner-bound publication policy with concrete default methods for native conditions, ranges, operands, constant shifts and BlackBox generics. Validate exact emitter/instance association identity, retain historical public wrapper entry points and avoid new abstract VerilogBase accessors. Retained surrounding reviewed behavior: Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL. CA-023 adds optional exact-owner memory geometry and read-wrapper range publication, retaining concrete fallback without a policy. CA-028: reviewed opt-in exact native assignment target/lineage handoff; no-policy native output is unchanged. Structural legality remains owned and checked in MorphHDL.",
           "baseline_span": {
             "start": 1997,
             "end": 1997,
@@ -4733,18 +4740,18 @@
           },
           "approved_span": {
             "start": 1997,
-            "end": 7443,
-            "sha256": "a6558d210fd0ed60cac06c8540d2886f15f4e5e9146aee6491b8e29ecd796bdb"
+            "end": 7547,
+            "sha256": "fcb24202319636e02f5897a81d679cc7e529c42eac8c7ec5b27656d7d0f1a859"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "/** The native printer owns declaration occurrences. No occurrence contains an\n  * emitted identifier, source location or a guessed concrete-width type.\n  */\nobject VerilogBase {\n  sealed trait DeclarationRole\n  case object ScalarDeclaration extends DeclarationRole\n  case object FunctionResultDeclaration extends DeclarationRole\n  case object ExpressionWrapper extends DeclarationRole\n  case object MemoryElementDeclaration extends DeclarationRole\n\n  final class DeclarationOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val subject: AnyRef,\n      val role: DeclarationRole,\n      val ansiPort: Boolean = false\n  )\n\n  /** Native cast site and the exact object that emitExpression will print.\n    * The reference classification comes from the real native wrapper plan,\n    * never from the resulting Verilog text or a caller-provided signed flag.\n    */\n  final class SignedCastOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val parent: Expression,\n      val slot: Int,\n      val operand: Expression\n  ) {\n    def component: Component = printer.component\n    def isSignedLiteral: Boolean = operand match {\n      case literal: BitVectorLiteral => emitter.literalIsSigned(literal)\n      case _ => false\n    }\n    def referenceRole: Option[DeclarationRole] = {\n      if (printer.wrappedExpressionToName.contains(operand)) Some(ExpressionWrapper)\n      else operand match {\n        case value: BaseType if (value.component eq component) && !value.isSuffix &&\n            !printer.referencesOverrides.contains(value) => Some(ScalarDeclaration)\n        case _ => None\n      }\n    }\n  }\n\n  final class SignedLiteralOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val literal: BitVectorLiteral\n  )\n\n  final class SignedResizeOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val resize: Resize\n  ) {\n    def inputReferenceRole: Option[DeclarationRole] =\n      new SignedCastOccurrence(emitter, printer, resize, 0, resize.input).referenceRole\n    def inputText: String = printer.emitExpression(resize.input)\n  }\n\n  /** Exact native assignment callback for authenticated parameter publication.\n    * Concrete emission has no bound policy and keeps its historical path.\n    */\n  trait AssignmentPublicationPolicy {\n    def constantShift(printer: ComponentEmitterVerilog,\n        expression: Operator.BitVector.ShiftRightByInt): Option[String] = None\n    def blackBoxGeneric(printer: ComponentEmitterVerilog, blackBox: BlackBox,\n        association: (String, Any)): Option[String] = None\n    def memoryGeometry(printer: ComponentEmitterVerilog, memory: Mem[_]): Option[(String, String)] = None\n    def condition(printer: ComponentEmitterVerilog, statement: WhenStatement): Option[String] = None\n    def wrapperRange(printer: ComponentEmitterVerilog, expression: Expression): Option[String] = None\n    def binaryOperand(printer: ComponentEmitterVerilog, expression: BinaryOperator, slot: Int): Option[String] = None\n    def source(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String]\n    def target(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] = None\n    def scope(printer: ComponentEmitterVerilog, tree: TreeStatement, scope: ScopeStatement,\n        output: StringBuilder, indentation: String, body: String => Int): Option[Int] = None\n  }\n\n  /** Optional storage owned by the concrete emitter, not by the historical\n    * VerilogBase interface. A field in that interface would add abstract JVM\n    * accessors and break already-compiled implementations. The strong reference\n    * lives exactly as long as its owner; no global or thread-local registry is\n    * involved, even when a policy itself retains the emitter.\n    */\n  private[spinal] trait DeclarationPolicyOwner { self: VerilogBase =>\n    @volatile private var boundPolicy: DeclarationPolicy = null\n    @volatile private var assignmentPolicy: AssignmentPublicationPolicy = null\n    private[VerilogBase] final def assignmentPublication: AssignmentPublicationPolicy = assignmentPolicy\n    private[VerilogBase] final def installAssignmentPublication(policy: AssignmentPublicationPolicy): Unit = synchronized {\n      require(policy != null && assignmentPolicy == null, \"assignment publication must be bound exactly once\")\n      assignmentPolicy = policy\n    }\n\n    private[VerilogBase] final def currentDeclarationPolicy: DeclarationPolicy = boundPolicy\n\n    private[VerilogBase] final def installDeclarationPolicy(policy: DeclarationPolicy): Unit = synchronized {\n      require(policy != null && boundPolicy == null,\n        \"a Verilog declaration policy must be non-null and bound exactly once\")\n      boundPolicy = policy\n    }\n  }\n\n  trait DeclarationPolicy {\n    def signed(occurrence: DeclarationOccurrence): Boolean\n    def wrapperRange(occurrence: DeclarationOccurrence): Option[String]\n    def unsignedTransport(expression: Expression): Boolean\n    def elideSignedCast(occurrence: SignedCastOccurrence): Boolean = false\n    def signedLiteral(occurrence: SignedLiteralOccurrence): Boolean = false\n    def signedResize(occurrence: SignedResizeOccurrence): Option[String] = None\n    def functionRange(occurrence: DeclarationOccurrence): Option[String] = None\n    def scalarRange(occurrence: DeclarationOccurrence): Option[String] = None\n  }\n}\n\n",
+              "text": "def memoryGeometry(printer: ComponentEmitterVerilog, memory: Mem[_])",
               "count": 1
             },
             {
               "side": "approved",
-              "text": "def memoryGeometry(printer: ComponentEmitterVerilog, memory: Mem[_])",
+              "text": "def statementSuffix(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): String = \"\"",
               "count": 1
             }
           ]
@@ -4753,21 +4760,21 @@
           "id": "verilogbase-compiler-repair-20261004-2",
           "kind": "backend-isolation",
           "owner": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
-          "reason": "Extend the existing optional owner-bound publication policy with concrete default methods for native conditions, ranges, operands, constant shifts and BlackBox generics. Validate exact emitter/instance association identity, retain historical public wrapper entry points and avoid new abstract VerilogBase accessors. Retained surrounding reviewed behavior: Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL.",
+          "reason": "Extend the existing optional owner-bound publication policy with concrete default methods for native conditions, ranges, operands, constant shifts and BlackBox generics. Validate exact emitter/instance association identity, retain historical public wrapper entry points and avoid new abstract VerilogBase accessors. Retained surrounding reviewed behavior: Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL. CA-028: reviewed opt-in exact native assignment target/lineage handoff; no-policy native output is unchanged. Structural legality remains owned and checked in MorphHDL.",
           "baseline_span": {
             "start": 2040,
             "end": 2040,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 7486,
-            "end": 13764,
-            "sha256": "097ffa2386c881bf5ce71dcf3fc00eeec30ab2956ce386fda3747c5af50fc215"
+            "start": 7590,
+            "end": 14304,
+            "sha256": "11ace1cb1bc298250e6ed1c6813b9fd3543da466dd4b8878bfe48712efe99aaf"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "  import VerilogBase._\n\n  // Concrete default accessors keep old VerilogBase implementations stateless\n  // and unsigned. Only an explicitly policy-capable emitter owns a policy slot.\n  private def declarationPolicy: DeclarationPolicy = this match {\n    case owner: DeclarationPolicyOwner => owner.currentDeclarationPolicy\n    case _ => null\n  }\n\n  private def declarationPolicy_=(policy: DeclarationPolicy): Unit = this match {\n    case owner: DeclarationPolicyOwner => owner.installDeclarationPolicy(policy)\n    case _ => throw new IllegalArgumentException(\n      \"binding a Verilog declaration policy requires DeclarationPolicyOwner\")\n  }\n\n  /** One generation-local opt-in; an ordinary native emitter has no policy. */\n  private[spinal] final def bindDeclarationPolicy(policy: DeclarationPolicy): Unit = {\n    require(policy != null && declarationPolicy == null,\n      \"a Verilog declaration policy must be non-null and bound exactly once\")\n    declarationPolicy = policy\n  }\n\n  private[spinal] final def bindAssignmentPublication(policy: AssignmentPublicationPolicy): Unit = this match {\n    case owner: DeclarationPolicyOwner => owner.installAssignmentPublication(policy)\n    case _ => throw new IllegalArgumentException(\"assignment publication requires a policy-capable emitter\")\n  }\n\n  private[spinal] final def emitNativeConstantShift(printer: ComponentEmitterVerilog,\n      expression: Operator.BitVector.ShiftRightByInt): Option[String] = {\n    require(printer.usesVerilogBase(this), \"constant shift must use its exact native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner => Option(owner.assignmentPublication)\n        .flatMap(_.constantShift(printer, expression))\n      case _ => None\n    }\n  }\n  private[spinal] final def emitNativeBinaryOperand(printer: ComponentEmitterVerilog,\n      expression: BinaryOperator, slot: Int): Option[String] = this match {\n    case owner: DeclarationPolicyOwner =>\n      Option(owner.assignmentPublication).flatMap(_.binaryOperand(printer, expression, slot))\n    case _ => None\n  }\n  private[spinal] final def emitNativeBlackBoxGeneric(printer: ComponentEmitterVerilog,\n      blackBox: BlackBox, association: (String, Any)): Option[String] = {\n    require(printer.usesVerilogBase(this) && (blackBox.parent eq printer.component) &&\n      blackBox.genericElements.exists(_ eq association), \"generic must be its exact native instance association\")\n    this match {\n      case owner: DeclarationPolicyOwner => Option(owner.assignmentPublication)\n        .flatMap(_.blackBoxGeneric(printer, blackBox, association))\n      case _ => None\n    }\n  }\n  private[spinal] final def emitNativeWhenCondition(printer: ComponentEmitterVerilog,\n      statement: WhenStatement): Option[String] = {\n    require(printer.usesVerilogBase(this), \"condition must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner =>\n        Option(owner.assignmentPublication).flatMap(_.condition(printer, statement))\n      case _ => None\n    }\n  }\n  private[spinal] final def emitAssignmentSource(printer: ComponentEmitterVerilog,\n      assignment: AssignmentStatement): Option[String] = {\n    require(printer.usesVerilogBase(this), \"assignment must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.source(printer, assignment)\n      case _ => None\n    }\n  }\n\n  private[spinal] final def emitAssignmentTarget(printer: ComponentEmitterVerilog,\n      assignment: AssignmentStatement): Option[String] = {\n    require(printer.usesVerilogBase(this), \"assignment must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.target(printer, assignment)\n      case _ => None\n    }\n  }\n  private[spinal] final def emitPublicationScope(printer: ComponentEmitterVerilog,\n      tree: TreeStatement, scope: ScopeStatement, output: StringBuilder,\n      indentation: String, body: String => Int): Option[Int] = {\n    require(printer.usesVerilogBase(this), \"scope must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.scope(printer, tree, scope, output, indentation, body)\n      case _ => None\n    }\n  }\n\n  private[spinal] final def hasDeclarationPolicy: Boolean = declarationPolicy != null\n\n  private[spinal] final def needsUnsignedTransport(expression: Expression): Boolean =\n    declarationPolicy != null && declarationPolicy.unsignedTransport(expression)\n\n  private[spinal] final def canElideSignedCast(printer: ComponentEmitterVerilog,\n      parent: Expression, slot: Int, operand: Expression): Boolean = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed cast occurrence must belong to this native emitter\")\n    declarationPolicy != null && declarationPolicy.elideSignedCast(\n      new SignedCastOccurrence(this, printer, parent, slot, operand))\n  }\n\n  private[spinal] final def literalIsSigned(literal: BitVectorLiteral): Boolean =\n    declarationPolicy != null && declarationPolicy.signedLiteral(new SignedLiteralOccurrence(this, literal))\n\n  private[spinal] final def emitSignedResize(printer: ComponentEmitterVerilog,\n      resize: Resize): Option[String] = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed resize occurrence must belong to this native emitter\")\n    if (declarationPolicy == null) None\n    else declarationPolicy.signedResize(new SignedResizeOccurrence(this, printer, resize))\n  }\n\n  private def declarationPrefix(subject: AnyRef, role: DeclarationRole): String =\n    if (declarationPolicy != null && declarationPolicy.signed(\n        new DeclarationOccurrence(this, subject, role))) \"signed \" else \"\"\n\n  private def emitWrapperType(e: Expression): String = {\n    if (declarationPolicy == null) return emitType(e)\n    val nativeType = emitUnqualifiedType(e)\n    val section = {\n      val occurrence = new DeclarationOccurrence(this, e, ExpressionWrapper)\n      declarationPolicy.wrapperRange(occurrence).getOrElse(nativeType)\n    }\n    declarationPrefix(e, ExpressionWrapper) + section\n  }\n\n",
+              "text": "private[spinal] final def emitStatementSuffix",
               "count": 1
             }
           ]
@@ -4783,8 +4790,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 14218,
-            "end": 14225,
+            "start": 14758,
+            "end": 14765,
             "sha256": "6245d2f0ea7a1d0460fbe86cbd208ad1d7d58d086f001ee42242e3e4499569c9"
           },
           "required_exact_text": [
@@ -4806,8 +4813,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 14364,
-            "end": 16291,
+            "start": 14904,
+            "end": 16831,
             "sha256": "432099b3508f1aaef1f64f32ac7fde45ecf28c6bba0d3f143c6441d1f8169877"
           },
           "required_exact_text": [
@@ -4834,8 +4841,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 16466,
-            "end": 16473,
+            "start": 17006,
+            "end": 17013,
             "sha256": "6245d2f0ea7a1d0460fbe86cbd208ad1d7d58d086f001ee42242e3e4499569c9"
           },
           "required_exact_text": [
@@ -4857,8 +4864,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 20180,
-            "end": 21210,
+            "start": 20720,
+            "end": 21750,
             "sha256": "56319951196214167718350f3b81e8b46370dc04e5b875817b361068543d1603"
           },
           "required_exact_text": [
@@ -4880,8 +4887,8 @@
             "sha256": "fa2bfa4f5ea95c799ebe96586a5315bb97aa17fd79c39ce7d33a6422dca7bb9b"
           },
           "approved_span": {
-            "start": 21900,
-            "end": 22082,
+            "start": 22440,
+            "end": 22622,
             "sha256": "31edf5ff0fe4d85d963b486b8f0ca15d3788400ac28b11334541e3fb299dac49"
           },
           "required_exact_text": [
