@@ -1,5 +1,5 @@
 {
-  "authorization": "User requested merging 59i into the work branch and deleting deprecated hardware wire passes and roadmap; WA-11 remains parameterized-Verilog work. User additionally requested opt-in constant Vec and typed-loop retention, internal unpacked arrays with packed ports, preserved dimension factors and synthesis-owned storage inference. User additionally requested the comments API roadmap: explicit annotation/fluent/region documentation, opt-in source-comment capture and generated-comment-only local validation, with CI and monitoring kept paused. User then stopped whole-branch qualification to repair the reported compiler issues: contextual Vec literals, static switch scopes, native literal clone lineage, synchronizer array attributes, formal/actual width publication, implicit clock aliases and concrete-parent aggregate admission. The user explicitly resumed whole-branch qualification on 2 October 2026, superseding that pause. Qualification repairs admit exact fresh-hardware documentation attachments, preserve native post-retirement fixture carriers and reconcile the complete retained regression inventory. On 3 October the user stopped qualification again and requested direct unpacked-array reads, a lightweight lint gate, and CA-005 ANSI-port width expansion with body aliases preserved. The user requested vendor-neutral repair documentation. On 4 October the user added CA-006 through CA-010 and requested all current compiler issues be repaired before restarting qualification. The reviewed batch repairs typed-loop carrier/reset/enable ownership and packed coverage, nested combinational Vec identities and conditional scope, concise genvar publication, scalar/width formal definition sharing, standalone formal defaults, exact constant shifts, symbolic signed operand sizing and combinational event dependencies. Regression inventory and affected targeted workflows include the new cases. The user then requested CA-011 literal-actual internal carrier repairs and resumed qualification on 4 October 2026. The reviewed continuation preserves exact child actual authority, stops fixed child-input inference at ownership boundaries, and sizes retained unsized UInt values without borrowing witness widths. Local qualification additionally repairs signed Int-domain arithmetic through packed named locals, exact child-scope width publication, split-process event dependencies and native geometry registry ownership. The publication contract intentionally adopts canonical child width defaults while retaining parent actual bindings and strict full-RTL hashes. The user subsequently requested CA-012 through CA-016 repairs: authenticated affine Vec subranges and driver coverage, logarithmic Gray stage arrays, symbolic register definition sharing, and transitive scalar binding liveness. Focused regressions and workflow enrollment are retained. The user revised qualification policy on 6 October 2026: authenticate the current exact integration seal and required historical certificate commit/tree/manifest identities and ancestry once per candidate, without recursively executing historical programs. Frozen evidence remains immutable and current regression, proof, native-source and rejection gates remain mandatory; historical results do not qualify current RTL. On 4 October the user resumed qualification through completion. Qualification proceeds through targeted CI before full CI; no old-head result qualifies repaired source. On 10 October the user requested CA-028: retain ordinary Area collection loops with index-dependent branches, exact exports and child wiring. The current retirement and layering contracts explicitly enroll this frontend phase while retaining all rejection rules; native publication hooks and new regression enrollment are reviewed in this seal. On 11 October the user requested guarded previous-iteration Area Vec reads and scope-aware local declaration names while explicitly preserving every native _zz_ helper. The extension retains exact index/guard/width provenance, read-only backwards access and combinational-cycle checks, and publishes local names only after symbolic geometry is finalized. The user further requested scope-local native child instances, exact interface wrapper names and library-derived Counter composites, preserving explicit user naming and native _zz_ helpers without application Scala edits. Native naming priority provenance, exact instance/port receipts and collision allocation are reviewed with cross-version and read-only application regressions.",
+  "authorization": "User requested merging 59i into the work branch and deleting deprecated hardware wire passes and roadmap; WA-11 remains parameterized-Verilog work. User additionally requested opt-in constant Vec and typed-loop retention, internal unpacked arrays with packed ports, preserved dimension factors and synthesis-owned storage inference. User additionally requested the comments API roadmap: explicit annotation/fluent/region documentation, opt-in source-comment capture and generated-comment-only local validation, with CI and monitoring kept paused. User then stopped whole-branch qualification to repair the reported compiler issues: contextual Vec literals, static switch scopes, native literal clone lineage, synchronizer array attributes, formal/actual width publication, implicit clock aliases and concrete-parent aggregate admission. The user explicitly resumed whole-branch qualification on 2 October 2026, superseding that pause. Qualification repairs admit exact fresh-hardware documentation attachments, preserve native post-retirement fixture carriers and reconcile the complete retained regression inventory. On 3 October the user stopped qualification again and requested direct unpacked-array reads, a lightweight lint gate, and CA-005 ANSI-port width expansion with body aliases preserved. The user requested vendor-neutral repair documentation. On 4 October the user added CA-006 through CA-010 and requested all current compiler issues be repaired before restarting qualification. The reviewed batch repairs typed-loop carrier/reset/enable ownership and packed coverage, nested combinational Vec identities and conditional scope, concise genvar publication, scalar/width formal definition sharing, standalone formal defaults, exact constant shifts, symbolic signed operand sizing and combinational event dependencies. Regression inventory and affected targeted workflows include the new cases. The user then requested CA-011 literal-actual internal carrier repairs and resumed qualification on 4 October 2026. The reviewed continuation preserves exact child actual authority, stops fixed child-input inference at ownership boundaries, and sizes retained unsized UInt values without borrowing witness widths. Local qualification additionally repairs signed Int-domain arithmetic through packed named locals, exact child-scope width publication, split-process event dependencies and native geometry registry ownership. The publication contract intentionally adopts canonical child width defaults while retaining parent actual bindings and strict full-RTL hashes. The user subsequently requested CA-012 through CA-016 repairs: authenticated affine Vec subranges and driver coverage, logarithmic Gray stage arrays, symbolic register definition sharing, and transitive scalar binding liveness. Focused regressions and workflow enrollment are retained. The user revised qualification policy on 6 October 2026: authenticate the current exact integration seal and required historical certificate commit/tree/manifest identities and ancestry once per candidate, without recursively executing historical programs. Frozen evidence remains immutable and current regression, proof, native-source and rejection gates remain mandatory; historical results do not qualify current RTL. On 4 October the user resumed qualification through completion. Qualification proceeds through targeted CI before full CI; no old-head result qualifies repaired source. On 10 October the user requested CA-028: retain ordinary Area collection loops with index-dependent branches, exact exports and child wiring. The current retirement and layering contracts explicitly enroll this frontend phase while retaining all rejection rules; native publication hooks and new regression enrollment are reviewed in this seal. On 11 October the user requested guarded previous-iteration Area Vec reads and scope-aware local declaration names while explicitly preserving every native _zz_ helper. The extension retains exact index/guard/width provenance, read-only backwards access and combinational-cycle checks, and publishes local names only after symbolic geometry is finalized. The user further requested scope-local native child instances, exact interface wrapper names and library-derived Counter composites, preserving explicit user naming and native _zz_ helpers without application Scala edits. Native naming priority provenance, exact instance/port receipts and collision allocation are reviewed with cross-version and read-only application regressions. The user then requested an explicit reusable recursive unsigned reduction module: positive COUNT, parameter-dependent packed geometry, two independently terminating children, exact native partition and connection lineage, portable domain guards, and deterministic native definition sharing. Existing reduceBalancedTree contracts remain unchanged. Compiler/library fixtures and cross-version simulation, lint, synthesis and formal gates are enrolled; application source, delivery RTL, cleanup and pins remain read-only.",
   "basis": "bfed00f992281d83dde20dfabf319d8f1ea0bc57",
   "basis_tree": "67204ea39fb995d66f782da19f3c80dd11b6f832",
   "files": {
@@ -96,7 +96,7 @@
     },
     ".github/workflows/morphhdl-external-structural-process.yml": {
       "mode": "100644",
-      "sha256": "c8a141ada748bd18c094e45d5520913d8d626422ed5b284c0cc3d68e8ecf9deb"
+      "sha256": "407ae5160f353d70bee4cdc7f82549ba61e5be6e11b8128c25092d77a26c51ab"
     },
     ".github/workflows/morphhdl-external-symbolic-width.yml": {
       "mode": "100644",
@@ -141,6 +141,10 @@
       "mode": "100644",
       "sha256": "751b31fb907b3cdb632c7b6f46b3574e63167276fc6ac9f6a4e6bb900fd1e77d"
     },
+    "core/src/main/scala/spinal/core/NativeSymbolicLegality.scala": {
+      "mode": "100644",
+      "sha256": "ca630f36a81436f9d85d4f8ee3715895f0ce20fa1aaf0a1fd4f6c70dd8f3e0de"
+    },
     "core/src/main/scala/spinal/core/ParameterizedVec.scala": {
       "mode": "100644",
       "sha256": "fb02a17d575d80e18b7f501e512dc33a305543c47ac18ec892c28a7105f40c43"
@@ -184,7 +188,7 @@
     },
     "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala": {
       "mode": "100644",
-      "sha256": "376e9de6689f4dd4ee318882f18f04557daa7b9afb28573968a278aafd3b4d1f"
+      "sha256": "4e0d9d672dc04ee5817dfc8520a2521087a2ee184092c4dd17918ce8ea9944c7"
     },
     "core/src/main/scala/spinal/core/internals/Statement.scala": {
       "mode": "100644",
@@ -254,6 +258,14 @@
       "mode": "100644",
       "sha256": "14ead2db06d054b7f497d6a4795d4ff52c3600262f85a4649c9f95d013aa7490"
     },
+    "docs/morphhdl/recursive-unsigned-sum.md": {
+      "mode": "100644",
+      "sha256": "8787ce4a570e05a5df1801306cbfeb71e846e8193cdebefca5796dabdca972c1"
+    },
+    "docs/morphhdl/recursive-unsigned-sum.v": {
+      "mode": "100644",
+      "sha256": "45f1ec23e0beb3904aea74780df0c641c92640b5f22689b154c9f2ecb7d15a92"
+    },
     "docs/morphhdl/remaining-increments-handoff.md": {
       "mode": "100644",
       "sha256": "67cedd6c3af88ecc92ee8e2482bd86a7f77114c9a4d20c0933980eaf5fa6e5f3"
@@ -317,6 +329,10 @@
     "lib/src/main/scala/spinal/lib/Counter.scala": {
       "mode": "100644",
       "sha256": "236ccfcddc45c673684996da1dbc89a94b2fd769dc0e868f5df31a24a29ce1c0"
+    },
+    "lib/src/main/scala/spinal/lib/RecursiveUnsignedSum.scala": {
+      "mode": "100644",
+      "sha256": "1e06afa99e6f9d37e4e7c74cd8ba16d9690db29df3c2323c0d3eb87692563144"
     },
     "lib/src/main/scala/spinal/lib/Utils.scala": {
       "mode": "100644",
@@ -600,9 +616,13 @@
       "mode": "100644",
       "sha256": "8b27c5a6a85a0aafba1b3799db4d3cfdf5b9553b082aacb519a4674c7f1a01f4"
     },
+    "morphhdl/contracts/increment-59i-regression-inventory.json": {
+      "mode": "100644",
+      "sha256": "032987ec7ac45477d6a6a2f7afdc49fe2527c89832b3e8fbe8f6dba34e0feb48"
+    },
     "morphhdl/contracts/native-source-preservation.json": {
       "mode": "100644",
-      "sha256": "6640029a87dd1eaa9e6f1169eccf0a2f45fa4f6610b10d792113303f41b3cac0"
+      "sha256": "b27ce3cf85e755f664720617bde8fa5d6f025ccfd892aa613cb401eec74375be"
     },
     "morphhdl/contracts/retained-parameterized-regressions.json": {
       "mode": "100644",
@@ -676,6 +696,10 @@
       "mode": "100644",
       "sha256": "d19f89f0877171ba2b53a13326874120b4cb185ad89ab822e24fc90e840e2c80"
     },
+    "morphhdl/scripts/check-increment-59i-regression-inventory.py": {
+      "mode": "100644",
+      "sha256": "4ae1ee224269d6a711fa06b66b4cbaed1c610e55723da92853dcb4c39bce787a"
+    },
     "morphhdl/scripts/check-native-streamfifocc-boundary.sh": {
       "mode": "100755",
       "sha256": "c93fedacadb096fc9c3aaee49c1a7d46629c3440fd9b6c27c57afe5633a45ecf"
@@ -683,6 +707,10 @@
     "morphhdl/scripts/check-production-retirement.py": {
       "mode": "100755",
       "sha256": "5d63e80bf7ee5e4d5e5839b93bdb35e9e6b1627175bd007fad053d107d6e20c3"
+    },
+    "morphhdl/scripts/check-recursive-unsigned-sum.py": {
+      "mode": "100644",
+      "sha256": "ffaef445a1452bcef04f74c5bf97251b3c0e4f28e4fea409ae3b7e3a076f6f73"
     },
     "morphhdl/scripts/check-retained-parameterized-regressions.py": {
       "mode": "100644",
@@ -788,7 +816,7 @@
     "morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala": null,
     "morphhdl/src/main/scala/spinal/core/internals/BoundedRecursiveModuleValidation.scala": {
       "mode": "100644",
-      "sha256": "996db3466b0ec8909081f08c76147416e52b19d3e49f5d2cca57913efdc66518"
+      "sha256": "f5692d4636587f0f06d8200cae1d2afa54627aab3628e62d3cb0e4d0dc47952e"
     },
     "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedAutoResize.scala": {
       "mode": "100644",
@@ -802,13 +830,17 @@
       "mode": "100644",
       "sha256": "e99e62796f327f3455da82c9d708560c6b56037286a452c14eddcf977c6e39b5"
     },
+    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala": {
+      "mode": "100644",
+      "sha256": "b4456bc0bebbe1c2442ce3ef6ec97700215d6236067890cd4bf8a9c77fc94fb7"
+    },
     "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala": {
       "mode": "100644",
-      "sha256": "b446695536f1cf8ad48f5c9702361bf5ed6ed53e30557f2a03c14b90f462fd02"
+      "sha256": "98dfe43a0d33c303490367a41040c085848ba4e1b90ca9aefdab4cfe0040c269"
     },
     "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala": {
       "mode": "100644",
-      "sha256": "cbb7aebc47acc5bb533ec5292fb42eab4f64350c86b0e42be2619b6e67fcbccb"
+      "sha256": "79c0c2868455657b998df737484319c4c85aa62226b8f6b74edda6b1d4b6a9ef"
     },
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlCanonicalIrProducer.scala": {
       "mode": "100644",
@@ -820,19 +852,19 @@
     },
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlEmitterParameterNames.scala": {
       "mode": "100644",
-      "sha256": "72ce1c3d6d4873d935866313e72ccdbd1a1a8f52eb62c8f237feed2f8c981121"
+      "sha256": "d9f94f69e987c85318e93ba4956e5998b34441b17673379a29b3c2c1cd99cf64"
     },
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala": {
       "mode": "100644",
-      "sha256": "b4545e409a3fd849cc985b353218091b9fdbf43d858f12e9ef7362e998501462"
+      "sha256": "8e93a8d3de24765a4a670897231ad62488da1bdc5e191a29ccecb6b4c30b131a"
     },
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlRecursivePerComponentPublication.scala": {
       "mode": "100644",
-      "sha256": "e4d0742a1cfc3ef35dd63fffa6b19267c91e4d8599da213dd714b6299f62c8bb"
+      "sha256": "fdf77c816747f85bddb124730e97ee2291a6c4986a736a3dd1dbdb7458192531"
     },
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala": {
       "mode": "100644",
-      "sha256": "7e4846c30ccc220b2d9c042ae69a958df45f5b5beaba68d3624272107ac7ec37"
+      "sha256": "97c68fdafacde762b12374b837399a08e26f49f248175af94db4f7b039dd2c93"
     },
     "morphhdl/src/main/scala/spinal/core/internals/NativeAreaLocalNames.scala": {
       "mode": "100644",
@@ -868,7 +900,7 @@
     },
     "morphhdl/src/main/scala/spinal/core/internals/NativeWidthFormalSchema.scala": {
       "mode": "100644",
-      "sha256": "701f1bb213eced34157174fe91d8c46490c700b3a556e2f2dad5ad4fcfd770cd"
+      "sha256": "234166fb7b5935372e432ab1b9a6bfb178cf1515aa4ec882684ab5547284761b"
     },
     "morphhdl/src/main/scala/spinal/core/internals/NativeWireAssignmentMetadata.scala": null,
     "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogFieldLayout.scala": {
@@ -914,6 +946,10 @@
     "morphhdl/src/test/scala/morphhdl/BoundedProcessOperationTests.scala": {
       "mode": "100644",
       "sha256": "bba238500015766afbcab644fd79623f03be823505892ee705d8fe58a0982ed3"
+    },
+    "morphhdl/src/test/scala/morphhdl/BoundedRecursiveSafetyTests.scala": {
+      "mode": "100644",
+      "sha256": "3989759c35e1824fd813514869700a590edfe7710beed95fe5ff46181dfb6f3f"
     },
     "morphhdl/src/test/scala/morphhdl/CanonicalSchemaDiagnosticTests.scala": {
       "mode": "100644",
@@ -1069,6 +1105,10 @@
     "morphhdl/src/test/scala/morphhdl/PublicationDecisionTests.scala": {
       "mode": "100644",
       "sha256": "e7693affa99b9570684e67f1c4c280079cec5d24d00e99878a906559afefed35"
+    },
+    "morphhdl/src/test/scala/morphhdl/RecursiveUnsignedSumTests.scala": {
+      "mode": "100644",
+      "sha256": "fdb3db14b12c0c2e995566423353f184bbc4610a198308f3f3015e7c3f95fafb"
     },
     "morphhdl/src/test/scala/morphhdl/RepositoryTestResources.scala": {
       "mode": "100644",
@@ -1232,6 +1272,10 @@
       "mode": "100644",
       "sha256": "c38cd1acb88ef7b21a49af5691647670e5c54e88417d2b50c87049ba5e1877f7"
     },
+    "morphhdl/src/test/scala/spinal/core/RecursivePartitionSafetyTests.scala": {
+      "mode": "100644",
+      "sha256": "e022224a4b6253c60d523c1ab5fdd76b32de0da32fcab78f4806b3b87a53807a"
+    },
     "morphhdl/src/test/scala/spinal/core/StructuralIdentityAdversarialTests.scala": {
       "mode": "100644",
       "sha256": "4142c1db86a42d0ebe8101db068304d059f9514ba5b41109b10360b322cf125d"
@@ -1369,6 +1413,10 @@
       "mode": "100644",
       "sha256": "85f452343f100842daeb4dd2cb0416bd6fcfef016ce045ce14ef10309d0354c1"
     },
+    "morphruntime/src/main/scala/spinal/core/ElabPackedPartition.scala": {
+      "mode": "100644",
+      "sha256": "2039ea118642d156438a1941bd8ee9cee252eeda839cc15fc0765da9290a006c"
+    },
     "morphruntime/src/main/scala/spinal/core/ElabProcess.scala": {
       "mode": "100644",
       "sha256": "c86b332d54c691ff8013098feb86922cda3c6afc6a0959e53c4010e4c4beec6e"
@@ -1462,5 +1510,5 @@
     "6bb250972f06ca55c9cfbd7100126adad9e81569"
   ],
   "schema": 1,
-  "verifier_sha256": "98375c79dba69b801e53a290a6fcd886dab2b8309ddf7971b6da4ae4fc4f9597"
+  "verifier_sha256": "856afa957dd932380f59c19dcb2b0efa6757f48a30834f2b94a01e3d7a70a7db"
 }
