@@ -877,9 +877,10 @@
         "PR189: authentic compact declaration and explicit publication authority",
         "CDC-LEG-01: product-neutral legality labels and user-only fatal messages",
         "Increment 65: exact activation-scoped symbolic legality and bounded structural products",
-        "Increment 66: native parameter and RTL readability extensions"
+        "Increment 66: native parameter and RTL readability extensions",
+        "Recursive unsigned reduction: strict Verilog-2001 domain termination"
       ],
-      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Originally reject mixed structural-scope obligations; now reject them without an exact activation owner, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. CDC-LEG-01 changes only native diagnostic presentation: allocate G_PARAMETER_LEGALITY_<index> in the existing component name scope and pass the escaped original message directly to $fatal(1, \"%s\", message). Domain classification, record ownership, ordering, fatal termination and synthesis guards are unchanged. Increment 65 replaces the structural-scope rejection only for exact runtime-issued owners: component-local records carry full activation, root inventories and transactional rollback. Scope classification can omit implied diagnostics; active false requirements stay deferred, while unconditionally false top-level requirements still reject. Validate finished owner identity before native synthesis-guarded fatal publication. Retain validated declaration-domain guards for the explicit native formal API so downstream overrides cannot silently leave the proved domain. Existing user requirements retain their prior classification, scope, escaping and fatal semantics.",
+      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Originally reject mixed structural-scope obligations; now reject them without an exact activation owner, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. CDC-LEG-01 changes only native diagnostic presentation: allocate G_PARAMETER_LEGALITY_<index> in the existing component name scope and pass the escaped original message directly to $fatal(1, \"%s\", message). Domain classification, record ownership, ordering, fatal termination and synthesis guards are unchanged. Increment 65 replaces the structural-scope rejection only for exact runtime-issued owners: component-local records carry full activation, root inventories and transactional rollback. Scope classification can omit implied diagnostics; active false requirements stay deferred, while unconditionally false top-level requirements still reject. Validate finished owner identity before native synthesis-guarded fatal publication. Retain validated declaration-domain guards for the explicit native formal API so downstream overrides cannot silently leave the proved domain. Existing user requirements retain their prior classification, scope, escaping and fatal semantics. Explicit portable domain termination uses standard display/finish tasks for the authenticated recursive packed-partition client; all pre-existing fatal guards and proof obligations retain their behavior. Runners require exact completion markers as well as process status.",
       "baseline_path": null,
       "edits": []
     },
@@ -2724,7 +2725,8 @@
       "classification": "backend-isolation-hook",
       "introduced_by": [
         "PR #187 qualification repair: preserve upstream VerilogBase JVM compatibility",
-        "CA-025: canonical definition naming"
+        "CA-025: canonical definition naming",
+        "Explicit recursive unsigned reduction: native reference-only publication"
       ],
       "reason": "Supply optional instance-owned declaration-policy storage on the concrete PhaseVerilog emitter, leaving all ordinary emission, construction arguments, process traversal and width behavior unchanged. No new abstract requirements are added to the historical VerilogBase interface. Add a default-inert callback after native trace deduplication to publish canonical definition names.",
       "baseline_path": "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala",
@@ -2743,14 +2745,45 @@
           ]
         },
         {
+          "id": "recursive-reference-publication-1",
+          "kind": "backend-isolation",
+          "owner": "PhaseVerilog exact reference-only publication policy",
+          "reason": "Optional backend policy skips only authenticated recursive reference identities before per-component definition allocation; default concrete emission remains unchanged. No names, algorithms or product-specific logic in native core.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": " if !referenceOnlyPublication(c)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "recursive-reference-publication-2",
+          "kind": "backend-isolation",
+          "owner": "PhaseVerilog exact reference-only publication policy",
+          "reason": "Optional backend policy skips only authenticated recursive reference identities before per-component definition allocation; default concrete emission remains unchanged. No names, algorithms or product-specific logic in native core.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": " if !referenceOnlyPublication(c)",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "ca025-definition-name-publication-1",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.PhaseVerilog",
-          "reason": "Bind an optional instance-owned naming callback with an inert concrete default.",
+          "reason": "Bind an optional instance-owned naming callback with an inert concrete default. Explicit recursive unsigned reduction: omit definition publication only for exact validated external self-reference identities; retain the native module name and trace comparison. Default policy preserves concrete publication.",
           "required_exact_text": [
             {
               "side": "approved",
               "text": "  // Optional publication policy runs only for a new native trace, after native\n  // deduplication. Concrete generation keeps its original naming behavior.\n  private var definitionNamePublication: Component => Unit = (_: Component) => ()\n  def bindDefinitionNamePublication(policy: Component => Unit): Unit = {\n    require(policy != null, \"definition naming policy must not be null\")\n    definitionNamePublication = policy\n  }\n\n",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "  // Optional publication policy runs only for a new native trace, after native\n  // deduplication. Concrete generation keeps its original naming behavior.\n  private var definitionNamePublication: Component => Unit = (_: Component) => ()\n  def bindDefinitionNamePublication(policy: Component => Unit): Unit = {\n    require(policy != null, \"definition naming policy must not be null\")\n    definitionNamePublication = policy\n  }\n\n\n  // An optional backend policy may omit exact external reference identities\n  // from per-component definition publication. Ordinary generation is unchanged.\n  private var referenceOnlyPublication: Component => Boolean = (_: Component) => false\n  def bindReferenceOnlyPublication(policy: Component => Boolean): Unit = {\n    require(policy != null, \"reference publication policy must not be null\")\n    referenceOnlyPublication = policy\n  }\n",
               "count": 1
             }
           ]
@@ -3572,6 +3605,17 @@
           ]
         }
       ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/RecursiveUnsignedSum.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "User-requested opt-in recursive unsigned reduction"
+      ],
+      "reason": "Explicit combinational unsigned modular sum component with native typed formals, guarded self-references and authenticated packed partitions; leaves existing reduceBalancedTree unchanged.",
+      "baseline_path": null,
+      "edits": []
     },
     {
       "path": "lib/src/main/scala/spinal/lib/Stream.scala",
