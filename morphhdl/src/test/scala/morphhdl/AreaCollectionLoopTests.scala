@@ -250,4 +250,288 @@ endmodule
       assert(code == 0, s"$command in $directory\n$log")
     }
   }
+  for (unpacked <- Seq(false, true))
+  test(s"Area previous-iteration dependency publishes one shared Vec unpacked=$unpacked") {
+    val dir = Files.createTempDirectory("area-previous-")
+    MorphVerilog(MorphAggregateOptions(SpinalConfig(targetDirectory = dir.toString, headerWithDate = false),
+      preserveConstantLoops = true, preserveConstantVecs = true,
+      vecLayout = if (unpacked) MorphAggregateOptions.UnpackedArray else MorphAggregateOptions.PackedVector)) {
+      new Component {
+        setDefinitionName("Top")
+        val x = in(Vec(Bool(), 4))
+        val y = out(Vec(Bool(), 4))
+        val signals = Vec(Bool(), 4)
+        val lanes = for (i <- 0 until 4) yield new Area {
+          signals(i) := (if (i == 0) x(i) else signals(i - 1) ^ x(i))
+          y(i) := signals(i)
+        }
+      }
+    }
+    val rtl = new String(Files.readAllBytes(dir.resolve("Top.v")), UTF_8)
+    assert(rtl.contains("for (") && rtl.contains("i - 1"), rtl)
+    assert(rtl.indexOf("signals;") < rtl.indexOf("generate") || rtl.indexOf("signals [") < rtl.indexOf("generate"), rtl)
+    Files.write(dir.resolve("tb.v"), """module tb;
+reg [3:0] x=0; wire [3:0] y; reg [3:0] expected; integer n,k;
+Top dut(.x(x),.y(y));
+initial begin
+for(n=0;n<18;n=n+1) begin
+ if(n<16) x=n; else if(n==16) x=4'b01x1; else x=4'b1z10;
+ expected[0]=x[0]; for(k=1;k<4;k=k+1) expected[k]=expected[k-1]^x[k];
+ #1; if(y !== expected) $fatal(1,"previous iteration");
+end $finish; end endmodule
+""".getBytes(UTF_8))
+    // Split the proven independent elements for Verilator's scheduling analysis;
+    // this is not a warning waiver and leaves the published RTL untouched.
+    Files.write(dir.resolve("split.vlt"), "`verilator_config\nsplit_var -module \"Top\" -var \"signals\"\n".getBytes(UTF_8))
+    Seq(Seq("iverilog", "-g2001", "-s", "tb", "-o", "sim", "Top.v", "tb.v"),
+      Seq("timeout", "10", "vvp", "sim"),
+      Seq("verilator", "--lint-only", "-Wall", "--top-module", "Top", "split.vlt", "Top.v"),
+      Seq("yosys", "-Q", "-p", "read_verilog Top.v; synth -top Top; check -assert")).foreach { cmd =>
+      val (code, log) = Increment66ToolEvidence.run(dir, cmd)
+      assert(code == 0, s"$cmd in $dir\n$log")
+    }
+  }
+
+  test("Area local names omit only the enclosing collection and preserve native helpers") {
+    val dir = Files.createTempDirectory("area-local-names-")
+    MorphVerilog(MorphAggregateOptions(SpinalConfig(targetDirectory = dir.toString, headerWithDate = false),
+      preserveConstantLoops = true, preserveConstantVecs = true)) {
+      new Component {
+        setDefinitionName("Top")
+        val x = in(Vec(Bool(), 4))
+        val y = out(Vec(Bool(), 4))
+        val lanes = for (i <- 0 until 4) yield new Area {
+          val A = new Area { val signal = Bool().dontSimplifyIt(); signal := x(i) }
+          val B = new Area { val signal = Bool().dontSimplifyIt(); signal := (if (i == 0) A.signal else !A.signal) }
+          y(i) := B.signal
+        }
+      }
+    }
+    val rtl = new String(Files.readAllBytes(dir.resolve("Top.v")), UTF_8)
+    assert(rtl.contains(" A_signal;") && rtl.contains(" B_signal;"), rtl)
+    assert(!rtl.contains("wire                lanes_A_signal;"), rtl)
+    assert(rtl.contains("_zz_lanes_B_signal"), rtl)
+    Seq(Seq("iverilog", "-g2001", "-s", "Top", "-o", "sim", "Top.v"),
+      Seq("verilator", "--lint-only", "-Wall", "--top-module", "Top", "Top.v"),
+      Seq("yosys", "-Q", "-p", "read_verilog Top.v; synth -top Top; check -assert")).foreach { cmd =>
+      val (code, log) = Increment66ToolEvidence.run(dir, cmd)
+      assert(code == 0, s"$cmd in $dir\n$log")
+    }
+  }
+
+  for (mode <- Seq("unguarded", "wrong-branch", "distance", "write"))
+  test(s"Area previous-iteration access rejects $mode") {
+    val diagnostic = mode match {
+      case "unguarded" => "SPINAL-ELAB-AREA-PREVIOUS-INDEX-UNGUARDED"
+      case "wrong-branch" => "SPINAL-ELAB-AREA-PREVIOUS-INDEX-OUT-OF-RANGE"
+      case "distance" => "SPINAL-ELAB-AREA-PREVIOUS-DISTANCE-INVALID"
+      case "write" => "SPINAL-ELAB-FINITE-AFFINE-WRITE-UNSUPPORTED"
+    }
+    rejected(diagnostic) {
+      new Component {
+        val x = in(Vec(Bool(), 4))
+        val y = out(Vec(Bool(), 4))
+        ElabAreaCollection.tabulate(ElabInt.literal(4), "lanes") { i => new Area {
+          if (mode == "unguarded") i(y) := i.previous(x, 1)
+          else i.whenEqual(0, "first") {
+            if (mode == "wrong-branch") i(y) := i.previous(x, 1) else i(y) := i(x)
+          } {
+            if (mode == "write") i.previous(y, 1) := i(x)
+            else i(y) := i.previous(x, if (mode == "distance") 0 else 1)
+          }
+        }}
+      }
+    }
+  }
+
+  test("Area previous reads retain symbolic count overrides including a single element") {
+    val dir = Files.createTempDirectory("area-previous-symbolic-")
+    MorphVerilog(MorphAggregateOptions(SpinalConfig(targetDirectory = dir.toString, headerWithDate = false),
+      preserveConstantLoops = true, preserveConstantVecs = true, vecLayout = MorphAggregateOptions.UnpackedArray)) {
+      new Component {
+        setDefinitionName("Top")
+        val count = morphhdl.frontend.HdlInt.param("COUNT", 3, 1, 4).asElabInt
+        val x = in(Vec(Bool(), count))
+        val y = out(Vec(Bool(), count))
+        val signals = Vec(Bool(), count)
+        ElabAreaCollection.tabulate(count, "lanes") { i => new Area {
+          i(signals) := i.selectBool(0, "first")(i(x))(i.previous(signals, 1) ^ i(x))
+          i(y) := i(signals)
+        }}
+      }
+    }
+    Files.write(dir.resolve("tb.v"), """module tb;
+reg [3:0] x=0; wire [3:0] y4; wire [2:0] y3; wire [1:0] y2; wire y1;
+reg [3:0] expected; integer n,k;
+Top #(.COUNT(1)) a(.x(x[0]),.y(y1));
+Top #(.COUNT(2)) b(.x(x[1:0]),.y(y2));
+Top #(.COUNT(3)) c(.x(x[2:0]),.y(y3));
+Top #(.COUNT(4)) d(.x(x),.y(y4));
+initial begin for(n=0;n<16;n=n+1) begin
+x=n; expected[0]=x[0]; for(k=1;k<4;k=k+1) expected[k]=expected[k-1]^x[k];
+#1; if(y1 !== expected[0] || y2 !== expected[1:0] || y3 !== expected[2:0] || y4 !== expected) $fatal(1,"count override");
+end $finish; end endmodule
+""".getBytes(UTF_8))
+    Seq(Seq("iverilog", "-g2001", "-s", "tb", "-o", "sim", "Top.v", "tb.v"),
+      Seq("timeout", "10", "vvp", "sim"),
+      Seq("yosys", "-Q", "-p", "read_verilog Top.v; synth -top Top; check -assert")).foreach { cmd =>
+      val (code, log) = Increment66ToolEvidence.run(dir, cmd)
+      assert(code == 0, s"$cmd in $dir\n$log")
+    }
+  }
+
+  test("Area singleton chain authenticates an unreachable previous-index branch") {
+    val dir = Files.createTempDirectory("area-previous-singleton-")
+    MorphVerilog(MorphAggregateOptions(SpinalConfig(targetDirectory = dir.toString),
+      preserveConstantLoops = true, preserveConstantVecs = true)) {
+      new Component {
+        val x = in(Vec(Bool(), 1))
+        val y = out(Vec(Bool(), 1))
+        val signals = Vec(Bool(), 1)
+        val lanes = for (i <- 0 until 1) yield new Area {
+          signals(i) := (if (i == 0) x(i) else signals(i - 1) ^ x(i))
+          y(i) := signals(i)
+        }
+      }
+    }
+  }
+
+  test("Area backward read cannot hide a combinational feedback path") {
+    val error = intercept[Exception] {
+      MorphVerilog(MorphAggregateOptions(SpinalConfig(targetDirectory = Files.createTempDirectory("area-cycle-").toString),
+        preserveConstantLoops = true, preserveConstantVecs = true)) {
+        new Component {
+          val x = in(Vec(Bool(), 4))
+          val y = out(Vec(Bool(), 4))
+          val signals = Vec(Bool(), 4)
+          val lanes = for (i <- 0 until 4) yield new Area {
+            signals(i) := (if (i == 0) signals(3) ^ x(i) else signals(i - 1) ^ x(i))
+            y(i) := signals(i)
+          }
+        }
+      }
+    }
+    assert(error.toString.contains("SPINAL-ELAB-AREA-COMBINATIONAL-CYCLE"), error.toString)
+  }
+
+  test("Area previous reads preserve parameterized register reset enable and shift behavior") {
+    val dir = Files.createTempDirectory("area-previous-registers-")
+    MorphVerilog(MorphAggregateOptions(SpinalConfig(targetDirectory = dir.toString, headerWithDate = false),
+      preserveConstantLoops = true, preserveConstantVecs = true, vecLayout = MorphAggregateOptions.UnpackedArray)) {
+      new Component {
+        setDefinitionName("Top")
+        val count = morphhdl.frontend.HdlInt.param("COUNT", 3, 1, 4).asElabInt
+        val width = morphhdl.frontend.HdlInt.param("WIDTH", 5, 1, 64).asElabInt
+        val x = in Bits(width bits)
+        val en = in Bool()
+        val y = out Bits(width bits)
+        val stages = Vec.fill(count)(Reg(Bits(width bits)) init(0))
+        ElabAreaCollection.tabulate(count, "lanes") { i => new Area {
+          val next = Bits(width bits)
+          i.whenEqual(0, "first") { next := x } { next := i.previous(stages, 1) }
+          when(en) { i(stages) := next }
+        }}
+        y := ElabVec.select(stages, count - 1)
+      }
+    }
+    Files.write(dir.resolve("tb.v"), """module tb;
+reg clk=0; always #5 clk=~clk;
+reg reset=0,en=0; reg [63:0] x=0;
+wire y1; wire [4:0] y3; wire [63:0] y4;
+reg [63:0] expected[0:3]; integer cycle,k;
+Top #(.WIDTH(1),.COUNT(1)) a(.clk(clk),.reset(reset),.en(en),.x(x[0]),.y(y1));
+Top #(.WIDTH(5),.COUNT(3)) b(.clk(clk),.reset(reset),.en(en),.x(x[4:0]),.y(y3));
+Top #(.WIDTH(64),.COUNT(4)) c(.clk(clk),.reset(reset),.en(en),.x(x),.y(y4));
+initial begin
+for(k=0;k<4;k=k+1) expected[k]=0;
+#1; reset=1; #1; reset=0;
+for(cycle=0;cycle<50;cycle=cycle+1) begin
+ @(negedge clk); x={$random,$random}; en=cycle%3!=0;
+ if(cycle==25) begin reset=1; for(k=0;k<4;k=k+1) expected[k]=0; #1; reset=0; end
+ @(posedge clk); if(en) begin for(k=3;k>0;k=k-1) expected[k]=expected[k-1]; expected[0]=x; end
+ #1; if(y1 !== expected[0][0] || y3 !== expected[2][4:0] || y4 !== expected[3]) $fatal(1,"register shift/reset/hold");
+end $finish; end endmodule
+""".getBytes(UTF_8))
+    Seq(Seq("iverilog", "-g2001", "-s", "tb", "-o", "sim", "Top.v", "tb.v"),
+      Seq("timeout", "10", "vvp", "sim"),
+      Seq("verilator", "--lint-only", "-Wall", "--top-module", "Top", "Top.v"),
+      Seq("yosys", "-Q", "-p", "read_verilog Top.v; synth -top Top; check -assert")).foreach { cmd =>
+      val (code, log) = Increment66ToolEvidence.run(dir, cmd)
+      assert(code == 0, s"$cmd in $dir\n$log")
+    }
+  }
+
+  test("Area local naming reserves module names and preserves explicit and flattened names") {
+    val dir = Files.createTempDirectory("area-name-collision-")
+    def emit(): String = {
+      MorphVerilog(MorphAggregateOptions(SpinalConfig(targetDirectory = dir.toString, headerWithDate = false),
+        preserveConstantLoops = true, preserveConstantVecs = true)) {
+        new Component {
+          setDefinitionName("Top")
+          val x = in(Vec(Bool(), 4))
+          val y = out(Vec(Bool(), 4))
+          val A_signal = in Bool()
+          val outside = new Area { val signal = Bool().dontSimplifyIt(); signal := !A_signal }
+          val lanes = for (i <- 0 until 4) yield new Area {
+            val A = new Area { val signal = if (i == 0) x(i) else !x(i) }
+            val authored = Bool().setName("lanes_authored").dontSimplifyIt()
+            authored := A.signal ^ outside.signal
+            y(i) := authored
+          }
+        }
+      }
+      new String(Files.readAllBytes(dir.resolve("Top.v")), UTF_8)
+    }
+    val rtl = emit()
+    assert(rtl == emit())
+    assert(rtl.contains(" A_signal_2;") && rtl.contains(" lanes_authored;"), rtl)
+    assert(rtl.take(rtl.indexOf("generate")).contains("outside_signal;"), rtl)
+    Seq(Seq("iverilog", "-g2001", "-s", "Top", "-o", "sim", "Top.v"),
+      Seq("verilator", "--lint-only", "-Wall", "--top-module", "Top", "Top.v"),
+      Seq("yosys", "-Q", "-p", "read_verilog Top.v; synth -top Top; check -assert")).foreach { cmd =>
+      val (code, log) = Increment66ToolEvidence.run(dir, cmd)
+      assert(code == 0, s"$cmd in $dir\n$log")
+    }
+  }
+
+  test("Area previous reads preserve Bits UInt and SInt selection semantics") {
+    val dir = Files.createTempDirectory("area-previous-types-")
+    MorphVerilog(MorphAggregateOptions(SpinalConfig(targetDirectory = dir.toString, headerWithDate = false),
+      preserveConstantLoops = true, preserveConstantVecs = true, vecLayout = MorphAggregateOptions.UnpackedArray)) {
+      new Component {
+        setDefinitionName("Top")
+        val xb = in(Vec(Bits(8 bits), 4))
+        val xu = in(Vec(UInt(8 bits), 4))
+        val xs = in(Vec(SInt(8 bits), 4))
+        val yb, yu, ys = out(Vec(Bool(), 4))
+        val lanes = for (i <- 0 until 4) yield new Area {
+          yb(i) := (if (i == 0) xb(i) === B(0xaa, 8 bits) else xb(i - 1) === xb(i))
+          yu(i) := (if (i == 0) xu(i) < 131 else xu(i - 1) < xu(i))
+          ys(i) := (if (i == 0) xs(i) < 3 else xs(i - 1) < xs(i))
+        }
+      }
+    }
+    Files.write(dir.resolve("tb.v"), """module tb;
+reg [31:0] x=0; wire [3:0] yb,yu,ys; reg [3:0] eb,eu,es; reg [7:0] sample,current; integer n,k;
+Top dut(.xb(x),.xu(x),.xs(x),.yb(yb),.yu(yu),.ys(ys));
+initial begin for(n=0;n<100;n=n+1) begin
+x=$random; if(n==0) x=32'haaaaaaaa; if(n==1) x=32'hffffffff;
+for(k=0;k<4;k=k+1) begin
+ sample=x[(k==0?0:k-1)*8+:8]; current=x[k*8+:8];
+ eb[k]=k==0 ? sample==8'haa : sample==current;
+ eu[k]=k==0 ? sample<8'd131 : sample<current;
+ es[k]=k==0 ? $signed(sample)<8'sd3 : $signed(sample)<$signed(current);
+end
+#1; if(yb !== eb || ys !== es || yu !== eu) $fatal(1,"typed previous read");
+end $finish; end endmodule
+""".getBytes(UTF_8))
+    Seq(Seq("iverilog", "-g2001", "-s", "tb", "-o", "sim", "Top.v", "tb.v"),
+      Seq("timeout", "10", "vvp", "sim"),
+      Seq("verilator", "--lint-only", "-Wall", "--top-module", "Top", "Top.v"),
+      Seq("yosys", "-Q", "-p", "read_verilog Top.v; synth -top Top; check -assert")).foreach { cmd =>
+      val (code, log) = Increment66ToolEvidence.run(dir, cmd)
+      assert(code == 0, s"$cmd in $dir\n$log")
+    }
+  }
+
 }

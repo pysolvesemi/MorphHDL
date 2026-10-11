@@ -575,7 +575,8 @@ private[internals] object ParameterizedVerilogStructural {
             selection.sourceLocation
           )
           selection.affineRead.foreach { evidence =>
-            if (!evidence.matches(selection.vector, selection.index, token, Some(owner.count)))
+            if (!evidence.matches(selection.vector, selection.index, token, Some(owner.count)) ||
+                evidence.previous.exists(proof => !proof.owns(block)))
               fail(
                 "SPINAL-ELAB-FINITE-AFFINE-EVIDENCE-MISMATCH",
                 "affine Vec read no longer matches its exact enclosing range and Vec domain",
@@ -2760,6 +2761,25 @@ private[internals] object ParameterizedVerilogStructural {
       }
       if (staticConsumers) return true
 
+      // A complete per-iteration writer may feed a guarded earlier-element
+      // read in its own descendant branch. Unlike an arbitrary same-array
+      // reference this edge is strictly backwards and cannot create a cycle.
+      val previousWriters = owner.vecIndices.filter(selection =>
+        ParameterizedVerilogVecs.isExactStructuralAggregateName(selection.vector, target) &&
+          exactSelectionDomain(owner, selection) && selection.affineRead.isEmpty &&
+          selection.result.flatten.forall(leaf => owner.assignments.count(a =>
+            (a.target eq leaf) && (a.finalTarget eq leaf)) == 1))
+      if (previousWriters.size == 1 && consumers.forall { consumer =>
+        val reads = consumer.block.vecIndices.filter(selection =>
+          selection.vector eq previousWriters.head.vector)
+        containmentPrefix(containmentPathOf(owner, containmentPaths), containmentPathOf(consumer.block, containmentPaths)) &&
+          reads.nonEmpty && reads.forall(selection =>
+            selection.affineRead.exists(e => e.previous.exists(_.owns(consumer.block)) &&
+              selection.finiteIndexToken.exists(t => e.matches(selection.vector, selection.index, t))) &&
+              exactAliasUse(consumer.block, selection, write = false)) &&
+          countName(consumer.body, target) == reads.flatMap(_.result.flatten).size
+      }) return true
+
       val writes = owner.vecIndices.filter(selection =>
         ParameterizedVec.shapeOf(selection.vector).nonEmpty &&
           exactSelectionDomain(owner, selection) &&
@@ -2848,7 +2868,7 @@ private[internals] object ParameterizedVerilogStructural {
       val ownerPath = containmentPathOf(owner, containmentPaths)
       val undominatedConsumers = plans.filter { plan =>
         consumedByBody(plan.body)(target) &&
-        ((owner.vecIndices.nonEmpty && !(plan.block eq owner)) ||
+        ((owner.vecIndices.exists(selection => ParameterizedVerilogVecs.isExactStructuralAggregateName(selection.vector, target)) && !(plan.block eq owner)) ||
           !containmentPrefix(
             ownerPath,
             containmentPathOf(plan.block, containmentPaths)
@@ -4831,9 +4851,25 @@ private[internals] object ParameterizedVerilogStructural {
       level: Int
   ): String = {
     val prefix = "  " * level
+    val body = renderBlock(value.body, plans, level + 1)
+    val localBody = value.finiteIndexToken.map { token =>
+      def blocks(block: ParameterizedStructuralBlock): Vector[ParameterizedStructuralBlock] =
+        Vector(block) ++ block.regions.flatMap(_.blocks).flatMap(blocks)
+      val descendants = blocks(value.body)
+      val requests = descendants.flatMap { block =>
+        block.declarations.filter(_.component != null).flatMap { leaf =>
+          val name = leaf.getName()
+          ElabAreaLocalNames.requested(leaf.component, token, leaf).filter { _ =>
+            !name.startsWith("_zz") && descendants.exists(b => plans(b).body.split("\n", -1)
+              .exists(line => standaloneDeclarationName(line).contains(name)))
+          }.map(leaf -> _)
+        }
+      }.distinct
+      NativeAreaLocalNames.retain(body, requests)
+    }.getOrElse(body)
     s"${prefix}for (${value.indexName} = 0; ${value.indexName} < ${value.count.verilog}; " +
       s"${value.indexName} = ${value.indexName} + 1) begin : ${value.label}\n" +
-      renderBlock(value.body, plans, level + 1) + "\n" +
+      localBody + "\n" +
       s"${prefix}end"
   }
 

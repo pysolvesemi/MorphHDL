@@ -9,7 +9,10 @@ package spinal.core {
   class Area
   class ElabInt
   object ElabInt { def literal(n: Int): ElabInt = new ElabInt }
+  class Vec { def apply(n: Int): Boolean = true }
   class Index {
+    def at(v: Vec): Boolean = true
+    def previous(v: Vec, distance: Int): Boolean = true
     def choose[T](n: Int, label: String)(yes: => T)(no: => T): T = yes
     def onlyEqual(n: Int, label: String)(body: => Unit): Unit = body
   }
@@ -89,4 +92,31 @@ object Example {
 """)
     assert(errors.exists(_.message.contains("SPINAL-ELAB-AREA-COLLECTION-ITERATION-UNSUPPORTED")), errors.mkString("\n"))
   }
+  test("Area bridge retains a guarded literal backwards Vec index") {
+    val errors = compile(definitions + """
+import spinal.core._
+object Example {
+  val xs = new Vec
+  val areas = for (index <- 0 until 4) yield new Area {
+    val value = if (index == 0) xs(index) else xs(index - 1)
+  }
+}
+""")
+    assert(errors.isEmpty, errors.mkString("\n"))
+  }
+
+  test("Area bridge rejects a nonliteral backwards offset") {
+    val errors = compile(definitions + """
+import spinal.core._
+object Example {
+  val xs = new Vec
+  val distance = 1
+  val areas = for (index <- 0 until 4) yield new Area {
+    val value = if (index == 0) xs(index) else xs(index - distance)
+  }
+}
+""")
+    assert(errors.exists(_.message.contains("SPINAL-ELAB-AREA-INDEX-USE-UNSUPPORTED")), errors.mkString("\n"))
+  }
+
 }

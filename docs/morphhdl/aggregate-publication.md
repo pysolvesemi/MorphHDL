@@ -139,6 +139,57 @@ labels. External hierarchical probes must follow the generated scopes; module
 ports and functional behavior retain their source meaning. Turning loop
 preservation off elaborates concrete iterations.
 
+### Previous-iteration Vec dependencies and local names
+
+A retained Area collection can read an earlier element of a shared Vec using a
+positive literal subtraction, provided enclosing index conditions prove the
+access is in range:
+
+```scala
+val x = in(Vec(Bool(), 4))
+val y = out(Vec(Bool(), 4))
+val signals = Vec(Bool(), 4)
+val lanes = for (i <- 0 until 4) yield new Area {
+  signals(i) := (if (i == 0) x(i) else signals(i - 1) ^ x(i))
+  y(i) := signals(i)
+}
+```
+
+`signals` remains module-scope storage; the generated loop reads element `i - 1`
+in its non-first branch. Other per-iteration declarations remain local. The
+explicit equivalent is `index.previous(vector, distance)` inside
+`index.whenEqual`/`index.selectBool` alternatives. Bounds are checked against the
+exact loop and Vec identities over the complete admitted count domain. An empty
+alternative, such as the non-first branch of a singleton collection, retains
+its authenticated unreachable domain. The API returns a read-only selection:
+negative/zero distances, unguarded access, wrong guards, foreign owners and writes
+through the previous selector are rejected. Combinational dependencies are
+checked with the actual iteration/branch identities; a last-to-first feedback
+cycle cannot hide behind a native elaboration alias. Registers remain sequential
+storage with their reset and enable semantics.
+
+This adds guarded whole-element Vec access, not arbitrary Scala indexing of
+retained Area objects. `lanes(i - 1).signal` is not a general retained-collection
+API. Existing restrictions on packed sub-selections of finite Vec aliases remain
+in force; ordinary whole-element operations retain their Bits/UInt/SInt types.
+
+The publisher shortens a weakly named declaration only when its exact declaring
+Area is represented by the enclosing retained generate scope. Thus
+`lanes_A_signal` becomes `A_signal` inside the lane loop, while the flattened
+`A_`/`B_` prefixes remain. Module-scope storage and ordinary Areas retain their
+necessary names. Explicit names and every native `_zz_` helper name remain
+unchanged. Names are allocated after symbolic width and array publication, with
+keywords and visible declarations reserved. Naming receipts are private compiler
+metadata and are removed from the published RTL. Generated hierarchical paths
+for shortened local declarations intentionally change.
+
+A combinational dependency between separate elements of one packed or unpacked
+array can trigger Verilator's aggregate-level `UNOPTFLAT` scheduling warning.
+The regression uses a `split_var` configuration for that exact array, without
+waiving warnings or editing the emitted Verilog. Independent four-state
+simulation and synthesis/cycle checks validate the dependency behavior.
+
+
 ## Validation
 
 Focused local tests exercise strict Verilog-2001 compilation, simulation and

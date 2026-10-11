@@ -291,7 +291,7 @@ object MorphHdlExternalParameterizedVerilog {
           ExternalParameterizedVerilogNativeFallback.lowerRetainedIntegerHelpers(withArrays, component.definitionName)
         }
         val documented = NativeFiniteStatementLineage.finish(component, RtlDocumentation.finishPublication(component, RtlDocumentation.publish(rewritten, ParameterizedVerilogVecs.documentationBindings(component, pc))))
-        Some(name -> NativeGenerateIndexNames.publish(component, documented).split("\n", -1).toVector)
+        Some(name -> NativeGenerateIndexNames.publish(component, NativeAreaLocalNames.publish(component, documented, pc)).split("\n", -1).toVector)
       } else if (RtlDocumentation.declarationBindings(component).nonEmpty || RtlDocumentation.emissions(component).nonEmpty) {
         val publication = if (pc.config.oneFilePerComponent) splitPublications(name) else consolidated.get
         val block = if (pc.config.oneFilePerComponent) publication.blocks.head else blockByName(name)

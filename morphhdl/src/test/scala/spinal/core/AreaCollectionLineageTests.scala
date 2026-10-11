@@ -52,4 +52,29 @@ class AreaCollectionLineageTests extends AnyFunSuite {
     }
     assert(error.toString.contains("SPINAL-ELAB-AREA-DOCUMENTATION-HARDWARE-EFFECT"), error.toString)
   }
+  test("previous read receipts reject changed guard and affine metadata") {
+    MorphVerilog(MorphAggregateOptions(SpinalConfig(targetDirectory = Files.createTempDirectory("area-previous-lineage-").toString),
+      preserveConstantLoops = true, preserveConstantVecs = true)) {
+      new Component {
+        val x = in(Vec(Bool(), 4))
+        val y = out(Vec(Bool(), 4))
+        ElabFiniteRange.foreach(ElabInt.literal(4), "lanes") { i =>
+          i.whenEqual(0, "first") { i(y) := i(x) } { i(y) := i.previous(x, 1) }
+        }
+        val loop = ParameterizedStructure.regionsOf(this).head.asInstanceOf[ParameterizedStructure.StructuralFor]
+        val branch = loop.body.regions.head.asInstanceOf[ParameterizedStructure.StructuralIf]
+        val selection = branch.whenFalse.vecIndices.find(_.affineRead.nonEmpty).get
+        val original = selection.affineRead.get
+        val forged = new ElabFiniteAffineVecRead(original.vector, original.selector, original.baseIndex,
+          original.count, original.originalDepth, original.depth, original.admitted, original.token,
+          2, 0, original.previous)
+        assert(!forged.matches(selection.vector, selection.index, original.token, Some(loop.count)))
+        assert(original.previous.get.owns(branch.whenFalse))
+        val saved = loop.body.regions
+        loop.body.regions = saved.updated(0, branch.copy(condition = branch.condition.copy(verilog = "1")))
+        try assert(!original.previous.get.owns(branch.whenFalse)) finally loop.body.regions = saved
+      }
+    }
+  }
+
 }

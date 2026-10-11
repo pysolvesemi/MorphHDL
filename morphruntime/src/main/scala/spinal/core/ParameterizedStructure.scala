@@ -123,6 +123,8 @@ object ParameterizedStructure {
     val finiteIndexOwners = new IdentityHashMap[ElabFiniteIndexToken, CaptureState]()
     val exactCaseCaptures = new IdentityHashMap[ParameterizedStructuralBlock, ExactCaseCapture]()
     val typedCaseRegions = new IdentityHashMap[StructuralCase, Vector[Set[BigInt]]]()
+    val finiteIndexConditions = new IdentityHashMap[StructuralPredicateDomain, (ElabFiniteIndex, Int)]()
+    val activeFinitePredicates = new IdentityHashMap[ElabFiniteIndexToken, Set[BigInt]]()
     val finitePredicateRoots = new IdentityHashMap[ElabFiniteIndexToken, StructuralPredicateRoot]()
     val finiteExternalChildren = new IdentityHashMap[BlackBox, (String, Long)]()
     var nextPendingId = 0L
@@ -1086,10 +1088,21 @@ object ParameterizedStructure {
     }
     val universe = (BigInt(0) until index.count.maximum).toSet
     val domain = StructuralPredicateDomain(root, universe, universe.filter(_ == value))
+    storage.finiteIndexConditions.put(domain, index -> value)
     val pending = beginPending(state.component, "finite-index-if", source)
-    val yes = captureBlock(state.component, source)(ifTrue)
+    val previous = Option(storage.activeFinitePredicates.get(index.token))
+    val admitted = previous.getOrElse(universe)
+    def capture(values: Set[BigInt])(body: => Unit): ParameterizedStructuralBlock = {
+      storage.activeFinitePredicates.put(index.token, values)
+      try captureBlock(state.component, source)(body)
+      finally previous match {
+        case Some(values) => storage.activeFinitePredicates.put(index.token, values)
+        case None => storage.activeFinitePredicates.remove(index.token)
+      }
+    }
+    val yes = capture(admitted intersect domain.whenTrue)(ifTrue)
     val no = if (emptyElse) ParameterizedStructuralSynthetic.emptyBlock(source)
-      else captureBlock(state.component, source)(ifFalse)
+      else capture(admitted -- domain.whenTrue)(ifFalse)
     var label = role
     var suffix = 2
     while (storage.labels.contains(label + "_true") || storage.labels.contains(label + "_false")) {
@@ -1098,6 +1111,44 @@ object ParameterizedStructure {
     }
     registerIf(pending, condition, label + "_true", label + "_false", yes, no, source, Some(domain))
   }
+
+  private[core] def authenticatedFinitePredicate(component: Component, branch: StructuralIf): Boolean = {
+    val receipt = for {
+      storage <- storageOption(component)
+      domain <- branch.predicateDomain
+      pair <- Option(storage.finiteIndexConditions.get(domain))
+    } yield {
+      val (index, value) = pair
+      def contains(regions: Vector[StructuralRegion]): Boolean =
+        regions.exists(r => (r eq branch) || r.blocks.exists(b => contains(b.regions)))
+      def owner(regions: Vector[StructuralRegion]): Boolean = regions.exists {
+        case loop: StructuralFor if loop.finiteIndexToken.exists(_ eq index.token) =>
+          ElabFiniteRange.equivalentLogicalCount(loop.count, index.count) && contains(loop.body.regions)
+        case r => r.blocks.exists(b => owner(b.regions))
+      }
+      (storage.finitePredicateRoots.get(index.token) eq domain.root) &&
+        index.expression.generateIndex.contains(index.expression.verilog) && index.expression.parameters.isEmpty &&
+        index.expression.default == 0 && index.expression.minimum == 0 && index.expression.maximum == index.count.maximum - 1 &&
+        domain.universe == (BigInt(0) until index.count.maximum).toSet &&
+        domain.whenTrue == domain.universe.filter(_ == value) &&
+        branch.condition.parameters.isEmpty && branch.condition.default == (index.expression.default == value) &&
+        branch.condition.verilog == s"(${index.expression.verilog} == $value)" &&
+        owner(regionsOf(component))
+    }
+    receipt.contains(true)
+  }
+
+  private[core] def previousIndexDomain(index: ElabFiniteIndex): (Long, Set[BigInt]) = {
+    requireActiveFiniteIndex(index)
+    val state = activeCapture.get()
+    val values = Option(storageOf(state.component).activeFinitePredicates.get(index.token)).getOrElse(
+      fail("SPINAL-ELAB-AREA-PREVIOUS-INDEX-UNGUARDED", "previous-iteration access requires an enclosing finite-index guard"))
+    state.id -> values
+  }
+
+  private[core] def previousIndexOwner(component: Component, id: Long,
+      block: ParameterizedStructuralBlock): Boolean =
+    storageOption(component).exists(_.blocksByCaptureId.get(id).exists(_ eq block))
 
   private[core] def finitePredicateRoot(component: Component, token: ElabFiniteIndexToken): Option[StructuralPredicateRoot] =
     storageOption(component).flatMap(storage => Option(storage.finitePredicateRoots.get(token)))
@@ -3480,6 +3531,11 @@ object ParameterizedStructure {
             val proof = domain.joint.get
             proof.requireCondition(value.condition)
             remaining intersect proof.admitted(root, universe, step.branch)
+          } else if (authenticatedFinitePredicate(component, value)) {
+            // An authenticated genvar predicate partitions iterations, not the
+            // formal width parameter domain. Retain the entire admitted formal
+            // domain; never use the selected witness to narrow a signal width.
+            remaining
           } else {
           val predicateRoot = domain.root.elaborationRoot.getOrElse {
             fail(

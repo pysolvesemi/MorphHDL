@@ -548,11 +548,24 @@
     },
     "morphhdl": {
       "morphhdl.AreaCollectionLoopTests": [
+        "Area backward read cannot hide a combinational feedback path",
         "Area collections reject escaped index values",
         "Area collections reject insufficient source-tag widths",
         "Area collections reject out-of-range static members",
         "Area collections retain rejection of competing branch drivers",
         "Area documentation iteration rejects hardware construction",
+        "Area local names omit only the enclosing collection and preserve native helpers",
+        "Area local naming reserves module names and preserves explicit and flattened names",
+        "Area previous reads preserve Bits UInt and SInt selection semantics",
+        "Area previous reads preserve parameterized register reset enable and shift behavior",
+        "Area previous reads retain symbolic count overrides including a single element",
+        "Area previous-iteration access rejects distance",
+        "Area previous-iteration access rejects unguarded",
+        "Area previous-iteration access rejects write",
+        "Area previous-iteration access rejects wrong-branch",
+        "Area previous-iteration dependency publishes one shared Vec unpacked=false",
+        "Area previous-iteration dependency publishes one shared Vec unpacked=true",
+        "Area singleton chain authenticates an unreachable previous-index branch",
         "ordinary Area collection preserves branches, static exports, packed writes and priority count=1",
         "ordinary Area collection preserves branches, static exports, packed writes and priority count=3",
         "symbolic Area collection retains branch and static export across count overrides unpacked=false",
@@ -1776,7 +1789,8 @@
         "Area documentation iteration rejects changes to a child driver",
         "finite index value rejects mutated source lineage",
         "finite index value rejects mutated target lineage",
-        "finite index value rejects mutated width lineage"
+        "finite index value rejects mutated width lineage",
+        "previous read receipts reject changed guard and affine metadata"
       ],
       "spinal.core.BooleanWidthNormalizationTests": [
         "Boolean roots normalize without specializing either default or losing provenance",
@@ -3009,9 +3023,11 @@
       "morphhdl.compiler.MorphHdlAreaCollectionComponentTests": [
         "Area bridge does not intercept unrelated Area classes",
         "Area bridge preserves ordinary loops without structural index branches",
+        "Area bridge rejects a nonliteral backwards offset",
         "Area bridge rejects ordinary collection iteration over a retained template",
         "Area bridge rejects unsupported aliases of the retained index",
-        "Area bridge respects nested Scala index shadowing"
+        "Area bridge respects nested Scala index shadowing",
+        "Area bridge retains a guarded literal backwards Vec index"
       ],
       "morphhdl.compiler.MorphHdlFrontendSymbolicEqualitySafetyComponentTests": [
         "does not intercept ordinary equality or symbolic receivers",
@@ -3418,7 +3434,7 @@
     "frontend/src/test/scala/morphhdl/frontend/compatibility/SpinalImportCompatibilityTests.scala": "288f982de1dd671c5a6b348e31cbffd5798aa465b8caef47ea7a01e21eb12f14",
     "idslplugin/src/test/scala/spinal/idslplugin/DocumentationPluginTests.scala": "0016bc43b545fbcbbd9dccd10e17aaac560e113dcc8debcdbc06b822be4d19fd",
     "morphhdl/src/test/scala/adversarial/vecfake/SInt.scala": "ed76ab7df5ae95a0f3eb7dd5ce05aca5dbf9f54ee72e067bfff004d79c02671d",
-    "morphhdl/src/test/scala/morphhdl/AreaCollectionLoopTests.scala": "499bbfe0b2a769d948443cfc07eea212e40ddf0966315bbaf7dc288e7b41553e",
+    "morphhdl/src/test/scala/morphhdl/AreaCollectionLoopTests.scala": "8613e539c0188709177ca655ed003adc4d29befa632397918a4a9bcad622ac9b",
     "morphhdl/src/test/scala/morphhdl/AsynchronousEnabledRegisterContractFixture.scala": "bfe3aa719951fb82431a00211cbcdd7fbf58863016943dfa7910278221c2c9bb",
     "morphhdl/src/test/scala/morphhdl/AsynchronousRegisterContractFixture.scala": "679d2cb571a90115c1734c3b5744cd7f3b04f73ce6be2b7843c553aba1d9c816",
     "morphhdl/src/test/scala/morphhdl/BackendSyncMergeIsolationTests.scala": "335a4ecef2415c1940f08f21c39cdf45ae014f83d95cd8321b72885c8ca376b7",
@@ -3567,7 +3583,7 @@
     "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogNestedArtifactWriter.scala": "438badb3dc987825890d6294659a7670c9886b429d96d64f03a7963774761fb3",
     "morphhdl/src/test/scala/nativeapplication/SignednessCompatibilityArtifactWriter.scala": "4aba50c53a196b2bbec97a8151e7ed7d5adc53d92d6b6541c9b050d2cfa1792c",
     "morphhdl/src/test/scala/nativeapplication/TypedBlackBoxGenericBindingFixture.scala": "35bc5f4c7c2d8fc6257aafff894313d27f3cd3dabdbc63241e2450efb205f7b1",
-    "morphhdl/src/test/scala/spinal/core/AreaCollectionLineageTests.scala": "00374f9b0dfc17ef79823aacddcea46fdfceabd4c60fddafea99b88c80470aae",
+    "morphhdl/src/test/scala/spinal/core/AreaCollectionLineageTests.scala": "a469ae1493f7cf79f9837789e4ddc372955554a2addc7add1835bef9a85183e1",
     "morphhdl/src/test/scala/spinal/core/BooleanWidthNormalizationTests.scala": "62a4392ecdd10a0ed6c5a98e12cd8c40aafd538d52e2454a7b109b76428fa2d7",
     "morphhdl/src/test/scala/spinal/core/CdcPublicationFormalControl.scala": "19e058f9da8da5c7a7d355819179a8f64d202226c9fea81eb96b9912a8ac01c3",
     "morphhdl/src/test/scala/spinal/core/CdcWireGeometryControl.scala": "176221233cc8a8fa99fe3061de8d957ff3e77db80d5da461a3999456df945621",
@@ -3689,7 +3705,7 @@
     "morphhdl/src/test/scala/spinal/lib/CounterSingleAuthorityParityTests.scala": "9eedbe0f3ce7a457d4c79ab2c9fc3aa1cb02c932436bc76d30d8ada2ca6780f5",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala": "24b185c3ef7939be404500704e955d598c2493ee7c3a1f737d0cf16267d9c362",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrV1Spec.scala": "835224bc5028bc192976dd96e08906add489d4824d328397466a7e4dd7f31493",
-    "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlAreaCollectionComponentTests.scala": "ea1a59ca754168b7a9f34cc618781a5bc5db4078831881e390da6a01440489cf",
+    "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlAreaCollectionComponentTests.scala": "27400d483cb4145d6412e0d8ccdc7cd43f3e5a988ed2203bc99110636bebee67",
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlCompilerTestSupport.scala": "c4137dbf2872457ee7b85bd0f87c2f0f1a6b986ad03e0c48a4dc8cbb7b4a81fd",
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlFrontendSymbolicEqualitySafetyComponentTests.scala": "61d8fb7fb5892ec9b48b3d74360204d432b030b52387bd4779d225d62a5ab34a",
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponentTests.scala": "cfcba4baae6445095236207f23562d2ade502f18e69abfac7f146071aa305bee",

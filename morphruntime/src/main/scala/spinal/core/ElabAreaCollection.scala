@@ -147,6 +147,7 @@ object ElabAreaCollection {
       if (index.expression.generateIndex.nonEmpty) retained = Some(index)
       val area = body(index)
       area.setName(if (retained.nonEmpty) name else name + "_" + values.size)
+      if (retained.nonEmpty) ElabAreaLocalNames.retain(component, index.token, area)
       values :+= area
     }
     new ElabAreaCollection(count, values, retained, component)

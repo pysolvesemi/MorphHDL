@@ -67,3 +67,40 @@ closure. New suites are enrolled in the structural/process workflow and retained
 regression inventory. Publish the reviewed, sealed candidate and qualify affected
 workflows on its exact head before full CI. Predecessor full-CI success belongs to
 `fdeaebef9175d6cb39674a78f48c8e4f9ec70cf3` and is not evidence for this repair.
+
+## 11 October: previous-iteration reads and scope-local names
+
+Guarded literal `vector(i - distance)` reads in retained Area collections now
+use the exact finite index, Vec geometry and branch truth set. Symbolic counts,
+singleton branches and Bool/Bits/UInt/SInt values retain their authored geometry.
+A per-iteration dependency check rejects combinational feedback, including a
+last-element feedback into the first element. Sequential arrays preserve reset,
+enable stalls and data order. The shared Vec remains module scope.
+
+The publisher shortens only identity-proven local Area declaration names, after
+symbolic width and array rewriting. Flattened nested Area prefixes, explicit
+names, module-scope storage and native `_zz_` helper names remain. Keywords and
+visible names are reserved. The A-to-B descendant-branch case also passes the
+corrected scalar dominance check; actual aggregate edges retain their separate
+coverage and dependency proofs.
+
+The focused compiler/ownership/lineage suites pass 46 tests on each supported
+Scala version, and the Area frontend suite passes seven tests on each version.
+Checks include strict lint, synthesis, four-state simulation, count overrides
+1/2/3/4, register width overrides 1/5/64, reset and hold, deterministic output,
+name collisions and explicit names. Existing retained-versus-unrolled sequential
+equivalence remains passing. Verilator uses an exact-array `split_var`
+configuration for combinational prefix scheduling; no warning is waived and
+no generated RTL is patched. Existing packed sub-selection restrictions are
+unchanged. These are local results; exact-head remote qualification is separate.
+
+Evidence is retained under
+`/home/kartik/.local/state/morphhdl/qualification/23dc9248-resume/area-dependencies`.
+
+Fresh read-only application validation also passes selector and transparent-parent
+PPC1/PPC4 lint and simulations, selector synthesis and product-top simulation.
+Product-top lint remains failing on the same four baseline warnings: three
+`axivdisplay.v` width warnings and one frame-reader constant comparison. No
+application sources were edited and those warnings are not counted as passes.
+The final lineage run passes 54 tests per Scala version, including the existing
+affine-read suite and rejection of altered selector/guard metadata.

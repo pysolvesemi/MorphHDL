@@ -197,6 +197,9 @@ final class MorphHdlAreaCollectionComponent(val global: Global) extends PluginCo
                 case use @ Apply(source, List(Apply(Select(Ident(index), TermName("$times")), List(stride)), width))
                     if activeIndex && index == parameter.name =>
                   Apply(Select(Ident(parameter.name), TermName("packed")), List(transform(source), transform(stride), transform(width))).setPos(use.pos)
+                case use @ Apply(source, List(Apply(Select(Ident(index), TermName("$minus")), List(distance @ Literal(Constant(_: Int))))))
+                    if activeIndex && index == parameter.name =>
+                  Apply(Select(Ident(parameter.name), TermName("previous")), List(transform(source), distance)).setPos(use.pos)
                 case use @ Apply(source, List(Ident(index))) if activeIndex && index == parameter.name =>
                   Apply(Select(Ident(parameter.name), TermName("at")), List(transform(source))).setPos(use.pos)
                 case use @ Apply(Ident(TermName("B")), List(Ident(index), width)) if activeIndex && index == parameter.name =>

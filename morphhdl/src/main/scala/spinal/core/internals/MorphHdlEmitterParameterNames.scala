@@ -13,7 +13,10 @@ object MorphHdlEmitterParameterNames {
     if (existing == 0 && phases.exists(_.isInstanceOf[PhaseVerilog])) {
       val allocation = phases.indexWhere(_.isInstanceOf[PhaseAllocateNames])
       require(allocation >= 0, "parameter publication needs native name allocation")
-      phases.insert(allocation + 1, new MorphHdlEmitterParameterNames)
+      phases.insert(allocation, new PhaseMisc {
+        override def impl(pc: PhaseContext): Unit = pc.walkComponents(spinal.core.ElabAreaLocalNames.capture)
+      })
+      phases.insert(allocation + 2, new MorphHdlEmitterParameterNames)
     }
     val names = phases.collectFirst { case phase: MorphHdlEmitterParameterNames => phase }
     phases.collect { case emitter: PhaseVerilog => emitter }.foreach { emitter =>

@@ -39,7 +39,8 @@ private[core] final class ElabFiniteAffineVecRead private[core] (
     val admitted: Set[BigInt],
     val token: ElabFiniteIndexToken,
     val coefficient: Int,
-    val offset: Int
+    val offset: Int,
+    val previous: Option[ElabFinitePreviousRead] = None
 ) {
   private[core] def matches(
       actualVector: Vec[_],
@@ -47,6 +48,8 @@ private[core] final class ElabFiniteAffineVecRead private[core] (
       actualToken: ElabFiniteIndexToken,
       ownerCount: Option[ElaborationIntegerExpression] = None
   ): Boolean = {
+    if (previous.nonEmpty) return previous.get.envelope(baseIndex, count, originalDepth, depth, admitted, coefficient, offset) &&
+      previous.get.matches(actualVector, actualSelector, actualToken, ownerCount)
     val domainMatches = (count.exactDomain, depth.exactDomain) match {
       case (Some(c), Some(d)) if c.root eq d.root =>
         admitted.nonEmpty && admitted.subsetOf(c.evidenceValues) &&
@@ -139,6 +142,29 @@ final class ElabFiniteIndex private[core] (
 
   def at[T <: Data](source: Vec[T]): T = apply(source)
   def at(source: Bits): Bool = bit(source)
+  /** Read an earlier iteration of a module-scope Vec under a proven index guard. */
+  def previous[T <: Data](vector: Vec[T], distance: Int): T = {
+    if (distance <= 0) ParameterizedVerilogException.fail("SPINAL-ELAB-AREA-PREVIOUS-DISTANCE-INVALID", "previous distance must be positive")
+    if (!ParameterizedStructure.captureEnabled || expression.generateIndex.isEmpty)
+      return vector(witness - distance)
+    ParameterizedVec.retainConstantLoopOperand(vector)
+    val shape = ParameterizedVec.shapeOf(vector).getOrElse(
+      throw new IllegalArgumentException("previous iteration requires a retained Vec"))
+    val (capture, values) = ParameterizedStructure.previousIndexDomain(this)
+    if (values.exists(_ < distance) || !ElabFiniteRange.equivalentLogicalCount(shape.depth, count))
+      ParameterizedVerilogException.fail("SPINAL-ELAB-AREA-PREVIOUS-INDEX-OUT-OF-RANGE",
+        "previous-iteration index must be in bounds throughout its guarded loop domain")
+    val selector = expression.copy(verilog = s"(${expression.verilog} - $distance)",
+      default = if (values.isEmpty) 0 else values.min - distance,
+      minimum = if (values.isEmpty) 0 else values.min - distance,
+      maximum = if (values.isEmpty) 0 else values.max - distance)
+    ElabFinitePreviousCycles.schedule(Component.current)
+    val proof = new ElabFinitePreviousRead(vector, selector, this, distance, values, capture, Component.current, shape.depth)
+    val evidence = new ElabFiniteAffineVecRead(vector, selector, expression, count, shape.depth,
+      shape.depth, Set.empty, token, 1, -distance, Some(proof))
+    ParameterizedStructure.recordAffineVecRead(vector, vector(selector.default.toInt), selector, token, evidence, expression.sourceLocation)
+  }
+
   def equal(source: UInt): Bool = source === uint((expression.maximum.bitLength max 1) bits)
 
   private def witness: Int = {
