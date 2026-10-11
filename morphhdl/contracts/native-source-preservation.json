@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "d34e8a6dcaf8b1ab5bb8380409d3869652763b21"
+      "approved_tree": "88978e96b01ddca3e84f68ff263eb360b25e05de"
     },
     {
       "path": "idslpayload/src/main",
@@ -27,7 +27,7 @@
     {
       "path": "lib/src/main",
       "baseline_tree": "76cd20a58e83ff73404632aec84bb03f2dd4dea9",
-      "approved_tree": "c3073e017bc56912f23b51a5db743d09963e67e4"
+      "approved_tree": "8a82247c47084fe1a92ac025528aa975ecd6c302"
     },
     {
       "path": "scalaplugin/src/main",
@@ -1804,7 +1804,8 @@
       "classification": "backend-isolation-hook",
       "introduced_by": [
         "Increment 53: permanent native StreamFifo structure repair",
-        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation",
+        "CA-028: authenticated child-instance and library-composite scope names"
       ],
       "reason": "Provide a narrow tag that prevents only reviewed parameter-sensitive registers from backend sync-process merging. Expose the fluent documentation API on existing tag hosts without changing the returned hardware value.",
       "baseline": {
@@ -1816,10 +1817,79 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/Trait.scala",
         "mode": "100644",
-        "blob": "95e4f0f39e3c50bf93a902ab15efdbb8da8db31b",
-        "sha256": "33ca32f42c46292ae9777c34a7eed19a7ba6baa7d23e388a7cd5a54a5bc36e95"
+        "blob": "fe55aba6b14278521d072aef1e357bb2bdad0130",
+        "sha256": "365e4bf163cdc37f8b2e5ab5695730fed8e2d7f9d34e080dea92fd0fadb6fa69"
       },
       "edits": [
+        {
+          "id": "ca028-library-name-provenance-0",
+          "kind": "backend-isolation",
+          "owner": "native Nameable library-composite provenance",
+          "reason": "CA-028 user-authorized native naming provenance: library-owned composite requests remain strong against automatic naming but are distinguishable from explicit user names for authenticated Area scope publication.",
+          "baseline_span": {
+            "start": 11229,
+            "end": 11229,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 11229,
+            "end": 11278,
+            "sha256": "60a21f66b7b6db56c8aefde0d62556210266ecdeb0c56c443fae26cf4d9ba4eb"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  private[spinal] val LIBRARY_DERIVED : Byte = 9\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "ca028-library-name-provenance-1",
+          "kind": "backend-isolation",
+          "owner": "native Nameable library-composite provenance",
+          "reason": "CA-028 user-authorized native naming provenance: library-owned composite requests remain strong against automatic naming but are distinguishable from explicit user names for authenticated Area scope publication.",
+          "baseline_span": {
+            "start": 11973,
+            "end": 12023,
+            "sha256": "31d5b83db2c3c2a3bbf70b6b0effcc15e92e4be00320b3bf97c406ec2a99e58d"
+          },
+          "approved_span": {
+            "start": 12022,
+            "end": 12318,
+            "sha256": "10e9f1bce42fc0f5a8b8314898742539ccc7e029629176a72179e25af7b510ac"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "// Library-derived composites remain strong against automatic naming, while\n  // an explicit USER_SET name can override their lower, distinct priority.\n  private[core] def isLibraryDerived = namePriority == LIBRARY_DERIVED\n  private[core] def isWeak = namePriority < USER_SET && !isLibraryDerived",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "ca028-library-name-provenance-2",
+          "kind": "backend-isolation",
+          "owner": "native Nameable library-composite provenance",
+          "reason": "CA-028 user-authorized native naming provenance: library-owned composite requests remain strong against automatic naming but are distinguishable from explicit user names for authenticated Area scope publication.",
+          "baseline_span": {
+            "start": 14608,
+            "end": 14608,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 14903,
+            "end": 14965,
+            "sha256": "5a4bbfcf987b3b1f63f99ed0df47d27d7531c6e3352eb9d661ee3a0fac596410"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "    case LIBRARY_DERIVED => namePriority >= this.namePriority\n",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "trait-comments-01",
           "kind": "mechanical-propagation",
@@ -1831,8 +1901,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 21394,
-            "end": 21546,
+            "start": 21751,
+            "end": 21903,
             "sha256": "dbb847a6e68a242225741cedd6b2aded0ad34d5bd7af4c5a8abc09a395b727e0"
           },
           "required_exact_text": [
@@ -1854,8 +1924,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 27421,
-            "end": 27476,
+            "start": 27778,
+            "end": 27833,
             "sha256": "bdf2eca23eb6a2d2ea42a5218f8b55bb03bc501e74f50139c052a1ff6abc71a9"
           },
           "required_exact_text": [
@@ -5156,7 +5226,8 @@
         "Increment 40: external symbolic width and data-shape retention",
         "Increment 44: native Counter, Stream and Flow reuse (#65)",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 55: audit concrete compatibility"
+        "Increment 55: audit concrete compatibility",
+        "CA-028: authenticated child-instance and library-composite scope names"
       ],
       "reason": "Add typed Counter overloads and one exact geometry adapter around the authoritative native stepping algorithm, with a reviewed singleton guard that prevents a zero-bit concrete step.",
       "baseline": {
@@ -5168,8 +5239,8 @@
       "approved": {
         "path": "lib/src/main/scala/spinal/lib/Counter.scala",
         "mode": "100644",
-        "blob": "bb37c8a163fe8c8c864bb5de27f274d1b775c6b3",
-        "sha256": "7c85e3cdad2bd5ddf8710ca2ccd3f555bbbdb641c51ead61e9233909ced6a2ca"
+        "blob": "df90a66ca29dbdb5799b3c0f1e927a7f8070aa0d",
+        "sha256": "236ccfcddc45c673684996da1dbc89a94b2fd769dc0e868f5df31a24a29ce1c0"
       },
       "edits": [
         {
@@ -5572,7 +5643,7 @@
           "id": "counter-concise-rtl-names",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter native signal naming",
-          "reason": "Publish area-qualified clear, incr and next RTL signal names while retaining the existing Scala control API and unchanged counter assignments.",
+          "reason": "Publish area-qualified clear, incr and next RTL signal names while retaining the existing Scala control API and unchanged counter assignments. CA-028: distinguish library-owned composite names from explicit user naming; preserve strong behavior against automatic naming and allow explicit USER_SET to override.",
           "baseline_span": {
             "start": 15403,
             "end": 15403,
@@ -5580,23 +5651,13 @@
           },
           "approved_span": {
             "start": 37738,
-            "end": 37955,
-            "sha256": "a9078e020eae86b8cbc576ac22a53f01ef869bcb8d8ba654df7332ac678839f9"
+            "end": 38033,
+            "sha256": "cf13ff84fb53796b6ff72f616532945f5fdbfe91736412f019d62ccde20c9f04"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "willClear.setCompositeName(this, \"clear\")",
-              "count": 1
-            },
-            {
-              "side": "approved",
-              "text": "willIncrement.setCompositeName(this, \"incr\")",
-              "count": 1
-            },
-            {
-              "side": "approved",
-              "text": "valueNext.setCompositeName(this, \"next\")",
+              "text": "  // Keep the Scala control API while publishing concise area-qualified RTL names.\n  willClear.setCompositeName(this, \"clear\", Nameable.LIBRARY_DERIVED)\n  willIncrement.setCompositeName(this, \"incr\", Nameable.LIBRARY_DERIVED)\n  valueNext.setCompositeName(this, \"next\", Nameable.LIBRARY_DERIVED)\n",
               "count": 1
             }
           ]
@@ -5612,8 +5673,8 @@
             "sha256": "f72c3b9b3be2af8efd41fa9b75cad36c90f97b2fc564732ae28f8e22d3477d3d"
           },
           "approved_span": {
-            "start": 38131,
-            "end": 38162,
+            "start": 38209,
+            "end": 38240,
             "sha256": "163fe441466d92de120e7365285f811377e320ce7f917629c12f77f7f09db3cb"
           },
           "required_exact_text": [
@@ -5635,8 +5696,8 @@
             "sha256": "6113247bf823c32d398236398ee23f3d8b93362e4cde85b783eb4bcd4176bcf7"
           },
           "approved_span": {
-            "start": 38166,
-            "end": 41390,
+            "start": 38244,
+            "end": 41468,
             "sha256": "b9b8d2dc73650acd2332dd7455ff97a5b7e7047dd40a4dcbe707b33df1d97aaf"
           },
           "required_exact_text": [
@@ -5658,8 +5719,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 41499,
-            "end": 41564,
+            "start": 41577,
+            "end": 41642,
             "sha256": "e56ffa2484db4334f6b928bb47c95a680c385da095b59869e387906ded5d3bea"
           },
           "required_exact_text": [
@@ -5681,8 +5742,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 43446,
-            "end": 43577,
+            "start": 43524,
+            "end": 43655,
             "sha256": "63eb26461164f322d3fb80810b3d91e39010a45eddc6f39f4430ce7971827331"
           },
           "required_exact_text": [
@@ -5704,8 +5765,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 43721,
-            "end": 43925,
+            "start": 43799,
+            "end": 44003,
             "sha256": "c2941d87cb7f868ef9d84c632de13208e50c877b2edce525046f64f0fef91260"
           },
           "required_exact_text": [
