@@ -1246,6 +1246,7 @@ private[internals] object ParameterizedVerilogStructural {
           block.sourceLocation
         )
       }
+      NativeAreaLocalNames.captureInstance(component, child, definitionName)
       val range = findInstanceRange(
         lines,
         definitionName,
@@ -4865,7 +4866,10 @@ private[internals] object ParameterizedVerilogStructural {
           }.map(leaf -> _)
         }
       }.distinct
-      NativeAreaLocalNames.retain(body, requests)
+      val children = descendants.flatMap(_.children).distinct.flatMap { child =>
+        ElabAreaLocalNames.requested(child.parent, token, child).map(child -> _)
+      }
+      NativeAreaLocalNames.retain(body, requests, children)
     }.getOrElse(body)
     s"${prefix}for (${value.indexName} = 0; ${value.indexName} < ${value.count.verilog}; " +
       s"${value.indexName} = ${value.indexName} + 1) begin : ${value.label}\n" +

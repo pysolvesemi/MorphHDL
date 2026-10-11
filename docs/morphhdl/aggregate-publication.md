@@ -480,3 +480,12 @@ fold is also compared against an independently authored combinational oracle.
 Nested loop bounds and index scales used only as scalar formals retain independent
 instance bindings. Their defaults are normalized for one generic definition;
 reversed instance order, overrides and combined/per-component output are covered.
+
+
+Retained Area collection scopes also localize eligible native child instance
+names, their interface wrapper wires and library-owned Counter `clear`, `incr`
+and `next` composites. Exact ownership and naming provenance authorize removal
+of the enclosing collection prefix; meaningful nested prefixes remain. Explicit
+user names and native `_zz_` helpers remain unchanged. Collision allocation keeps
+instance and wrapper names consistent. See [CA-028](ca028-area-collections.md)
+for the naming contract and intentional generated hierarchy path changes.

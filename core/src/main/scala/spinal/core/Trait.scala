@@ -361,6 +361,7 @@ object Nameable{
 
 
   val DATAMODEL_STRONG : Byte = 15
+  private[spinal] val LIBRARY_DERIVED : Byte = 9
   val USER_SET : Byte = 10
   val DATAMODEL_WEAK : Byte = 5
   val USER_WEAK : Byte = 0
@@ -388,7 +389,10 @@ trait Nameable extends OwnableRef with ContextUser {
 
   protected def getMode = mode
 
-  private[core] def isWeak = namePriority < USER_SET
+  // Library-derived composites remain strong against automatic naming, while
+  // an explicit USER_SET name can override their lower, distinct priority.
+  private[core] def isLibraryDerived = namePriority == LIBRARY_DERIVED
+  private[core] def isWeak = namePriority < USER_SET && !isLibraryDerived
 //  private[core] def setMode(mode: Byte)    = this.mode = mode
 //  private[core] def setWeak(weak: Boolean) = this.weak = if (weak) 1 else 0
 
@@ -468,6 +472,7 @@ trait Nameable extends OwnableRef with ContextUser {
   }
 
   def isPriorityApplicable(namePriority: Byte): Boolean = namePriority match{
+    case LIBRARY_DERIVED => namePriority >= this.namePriority
     case USER_WEAK => namePriority >= this.namePriority
     case USER_SET => namePriority >= this.namePriority
     case DATAMODEL_STRONG => namePriority > this.namePriority

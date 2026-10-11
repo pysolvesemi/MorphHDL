@@ -104,3 +104,34 @@ Product-top lint remains failing on the same four baseline warnings: three
 application sources were edited and those warnings are not counted as passes.
 The final lineage run passes 54 tests per Scala version, including the existing
 affine-read suite and rejection of altered selector/guard metadata.
+
+## Child instances and library composite names
+
+CA-028 also shortens native child instances and their native interface wrapper
+wires inside the retained collection scope. Exact Area, child, port, declaration
+and extracted-instance identities authorize these requests. For example,
+`adapters_skid` becomes `skid`, and its `adapters_skid_o_data` wrapper becomes
+`skid_o_data`. Module definitions, port names, parameters, direct aliases and
+connections retain their native identities. Each generated iteration still owns
+an independent instance. Generated hierarchy paths intentionally use the shorter
+instance name. Name collisions receive deterministic suffixes shared consistently
+by the instance and its wrappers.
+
+Library-owned Counter `clear`, `incr` and `next` composites carry a distinct
+native naming priority. It remains strong against automatic naming but permits
+an explicit user name to override it. This provenance lets publication remove
+only the enclosing retained Area prefix while retaining `xCounter_`, `yCounter_`
+and other nested owner names. Explicit names on leaves, children or flattened
+owners remain unchanged. Other strong names are not enrolled. Native `_zz_`
+helpers are neither renamed nor simplified.
+
+Local qualification passes 40 focused tests on each of Scala 2.12.18 and 2.13.12,
+including naming collisions, explicit composite/leaf/child/owner names,
+deterministic regeneration, independent lane simulation, lint and synthesis.
+Read-only application generation confirms the requested names with the existing
+selector Scala. Standalone and parent-bound PPC1/PPC4 lint and simulations pass,
+as do both selector synthesis checks and product-top simulation. Product-top
+lint still fails on the same four previously recorded warnings; it is not
+counted as passing. Evidence is retained under
+`/home/kartik/.local/state/morphhdl/qualification/23dc9248-resume/area-child-names`.
+Exact-candidate remote qualification remains separate from these local results.

@@ -10,6 +10,7 @@ private[internals] object NativeFiniteStatementLineage {
   private object ReferenceKey
   private object WrapperKey
   def captureReferences(printer: ComponentEmitterVerilog): Unit = {
+    NativeAreaLocalNames.captureConnections(printer)
     printer.component.userCache(WrapperKey) = printer.wrappedExpressionToName.toVector
     if (!printer.component.userCache.contains(ReferenceKey)) {
       val refs = new java.util.IdentityHashMap[BaseType, String]()

@@ -549,6 +549,10 @@
     "morphhdl": {
       "morphhdl.AreaCollectionLoopTests": [
         "Area backward read cannot hide a combinational feedback path",
+        "Area child instances connections and library composites preserve naming provenance authored",
+        "Area child instances connections and library composites preserve naming provenance collision",
+        "Area child instances connections and library composites preserve naming provenance normal",
+        "Area child instances connections and library composites preserve naming provenance owner",
         "Area collections reject escaped index values",
         "Area collections reject insufficient source-tag widths",
         "Area collections reject out-of-range static members",
@@ -3434,7 +3438,7 @@
     "frontend/src/test/scala/morphhdl/frontend/compatibility/SpinalImportCompatibilityTests.scala": "288f982de1dd671c5a6b348e31cbffd5798aa465b8caef47ea7a01e21eb12f14",
     "idslplugin/src/test/scala/spinal/idslplugin/DocumentationPluginTests.scala": "0016bc43b545fbcbbd9dccd10e17aaac560e113dcc8debcdbc06b822be4d19fd",
     "morphhdl/src/test/scala/adversarial/vecfake/SInt.scala": "ed76ab7df5ae95a0f3eb7dd5ce05aca5dbf9f54ee72e067bfff004d79c02671d",
-    "morphhdl/src/test/scala/morphhdl/AreaCollectionLoopTests.scala": "8613e539c0188709177ca655ed003adc4d29befa632397918a4a9bcad622ac9b",
+    "morphhdl/src/test/scala/morphhdl/AreaCollectionLoopTests.scala": "684cca83bb281dfb6865580131412b095b952642eb97b616ff5b7675446d5f3d",
     "morphhdl/src/test/scala/morphhdl/AsynchronousEnabledRegisterContractFixture.scala": "bfe3aa719951fb82431a00211cbcdd7fbf58863016943dfa7910278221c2c9bb",
     "morphhdl/src/test/scala/morphhdl/AsynchronousRegisterContractFixture.scala": "679d2cb571a90115c1734c3b5744cd7f3b04f73ce6be2b7843c553aba1d9c816",
     "morphhdl/src/test/scala/morphhdl/BackendSyncMergeIsolationTests.scala": "335a4ecef2415c1940f08f21c39cdf45ae014f83d95cd8321b72885c8ca376b7",

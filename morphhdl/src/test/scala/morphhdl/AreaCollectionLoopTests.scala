@@ -534,4 +534,99 @@ end $finish; end endmodule
     }
   }
 
+
+  for (mode <- Seq("normal", "collision", "authored", "owner"))
+  test(s"Area child instances connections and library composites preserve naming provenance $mode") {
+    def emit(dir: java.nio.file.Path): Unit = {
+      MorphVerilog(MorphAggregateOptions(SpinalConfig(targetDirectory = dir.toString,
+        headerWithDate = false), preserveConstantLoops = true, preserveConstantVecs = true)) {
+        new Component {
+          setDefinitionName("Top")
+          val x = in(Vec(Bits(8 bits), 3))
+          val en, clear = in(Vec(Bool(), 3))
+          val y = out(Vec(Bits(8 bits), 3))
+          val valid = out(Vec(Bool(), 3))
+          val occupied = in Bool()
+          if (mode == "collision") occupied.setName("skid")
+          val lanes = for (i <- 0 until 3) yield new Area {
+            val xCounter = spinal.lib.Counter(8 bits)
+            if (mode == "owner") xCounter.setName("lanes_authored_xCounter")
+            when(en(i)) { xCounter.increment() }
+            when(clear(i)) { xCounter.clear() }
+            if (mode == "authored") {
+              xCounter.willIncrement.setCompositeName(xCounter, "incr")
+              xCounter.valueNext.setName("lanes_authored_next")
+            }
+            val skid = new BlackBox {
+              setDefinitionName("BufferPrimitive")
+              addGeneric("DW", 8)
+              val i_valid, i_ready = in Bool()
+              val i_data = in Bits(8 bits)
+              val o_valid, o_ready = out Bool()
+              val o_data = out Bits(8 bits)
+            }
+            if (mode == "authored") skid.setName("lanes_authored_skid")
+            skid.i_valid := en(i) && !clear(i)
+            if (i == 0) skid.i_ready := occupied else skid.i_ready := !occupied
+            skid.i_data := xCounter.value.asBits ^ x(i)
+            y(i) := skid.o_data ^ x(i)
+            valid(i) := skid.o_valid && skid.o_ready
+          }
+        }
+      }
+    }
+    val dir = Files.createTempDirectory("area-child-names-")
+    emit(dir)
+    val rtl = new String(Files.readAllBytes(dir.resolve("Top.v")), UTF_8)
+    val instance = if (mode == "authored") "lanes_authored_skid" else if (mode == "collision") "skid_2" else "skid"
+    assert(rtl.contains(") " + instance + " ("), rtl)
+    assert(rtl.contains(instance + "_o_data"), rtl)
+    assert(rtl.contains(instance + "_i_ready"), rtl)
+    assert(rtl.contains(".o_data") && rtl.contains(".i_valid") && rtl.contains("BufferPrimitive #("), rtl)
+    assert(rtl.contains("xCounter_clear"), rtl)
+    if (mode == "authored") {
+      assert(rtl.contains("lanes_xCounter_incr") && rtl.contains("lanes_authored_next"), rtl)
+    } else if (mode == "owner") {
+      assert(rtl.contains("lanes_authored_xCounter_incr") && rtl.contains("lanes_authored_xCounter_next"), rtl)
+    } else {
+      assert(rtl.contains("xCounter_incr") && rtl.contains("xCounter_next"), rtl)
+      assert(!"(?m)\\b(?:wire|reg)\\s+(?:\\[[^\\]]+\\]\\s+)?lanes_xCounter_(?:incr|next)\\b".r.findFirstIn(rtl).nonEmpty, rtl)
+    }
+    val again = Files.createTempDirectory("area-child-names-repeat-")
+    emit(again)
+    assert(java.util.Arrays.equals(Files.readAllBytes(dir.resolve("Top.v")), Files.readAllBytes(again.resolve("Top.v"))))
+    Files.write(dir.resolve("BufferPrimitive.v"), """module BufferPrimitive #(parameter DW=8)
+(input i_valid, i_ready, input [DW-1:0] i_data, output o_valid, o_ready, output [DW-1:0] o_data);
+assign o_valid=i_valid; assign o_ready=i_ready; assign o_data=i_data;
+endmodule
+""".getBytes(UTF_8))
+    val occupied = if (mode == "collision") "skid" else "occupied"
+    Files.write(dir.resolve("tb.v"), s"""module tb;
+reg clk=0,reset=1; always #5 clk=~clk;
+reg [23:0] x=24'h9a7513; reg [2:0] en=0,clear=0; wire [23:0] y; wire [2:0] valid;
+Top dut(.clk(clk),.reset(reset),.x(x),.en(en),.clear(clear),.y(y),.valid(valid),.$occupied(1'b1));
+integer n,j; reg [7:0] count[0:2];
+initial begin
+for(j=0;j<3;j=j+1) count[j]=0;
+#1; en=7; clear=7; #1; en=0; clear=0;
+repeat(3) @(negedge clk); reset=0;
+for(n=0;n<40;n=n+1) begin
+ en=n; clear=(n%7==0)?3'b010:0;
+ @(posedge clk); for(j=0;j<3;j=j+1) if(clear[j]) count[j]=0; else if(en[j]) count[j]=count[j]+1;
+ #1; for(j=0;j<3;j=j+1) if(y[j*8+:8] !== count[j]) $$fatal(1,"lane state mismatch");
+ if(valid !== (en & ~clear & 3'b001)) $$fatal(1,"connection mismatch");
+ @(negedge clk);
+end
+$$display("PASS"); $$finish;
+end
+endmodule
+""".getBytes(UTF_8))
+    Seq(Seq("iverilog", "-g2012", "-s", "tb", "-o", "sim", "Top.v", "BufferPrimitive.v", "tb.v"),
+      Seq("vvp", "sim"), Seq("verilator", "--lint-only", "--top-module", "Top", "Top.v", "BufferPrimitive.v"),
+      Seq("yosys", "-Q", "-p", "read_verilog Top.v BufferPrimitive.v; synth -top Top; check -assert")).foreach { cmd =>
+      val (code, log) = Increment66ToolEvidence.run(dir, cmd)
+      assert(code == 0, s"$cmd in $dir\n$log")
+    }
+  }
+
 }
