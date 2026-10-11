@@ -1,0 +1,40 @@
+{
+  "repository": "pysolvesemi/MorphHDL",
+  "pr": 195,
+  "base_ref": "parameterized-verilog",
+  "base_sha": "db54d01e5b21c7664f7a0de3795f061d77a3d259",
+  "candidate_ref": "work/remaining-parameterized-increments",
+  "candidate_sha": "ac74b5246592bc48ab9ea4749aa7c04d18ad354e",
+  "candidate_tree": "46ab08c171d7ba953b1930aa683b5268151b2a8e",
+  "control_ref": "control/recursive-sum-ac74b5246592-priority",
+  "control_files": [
+    ".github/workflows/recursive-sum-ac74b5246592-priority.yml",
+    ".github/controllers/recursive-sum-ac74b5246592-priority/dispatch.py",
+    ".github/controllers/recursive-sum-ac74b5246592-priority/dispatch.json"
+  ],
+  "workflows": [
+    {
+      "id": 337738060,
+      "path": ".github/workflows/morphhdl-external-structural-process.yml",
+      "sha256": "407ae5160f353d70bee4cdc7f82549ba61e5be6e11b8128c25092d77a26c51ab",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 336665858,
+      "path": ".github/workflows/morphhdl-native-source-guard.yml",
+      "sha256": "f4c437482d3aa970d86b3a64f000bdd934771eec539ac0dd8fcfb94e80d85fc0",
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    }
+  ],
+  "original_failures": [
+    {
+      "run_id": 38171219426,
+      "workflow_id": 336665858,
+      "head_sha": "d94283ed3331f38eb8d9936848f28caf5bf8c7b3"
+    }
+  ]
+}

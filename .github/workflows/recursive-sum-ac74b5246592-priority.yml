@@ -1,0 +1,29 @@
+name: Recursive unsigned sum exact-candidate targeted dispatcher
+on:
+  push:
+    branches: [control/recursive-sum-ac74b5246592-priority]
+    paths:
+      - .github/workflows/recursive-sum-ac74b5246592-priority.yml
+      - .github/controllers/recursive-sum-ac74b5246592-priority/dispatch.py
+      - .github/controllers/recursive-sum-ac74b5246592-priority/dispatch.json
+permissions:
+  contents: read
+  actions: write
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate exact identities and dispatch affected workflows
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/controllers/recursive-sum-ac74b5246592-priority/dispatch.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: recursive-sum-ac74b5246592-priority-ledger
+          path: dispatch-ledger.jsonl
+          if-no-files-found: error
