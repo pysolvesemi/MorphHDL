@@ -12,9 +12,17 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 ROOT=Path(__file__).resolve().parents[2]
 CONTRACT='morphhdl/contracts/retained-parameterized-regressions.json'
-CONTRACT_SHA256='e68942548b844e859a8c7c7278d069b173056ae7128a7458763210e28ce40ed6'
+CONTRACT_SHA256='ab14f30f6834c541651dca9934b6c138ab30c69607da663bb2be24de9fdd8418'
 def require(ok,detail):
  if not ok:raise RuntimeError('Retained parameterized regressions: '+detail)
+def check_sources(root,sources):
+ for path,sha in sources.items():
+  p=root/path;require(p.is_file() and not p.is_symlink() and hashlib.sha256(p.read_bytes()).hexdigest()==sha,'test source differs: '+path)
+def catalog(root=ROOT):
+ raw=(root/CONTRACT).read_bytes();require(hashlib.sha256(raw).hexdigest()==CONTRACT_SHA256,'catalog digest differs');c=json.loads(raw)
+ require(c['schema']==1,'schema differs')
+ check_sources(root,c['test_source_sha256'])
+ return c
 def project_reports(directory,expected,started_ns=0):
  actual={}
  for p in directory.glob('TEST-*.xml'):
@@ -51,18 +59,27 @@ def self_test():
   try:project_reports(Path(d),{'example.Suite':['kept']})
   except RuntimeError:pass
   else:raise RuntimeError('missing report accepted')
- print('Retained regression inventory: positive control and 7 rejection controls passed')
+ with tempfile.TemporaryDirectory() as d:
+  root=Path(d);p=root/'test.scala';p.write_text('reviewed source')
+  sources={'test.scala':hashlib.sha256(p.read_bytes()).hexdigest()}
+  check_sources(root,sources)
+  p.write_text('altered source')
+  try:check_sources(root,sources)
+  except RuntimeError:pass
+  else:raise RuntimeError('changed test source accepted')
+  p.unlink()
+  try:check_sources(root,sources)
+  except RuntimeError:pass
+  else:raise RuntimeError('missing test source accepted')
+ print('Retained regression inventory: source and report positive controls and 9 rejection controls passed')
 def main():
  parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--self-test',action='store_true');parser.add_argument('--output',type=Path);parser.add_argument('--begin',action='store_true');parser.add_argument('--session',type=Path);a=parser.parse_args()
+ c=catalog()
  if a.self_test:self_test();return
- raw=(ROOT/CONTRACT).read_bytes();require(hashlib.sha256(raw).hexdigest()==CONTRACT_SHA256,'catalog digest differs');c=json.loads(raw)
- require(c['schema']==1,'schema differs')
  head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
  tree=subprocess.check_output(['git','rev-parse','HEAD^{tree}'],cwd=ROOT,text=True).strip()
  require(not subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=ROOT),'dirty candidate')
  for ref in ['basis_59i','basis_batch']:subprocess.run(['git','merge-base','--is-ancestor',c[ref],head],cwd=ROOT,check=True)
- for path,sha in c['test_source_sha256'].items():
-  p=ROOT/path;require(p.is_file() and not p.is_symlink() and hashlib.sha256(p.read_bytes()).hexdigest()==sha,'test source differs: '+path)
  require(a.session is not None,'--session is required to bind reports to a fresh run')
  if a.begin:
   require(not a.session.exists(),'session already exists')
