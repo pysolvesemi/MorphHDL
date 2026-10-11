@@ -1056,11 +1056,51 @@
       "classification": "backend-isolation-hook",
       "introduced_by": [
         "Increment 53: permanent native StreamFifo structure repair",
-        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation",
+        "CA-028: authenticated child-instance and library-composite scope names"
       ],
       "reason": "Provide a narrow tag that prevents only reviewed parameter-sensitive registers from backend sync-process merging. Expose the fluent documentation API on existing tag hosts without changing the returned hardware value.",
       "baseline_path": "core/src/main/scala/spinal/core/Trait.scala",
       "edits": [
+        {
+          "id": "ca028-library-name-provenance-0",
+          "kind": "backend-isolation",
+          "owner": "native Nameable library-composite provenance",
+          "reason": "CA-028 user-authorized native naming provenance: library-owned composite requests remain strong against automatic naming but are distinguishable from explicit user names for authenticated Area scope publication.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  private[spinal] val LIBRARY_DERIVED : Byte = 9\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "ca028-library-name-provenance-1",
+          "kind": "backend-isolation",
+          "owner": "native Nameable library-composite provenance",
+          "reason": "CA-028 user-authorized native naming provenance: library-owned composite requests remain strong against automatic naming but are distinguishable from explicit user names for authenticated Area scope publication.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "// Library-derived composites remain strong against automatic naming, while\n  // an explicit USER_SET name can override their lower, distinct priority.\n  private[core] def isLibraryDerived = namePriority == LIBRARY_DERIVED\n  private[core] def isWeak = namePriority < USER_SET && !isLibraryDerived",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "ca028-library-name-provenance-2",
+          "kind": "backend-isolation",
+          "owner": "native Nameable library-composite provenance",
+          "reason": "CA-028 user-authorized native naming provenance: library-owned composite requests remain strong against automatic naming but are distinguishable from explicit user names for authenticated Area scope publication.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "    case LIBRARY_DERIVED => namePriority >= this.namePriority\n",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "trait-comments-01",
           "kind": "mechanical-propagation",
@@ -3044,7 +3084,8 @@
         "Increment 40: external symbolic width and data-shape retention",
         "Increment 44: native Counter, Stream and Flow reuse (#65)",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 55: audit concrete compatibility"
+        "Increment 55: audit concrete compatibility",
+        "CA-028: authenticated child-instance and library-composite scope names"
       ],
       "reason": "Add typed Counter overloads and one exact geometry adapter around the authoritative native stepping algorithm, with a reviewed singleton guard that prevents a zero-bit concrete step.",
       "baseline_path": "lib/src/main/scala/spinal/lib/Counter.scala",
@@ -3279,21 +3320,11 @@
           "id": "counter-concise-rtl-names",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter native signal naming",
-          "reason": "Publish area-qualified clear, incr and next RTL signal names while retaining the existing Scala control API and unchanged counter assignments.",
+          "reason": "Publish area-qualified clear, incr and next RTL signal names while retaining the existing Scala control API and unchanged counter assignments. CA-028: distinguish library-owned composite names from explicit user naming; preserve strong behavior against automatic naming and allow explicit USER_SET to override.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "willClear.setCompositeName(this, \"clear\")",
-              "count": 1
-            },
-            {
-              "side": "approved",
-              "text": "willIncrement.setCompositeName(this, \"incr\")",
-              "count": 1
-            },
-            {
-              "side": "approved",
-              "text": "valueNext.setCompositeName(this, \"next\")",
+              "text": "  // Keep the Scala control API while publishing concise area-qualified RTL names.\n  willClear.setCompositeName(this, \"clear\", Nameable.LIBRARY_DERIVED)\n  willIncrement.setCompositeName(this, \"incr\", Nameable.LIBRARY_DERIVED)\n  valueNext.setCompositeName(this, \"next\", Nameable.LIBRARY_DERIVED)\n",
               "count": 1
             }
           ]
