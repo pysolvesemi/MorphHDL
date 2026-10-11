@@ -59,13 +59,12 @@ private[spinal] object BoundedRecursiveModuleValidation {
           if blackBox.isBlackBox && blackBox.definitionName == ownerName => blackBox
     }
     if (selfReferences.isEmpty) return Vector.empty
-    if (selfReferences.size != 1)
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-RECURSION-SELF-REFERENCE-COUNT",
-        s"module '$ownerName' requires exactly one direct self-reference, found ${selfReferences.size}",
-        None
-      )
-    val selfReference = selfReferences.head
+    selfReferences.foreach(reference => validateReference(owner, reference))
+    selfReferences
+  }
+
+  private def validateReference(owner: Component, selfReference: BlackBox): Unit = {
+    val ownerName = owner.definitionName
     if (selfReference.impl != null || selfReference.listRTLPath.nonEmpty)
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-RECURSION-SEPARATE-IMPLEMENTATION",
@@ -179,8 +178,7 @@ private[spinal] object BoundedRecursiveModuleValidation {
         s"self-reference '$ownerName' must bind every owning module parameter explicitly",
         None
       )
-    validatePorts(owner, selfReference, metrics.head._2.root)
-    selfReferences
+    validatePorts(owner, selfReference, classified.map { case (binding, domain, _) => binding -> domain })
   }
 
   private def classify(
@@ -195,24 +193,26 @@ private[spinal] object BoundedRecursiveModuleValidation {
       result == rootValue
     }) return PreservedBinding
 
-    val positiveValues = domain.universe.filter(_ > 0)
+    val positiveValues = domain.universe.filter(_ > parameter.minimum)
     val provenMetric = sameFormal && evaluation.captured &&
-      parameter.minimum == 0 && parameter.maximum >= 1 &&
+      parameter.minimum >= 0 && parameter.maximum > parameter.minimum &&
       evaluations.map(_._1).toSet == positiveValues &&
       evaluations.forall { case (rootValue, result) =>
-        rootValue > 0 && result >= 0 && result < rootValue
+        rootValue > parameter.minimum && result >= parameter.minimum &&
+          result <= parameter.maximum && result < rootValue
       }
     if (provenMetric) DecreasingMetric else UnsupportedBinding
   }
 
   /** Port spelling is the explicit module interface, never provenance.
     * The types and width expressions are checked using the exact native ports.
-    * Recursion-dependent port geometry is intentionally outside this increment.
+    * Widths are compared after exact formal/actual substitution, never by
+    * a matching witness or rendered expression.
     */
   private def validatePorts(
       owner: Component,
       reference: BlackBox,
-      metricRoot: ElaborationIntegerParameterRoot
+      bindings: Vector[(ParameterizedBlackBoxIntegerGeneric, ElaborationExactDomain[BigInt])]
   ): Unit = {
     val ports = owner.getOrdredNodeIo.toVector.filterNot(_.isSuffix)
     val referenced = reference.getOrdredNodeIo.toVector.filterNot(_.isSuffix)
@@ -236,17 +236,55 @@ private[spinal] object BoundedRecursiveModuleValidation {
       if (
         port.isInOut || port.getTypeObject != other.getTypeObject ||
         port.getDirection != other.getDirection ||
-        port.getBitsWidth != other.getBitsWidth ||
-        width.completedParameterRoots.exists(_ eq metricRoot) ||
-        otherWidth.completedParameterRoots.exists(_ eq metricRoot) ||
-        !ElabInt.equivalentExpression(width, otherWidth)
+        !substitutedWidthEqual(owner, reference, port, width, otherWidth, bindings)
       )
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-RECURSION-PORT-SCHEMA-MISMATCH",
-          s"recursive port '${port.getName()}' must retain its direction, type and recursion-independent width",
+          s"recursive port '${port.getName()}' must retain its direction, type and authenticated substituted width",
           width.sourceLocation.orElse(otherWidth.sourceLocation)
         )
     }
+  }
+
+  private def substitutedWidthEqual(
+      owner: Component, reference: BlackBox, port: BaseType,
+      expected: ElaborationIntegerExpression,
+      actual: ElaborationIntegerExpression,
+      bindings: Vector[(ParameterizedBlackBoxIntegerGeneric, ElaborationExactDomain[BigInt])]
+  ): Boolean = {
+    val expectedProof = ElaborationProductDomain.owner(expected, "recursive definition port", expected.sourceLocation) {
+      (root, universe) => ParameterizedStructure.exactDeclarationDomainOf(owner, port, root, universe,
+        "recursive definition port", expected.sourceLocation).values
+    }.get
+    val actualProof = ElaborationProductDomain.owner(actual, "recursive child port", actual.sourceLocation) {
+      (root, universe) => ParameterizedStructure.exactChildDomainOf(owner, reference, root, universe,
+        "recursive child port", actual.sourceLocation).values
+    }.get
+    val roots = (expected.completedParameterRoots ++ actual.completedParameterRoots).distinct
+    if (!roots.forall(root => bindings.count(_._2.root eq root) == 1)) return false
+    val axes = roots.map { root =>
+      val (binding, domain) = bindings.find(_._2.root eq root).get
+      // Each binding has already been authenticated against this exact child.
+      (root, domain, binding.expression.exactDomain.get.evidenceValues.toVector.sorted)
+    }
+    if (axes.foldLeft(BigInt(1))((size, axis) => size * axis._3.size) > ElaborationExactDomain.MaximumDomainSize)
+      fail("SPINAL-PARAMETERIZED-VERILOG-RECURSION-PORT-DOMAIN-TOO-LARGE",
+        "recursive port substitution exceeds the finite proof budget", expected.sourceLocation)
+    def check(index: Int, values: Vector[(ElaborationIntegerParameterRoot, BigInt)]): Boolean = {
+      if (index < axes.size) axes(index)._3.forall(value => check(index + 1, values :+ (axes(index)._1 -> value)))
+      else {
+        val substituted = values.map { case (root, value) =>
+          val (_, domain) = bindings.find(_._2.root eq root).get
+          root -> domain.evaluate(value).getOrElse(return false)
+        }
+        (expectedProof.evaluate(substituted),
+          actualProof.evaluate(values)) match {
+          case (Some(a), Some(b)) => a > 0 && a == b
+          case _ => false
+        }
+      }
+    }
+    check(0, Vector.empty)
   }
 
   private def fail(code: String, detail: String, source: Option[String]): Nothing =

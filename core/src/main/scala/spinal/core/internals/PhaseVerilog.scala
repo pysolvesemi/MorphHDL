@@ -54,7 +54,7 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
       }
 
       val componentsText = ArrayBuffer[() => String]()
-      for (c <- sortedComponents) {
+      for (c <- sortedComponents if !referenceOnlyPublication(c)) {
         if (!c.isInBlackBoxTree) {
           componentsText += compile(c)
         }
@@ -106,7 +106,7 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
       }
 
       val bbImplStrings = mutable.HashSet[String]()
-      for (c <- sortedComponents) {
+      for (c <- sortedComponents if !referenceOnlyPublication(c)) {
         val moduleContent = compile(c)()
         val targetFilePath = pc.config.targetDirectory + "/" +  (if(pc.config.netlistFileName == null)(c.definitionName + (if(pc.config.isSystemVerilog) ".sv" else ".v")) else pc.config.netlistFileName)
         report.generatedSourcesPaths += targetFilePath
@@ -163,6 +163,14 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
     definitionNamePublication = policy
   }
 
+
+  // An optional backend policy may omit exact external reference identities
+  // from per-component definition publication. Ordinary generation is unchanged.
+  private var referenceOnlyPublication: Component => Boolean = (_: Component) => false
+  def bindReferenceOnlyPublication(policy: Component => Boolean): Unit = {
+    require(policy != null, "reference publication policy must not be null")
+    referenceOnlyPublication = policy
+  }
 
   val romCache = mutable.HashMap[String, String]()
   def compile(component: Component): () => String = {

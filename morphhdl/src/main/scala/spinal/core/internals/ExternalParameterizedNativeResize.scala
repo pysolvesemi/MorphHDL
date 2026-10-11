@@ -91,6 +91,10 @@ object ExternalParameterizedNativeResize {
         // unrelated resizes, including same-width carriers, remain scalar edges.
         val packedReadWrappers = new java.util.IdentityHashMap[
           DataAssignmentStatement, java.lang.Boolean]()
+        ElabPackedPartition.entries(component).foreach { entry =>
+          ElabPackedPartition.of(component, entry.assignment)
+          packedReadWrappers.put(entry.assignment, java.lang.Boolean.TRUE)
+        }
         ParameterizedVec.retainedVectorsOf(component).foreach { vector =>
           ParameterizedVec.operationsOf(vector).foreach {
             case read: ParameterizedVecPackedRead if read.result ne read.carrier =>

@@ -151,12 +151,19 @@ class BoundedRecursiveSafetyTests extends AnyFunSuite {
     }
   }
 
+  test("multiple recursive children each retain the decreasing-metric proof") {
+    withDirectory { directory =>
+      MorphVerilog(SpinalConfig(targetDirectory = directory.toString))(RecursiveSafetyFixture("multiple"))
+      val text = new String(Files.readAllBytes(directory.resolve("RecursiveAccumulatorMultiple.v")), StandardCharsets.UTF_8)
+      assert("(?m)^\\s*RecursiveAccumulatorMultiple #".r.findAllIn(text).size == 2)
+    }
+  }
+
   private val rejected = Vector(
     "increasing" -> "RECURSION-BINDING-UNPROVEN",
     "unguarded" -> "RECURSION-BINDING-UNPROVEN",
     "wrongBase" -> "RECURSION-BINDING-UNPROVEN",
     "wrongFormal" -> "RECURSION-BINDING-UNPROVEN",
-    "multiple" -> "RECURSION-SELF-REFERENCE-COUNT",
     "extraGeneric" -> "RECURSION-GENERIC-SCHEMA-UNSUPPORTED",
     "wrongWidth" -> "RECURSION-PORT-SCHEMA-MISMATCH",
     "wrongPort" -> "RECURSION-PORT-SCHEMA-MISMATCH",

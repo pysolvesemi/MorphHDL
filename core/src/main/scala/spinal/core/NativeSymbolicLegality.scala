@@ -35,17 +35,19 @@ object NativeSymbolicLegality {
   private final class Storage(val component: Component) {
     var obligations = Vector.empty[Obligation]
     var declarationDomains = Vector.empty[ElaborationIntegerParameter]
+    var portableDomainTermination = false
   }
   /** The native publication phase supplies the validated parameter inventory
     * for explicit formal APIs. These declaration contracts must also reject
     * downstream overrides outside the domain used to prove the hardware.
     */
   private[spinal] def retainDeclarationDomains(component: Component,
-      parameters: Vector[ElaborationIntegerParameter]): Unit = {
+      parameters: Vector[ElaborationIntegerParameter], portableTermination: Boolean = false): Unit = {
     val retained = storage(component)
     require(retained.declarationDomains.isEmpty, "parameter domain publication prepared twice")
     require(parameters.map(_.name).distinct.size == parameters.size, "ambiguous parameter domains")
     retained.declarationDomains = parameters
+    retained.portableDomainTermination = portableTermination
   }
   private def checked(component: Component, retained: Storage): Storage = {
     if (retained.component ne component)
@@ -170,12 +172,19 @@ object NativeSymbolicLegality {
     }.mkString
     val domainGuards = domains.map { parameter =>
       val label = allocate(s"G_PARAMETER_DOMAIN_${parameter.name}")
+      val message = s"${parameter.name} must be in ${parameter.minimum}..${parameter.maximum}"
+      // Verilog-2001 has no standardized fatal/nonzero-exit system task.
+      // Portable clients terminate with a diagnostic; their runners must check
+      // completion receipts, not only the simulator's process exit status.
+      val termination = if (storage(component).portableDomainTermination)
+        s"""begin $$display("%s", "$message"); $$finish; end"""
+      else s"""$$fatal(1, "%s", "$message");"""
       s"""    if ((${parameter.name} < ${parameter.minimum}) || (${parameter.name} > ${parameter.maximum}) || (^${parameter.name} === 1'bx)) begin : $label
-         |      initial $$fatal(1, "%s", "${parameter.name} must be in ${parameter.minimum}..${parameter.maximum}");
+         |      initial $termination
          |    end
          |""".stripMargin
     }.mkString
-    // A failed require is fatal, not a recoverable simulation report. Use one
+    // A failed require remains fatal, not a recoverable simulation report. Use one
     // task carrying the original message, with a fixed format so user '%' text
     // is literal. The finish_number is 1; the simulator determines its nonzero
     // process status. This diagnostic is never synthesized hardware.

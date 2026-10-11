@@ -72,7 +72,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for tool in iverilog vvp verilator yosys; do command -v "$tool"; done
+          for tool in iverilog vvp verilator yosys yosys-smtbmc z3; do command -v "$tool"; done
       - name: Validate capture, publication and inherited checks
         shell: bash
         run: |
@@ -82,6 +82,11 @@ jobs:
           /tmp/morphhdl-mill frontend[${{ matrix.scala_version }}].testOnly \
             morphhdl.frontend.HdlIntTests
           /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.RecursiveUnsignedSumTests \
+            spinal.core.RecursivePartitionSafetyTests \
+            morphhdl.BoundedRecursivePowerTests \
+            morphhdl.BoundedRecursiveSafetyTests \
+            morphhdl.ReduceBalancedTreeNativeContractTests \
             morphhdl.FiniteBitsAndRamSharingTests \
             morphhdl.SharedFiniteLoopControlTests \
             morphhdl.AreaCollectionLoopTests \
@@ -122,3 +127,22 @@ jobs:
             spinal.core.TypedLoopRegisterOwnershipTests
           /tmp/morphhdl-mill core[${{ matrix.scala_version }}].testOnly \
             spinal.core.internals.SpinalVerilogPhasePlanTests
+
+      - name: Generate recursive unsigned sum examples and qualify overrides
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].test.runMain morphhdl.RecursiveUnsignedSumArtifactWriter /tmp/recursive-sum/rtl
+          for default in 1 16; do
+            python3 morphhdl/scripts/check-recursive-unsigned-sum.py \
+              --rtl /tmp/recursive-sum/rtl/default-$default-split-false/RecursiveUnsignedSum.v \
+              --output /tmp/recursive-sum/checks-default-$default
+          done
+
+      - name: Retain recursive reduction evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recursive-unsigned-sum-${{ matrix.scala_version }}
+          path: /tmp/recursive-sum
+          if-no-files-found: error

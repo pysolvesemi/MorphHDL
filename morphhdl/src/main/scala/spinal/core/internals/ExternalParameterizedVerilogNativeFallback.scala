@@ -2667,6 +2667,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
               // asking this generic pass to reinterpret finite witness nodes.
               if (
                 !isExactPackedVecEvidenceAssignment(assignment) &&
+                ElabPackedPartition.of(component, assignment).isEmpty &&
                 !isExactDynamicVecDecoderAssignment(assignment) &&
                 !isExactRetainedValueEvidenceAssignment(assignment) &&
                 !ExternalParameterizedNativeResize.provesAssignment(component, assignment)

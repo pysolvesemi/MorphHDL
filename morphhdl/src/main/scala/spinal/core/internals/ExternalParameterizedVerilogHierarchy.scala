@@ -713,7 +713,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
                 .map(_.binding.formal).getOrElse(fail(
                   "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
                   "scalar binding lost its exact instance witness declaration"))
-            else parameter
+            else NativeWidthFormalSchema.witness(canonical, child, parameter)
           validateParameterBinding(expression, witnessParameter, instanceName, pc, scalar = true)
           parameter.name -> expression
         } else {
@@ -984,8 +984,10 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       roots: Vector[ElaborationIntegerParameterRoot],
       schemas: Vector[ElaborationIntegerParameter],
       rootValues: Vector[Vector[BigInt]],
-      results: Map[Vector[BigInt], BigInt]) {
+      results: Map[Vector[BigInt], BigInt],
+      product: Option[ElaborationProductDomain.OwnerProof] = None) {
     def at(values: Vector[(ElaborationIntegerParameterRoot, BigInt)]): Option[BigInt] = {
+      if (product.nonEmpty) return product.get.evaluate(values)
       val key = roots.map(root => values.find(_._1 eq root).map(_._2))
       if (key.exists(_.isEmpty)) None else results.get(key.map(_.get))
     }
@@ -999,6 +1001,13 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     if (width.parameters.isEmpty)
       return CompoundWidthFunction(Vector.empty, Vector.empty, Vector.empty,
         Map(Vector.empty[BigInt] -> width.default))
+    if (ElaborationProductDomain.isRetained(width)) {
+      val proof = ElaborationProductDomain.owner(width, role, width.sourceLocation) {
+        (root, universe) => ParameterizedStructure.exactDeclarationDomainOf(
+          port.component, port, root, universe, role, width.sourceLocation).values
+      }.get
+      return CompoundWidthFunction(proof.roots, proof.schemas, proof.rootValues, Map.empty, Some(proof))
+    }
     ElaborationWidthAuthority.ownerEvaluation(width, role, width.sourceLocation) {
       (root, universe) => ParameterizedStructure.exactDeclarationDomainOf(
         port.component, port, root, universe, role, width.sourceLocation).values
@@ -1038,7 +1047,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       val canonicalSlot = canonicalInventory.filter(_.binding.formal eq schema)
       val actualSlot = actualInventory.filter(_.binding.formal.name == schema.name)
       if (canonicalSlot.size != 1 || actualSlot.size != 1 ||
-          actualSlot.head.binding.formal != schema ||
+          !NativeWidthFormalSchema.compatible(canonicalSlot.head, actualSlot.head) ||
           !actualDefinition.schemas.exists(_ eq actualSlot.head.binding.formal))
         conflict("does not map every exact declaration through its complete typed family")
       actualSlot.head.binding
@@ -1656,11 +1665,13 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       definitionName: String,
       instanceName: String
   ): BindingExpr = {
-    val scalarCanonical = NativeScalarFormalSchema.bindings(canonical)
+    val scalarCanonical = (NativeScalarFormalSchema.bindings(canonical) ++
+      NativeWidthFormalSchema.bindings(canonical)).distinct
       .filter(_.binding.formal eq parameter)
     if (scalarCanonical.nonEmpty) {
       NativeScalarFormalSchema.validateGroup(Vector(canonical, child))
-      val scalarActual = NativeScalarFormalSchema.bindings(child)
+      val scalarActual = (NativeScalarFormalSchema.bindings(child) ++
+        NativeWidthFormalSchema.bindings(child)).distinct
         .filter(_.binding.formal.name == parameter.name)
       if (scalarCanonical.size != 1 || scalarActual.size != 1)
         fail("SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",

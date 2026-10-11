@@ -903,7 +903,7 @@ object MorphHdlExternalParameterizedVerilog {
           else if (port.isInOut) "inout"
           else "directionless",
         dataClass = port.getClass.getName,
-        concreteWidth = NativeWidthFormalSchema.portBinding(port).map(_.binding.formal.minimum.toInt).getOrElse(port.getBitsWidth),
+        concreteWidth = NativeWidthFormalSchema.portSchema(port).map(_.default.toInt).getOrElse(port.getBitsWidth),
         retained = NativeWidthFormalSchema.portSchema(port).orElse(ParameterizedWidth
           .expressionOf(port)
           .map(ExternalFormalParameterRegistry.normalizedDefinitionSchema))

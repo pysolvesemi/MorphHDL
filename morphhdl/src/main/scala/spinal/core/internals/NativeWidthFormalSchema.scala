@@ -38,8 +38,7 @@ private[internals] object NativeWidthFormalSchema {
         else if (ElaborationWidthAuthority.ownerEvaluation(e, role, e.sourceLocation)(admitted).isEmpty)
           ElabInt.authoritativeIntegerOwnerDomain(e, role,
             "SPINAL-PARAMETERIZED-VERILOG-FORMAL-WIDTH-AUTHORITY-MISSING")(admitted)
-      } else ElaborationWidthAuthority.requireAuthoritative(e, role,
-        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-WIDTH-AUTHORITY-MISSING")
+      } else NativePublicationWidth.validate(e, owner, value, role)
       require(e.default == value.getBitsWidth && e.minimum > 0,
         "native formal declaration/connection must preserve its own width witness")
       val reference = NativeLocalParameters.reference(owner, e).getOrElse(e.verilog)
@@ -60,8 +59,15 @@ private[internals] object NativeWidthFormalSchema {
 
   def bindings(component: Component): Vector[ExternalTypedFormalBinding] = {
     val ports = component.getOrdredNodeIo.toVector.flatMap(portBinding)
+    val productParameters = component.getOrdredNodeIo.toVector.flatMap { port =>
+      ParameterizedWidth.expressionOf(port).filter(ElaborationProductDomain.isRetained).toVector.flatMap { expression =>
+        NativePublicationWidth.validate(expression, component, port, "native product port formal")
+        expression.parameters
+      }
+    }
     ExternalFormalParameterRegistry.completeTypedBindingsOf(component)
-      .filter(entry => ports.exists(_.declarationToken eq entry.declarationToken))
+      .filter(entry => ports.exists(_.declarationToken eq entry.declarationToken) ||
+        productParameters.exists(_ eq entry.binding.formal))
   }
 
   def compatible(left: ExternalTypedFormalBinding, right: ExternalTypedFormalBinding): Boolean = {
@@ -75,7 +81,14 @@ private[internals] object NativeWidthFormalSchema {
   def portCompatible(left: BaseType, right: BaseType): Boolean =
     (portBinding(left), portBinding(right)) match {
       case (Some(a), Some(b)) => compatible(a, b)
-      case _ => false
+      case _ =>
+        val a = portSchema(left)
+        val b = portSchema(right)
+        a.nonEmpty && a == b && a.get.parameters.forall { parameter =>
+          val l = bindings(left.component).filter(_.binding.formal.name == parameter.name)
+          val r = bindings(right.component).filter(_.binding.formal.name == parameter.name)
+          l.size == 1 && r.size == 1 && compatible(l.head, r.head)
+        }
     }
 
   def parameterCompatible(canonical: Component, actual: Component,
@@ -150,5 +163,15 @@ private[internals] object NativeWidthFormalSchema {
     ExternalFormalParameterRegistry.normalizedDefinitionSchema(expression)
       .copy(default=entry.binding.formal.minimum,
         parameters=Vector(entry.binding.formal.copy(default=entry.binding.formal.minimum)))
+  }.orElse {
+    val owned = bindings(port.component)
+    ParameterizedWidth.expressionOf(port).filter(expression =>
+      ElaborationProductDomain.isRetained(expression) && expression.parameters.nonEmpty &&
+        expression.parameters.forall(p => owned.exists(_.binding.formal eq p))).map { expression =>
+      NativePublicationWidth.validate(expression, port.component, port, "canonical product port")
+      ExternalFormalParameterRegistry.normalizedDefinitionSchema(expression).copy(
+        default = expression.minimum,
+        parameters = expression.parameters.map(p => p.copy(default = p.minimum)).sortBy(_.name))
+    }
   }
 }
