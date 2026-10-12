@@ -1,0 +1,29 @@
+name: CA-036 through CA-038 exact-candidate targeted dispatcher
+on:
+  push:
+    branches: [control/ca036-038-c7acaed221ee-remaining]
+    paths:
+      - .github/workflows/ca036-038-c7acaed221ee-remaining.yml
+      - .github/controllers/ca036-038-c7acaed221ee-remaining/dispatch.py
+      - .github/controllers/ca036-038-c7acaed221ee-remaining/dispatch.json
+permissions:
+  contents: read
+  actions: write
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate exact identities and dispatch affected workflows
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/controllers/ca036-038-c7acaed221ee-remaining/dispatch.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ca036-038-c7acaed221ee-remaining-ledger
+          path: dispatch-ledger.jsonl
+          if-no-files-found: error
