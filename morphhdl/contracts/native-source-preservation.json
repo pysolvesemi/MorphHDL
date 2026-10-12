@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "514b8d8beac9bb65e8ab465d9ee60d5cc9d9e04d"
+      "approved_tree": "bcbb8b6e23bc62a7e1dbd40382654810f061c825"
     },
     {
       "path": "idslpayload/src/main",
@@ -1646,15 +1646,16 @@
         "October 2 user request: opt-in constant aggregates and typed loops",
         "Compiler issues CA-001/CA-002/CA-003, October 3",
         "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026",
-        "CA-018: user-requested neutral generated helper names"
+        "CA-018: user-requested neutral generated helper names",
+        "CA-029\u2013CA-031: authenticated whole-word Vec publication and construction aliases"
       ],
-      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged. Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence. CDC-WIRE-01 qualification exposes a read-only identity inventory from retained Vec operation and completed-write journals. Visit only the closed compiler-owned record families and their exact native expressions with identity-based cycle suppression, so optional late wrapper planning preserves the publisher's witness slices, carriers and assignment evidence. No native Vec algorithm, journal contents, parameter domain or public layout is changed. Packed-assignment support tracing follows only exact fixed slices, reviewed Bits casts, and same-component directionless combinational intermediates with one root-scope assignment; it stops at the recorded carrier or source identities. Supporting-driver traversal is read-only and cannot relax the publisher's existing proof obligations. The October 2 request adds explicitly opted-in constant geometry retention and exact literal-depth metadata for constant typed-loop Vec operands; no symbolic root or witness domain is fabricated. Static writes preserve anonymous literal identity without pinning its width; exact native literal-clone receipts retain normalization lineage. Capture complete static scope paths and enclosing When identities across native switches. Retain lazy, exact original bit-view extraction identities on the Vec object, validate before consuming once, and retain constant loop operand shape without changing native read/write semantics. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged.",
+      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged. Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence. CDC-WIRE-01 qualification exposes a read-only identity inventory from retained Vec operation and completed-write journals. Visit only the closed compiler-owned record families and their exact native expressions with identity-based cycle suppression, so optional late wrapper planning preserves the publisher's witness slices, carriers and assignment evidence. No native Vec algorithm, journal contents, parameter domain or public layout is changed. Packed-assignment support tracing follows only exact fixed slices, reviewed Bits casts, and same-component directionless combinational intermediates with one root-scope assignment; it stops at the recorded carrier or source identities. Supporting-driver traversal is read-only and cannot relax the publisher's existing proof obligations. The October 2 request adds explicitly opted-in constant geometry retention and exact literal-depth metadata for constant typed-loop Vec operands; no symbolic root or witness domain is fabricated. Static writes preserve anonymous literal identity without pinning its width; exact native literal-clone receipts retain normalization lineage. Capture complete static scope paths and enclosing When identities across native switches. Retain lazy, exact original bit-view extraction identities on the Vec object, validate before consuming once, and retain constant loop operand shape without changing native read/write semantics. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged. With constant Vec preservation enabled, native tabulation records exact returned element/flattened leaf identities before later publication. Construction aliases require distinct component-owned nodes and are revalidated; unrelated raw carrier references, foreign owners and changed identities remain rejected. No native operator, assignment, pruning or disabled-option algorithm is changed.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedVec.scala",
         "mode": "100644",
-        "blob": "2891f94f2e643fa9273337c56c1330c249dccdec",
-        "sha256": "fb02a17d575d80e18b7f501e512dc33a305543c47ac18ec892c28a7105f40c43"
+        "blob": "04e03869fcf7142815b0500027f1cd347a707c24",
+        "sha256": "9ff6ccdc6efde9106bd736ca0cb25252e2f9c8a3bb1f7171659284aa134b618d"
       },
       "edits": []
     },
@@ -2130,9 +2131,10 @@
         "Increment 59i: exact composite static-read identity qualification",
         "Increment 59i: combined recursive widening, captures and native saturation geometry",
         "October 2 user request: opt-in constant aggregates and typed loops",
-        "CA-018: user-requested neutral generated helper names"
+        "CA-018: user-requested neutral generated helper names",
+        "CA-029\u2013CA-031: authenticated whole-word Vec publication and construction aliases"
       ],
-      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Extend read-only wrapper identity evidence to already-audited recursive Data; native assignment and source-hook behavior remains byte-identical. The October 2 opt-in flag additionally retains exact constant tabulation geometry; disabled native behavior is unchanged. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged.",
+      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Extend read-only wrapper identity evidence to already-audited recursive Data; native assignment and source-hook behavior remains byte-identical. The October 2 opt-in flag additionally retains exact constant tabulation geometry; disabled native behavior is unchanged. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged. With constant Vec preservation enabled, native tabulation records exact returned element/flattened leaf identities before later publication. Construction aliases require distinct component-owned nodes and are revalidated; unrelated raw carrier references, foreign owners and changed identities remain rejected. No native operator, assignment, pruning or disabled-option algorithm is changed.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/Vec.scala",
         "mode": "100644",
@@ -2142,8 +2144,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/Vec.scala",
         "mode": "100644",
-        "blob": "0705d811ba217be6364a273545ea7f269c410273",
-        "sha256": "c3d612c800c4e70ae2719109bc19067d17a69aec5d6b0b4d00307bf3eeef1285"
+        "blob": "7241272d0e0d8160faa431daefef1dea8859467c",
+        "sha256": "ce7c54fd2209f068337a92184167f266f69497e755683b39b32aa1df7a236ce4"
       },
       "edits": [
         {
@@ -2224,7 +2226,7 @@
           "id": "vec-constant-tabulate-retention-01",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.VecFactory.Vec.tabulate(Int)",
-          "reason": "When the generation-local preserveConstantVecs flag is enabled, attach exact literal-depth geometry after unchanged native tabulation. The default returns the original native result.",
+          "reason": "When the generation-local preserveConstantVecs flag is enabled, attach exact literal-depth geometry after unchanged native tabulation. The default returns the original native result. Retain the exact construction alias inventory after geometry attachment, including nodes consumed before grouping.",
           "baseline_span": {
             "start": 2582,
             "end": 2634,
@@ -2232,8 +2234,8 @@
           },
           "approved_span": {
             "start": 3237,
-            "end": 3460,
-            "sha256": "34d64cff24a10f531da479c8c1aa1d528df12853efa05204012545861b777402"
+            "end": 3524,
+            "sha256": "bcdb9c0d81683fdd16618ada43e09179afba8e221670c0aaf4fd502e4acdbe6d"
           },
           "required_exact_text": [
             {
@@ -2244,6 +2246,11 @@
             {
               "side": "approved",
               "text": "ParameterizedVec.attachConcreteDepthIfSymbolicElement(vector, size)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.retainConstructionAliases(vector)",
               "count": 1
             }
           ]
@@ -2259,8 +2266,8 @@
             "sha256": "ece0743c89bce37432d38747d38862ab984537cb047faffb7669ae534e73552d"
           },
           "approved_span": {
-            "start": 4209,
-            "end": 4596,
+            "start": 4273,
+            "end": 4660,
             "sha256": "26c459523ed96a9a027cdd5f4ffd4a202715a25df25dd44a847e1c7a2e0f6b57"
           },
           "required_exact_text": [
@@ -2282,8 +2289,8 @@
             "sha256": "fe10aef05329c0d6e7af4c11dae74cc1a49434a768965f4fa910694b5f745259"
           },
           "approved_span": {
-            "start": 5273,
-            "end": 5835,
+            "start": 5337,
+            "end": 5899,
             "sha256": "abb814801b1cd2bbd48e54723da4bd0256227528238c668e7cdff28193452c37"
           },
           "required_exact_text": [
@@ -2305,8 +2312,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 5945,
-            "end": 6133,
+            "start": 6009,
+            "end": 6197,
             "sha256": "2c6ea7c61fe7b78a4e59053c14153ed7a47d7d07bdac3769bf609608d57d4e77"
           },
           "required_exact_text": [
@@ -2328,8 +2335,8 @@
             "sha256": "bb91347a540fff9ac6f47a969ee7ae97506b927e46b447f79cb7368bbd7e753d"
           },
           "approved_span": {
-            "start": 6212,
-            "end": 6444,
+            "start": 6276,
+            "end": 6508,
             "sha256": "8109a2ab16ceb5d47616bd2263f89de3c5ee019b8524b64aa6e710e96190aff7"
           },
           "required_exact_text": [
@@ -2356,8 +2363,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 6466,
-            "end": 6729,
+            "start": 6530,
+            "end": 6793,
             "sha256": "9d68d25fcda9ba6089eb8892919d85b63ff66436b3d16ba1a2074c6a361569e0"
           },
           "required_exact_text": [
@@ -2389,8 +2396,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 6737,
-            "end": 7672,
+            "start": 6801,
+            "end": 7736,
             "sha256": "1a37af4728ba3869ee0f6bdeec83a14a8d14be4175c60f370b559f29b7bacab9"
           },
           "required_exact_text": [
@@ -2417,8 +2424,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 7731,
-            "end": 11676,
+            "start": 7795,
+            "end": 11740,
             "sha256": "56cd54991cdd2b343b811564a8e58909a2ce4f5753b43bf8790b963ca5d2bf20"
           },
           "required_exact_text": [
@@ -2485,8 +2492,8 @@
             "sha256": "021059a6d0119b1b0c082a45dd571ff20c2db8fab0ca7ab87d665bc8a97dc1e6"
           },
           "approved_span": {
-            "start": 12691,
-            "end": 13053,
+            "start": 12755,
+            "end": 13117,
             "sha256": "2290091f1635c0d64f54cb4cab23c22ddd37412a4d914967118b3cc2bae44815"
           },
           "required_exact_text": [
@@ -2508,8 +2515,8 @@
             "sha256": "731e09325c9fd614c16641a47e98687719f95e3fb7974485b07d2ea70b3ddb79"
           },
           "approved_span": {
-            "start": 13057,
-            "end": 13530,
+            "start": 13121,
+            "end": 13594,
             "sha256": "4944687b87a1b4a6753ff91e26130682497ec238ea8345a87016f0b3d06cdfc7"
           },
           "required_exact_text": [
@@ -2531,8 +2538,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 14542,
-            "end": 14594,
+            "start": 14606,
+            "end": 14658,
             "sha256": "c8574823978973b4218a0c837c9900d02f3bc7199d9660561e39854718ec402e"
           },
           "required_exact_text": [
@@ -2554,8 +2561,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 14778,
-            "end": 14846,
+            "start": 14842,
+            "end": 14910,
             "sha256": "f5c6f5a7672828e8de7badf73afe931c06281d23e57aec00c6469e0b8f0a2fdf"
           },
           "required_exact_text": [
@@ -2577,8 +2584,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 15361,
-            "end": 15941,
+            "start": 15425,
+            "end": 16005,
             "sha256": "3c90f6f3debf71c7b372700823df2bf138691296965d204973a4b53f66c937a8"
           },
           "required_exact_text": [
@@ -2600,8 +2607,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 16274,
-            "end": 16288,
+            "start": 16338,
+            "end": 16352,
             "sha256": "21ae17512215b0defc78a4a521717861d0d05736fc66414e117f1924c7c64c98"
           },
           "required_exact_text": [
@@ -2623,8 +2630,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 17154,
-            "end": 17293,
+            "start": 17218,
+            "end": 17357,
             "sha256": "2ba7d0b8ba92065f33fe20598af0256b52d1375acfdf24b92903fc59d1165f93"
           },
           "required_exact_text": [
@@ -2646,8 +2653,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 17577,
-            "end": 17583,
+            "start": 17641,
+            "end": 17647,
             "sha256": "4893f40e3781eb896c82d046a08067a11e35cdf2f1dfaf26fea90b8db6676413"
           },
           "required_exact_text": [
@@ -2669,8 +2676,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 17792,
-            "end": 17875,
+            "start": 17856,
+            "end": 17939,
             "sha256": "8ebe7ef227b0b3338ec745400d40b24dddd2c8f2f767b6923c823d9d7acd7b0f"
           },
           "required_exact_text": [
@@ -2692,8 +2699,8 @@
             "sha256": "46d25627884c64a8cc43f82941586929bb03d85b15090df268cfccc1af43ba84"
           },
           "approved_span": {
-            "start": 18140,
-            "end": 18789,
+            "start": 18204,
+            "end": 18853,
             "sha256": "2305044c31b0ffcd999d5474d3a5d16b260109b2a6cd76806957a8af5f693920"
           },
           "required_exact_text": [
@@ -2715,8 +2722,8 @@
             "sha256": "bc4873241c58715304245f013482dc5bd6ab2bb4cc1cf0ad6f249db6f7d7236f"
           },
           "approved_span": {
-            "start": 18800,
-            "end": 19077,
+            "start": 18864,
+            "end": 19141,
             "sha256": "8814fece3090adf450ba97bfd95e07d8b2f55f7202e537704670d52aeef96ff1"
           },
           "required_exact_text": [
@@ -2738,8 +2745,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 19085,
-            "end": 19168,
+            "start": 19149,
+            "end": 19232,
             "sha256": "58b63cc71b5462bb4fefd3a412676211a042123892a20ccb6961db644d9676f4"
           },
           "required_exact_text": [
@@ -2761,8 +2768,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 19212,
-            "end": 19371,
+            "start": 19276,
+            "end": 19435,
             "sha256": "8bf740e649e967a9ad1f41e31a551909511832bca19abafb8ce9006168b7b193"
           },
           "required_exact_text": [
@@ -2784,8 +2791,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 19548,
-            "end": 19616,
+            "start": 19612,
+            "end": 19680,
             "sha256": "afc0517bccf2cd0434746447e3fb077cd3417b280d4989ed8cf999beff7ff96b"
           },
           "required_exact_text": [
@@ -2807,8 +2814,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 20538,
-            "end": 20613,
+            "start": 20602,
+            "end": 20677,
             "sha256": "cec2541514ccd4475458f40f08b4705066e4cc02d9e1d5c0b9a31f3d4650a79c"
           },
           "required_exact_text": [
@@ -2830,8 +2837,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 20727,
-            "end": 20766,
+            "start": 20791,
+            "end": 20830,
             "sha256": "6d707af76727ddb4f4182cd4a67d87b0ac5b7dd1875e80f897060fec2b74740a"
           },
           "required_exact_text": [
@@ -2853,8 +2860,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 20864,
-            "end": 21200,
+            "start": 20928,
+            "end": 21264,
             "sha256": "98d4dfa6ac6a2bde86b96216d91e99946f2dab7799fea733dc92282a5f3ff101"
           },
           "required_exact_text": [
@@ -2876,8 +2883,8 @@
             "sha256": "68cb46f564ca3eaabbff243723b9faa9e7e6f85836bb646c824ca643375537de"
           },
           "approved_span": {
-            "start": 21629,
-            "end": 21963,
+            "start": 21693,
+            "end": 22027,
             "sha256": "a35d65f983b126b4df6066b4f76235bb213e1b397175b7d0f610aee3d9b8ebe1"
           },
           "required_exact_text": [
@@ -2899,8 +2906,8 @@
             "sha256": "a86a14d83ec0d98f5e0d49e34725e09e92fb8b2395b44973e41a65ede5afc454"
           },
           "approved_span": {
-            "start": 21980,
-            "end": 24452,
+            "start": 22044,
+            "end": 24516,
             "sha256": "1f6be5bd0dd7a43d2608aada17c280ab9dcbfd78f1c7b5908b78237c8e7e013a"
           },
           "required_exact_text": [
@@ -2947,8 +2954,8 @@
             "sha256": "b9adcd4480b5932f33ea586ba0c095798ae2ffc8e81e0003a7502ba16bbc4883"
           },
           "approved_span": {
-            "start": 24782,
-            "end": 24884,
+            "start": 24846,
+            "end": 24948,
             "sha256": "bd11cdb8d1494d4bb60070d160a1d78d0c0bca39eff6dbeba41c503ec925087e"
           },
           "required_exact_text": [
@@ -2970,8 +2977,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 24952,
-            "end": 25095,
+            "start": 25016,
+            "end": 25159,
             "sha256": "1ea1892f1cc19acbe4d66278ced35290af6f69a9c5f9f09ec65d288634f54219"
           },
           "required_exact_text": [
