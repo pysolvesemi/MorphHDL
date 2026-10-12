@@ -130,12 +130,13 @@ jobs:
           set -euo pipefail
           output="$GITHUB_WORKSPACE/target/increment-59c"
           bootstrap="$output/bootstrap"
+          export MORPHHDL_VEC_EVIDENCE="$output/vec-word-publication"
           java -Xmx4G -Dsbt.log.noformat=true -Dsbt.supershell=false \
             -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
             -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
             -Dsbt.repository.config="$bootstrap/repositories" -Dsbt.override.build.repos=true \
             -jar "$bootstrap/sbt-launch.jar" "++${{ matrix.scala }}" \
-            'morph/Test/testOnly morphhdl.NamedFieldVecTests morphhdl.NamedFieldVecNestedWriteTests morphhdl.NamedFieldVecHierarchyTests morphhdl.NamedFieldVecCollisionTests spinal.core.NamedFieldPackedAliasTests morphhdl.TypedParameterizedVecTests morphhdl.TypedParameterizedVecFormalEquivalenceTests spinal.core.TypedVecShapeTests spinal.core.StructuralIdentityAdversarialTests spinal.core.internals.ParameterizedVerilogFieldLayoutTests spinal.core.internals.TypedBalancedReductionPublicationSafetyTests spinal.core.internals.TypedBalancedReductionCallbackPolicyTests' \
+            'morph/Test/testOnly morphhdl.VecWordPublicationTests spinal.core.internals.UnpackedDirectReadTests morphhdl.NamedFieldVecTests morphhdl.NamedFieldVecNestedWriteTests morphhdl.NamedFieldVecHierarchyTests morphhdl.NamedFieldVecCollisionTests spinal.core.NamedFieldPackedAliasTests morphhdl.TypedParameterizedVecTests morphhdl.TypedParameterizedVecFormalEquivalenceTests spinal.core.TypedVecShapeTests spinal.core.StructuralIdentityAdversarialTests spinal.core.internals.ParameterizedVerilogFieldLayoutTests spinal.core.internals.TypedBalancedReductionPublicationSafetyTests spinal.core.internals.TypedBalancedReductionCallbackPolicyTests' \
             "morph/Test/runMain morphhdl.NamedFieldVecArtifactWriter $output/a" \
             "morph/Test/runMain morphhdl.NamedFieldVecArtifactWriter $output/b" \
             "morph/Test/runMain morphhdl.NamedFieldNestedRegisterArtifactWriter $output/register-a" \
@@ -144,7 +145,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
-          suites = ['NamedFieldVecTests', 'NamedFieldVecNestedWriteTests', 'TypedParameterizedVecTests',
+          suites = ['VecWordPublicationTests', 'UnpackedDirectReadTests', 'NamedFieldVecTests', 'NamedFieldVecNestedWriteTests', 'TypedParameterizedVecTests',
                     'NamedFieldVecCollisionTests', 'NamedFieldVecHierarchyTests', 'NamedFieldPackedAliasTests',
                     'TypedParameterizedVecFormalEquivalenceTests',
                     'TypedVecShapeTests', 'ParameterizedVerilogFieldLayoutTests',

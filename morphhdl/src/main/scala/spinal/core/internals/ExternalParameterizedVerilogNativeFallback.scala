@@ -103,11 +103,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       verilog: String,
       pc: PhaseContext,
       canonicalOf: Component => Component,
-      sharedWidthDefaults: Set[String] = Set.empty
+      sharedWidthDefaults: Set[String] = Set.empty,
+      deferIntegerHelpers: Boolean = false
   ): String = ExternalParameterizedHighBit.withPublicationValidation(component) {
     ExternalParameterizedNativeResize.withPublicationValidation(component) {
       ExternalParameterizedNativeGeometry.withPublicationValidation(component) {
-        rewriteValidated(component, verilog, pc, canonicalOf, sharedWidthDefaults)
+        rewriteValidated(component, verilog, pc, canonicalOf, sharedWidthDefaults, deferIntegerHelpers)
       }
     }
   }
@@ -117,7 +118,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       verilog: String,
       pc: PhaseContext,
       canonicalOf: Component => Component,
-      sharedWidthDefaults: Set[String]
+      sharedWidthDefaults: Set[String],
+      deferIntegerHelpers: Boolean
   ): String = {
     NativeConditionalProcessEmitter.validate(component)
     NativeBoundedProcessEmitter.validate(component)
@@ -224,8 +226,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       withVectors,
       pc
     )
+    // Keep geometry in the same native arithmetic vocabulary until unpacked
+    // publication compares its retained widths and offsets. The outer pipeline
+    // lowers helpers once after all array declarations/accesses are published.
     NativeWidthFormalSchema.literalPortPadding(component,
-      lowerRetainedIntegerHelpers(withFiniteFolds, component.definitionName), sharedWidthDefaults)
+      if (deferIntegerHelpers) withFiniteFolds
+      else lowerRetainedIntegerHelpers(withFiniteFolds, component.definitionName), sharedWidthDefaults)
   }
 
   private def ensureParameterHeader(

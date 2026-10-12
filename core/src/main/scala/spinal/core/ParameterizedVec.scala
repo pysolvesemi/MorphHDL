@@ -540,6 +540,7 @@ object ParameterizedVec {
 
   private final class Entry(val shape: ParameterizedVecShape) {
     val operations = ArrayBuffer.empty[ParameterizedVecOperation]
+    var constructionAliases = Vector.empty[(Data, Vector[BaseType])]
     // The owning Vec is the registry's weak key. Do not retain that key again
     // through the journal value; recover it only while returning a snapshot.
     val completedWriteInvocations = ArrayBuffer.empty[(BaseType, ParameterizedVecOperation)]
@@ -1079,6 +1080,40 @@ object ParameterizedVec {
         .get(new ParameterizedVecIdentityRef(vector, null))
         .map(_.operations.toVector)
         .getOrElse(Vector.empty)
+    }
+  }
+
+  /** Vec.tabulate supplies existing native nodes, not copies. Retain that
+    * explicit construction relation independently of later Vec.apply calls.
+    * It authorizes only exact fixed-depth, owner-local scalar identities.
+    */
+  private[core] def retainConstructionAliases(vector: Vec[_]): Unit = synchronized {
+    retained.get(new ParameterizedVecIdentityRef(vector, null)).foreach { entry =>
+      require(entry.shape.depth.parameters.isEmpty && entry.shape.depth.minimum == vector.vec.size,
+        "construction aliases require a fixed complete Vec extent")
+      val aliases = vector.vec.map(_.asInstanceOf[Data]).map(x => (x, x.flatten.toVector))
+      val leaves = aliases.flatMap(_._2)
+      if (leaves.exists(_.component ne vector.component) ||
+          leaves.indices.exists(i => leaves.take(i).exists(_ eq leaves(i))))
+        fail("SPINAL-ELAB-VEC-CONSTRUCTION-ALIAS-INVALID",
+          "Vec.tabulate requires distinct owner-local nodes; use fresh assigned carriers for repeated or foreign nodes",
+          entry.shape.sourceLocation)
+      entry.constructionAliases = aliases
+    }
+  }
+
+  private[spinal] def constructionAliasesOf(vector: Vec[_]): Vector[BaseType] = synchronized {
+    retained.get(new ParameterizedVecIdentityRef(vector, null)).toVector.flatMap { entry =>
+      val aliases = entry.constructionAliases
+      if (aliases.nonEmpty && (aliases.size != vector.vec.size ||
+          !aliases.zip(vector.vec.map(_.asInstanceOf[Data])).forall { case ((element, leaves), live) =>
+            val current = live.flatten.toVector
+            (element eq live) && current.size == leaves.size &&
+              leaves.zip(current).forall { case (a, b) => (a eq b) && (a.component eq vector.component) }
+          }))
+        fail("SPINAL-PARAMETERIZED-VERILOG-VEC-CONSTRUCTION-ALIAS-MISMATCH",
+          "Vec construction changed its exact owner, element or flattened node identities", entry.shape.sourceLocation)
+      aliases.flatMap(_._2)
     }
   }
 

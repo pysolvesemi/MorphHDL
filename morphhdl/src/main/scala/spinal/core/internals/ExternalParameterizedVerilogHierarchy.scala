@@ -109,7 +109,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       representative: BigInt
   )
 
-  private final case class PortRewrite(name: String, width: BindingExpr)
+  private final case class PortRewrite(name: String, width: BindingExpr, wholeVecCarrier: Option[BaseType] = None)
 
   private final case class AggregateBindingEvidence(
       present: Boolean,
@@ -237,9 +237,18 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
           val matched = matches.head
           val signalName = matched.group(2)
           val publishedRange = s"[${renderActual(port.width)}-1:0]"
+          port.wholeVecCarrier.foreach { carrier =>
+            if ((carrier.component ne owner) || carrier.getName() != signalName)
+              fail("SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-VEC-CARRIER-MISMATCH",
+                s"port '${port.name}' of '${instance.instanceName}' lost its exact parent Vec carrier")
+          }
+          // The full native carrier and its complete parent width have already
+          // been proved. A second range would become an illegal selection of a
+          // packed part-select or function call after Vec publication.
+          val connectionRange = if (port.wholeVecCarrier.nonEmpty) "" else publishedRange
           val replacement =
             matched.group(1) + signalName + matched.group(3) +
-              publishedRange + matched.group(4)
+              connectionRange + matched.group(4)
           block = block.updated(
             lineIndex,
             connectionPattern.replaceFirstIn(
@@ -974,7 +983,21 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
             }
             })
         }
-        if (expression.isSymbolic) Some(PortRewrite(name, expression)) else None
+        if (expression.isSymbolic) {
+          val actualPort = actualByName(name)
+          val direct = assignments.collect {
+            case assignment if actualPort.isInput && (assignment.target eq actualPort) &&
+                assignment.source.isInstanceOf[BaseType] => assignment.source.asInstanceOf[BaseType]
+          }.filter(_.component eq parent).distinct
+          val vectorLeaves = ParameterizedVec.vectorsOf(parent).flatMap(_.vec.flatMap(_.asInstanceOf[Data].flatten))
+          val whole = direct match {
+            case Vector(carrier) if vectorLeaves.exists(_ eq carrier) &&
+                ParameterizedWidth.expressionOf(carrier).exists(width =>
+                  sameFormalActualConnection(ExpressionBinding(width), expression)) => Some(carrier)
+            case _ => None
+          }
+          Some(PortRewrite(name, expression, whole))
+        } else None
       }
     }
     InstancePlan(definitionName, instanceName, bindings, ports)

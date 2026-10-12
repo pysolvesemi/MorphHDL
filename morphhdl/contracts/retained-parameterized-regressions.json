@@ -1809,6 +1809,20 @@
         "shorthand matches legacy RTL kind=sint symbolic=true unpacked=false",
         "shorthand matches legacy RTL kind=sint symbolic=true unpacked=true"
       ],
+      "morphhdl.VecWordPublicationTests": [
+        "already consumed nodes retain authenticated construction aliases kind=alias unpacked=false",
+        "already consumed nodes retain authenticated construction aliases kind=alias unpacked=true",
+        "already consumed nodes retain authenticated construction aliases kind=alias-pruned unpacked=false",
+        "already consumed nodes retain authenticated construction aliases kind=alias-pruned unpacked=true",
+        "constant multidimensional whole words retain direct element accesses unpacked=false",
+        "constant multidimensional whole words retain direct element accesses unpacked=true",
+        "construction aliases reject repeated and foreign node identities",
+        "symbolic Vec element child bindings compile kind=child unpacked=false",
+        "symbolic Vec element child bindings compile kind=child unpacked=true",
+        "symbolic Vec element child bindings compile kind=child-local unpacked=false",
+        "symbolic Vec element child bindings compile kind=child-local unpacked=true",
+        "unrecorded raw carrier access still fails without a construction alias"
+      ],
       "morphhdl.integration.ExternalSpinalVerilogBaselineTests": [
         "external boundary does not bypass inherited native validation",
         "external boundary performs native elaboration, graph inspection and Verilog publication",
@@ -3011,10 +3025,14 @@
       ],
       "spinal.core.internals.UnpackedDirectReadTests": [
         "aligned dynamic multi-element reads concatenate array elements and preserve invalid addresses",
+        "aligned dynamic predicate coordinates remain opaque without read helpers",
+        "constant sum offsets fold to whole non-power-of-two words and coordinates",
         "direct procedural reads observe blocking writes in the same activation",
         "multidimensional whole reads retain low-element-first packing without helpers",
+        "symbolic aligned sums cancel only the exact word factor without freezing dimensions",
         "symbolic continuous reads slice the packed view without read functions",
         "symbolic procedural reads retain direct-memory helpers for blocking ordering",
+        "unaligned and overflowing offsets do not acquire a false whole-word proof",
         "unaligned windows concatenate actual array bits across element boundaries"
       ]
     },
@@ -3591,6 +3609,7 @@
     "morphhdl/src/test/scala/morphhdl/TypedSignednessResumeTests.scala": "09a81d1ebf6aaa3521b7a5dc3d43b6f037939232fe79e36635d17bec6992a3ad",
     "morphhdl/src/test/scala/morphhdl/TypedStreamWidthAdapterFormalEquivalenceTests.scala": "69fa3081097de7dd33445219dc182d3aefcc8ceab5750b233692a0761c672564",
     "morphhdl/src/test/scala/morphhdl/VecElabIntApplyTests.scala": "355afba617d0a112665e3de3e6d5b33ae5c9f28489b9a669dba107a319157061",
+    "morphhdl/src/test/scala/morphhdl/VecWordPublicationTests.scala": "9f0dd3ed4801f1f72c593ad550b3812e7587c0100734134fb5dd1fc99ccf80b5",
     "morphhdl/src/test/scala/morphhdl/examples/DerivedLocalParameterArtifactWriter.scala": "6b30f5a2db964a2ae7fe6916ab2577c9cde6afaa977e6aed6d4db05f00912bdb",
     "morphhdl/src/test/scala/morphhdl/examples/Increment66ArtifactWriter.scala": "4e8769ad10f574c0b2a46d522028fc456a38c9a0dd097602c1d7fe11e0b6c1ec",
     "morphhdl/src/test/scala/morphhdl/examples/NamedConstantBaselineWriter.scala": "639eb21d88f1b563844a923b43d0f7be3754b4b3c4ca193e3667524469e474d9",
@@ -3740,7 +3759,7 @@
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionWideningArtifactWriter.scala": "d1eaffde9174f3c756ff8b6c4e614c06fdfaedda289000b405cc5aa005561a74",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionWideningPublicationTests.scala": "35022da5fca2cf139bd43e052b9bc22fa89ed3c99f539c840af9717003a25cfa",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionWidthTransferTests.scala": "2ab8c23de803670985b69bde2991deb83e4567f6ea2d86ac754d8fb741499267",
-    "morphhdl/src/test/scala/spinal/core/internals/UnpackedDirectReadTests.scala": "99050900b82defc5061dbf3136ef0bf720ff29ed67983f483be7f1b3a3ad5869",
+    "morphhdl/src/test/scala/spinal/core/internals/UnpackedDirectReadTests.scala": "64e967e2cb45c30be8a785dca600a7df07211a3ba3480d8a18a467aff0af2e1d",
     "morphhdl/src/test/scala/spinal/lib/CounterSingleAuthorityParityTests.scala": "9eedbe0f3ce7a457d4c79ab2c9fc3aa1cb02c932436bc76d30d8ada2ca6780f5",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala": "24b185c3ef7939be404500704e955d598c2493ee7c3a1f737d0cf16267d9c362",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrV1Spec.scala": "835224bc5028bc192976dd96e08906add489d4824d328397466a7e4dd7f31493",

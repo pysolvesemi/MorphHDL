@@ -2091,6 +2091,13 @@ private[internals] object ParameterizedVerilogVecs {
       // is used only to replace occurrences of that already-proven identity.
       val authorizedStaticLeaves =
         new IdentityHashMap[BaseType, java.lang.Boolean]()
+      // Construction may group nodes after their consumers were authored.
+      // Only the exact retained native alias inventory can authorize these
+      // references; a name or a matching width never establishes identity.
+      ParameterizedVec.constructionAliasesOf(plan.vector).foreach { value =>
+        if (plan.leaves.exists(_.value eq value))
+          authorizedStaticLeaves.put(value, java.lang.Boolean.TRUE)
+      }
       val residualReferences = plan.leaves.map { leaf =>
         leaf.name -> countReferenceIdentifier(lines, leaf.name)
       }.toMap
@@ -2145,8 +2152,8 @@ private[internals] object ParameterizedVerilogVecs {
         val found = residualReferences(leaf.name)
         // StructuralVecIndex uses are lowered by the structural pass before
         // this one. Any remaining carrier reference must therefore be backed
-        // by one exact live constant Vec access retained above; a dynamic or
-        // otherwise unrecorded native carrier use must fail closed.
+        // by an exact live constant Vec access or construction alias retained
+        // above; otherwise unrecorded native carrier uses still fail closed.
         if (found != 0 && !authorizedStaticLeaves.containsKey(leaf.value)) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-VEC-RESIDUAL-CARRIER-REFERENCE",

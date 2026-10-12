@@ -127,4 +127,54 @@ initial begin for(i=0;i<20;i=i+1) begin x={$random,$random}; #1;
 if(y!=={x[39:8],~x[7:0]}) $fatal; end $finish; end
 endmodule""", lint = false)
   }
+  test("constant sum offsets fold to whole non-power-of-two words and coordinates") {
+    val rtl = ParameterizedVerilogUnpacked.rewrite("""module Top(input [4:0] x, output [4:0] y);
+  wire [29:0] storage;
+  assign storage[((5 * 3) + 5) +: 5] = x;
+  assign y = storage[(5 * (3 + 1)) +: 5];
+endmodule""", Vector(ParameterizedVerilogUnpacked.ArrayShape("storage", "5", Vector("2", "3"))))
+    assert(rtl.contains("assign storage[1][1] = x;") && rtl.contains("assign y = storage[1][1];"), rtl)
+    assert(!rtl.contains("_write") && !rtl.contains("function"), rtl)
+    // The intentionally unused words belong to this geometry-only fixture.
+    check(rtl, """module tb; reg [4:0] x; wire [4:0] y; Top dut(x,y);
+initial begin x=5'h15; #1; if(y!==x) $fatal; x=5'bx; #1; if(y!==x) $fatal; $finish; end endmodule""", lint=false)
+  }
+
+  test("symbolic aligned sums cancel only the exact word factor without freezing dimensions") {
+    val rtl = ParameterizedVerilogUnpacked.rewrite("""module Top #(parameter WIDTH=5, INNER=3)(input [WIDTH-1:0] x, output [WIDTH-1:0] y);
+  wire [WIDTH*2*INNER-1:0] storage;
+  assign storage[((WIDTH * INNER) + WIDTH) +: WIDTH] = x;
+  assign y = storage[(WIDTH * (INNER + 1)) +: WIDTH];
+endmodule""", Vector(ParameterizedVerilogUnpacked.ArrayShape("storage", "WIDTH", Vector("2", "INNER"))))
+    assert(!rtl.contains("_write") && !rtl.contains("function") && !rtl.contains("packed_view"), rtl)
+    assert(rtl.contains("INNER"), rtl)
+    check(rtl, """module tb; reg [35:0] x; wire [35:0] y; Top #(.WIDTH(36),.INNER(7)) dut(x,y);
+initial begin x=36'h123456789; #1; if(y!==x) $fatal; x=36'bz; #1; if(y!==x) $fatal; $finish; end endmodule""", lint=false)
+  }
+
+  test("unaligned and overflowing offsets do not acquire a false whole-word proof") {
+    val shape = ParameterizedVerilogUnpacked.ArrayShape("storage", "5", Vector("2", "3"))
+    val rtl = ParameterizedVerilogUnpacked.rewrite("""module Top(input [4:0] x, output [4:0] y);
+wire [29:0] storage;
+assign storage[((5*3)+1) +: 5] = x;
+assign y = storage[((5*3)+1) +: 5];
+endmodule""", Vector(shape))
+    assert(rtl.contains("_write_index"), rtl)
+    assert(!shape.element("2147483647 + 1").contains("[-2147483648]"))
+    assert(shape.element("30") == "storage[2][0]") // do not wrap invalid outer coordinates
+  }
+
+  test("aligned dynamic predicate coordinates remain opaque without read helpers") {
+    val rtl = rewrite("""module Top(input [23:0] x, input [1:0] index, output [7:0] y);
+wire [23:0] storage;
+assign storage = x;
+assign y = storage[(((index < 3) ? index : 2) * 8) +: 8];
+endmodule""")
+    assert(!rtl.contains("function") && !rtl.contains("packed_view"), rtl)
+    check(rtl, """module tb; reg [23:0] x; reg [1:0] index; wire [7:0] y; integer i; Top dut(x,index,y);
+initial begin x=24'h563412;
+for(i=0;i<4;i=i+1) begin index=i; #1; if(y !== (i<3 ? x[i*8 +: 8] : x[23:16])) $fatal; end
+$finish; end endmodule""")
+  }
+
 }

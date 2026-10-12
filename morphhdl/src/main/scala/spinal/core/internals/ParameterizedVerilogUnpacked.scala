@@ -16,7 +16,8 @@ private[internals] object ParameterizedVerilogUnpacked {
         val stride = dimensions.drop(axis + 1).map(x => s"($x)").mkString(" * ")
         val index = if (stride.isEmpty) ordinal else s"($ordinal / ($stride))"
         // Do not wrap the outer index: an invalid address must stay invalid.
-        if (axis == 0) s"[$index]" else s"[($index) % (${dimensions(axis)})]"
+        val coordinate = if (axis == 0) index else s"($index) % (${dimensions(axis)})"
+        s"[${constantProduct(coordinate).map(_.toString).getOrElse(coordinate)}]"
       }.mkString
       name + indices
     }
@@ -256,38 +257,86 @@ private[internals] object ParameterizedVerilogUnpacked {
     }
     if (closesEarly) text else strip(text.substring(1, text.length - 1))
   }
-  private def normalized(value: String): String = strip(value.replaceAll("\\s", ""))
+  private def normalized(value: String): String = arithmetic(value).render
 
-  // Only literal products are folded; symbolic widths retain their expressions.
-  private def constantProduct(value: String): Option[BigInt] = {
-    val text = value.replaceAll("[\\s()]", "")
-    if (text.matches("[0-9]+(?:\\*[0-9]+)*")) Some(text.split("\\*").map(BigInt(_)).product)
-    else None
+  // This small expression algebra is applied only to selections of the
+  // identity-certified ArrayShapes supplied by Vec publication. Symbols and
+  // function calls remain opaque: no parameter witness is ever evaluated.
+  private sealed trait Arithmetic { def render: String }
+  private case class Number(value: BigInt) extends Arithmetic { def render: String = value.toString }
+  private case class Atom(render: String) extends Arithmetic
+  private case class Binary(op: Char, left: Arithmetic, right: Arithmetic) extends Arithmetic {
+    def render: String = s"(${left.render} $op ${right.render})"
+  }
+  private def binary(op: Char, left: Arithmetic, right: Arithmetic): Arithmetic = (left, right) match {
+    case (Number(a), Number(b)) =>
+      val value = op match {
+        case '+' => Some(a + b)
+        case '-' => Some(a - b)
+        case '*' => Some(a * b)
+        case '/' if b != 0 => Some(a / b)
+        case '%' if b != 0 => Some(a % b)
+        case _ => None
+      }
+      // Keep Verilog's 32-bit constant overflow semantics intact.
+      value.filter(_.isValidInt).map(Number).getOrElse(Binary(op, left, right))
+    case (a, Number(b)) if (op == '+' || op == '-') && b == 0 => a
+    case (Number(a), b) if op == '+' && a == 0 => b
+    case (a, Number(b)) if op == '*' && b == 1 => a
+    case (Number(a), b) if op == '*' && a == 1 => b
+    case _ => Binary(op, left, right)
+  }
+  private def arithmetic(value: String): Arithmetic = {
+    val text = strip(value.replaceAll("\\s", ""))
+    var depth = 0
+    var opaque = false
+    val operators = text.indices.filter { i =>
+      if ("([{".contains(text(i))) depth += 1
+      if (")]}".contains(text(i))) depth -= 1
+      if (depth == 0 && "?:&|~^".contains(text(i))) opaque = true
+      depth == 0 && i > 0 && "+-*/%".contains(text(i))
+    }
+    // Preserve arbitrary nested predicates as single parenthesized operands.
+    // Their enclosing multiplication can still prove exact word alignment.
+    if (opaque || "(?:^[+*/%]|[+*/%-][+*/%-]|[+*/%-]$)".r.findFirstIn(text).nonEmpty)
+      return Atom(s"($text)")
+    val add = operators.filter(i => text(i) == '+' || text(i) == '-')
+    val split = if (add.nonEmpty) add.lastOption else operators.lastOption
+    split match {
+      case Some(i) => binary(text(i), arithmetic(text.substring(0,i)), arithmetic(text.substring(i+1)))
+      case None if text.matches("[0-9]+") && BigInt(text).isValidInt => Number(BigInt(text))
+      case None =>
+        val call = "^([A-Za-z_][A-Za-z0-9_$]*)\\((.*)\\)$".r
+        text match {
+          case call(name, arguments) => Atom(name + splitConcatenation(arguments).map(x => arithmetic(x).render).mkString("(", ",", ")"))
+          case _ => Atom(text)
+        }
+    }
+  }
+  private def constantProduct(value: String): Option[BigInt] = arithmetic(value) match {
+    case Number(number) => Some(number)
+    case _ => None
   }
 
-  /** Cancel only a proven outer multiplication by the exact scalar width. */
+  /** Factor the exact scalar width out of every term. A partial or symbolic
+    * remainder retains the bit-level fallback; it is never rounded down.
+    */
   private def wordIndex(offset: String, width: String): Option[String] = {
-    val text = strip(offset)
-    if (text == "0") return Some("0")
-    val scalar = normalized(width)
-    if (scalar == "1") return Some(text)
-    if (text.matches("[0-9]+") && scalar.matches("[0-9]+") && BigInt(scalar) > 0 &&
-        BigInt(text) % BigInt(scalar) == 0) return Some((BigInt(text) / BigInt(scalar)).toString)
-    var depth = 0
-    val operators = text.indices.filter { i =>
-      if (text(i) == '(' || text(i) == '[') depth += 1
-      if (text(i) == ')' || text(i) == ']') depth -= 1
-      depth == 0 && "+-*/%?:".contains(text(i))
+    val scalar = arithmetic(width)
+    def divide(value: Arithmetic): Option[Arithmetic] = {
+      if (value == scalar) return Some(Number(1))
+      (value, scalar) match {
+        case (Number(a), _) if a == 0 => Some(Number(0))
+        case (a, Number(b)) if b == 1 => Some(a)
+        case (Number(a), Number(b)) if b > 0 && a % b == 0 => Some(Number(a / b))
+        case (Binary('*', a, b), _) =>
+          divide(a).map(binary('*', _, b)).orElse(divide(b).map(binary('*', a, _)))
+        case (Binary(op, a, b), _) if op == '+' || op == '-' =>
+          for (left <- divide(a); right <- divide(b)) yield binary(op, left, right)
+        case _ => None
+      }
     }
-    if (operators.size != 1 || text(operators.head) != '*') None
-    else {
-      val at = operators.head
-      val left = strip(text.substring(0, at))
-      val right = strip(text.substring(at + 1))
-      if (normalized(left) == normalized(width)) Some(right)
-      else if (normalized(right) == normalized(width)) Some(left)
-      else None
-    }
+    divide(arithmetic(offset)).map(_.render)
   }
 
   private def select(code: String, from: Int, wholeWidth: String): Selection = {

@@ -281,7 +281,8 @@ object MorphHdlExternalParameterizedVerilog {
               withStructure,
               pc,
               canonicalOf,
-              sharedWidthDefaults(name)
+              sharedWidthDefaults(name),
+              deferIntegerHelpers = true
             )
           } else withStructure
           val withArrays = ParameterizedVerilogVecs.rewriteUnpacked(component,
