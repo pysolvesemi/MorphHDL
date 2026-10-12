@@ -29,6 +29,10 @@ private[internals] object NativeScalarFormalSchema {
     val scopedScalarUses = ElabScopedProcess.operations(component).flatMap(_.builder.geometry.flatMap(_.parameters))
       .filterNot(parameter => geometry.exists(_ eq parameter) ||
         ParameterizedBlackBoxGenericRegistry.parametersOf(component).exists(_ eq parameter))
+    // Native generic publication now authenticates scalar actuals before body
+    // comparison, so forwarded scalar-only formals have definition defaults.
+    val genericScalarUses = ParameterizedBlackBoxGenericRegistry.parametersOf(component)
+      .filterNot(parameter => geometry.exists(_ eq parameter))
     geometry ++= ParameterizedProcess.parametersOf(component)
     geometry ++= ParameterizedBlackBoxGenericRegistry.parametersOf(component)
     // A Vec depth is a definition-owned scalar formal even though it controls
@@ -73,7 +77,7 @@ private[internals] object NativeScalarFormalSchema {
     declarations.filter { entry =>
       val formal = entry.binding.formal
       (values.exists(_ eq formal) && !geometry.exists(_.name == formal.name)) ||
-        depthFormals.exists(_ eq formal) || scopedScalarUses.exists(_ eq formal)
+        depthFormals.exists(_ eq formal) || scopedScalarUses.exists(_ eq formal) || genericScalarUses.exists(_ eq formal)
     }
   }
 

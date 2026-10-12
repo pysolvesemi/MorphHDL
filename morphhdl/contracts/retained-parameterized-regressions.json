@@ -850,6 +850,22 @@
         "Gray stage definitions share independent width actuals split=true reverse=true unpacked=false",
         "Gray stage definitions share independent width actuals split=true reverse=true unpacked=true"
       ],
+      "morphhdl.GuardedVecPublicationTests": [
+        "guarded Vec publication bridge unpacked=false",
+        "guarded Vec publication bridge unpacked=true",
+        "guarded Vec publication promoted unpacked=false",
+        "guarded Vec publication promoted unpacked=true",
+        "guarded Vec publication signed-bits unpacked=false",
+        "guarded Vec publication signed-bits unpacked=true",
+        "guarded Vec publication signed-direct unpacked=false",
+        "guarded Vec publication signed-direct unpacked=true",
+        "overlapping structural writers remain rejected",
+        "partial signed writes remain rejected separately from whole-scalar writes",
+        "scalar-formal recursive definitions share across defaults peer=false default=1",
+        "scalar-formal recursive definitions share across defaults peer=false default=3",
+        "scalar-formal recursive definitions share across defaults peer=true default=1",
+        "scalar-formal recursive definitions share across defaults peer=true default=3"
+      ],
       "morphhdl.HierarchyParameterBindingTests": [
         "a parameterless parent binds a parameterized child to one concrete literal",
         "a parent binding must remain inside the complete child domain",
@@ -1452,6 +1468,17 @@
         "module control reads relocated state and drives loop memory and scalar child=false nested=true",
         "module control reads relocated state and drives loop memory and scalar child=true nested=false",
         "module control reads relocated state and drives loop memory and scalar child=true nested=true"
+      ],
+      "morphhdl.SharedModuleReferenceTests": [
+        "explicit shared sibling validates symbolic substituted ports split=false",
+        "explicit shared sibling validates symbolic substituted ports split=true",
+        "shared sibling rejects domain",
+        "shared sibling rejects implementation",
+        "shared sibling rejects missing",
+        "shared sibling rejects name",
+        "shared sibling rejects unauthenticated",
+        "shared sibling rejects untyped",
+        "shared sibling rejects width"
       ],
       "morphhdl.ShiftSubrangeAndGrayTests": [
         "subrange register chain mode=direct symbolic=false unpacked=false",
@@ -3521,6 +3548,7 @@
     "morphhdl/src/test/scala/morphhdl/GenericExpressionAndStreamTests.scala": "ebfd6e8bd6fd88402bba9af9534100206fb5719313a9aea5fc063d43b4ac6722",
     "morphhdl/src/test/scala/morphhdl/GenericProcessLoweringTests.scala": "046ba7e5d752b4db52ba189ff8d69d1d024c9cda1656e6e3a7859a54da112e2d",
     "morphhdl/src/test/scala/morphhdl/GrayStageSharingTests.scala": "60fdf76f872a6d31ad41a2a01229e97f065b8e06573bca6102e3556ec4644eab",
+    "morphhdl/src/test/scala/morphhdl/GuardedVecPublicationTests.scala": "7a8e1f58eda5b0f24bf76a6d7c1d3d9f7013388c60fa5b92a0f43dc9c46a36b6",
     "morphhdl/src/test/scala/morphhdl/HierarchyParameterBindingTests.scala": "ded556d070b92fab5462ce47bd30d2f1a30cd41a7abfa39b4d428493603b1152",
     "morphhdl/src/test/scala/morphhdl/Increment61CompatibilityCatalog.scala": "5f9f89a4ea2fbd958caa92273718fed6fd8f24de5c7ba0d57335f6b278716910",
     "morphhdl/src/test/scala/morphhdl/Increment61CompatibilityMatrix.scala": "23182c8d50be2c24d58204c74a714a0957895ff779525655fd20279c6728fb4f",
@@ -3578,6 +3606,7 @@
     "morphhdl/src/test/scala/morphhdl/ScopedProcessExtensionTests.scala": "98f0f890dba2b7607348c0e69c174365e0d25461a5ba51b0d93c590ae44d5f64",
     "morphhdl/src/test/scala/morphhdl/ScopedProcessTests.scala": "ae4c27d7601117f81eb41ed0751afb5abee0cdefc87cedaa800be568b4b60e47",
     "morphhdl/src/test/scala/morphhdl/SharedFiniteLoopControlTests.scala": "6b94ae384ad11a27cafc84d7bd8129929e2336d74903ed8a2ba6360bd98cdd25",
+    "morphhdl/src/test/scala/morphhdl/SharedModuleReferenceTests.scala": "3cef59880593288bc1e68ef813fec75fab4fef3f01cc33e7f4c3c35eed636930",
     "morphhdl/src/test/scala/morphhdl/ShiftSubrangeAndGrayTests.scala": "33cab7fa846b5b4233c8cfa5cc3a67baf935894e01564658288d5a4cbac33bf7",
     "morphhdl/src/test/scala/morphhdl/SignedDeclarationPublicationTests.scala": "e7da32b0ea6aeb453fead0e5c7cba27ade392cea041abfd2a1ff3b1072502498",
     "morphhdl/src/test/scala/morphhdl/SignednessBoundaryTests.scala": "399180574c71d5ed7e5ea71dfb7520e599329061676e23d8ceaebc8c9b265364",

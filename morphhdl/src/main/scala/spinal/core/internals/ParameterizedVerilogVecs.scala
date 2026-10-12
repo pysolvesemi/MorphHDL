@@ -2178,7 +2178,7 @@ private[internals] object ParameterizedVerilogVecs {
             while (drivers.hasNext) {
               val driver = drivers.next()
               if ((driver.finalTarget eq leaf.value) && !claimedAssignments.containsKey(driver)) {
-                if (plan.layout.nonEmpty && (driver.target eq leaf.value)) {
+                if (driver.target eq leaf.value) {
                   val parsed = findAssignment(lines, leaf.name, None,
                     "static signed field write", plan.sourceLocation)
                   lines = lines.updated(parsed.lineIndex,
@@ -6869,20 +6869,42 @@ private[internals] object ParameterizedVerilogVecs {
     val net = if (promote) Vector("reg") else nativeNets
     val promotedDrivers = mutable.HashMap.empty[Int, Vector[String]]
     if (promote && !needsIndependentCellEvents(plan)) plan.leaves.zip(declarations).filter(_._2.net == "wire").foreach { case (leaf, _) =>
-      val driver = findAssignment(original, leaf.name, None, "constant Vec wire promotion", plan.sourceLocation)
-      if (!driver.continuous) fail("SPINAL-PARAMETERIZED-VERILOG-VEC-WIRE-DRIVER-MISMATCH",
-        "a promoted wire leaf must retain its exact continuous assignment", plan.sourceLocation)
-      var literal = false
+      val emitted = NativeFiniteStatementLineage.survivingLineAssignments(plan.vector.component, original)
+      val retained = ArrayBuffer.empty[DataAssignmentStatement]
       leaf.value.foreachStatements {
-        case assignment: DataAssignmentStatement => assignment.source match {
-          case _: BitVectorLiteral | _: BoolLiteral => literal = true
-          case _ =>
-        }
+        case assignment: DataAssignmentStatement => retained += assignment
         case _ =>
       }
-      val prefix = if (literal) "initial" else "always @(*)"
-      promotedDrivers(driver.lineIndex) = Vector(s"${driver.indentation}$prefix begin",
-        s"${driver.indentation}  ${leaf.name} = ${driver.rhs};", s"${driver.indentation}end")
+      val authenticated = emitted.toVector.filter { case (_, assignment) => assignment.finalTarget eq leaf.value }
+      val drivers = if (authenticated.nonEmpty) {
+        if (authenticated.size != retained.size ||
+            !retained.forall(assignment => authenticated.count(_._2 eq assignment) == 1) ||
+            !retained.forall(assignment => assignment.target eq leaf.value))
+          fail("SPINAL-PARAMETERIZED-VERILOG-VEC-WIRE-DRIVER-MISMATCH",
+            "guarded wire promotion requires every exact whole-leaf native driver", plan.sourceLocation)
+        authenticated.sortBy(_._1).map { case (index, assignment) =>
+          val parsed = findAssignment(Vector(original(index)), leaf.name, None,
+            "guarded constant Vec wire promotion", plan.sourceLocation).copy(lineIndex = index)
+          (parsed, assignment.source)
+        }
+      } else {
+        val parsed = findAssignment(original, leaf.name, None, "constant Vec wire promotion", plan.sourceLocation)
+        if (retained.size != 1 || (retained.head.target ne leaf.value))
+          fail("SPINAL-PARAMETERIZED-VERILOG-VEC-WIRE-DRIVER-MISMATCH",
+            "wire promotion requires one exact whole-leaf native driver", plan.sourceLocation)
+        Vector(parsed -> retained.head.source)
+      }
+      drivers.foreach { case (driver, source) =>
+        if (!driver.continuous) fail("SPINAL-PARAMETERIZED-VERILOG-VEC-WIRE-DRIVER-MISMATCH",
+          "a promoted wire leaf must retain its exact continuous assignment", plan.sourceLocation)
+        val literal = source match {
+          case _: BitVectorLiteral | _: BoolLiteral => true
+          case _ => false
+        }
+        val prefix = if (literal) "initial" else "always @(*)"
+        promotedDrivers(driver.lineIndex) = Vector(s"${driver.indentation}$prefix begin",
+          s"${driver.indentation}  ${leaf.name} = ${driver.rhs};", s"${driver.indentation}end")
+      }
     }
     val syntax = aggregateDeclarationSyntax(declarations)
     if (direction.size != 1 || net.size != 1 || syntax.size != 1) {

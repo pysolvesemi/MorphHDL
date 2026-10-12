@@ -3,8 +3,8 @@ package spinal.core.internals
 import scala.collection.mutable.ArrayBuffer
 import spinal.core._
 
-/** Skip definition publication only for authenticated direct self-reference
-  * identities. Their native instances retain the real module name throughout
+/** Skip definition publication only for authenticated self-reference or
+  * explicit sibling-reference identities. Their native instances retain the real module name throughout
   * comparison and emission; no temporary names or emitted-text repair is used.
   */
 object MorphHdlRecursivePerComponentPublication {

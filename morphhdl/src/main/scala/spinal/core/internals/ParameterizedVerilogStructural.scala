@@ -3982,8 +3982,10 @@ private[internals] object ParameterizedVerilogStructural {
               owned.toVector ++ Vector(range.end)).distinct.sorted
           val fragment =
             if (continuousFamily)
-              fragmentAssignments.find { case (plan, _) => plan.block eq claimant.block }
-                .get._2.map(statement => "assign " + statement).mkString("\n")
+              (commonIndices.toVector ++ owned.toVector).distinct.sorted.map { index =>
+                "assign " + stripLineComment(lines(index)).trim +
+                  NativeFiniteStatementLineage.suffixOfLine(component, lines(index))
+              }.mkString("\n")
             else NativeConditionalProcessEmitter.restrictFragmentSensitivity(component,
               stripCommonIndent(selected.map(lines).mkString("\n").trim))
           val plan = current(claimant.block)

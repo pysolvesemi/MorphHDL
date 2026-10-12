@@ -3,7 +3,7 @@ package spinal.core.internals
 import spinal.core._
 import scala.collection.mutable.ArrayBuffer
 
-/** Private native handoff for finite packed writes. Names/text do not mint an edge. */
+/** Private native handoff for retained writes. Names/text do not mint an edge. */
 private[internals] object NativeFiniteStatementLineage {
   private object Key
   private object ScalarKey
@@ -50,8 +50,13 @@ private[internals] object NativeFiniteStatementLineage {
   private def records(component: Component): ArrayBuffer[Edge] = component.userCache
     .getOrElseUpdate(Key, ArrayBuffer.empty[Edge]).asInstanceOf[ArrayBuffer[Edge]]
 
+  private def captured(component: Component, assignment: AssignmentStatement): Boolean =
+    TypedFinitePackedAccess.writes(component).exists(_.assignment eq assignment) ||
+      ParameterizedStructure.regionsOf(component).flatMap(ParameterizedStructure.allBlocks)
+        .exists(_.assignments.exists(_ eq assignment))
+
   def suffix(component: Component, assignment: AssignmentStatement): String = {
-    if (!TypedFinitePackedAccess.writes(component).exists(_.assignment eq assignment)) return ""
+    if (!captured(component, assignment)) return ""
     val edges = records(component)
     require(!edges.exists(_.assignment eq assignment), "finite packed assignment was emitted twice")
     val marker = s" // native_edge_${edges.size}"
@@ -63,9 +68,22 @@ private[internals] object NativeFiniteStatementLineage {
     records(component).map { edge =>
       val matches = lines.indices.filter(i => lines(i).endsWith(edge.marker))
       require(matches.size == 1, "finite packed assignment lost or duplicated its native emission edge")
-      require(TypedFinitePackedAccess.writes(component).exists(_.assignment eq edge.assignment),
+      require(captured(component, edge.assignment),
         "native packed assignment lineage lost its capture")
       matches.head -> edge.assignment
+    }.toMap
+
+  def suffixOfLine(component: Component, line: String): String =
+    records(component).find(edge => line.endsWith(edge.marker)).map(_.marker).getOrElse("")
+
+  /** Later phases may consume unrelated edges, but a surviving marker must
+    * still identify precisely one original assignment and one emitted line. */
+  def survivingLineAssignments(component: Component, lines: Vector[String]): Map[Int, AssignmentStatement] =
+    records(component).flatMap { edge =>
+      val matches = lines.indices.filter(i => lines(i).endsWith(edge.marker))
+      require(matches.size <= 1 && captured(component, edge.assignment),
+        "retained assignment lost capture or duplicated its publication edge")
+      matches.map(_ -> edge.assignment)
     }.toMap
 
   def finish(component: Component, source: String): String = {

@@ -19,7 +19,7 @@
     },
     ".github/workflows/increment-59c-named-field-vectors.yml": {
       "before_sha256": "fd0064d9d1b2a7e7de8463320861efff711ed13252114c991f098ed121d4dc0b",
-      "after_sha256": "23d36efe772cf9fee13013a6e8a0461a2d8618f876972da678c677f993930530",
+      "after_sha256": "b4349cfae337e7ae93015094f7c4b0e43391ca8ecb88f42951426da2be9f2d61",
       "patches": [
         {
           "before": "\npermissions:\n  contents: read\n\nconcurrency:\n  group: increment-59c-named-field-vectors-${{ github.ref }}\n",
@@ -39,11 +39,11 @@
         },
         {
           "before": "            'morph/Test/testOnly morphhdl.NamedFieldVecTests morphhdl.NamedFieldVecNestedWriteTests morphhdl.NamedFieldVecHierarchyTests morphhdl.NamedFieldVecCollisionTests spinal.core.NamedFieldPackedAliasTests morphhdl.TypedParameterizedVecTests morphhdl.TypedParameterizedVecFormalEquivalenceTests spinal.core.TypedVecShapeTests spinal.core.StructuralIdentityAdversarialTests spinal.core.internals.ParameterizedVerilogFieldLayoutTests spinal.core.internals.TypedBalancedReductionPublicationSafetyTests spinal.core.internals.TypedBalancedReductionCallbackPolicyTests' \\\n",
-          "after": "            'morph/Test/testOnly morphhdl.VecWordPublicationTests spinal.core.internals.UnpackedDirectReadTests morphhdl.NamedFieldVecTests morphhdl.NamedFieldVecNestedWriteTests morphhdl.NamedFieldVecHierarchyTests morphhdl.NamedFieldVecCollisionTests spinal.core.NamedFieldPackedAliasTests morphhdl.TypedParameterizedVecTests morphhdl.TypedParameterizedVecFormalEquivalenceTests spinal.core.TypedVecShapeTests spinal.core.StructuralIdentityAdversarialTests spinal.core.internals.ParameterizedVerilogFieldLayoutTests spinal.core.internals.TypedBalancedReductionPublicationSafetyTests spinal.core.internals.TypedBalancedReductionCallbackPolicyTests' \\\n"
+          "after": "            'morph/Test/testOnly morphhdl.GuardedVecPublicationTests morphhdl.SharedModuleReferenceTests morphhdl.VecWordPublicationTests spinal.core.internals.UnpackedDirectReadTests morphhdl.NamedFieldVecTests morphhdl.NamedFieldVecNestedWriteTests morphhdl.NamedFieldVecHierarchyTests morphhdl.NamedFieldVecCollisionTests spinal.core.NamedFieldPackedAliasTests morphhdl.TypedParameterizedVecTests morphhdl.TypedParameterizedVecFormalEquivalenceTests spinal.core.TypedVecShapeTests spinal.core.StructuralIdentityAdversarialTests spinal.core.internals.ParameterizedVerilogFieldLayoutTests spinal.core.internals.TypedBalancedReductionPublicationSafetyTests spinal.core.internals.TypedBalancedReductionCallbackPolicyTests' \\\n"
         },
         {
           "before": "          suites = ['NamedFieldVecTests', 'NamedFieldVecNestedWriteTests', 'TypedParameterizedVecTests',\n",
-          "after": "          suites = ['VecWordPublicationTests', 'UnpackedDirectReadTests', 'NamedFieldVecTests', 'NamedFieldVecNestedWriteTests', 'TypedParameterizedVecTests',\n"
+          "after": "          suites = ['GuardedVecPublicationTests', 'SharedModuleReferenceTests', 'VecWordPublicationTests', 'UnpackedDirectReadTests', 'NamedFieldVecTests', 'NamedFieldVecNestedWriteTests', 'TypedParameterizedVecTests',\n"
         }
       ]
     },

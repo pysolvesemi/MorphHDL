@@ -368,7 +368,9 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
 
   private[internals] def nativeWidthGeneric(parent: Component, blackBox: BlackBox,
       association: (String, Any), pc: PhaseContext): Option[String] = {
-    val owned = NativeWidthFormalSchema.bindings(parent)
+    // Scalar formals forwarded to a native reference are definition-owned too;
+    // restricting this to port widths leaks instance witnesses into body identity.
+    val owned = ExternalFormalParameterRegistry.completeTypedBindingsOf(parent)
     val eligible = ParameterizedBlackBoxGenericRegistry.recordsOf(blackBox).collect {
       case value: ParameterizedBlackBoxIntegerGeneric if value.name == association._1 &&
           value.expression.parameters.nonEmpty &&

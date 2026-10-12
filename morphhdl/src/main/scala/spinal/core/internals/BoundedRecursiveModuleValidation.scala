@@ -15,7 +15,7 @@ private[spinal] object BoundedRecursiveModuleValidation {
   private case object PreservedBinding extends IntegerBindingKind
   private case object UnsupportedBinding extends IntegerBindingKind
 
-  /** Returns only validated self-reference identities, not emitted modules. */
+  /** Returns validated reference-only identities, not emitted definitions. */
   def validate(components: Vector[Component]): Vector[BlackBox] = {
     require(components != null, "recursive validation requires a component graph")
     val owners = components.filter(component =>
@@ -25,14 +25,23 @@ private[spinal] object BoundedRecursiveModuleValidation {
       blackBox
     }.foreach { blackBox =>
       val targets = owners.filter(_.definitionName == blackBox.definitionName)
-      if (targets.nonEmpty && !targets.exists(_ eq blackBox.parent))
+      val shared = ElabModuleReference.definitionOf(blackBox)
+      shared.foreach { definition =>
+        if (!owners.exists(_ eq definition))
+          fail("SPINAL-PARAMETERIZED-VERILOG-SHARED-REFERENCE-MISMATCH",
+            "shared reference definition is absent from the exact native graph", None)
+        NativeSharedModuleReference.validate(blackBox, definition)
+      }
+      if (shared.isEmpty && targets.nonEmpty && !targets.exists(_ eq blackBox.parent))
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-RECURSION-NONLOCAL-REFERENCE-UNSUPPORTED",
           "a reference to an emitted module must be a direct self-reference; mutual and non-local recursion are not qualified",
           None
         )
     }
-    owners.flatMap(validateOwner)
+    owners.flatMap(validateOwner) ++ components.collect {
+      case reference: BlackBox if ElabModuleReference.definitionOf(reference).nonEmpty => reference
+    }
   }
 
   private def validateOwner(owner: Component): Vector[BlackBox] = {
@@ -41,7 +50,8 @@ private[spinal] object BoundedRecursiveModuleValidation {
     ParameterizedStructure.regionsOf(owner)
       .flatMap(ParameterizedStructure.allBlocks)
       .flatMap(_.children)
-      .collect { case reference: BlackBox if !ParameterizedStructure.isFiniteExternalChild(owner, reference) => reference }
+      .collect { case reference: BlackBox if !ParameterizedStructure.isFiniteExternalChild(owner, reference) &&
+          ElabModuleReference.definitionOf(reference).isEmpty => reference }
       .foreach { reference =>
         if (
           !owner.children.exists(_ eq reference) ||
