@@ -1565,7 +1565,7 @@ private[internals] object ParameterizedVerilogVecs {
       else if (liveCarriers != 0) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-VEC-DECLARATION-OWNERSHIP-MISMATCH",
-          s"typed Vec retains $liveCarriers of ${carriers.size} exact carrier declarations",
+          s"typed Vec ${vector.getName()} retains $liveCarriers of ${carriers.size} exact carrier declarations: " + carriers.map(c => s"${c.getName()}:${declarations.containsKey(c)}").mkString(","),
           shape.sourceLocation
         )
       } else {
@@ -2179,7 +2179,14 @@ private[internals] object ParameterizedVerilogVecs {
               val driver = drivers.next()
               if ((driver.finalTarget eq leaf.value) && !claimedAssignments.containsKey(driver)) {
                 if (driver.target eq leaf.value) {
-                  val parsed = findAssignment(lines, leaf.name, None,
+                  val exact = NativeFiniteStatementLineage.survivingLineAssignments(component, lines)
+                    .toVector.filter(_._2 eq driver)
+                  val parsed = if (exact.nonEmpty) {
+                    require(exact.size == 1, "signed word write must retain one native emission edge")
+                    val index = exact.head._1
+                    findAssignment(Vector(lines(index)), leaf.name, None,
+                      "guarded static signed field write", plan.sourceLocation).copy(lineIndex = index)
+                  } else findAssignment(lines, leaf.name, None,
                     "static signed field write", plan.sourceLocation)
                   lines = lines.updated(parsed.lineIndex,
                     parsed.indentation + (if (parsed.continuous) "assign " else "") +
@@ -2258,8 +2265,9 @@ private[internals] object ParameterizedVerilogVecs {
   // Collapsing distinct combinational cells into one Verilog variable also
   // collapses their event identity. Default/override writes can then retrigger
   // another cell's process forever, even though the native graph is acyclic.
-  // Keep native cells for fixed, internal, interdependent combinational Vecs;
-  // an aggregate needed by a dynamic/whole read is a read-only view of them.
+  // Keep native cells for fixed internal Vecs with interdependent or guarded
+  // combinational drivers; an aggregate needed by a dynamic/whole read is a
+  // read-only wire view, including continuously driven constant words.
   private def needsIndependentCellEvents(plan: VecPlan): Boolean = {
     if (plan.projection.nonEmpty || plan.layout.nonEmpty ||
         plan.leaves.exists(l => l.value.isIo || l.value.isReg) ||
@@ -2274,6 +2282,21 @@ private[internals] object ParameterizedVerilogVecs {
       case _ => false
     }
     if (!allowed) return false
+    // Verilog-2001 cannot mix continuous and procedural drivers on a reg
+    // array. Preserve exact scalar storage for guarded/default-override cells
+    // and expose a read-only aggregate; constants remain continuous drivers.
+    val procedural = plan.leaves.exists { leaf =>
+      var count = 0
+      var conditional = false
+      leaf.value.foreachStatements {
+        case assignment: DataAssignmentStatement =>
+          count += 1
+          conditional ||= assignment.parentScope != leaf.value.component.dslBody
+        case _ =>
+      }
+      count > 1 || conditional
+    }
+    if (procedural) return true
     val cells = plan.leaves.map(_.value).toSet
     plan.leaves.exists { leaf =>
       val seen = new IdentityHashMap[Expression, java.lang.Boolean]()
@@ -6867,45 +6890,9 @@ private[internals] object ParameterizedVerilogVecs {
     val promote = direction == Vector(None) && nativeNets.toSet == Set("wire", "reg") &&
       plan.shape.geometryExpressions.forall(e => e.parameters.isEmpty && e.generateIndex.isEmpty && e.minimum == e.maximum)
     val net = if (promote) Vector("reg") else nativeNets
-    val promotedDrivers = mutable.HashMap.empty[Int, Vector[String]]
-    if (promote && !needsIndependentCellEvents(plan)) plan.leaves.zip(declarations).filter(_._2.net == "wire").foreach { case (leaf, _) =>
-      val emitted = NativeFiniteStatementLineage.survivingLineAssignments(plan.vector.component, original)
-      val retained = ArrayBuffer.empty[DataAssignmentStatement]
-      leaf.value.foreachStatements {
-        case assignment: DataAssignmentStatement => retained += assignment
-        case _ =>
-      }
-      val authenticated = emitted.toVector.filter { case (_, assignment) => assignment.finalTarget eq leaf.value }
-      val drivers = if (authenticated.nonEmpty) {
-        if (authenticated.size != retained.size ||
-            !retained.forall(assignment => authenticated.count(_._2 eq assignment) == 1) ||
-            !retained.forall(assignment => assignment.target eq leaf.value))
-          fail("SPINAL-PARAMETERIZED-VERILOG-VEC-WIRE-DRIVER-MISMATCH",
-            "guarded wire promotion requires every exact whole-leaf native driver", plan.sourceLocation)
-        authenticated.sortBy(_._1).map { case (index, assignment) =>
-          val parsed = findAssignment(Vector(original(index)), leaf.name, None,
-            "guarded constant Vec wire promotion", plan.sourceLocation).copy(lineIndex = index)
-          (parsed, assignment.source)
-        }
-      } else {
-        val parsed = findAssignment(original, leaf.name, None, "constant Vec wire promotion", plan.sourceLocation)
-        if (retained.size != 1 || (retained.head.target ne leaf.value))
-          fail("SPINAL-PARAMETERIZED-VERILOG-VEC-WIRE-DRIVER-MISMATCH",
-            "wire promotion requires one exact whole-leaf native driver", plan.sourceLocation)
-        Vector(parsed -> retained.head.source)
-      }
-      drivers.foreach { case (driver, source) =>
-        if (!driver.continuous) fail("SPINAL-PARAMETERIZED-VERILOG-VEC-WIRE-DRIVER-MISMATCH",
-          "a promoted wire leaf must retain its exact continuous assignment", plan.sourceLocation)
-        val literal = source match {
-          case _: BitVectorLiteral | _: BoolLiteral => true
-          case _ => false
-        }
-        val prefix = if (literal) "initial" else "always @(*)"
-        promotedDrivers(driver.lineIndex) = Vector(s"${driver.indentation}$prefix begin",
-          s"${driver.indentation}  ${leaf.name} = ${driver.rhs};", s"${driver.indentation}end")
-      }
-    }
+    if (promote && !needsIndependentCellEvents(plan))
+      fail("SPINAL-PARAMETERIZED-VERILOG-VEC-WIRE-DRIVER-MISMATCH",
+        "mixed native storage requires authenticated independent scalar driver cells", plan.sourceLocation)
     val syntax = aggregateDeclarationSyntax(declarations)
     if (direction.size != 1 || net.size != 1 || syntax.size != 1) {
       fail(
@@ -6941,7 +6928,7 @@ private[internals] object ParameterizedVerilogVecs {
     original.zipWithIndex.flatMap { case (line, index) =>
       if (index == insertion) Vector(declaration)
       else if (indexes.contains(index)) Vector.empty
-      else promotedDrivers.getOrElse(index, Vector(line))
+      else Vector(line)
     }
   }
 

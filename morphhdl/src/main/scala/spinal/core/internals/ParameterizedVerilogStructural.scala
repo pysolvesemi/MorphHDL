@@ -3951,17 +3951,19 @@ private[internals] object ParameterizedVerilogStructural {
             nativeTargets.foreach { target =>
               val name = NativeFiniteStatementLineage.referenceName(component, target)
               val declaration =
-                ("^\\s*(?:output\\s+)?reg\\b.*?\\b" + Pattern.quote(name) + "\\s*[,;]?\\s*$").r
+                ("^\\s*(?:\\(\\*[^*]*\\*\\)\\s*)*(?:output\\s+)?(reg)\\b.*?\\b" + Pattern.quote(name) + "\\s*[,;]?\\s*$").r
               val matches = lines.zipWithIndex.filter { case (line, _) =>
                 declaration.findFirstIn(line).nonEmpty
               }
               if (matches.size != 1)
                 fail(
                   "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONSTANT-OUTPUT-DECLARATION-AMBIGUOUS",
-                  "constant-branch output must retain one exact native output-reg declaration"
+                  s"constant-branch target $name must retain one exact native reg declaration (including attributes); found ${matches.size}"
                 )
               val (line, index) = matches.head
-              continuousOutputDeclarations(index) = line.replaceFirst("\\breg\\b", "wire")
+              val storage = declaration.findFirstMatchIn(line).get
+              continuousOutputDeclarations(index) =
+                line.substring(0, storage.start(1)) + "wire" + line.substring(storage.end(1))
             }
           }
           exactFamily

@@ -1,4 +1,4 @@
-# Guarded Vec publication and explicit shared definitions (CA-032–035)
+# Guarded Vec publication and explicit shared definitions (CA-032–038)
 
 These changes retain native assignment, declaration, scope and instance identities.
 They do not change application code, the operator topology of `reduceBalancedTree`,
@@ -10,8 +10,11 @@ register placement, or the decreasing-metric rules for recursive edges.
   owners and exact assignment capacities; text equality does not authorize a write.
 * CA-033: constant Vec wire promotion consumes the complete authenticated guarded
   assignment set. Every driver must be an exact whole-leaf native assignment.
-  Each assignment stays in its original generate branch. Literal drivers use an
-  initialization process; signal-driven branches use combinational processes.
+  Each assignment stays in its original generate branch. CA-038 supersedes the
+  original constant-to-initial promotion: fixed guarded/default-override arrays
+  retain their native scalar storage and expose a read-only wire aggregate.
+  Constants remain continuous assignments; genuine register initialization is
+  unchanged. No empty-sensitivity combinational process is introduced.
 * CA-034: exact whole-scalar signed writes can drive packed transport before signed
   read aliases are reconstructed. Both `assignFromBits` and `:= bits.asSInt` retain
   signed comparisons. Partial or ambiguous targets are not accepted by this path.
@@ -58,3 +61,25 @@ existing runtime legality guards; the synthesis lint view excludes their legacy
 substitution, combined/per-component publication, and rejected identity/interface/
 domain/implementation cases. Existing structural, recursive, signedness and Vec
 regressions remain required. Local checks do not replace exact-candidate remote CI.
+
+## Composed guarded words (CA-036–038)
+
+Whole signed word writes consume exact native statement receipts when multiple
+branches emit identical text. Unnamed branch-local Vec owners receive a weak
+fallback name on retained static writes and packed reads, allowing native pruning
+to honor existing leaf-retention requests. This does not make an unused Vec vital
+or override authored names. Declaration and carrier inventories remain strict. Structural constant-branch
+conversion recognizes native declaration attributes and preserves them when
+changing the authenticated scalar storage kind.
+
+Guarded/default-override combinational words retain independent native cells.
+Publication restores each exact retained cell and bridges a required packed or
+unpacked aggregate through continuous read-only assignments. Constant and clocked
+siblings therefore need neither a constant-driver initial block nor multiple
+storage kinds on a Verilog-2001 variable array. The native register/reset process,
+branch ownership and signed operations are retained.
+
+The composed fixtures include four-word padded and eight-word banks, manual
+packing, repeated count/level/pipeline guards, COUNT 1–8, masks 0/7, both layouts,
+startup and pre-clock checks, asynchronous reset, randomized and X/Z data.
+Historical application failures and fresh compiler evidence remain separate.

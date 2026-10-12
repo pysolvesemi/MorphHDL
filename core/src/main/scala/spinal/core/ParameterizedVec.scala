@@ -1552,6 +1552,10 @@ object ParameterizedVec {
       writes: Vector[ParameterizedVecWriteInvocation],
       kind: AnyRef
   ): Vector[ParameterizedVecOperation] = shapeOf(vector).toVector.flatMap { shape =>
+    // An explicitly retained word may belong to an unnamed branch-local Vec.
+    // Give its owner a weak fallback so native pruning can honor the word's
+    // existing retention request; this does not make an unused Vec vital.
+    if (!vector.isNamed) vector.setName("typed_vec", weak = true)
     val delegated = distinctAssignments(writes.flatMap(value => writeAssignments(value.operation)))
     val terminal = distinctAssignments(assignments ++ delegated)
     if (terminal.exists(_.finalTarget ne selected)) {
@@ -2202,11 +2206,12 @@ object ParameterizedVec {
         // carrier.  A smaller public result is only a witness-width wrapper so
         // ordinary native width checks can run; publication consumes both
         // exact identities and restores the logical factorized Vec width.
+        // A Vec created inside a captured branch may have no reflected owner
+        // name. Its element names are owner-relative, so naming individual
+        // leaves cannot retain that exact aggregate through native pruning.
+        if (!vector.isNamed) vector.setName("typed_vec", weak = true)
         vector.vec.foreach(element =>
-          element
-            .asInstanceOf[Data]
-            .flatten
-            .foreach(_.dontSimplifyIt().setAsVital())
+          element.asInstanceOf[Data].flatten.foreach(_.dontSimplifyIt().setAsVital())
         )
         // PhaseRemoveIntermediateUnnameds keeps a protected node only when it
         // also has a stable name.  Give the exact native carrier/result weak
