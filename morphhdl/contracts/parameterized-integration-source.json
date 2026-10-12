@@ -590,7 +590,7 @@
     "morphhdl-passes/wa11-boolean-width-normalization.md": null,
     "morphhdl/contracts/candidate-provenance-workflow-migration.json": {
       "mode": "100644",
-      "sha256": "c140263b704382362583fcf2ce7201e74e51a5a0f0019b60973f03da8b5afec6"
+      "sha256": "db987490e9daf91636a5a2deefa3e40efab54e374a279ef2ca1c1fc0a21bb4c2"
     },
     "morphhdl/contracts/candidate-provenance.json": {
       "mode": "100644",
