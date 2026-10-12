@@ -1,0 +1,88 @@
+{
+  "repository": "pysolvesemi/MorphHDL",
+  "pr": 195,
+  "base_ref": "parameterized-verilog",
+  "base_sha": "db54d01e5b21c7664f7a0de3795f061d77a3d259",
+  "candidate_ref": "work/remaining-parameterized-increments",
+  "candidate_sha": "25f15395e1806f6553031315c207ea90d9b6912c",
+  "candidate_tree": "ee6f1cb5fd6f0eb46479cf4373d1d8cf521f0604",
+  "control_ref": "control/ca032-035-25f15395e180-resize-priority",
+  "control_files": [
+    ".github/workflows/ca032-035-25f15395e180-resize-priority.yml",
+    ".github/controllers/ca032-035-25f15395e180-resize-priority/dispatch.py",
+    ".github/controllers/ca032-035-25f15395e180-resize-priority/dispatch.json"
+  ],
+  "workflows": [
+    {
+      "id": 337738060,
+      "path": ".github/workflows/morphhdl-external-structural-process.yml",
+      "sha256": "407ae5160f353d70bee4cdc7f82549ba61e5be6e11b8128c25092d77a26c51ab",
+      "expected_job_names": [
+        "Structural/process source boundary",
+        "External structural/process proof Scala 2.12.18",
+        "External structural/process proof Scala 2.13.12"
+      ],
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 336665858,
+      "path": ".github/workflows/morphhdl-native-source-guard.yml",
+      "sha256": "f4c437482d3aa970d86b3a64f000bdd934771eec539ac0dd8fcfb94e80d85fc0",
+      "expected_job_names": [
+        "Native source preservation and typed overlay"
+      ],
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    }
+  ],
+  "original_failures": [
+    {
+      "run_id": 38204374155,
+      "workflow_id": 348180595,
+      "head_sha": "b87b233fa7130f3fa94e252ab75a178c26a4f6d6"
+    },
+    {
+      "run_id": 38204368140,
+      "workflow_id": 347814196,
+      "head_sha": "b87b233fa7130f3fa94e252ab75a178c26a4f6d6"
+    },
+    {
+      "run_id": 38204361846,
+      "workflow_id": 351397918,
+      "head_sha": "b87b233fa7130f3fa94e252ab75a178c26a4f6d6"
+    },
+    {
+      "run_id": 38204355328,
+      "workflow_id": 351360305,
+      "head_sha": "b87b233fa7130f3fa94e252ab75a178c26a4f6d6"
+    },
+    {
+      "run_id": 38204335671,
+      "workflow_id": 344533049,
+      "head_sha": "b87b233fa7130f3fa94e252ab75a178c26a4f6d6"
+    },
+    {
+      "run_id": 38204328967,
+      "workflow_id": 341560103,
+      "head_sha": "b87b233fa7130f3fa94e252ab75a178c26a4f6d6"
+    },
+    {
+      "run_id": 38204291725,
+      "workflow_id": 351996892,
+      "head_sha": "b87b233fa7130f3fa94e252ab75a178c26a4f6d6"
+    },
+    {
+      "run_id": 38204274602,
+      "workflow_id": 336740926,
+      "head_sha": "b87b233fa7130f3fa94e252ab75a178c26a4f6d6"
+    },
+    {
+      "run_id": 38204267418,
+      "workflow_id": 337856627,
+      "head_sha": "b87b233fa7130f3fa94e252ab75a178c26a4f6d6"
+    }
+  ]
+}
