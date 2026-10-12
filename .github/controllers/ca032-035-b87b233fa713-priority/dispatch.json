@@ -1,0 +1,42 @@
+{
+  "repository": "pysolvesemi/MorphHDL",
+  "pr": 195,
+  "base_ref": "parameterized-verilog",
+  "base_sha": "db54d01e5b21c7664f7a0de3795f061d77a3d259",
+  "candidate_ref": "work/remaining-parameterized-increments",
+  "candidate_sha": "b87b233fa7130f3fa94e252ab75a178c26a4f6d6",
+  "candidate_tree": "1058eed2d5cf9f8e7e90be59cd16c9d9cce65421",
+  "control_ref": "control/ca032-035-b87b233fa713-priority",
+  "control_files": [
+    ".github/workflows/ca032-035-b87b233fa713-priority.yml",
+    ".github/controllers/ca032-035-b87b233fa713-priority/dispatch.py",
+    ".github/controllers/ca032-035-b87b233fa713-priority/dispatch.json"
+  ],
+  "workflows": [
+    {
+      "id": 337738060,
+      "path": ".github/workflows/morphhdl-external-structural-process.yml",
+      "sha256": "407ae5160f353d70bee4cdc7f82549ba61e5be6e11b8128c25092d77a26c51ab",
+      "expected_job_names": [
+        "Structural/process source boundary",
+        "External structural/process proof Scala 2.12.18",
+        "External structural/process proof Scala 2.13.12"
+      ],
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 336665858,
+      "path": ".github/workflows/morphhdl-native-source-guard.yml",
+      "sha256": "f4c437482d3aa970d86b3a64f000bdd934771eec539ac0dd8fcfb94e80d85fc0",
+      "expected_job_names": [
+        "Native source preservation and typed overlay"
+      ],
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    }
+  ],
+  "original_failures": []
+}
