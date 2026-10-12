@@ -77,6 +77,17 @@ object ExternalParameterizedNativeResize {
     }
   }
 
+  // Packing owns a logical width distinct from the full-capacity audit graph.
+  // Use the same exact result identity during capture and every revalidation.
+  private def sourceWidthOf(source: BitVector): Option[ElaborationIntegerExpression] = {
+    val packed = source match {
+      case bits: Bits => ParameterizedVec.packedWidthExpressionOf(bits)
+        .filter(NativeWidthFormalSchema.ownsExpression(source.component, _))
+      case _ => None
+    }
+    packed.orElse(NativeWidthProvenance.widthOf(source))
+  }
+
   def install(phases: ArrayBuffer[Phase]): Unit = {
     val boundary = phases.indexWhere(_.isInstanceOf[PhaseRemoveIntermediateUnnameds])
     require(boundary >= 0, "native resize capture requires the unnamed-intermediate boundary")
@@ -140,7 +151,7 @@ object ExternalParameterizedNativeResize {
                     }
                     val targetWidth = typedTargetWidth
                       .getOrElse(ElabInt.literal(resize.size).expression)
-                    NativeWidthProvenance.widthOf(source).filter(sourceWidth =>
+                    sourceWidthOf(source).filter(sourceWidth =>
                       !fixedConsumerReservation &&
                         (sourceWidth.parameters.nonEmpty || targetWidth.parameters.nonEmpty)).foreach { sourceWidth =>
                       NativePublicationWidth.validate(sourceWidth, component, source,
@@ -240,7 +251,7 @@ object ExternalParameterizedNativeResize {
       (record.target.component eq component) && (record.source.component eq component) &&
       record.target.isComb && record.target.dontSimplify && record.source.dontSimplify &&
       record.target.hasTag(noBackendCombMerge) && record.source.hasTag(noBackendCombMerge) &&
-      NativeWidthProvenance.widthOf(record.source)
+      sourceWidthOf(record.source)
         .exists(NativePublicationWidth.equivalentAtOwner(_, record.sourceWidth, component, record.source)) &&
       (if (record.targetWidth.parameters.isEmpty)
          ParameterizedWidth.expressionOf(record.target).isEmpty

@@ -2,9 +2,9 @@ package spinal.core.internals
 
 import spinal.core._
 
-/** Definition/instance separation for direct native packed-width formals.
-  * Only authenticated port declarations participate; legacy widths retain
-  * their existing canonical rules. This is never a source-ref lookup.
+/** Definition/instance separation for native packed-width formals.
+  * Authenticated ports and logical Vec read results identify derived geometry;
+  * legacy widths retain their existing rules. This is never a source-ref lookup.
   */
 private[internals] object NativeWidthFormalSchema {
   /** Native declaration/connection site, before the emitter chooses canonical
@@ -13,7 +13,10 @@ private[internals] object NativeWidthFormalSchema {
   def publicationRange(owner: Component, value: BitVector): Option[String] = {
     val expression = if (value.component eq owner) {
       val owned = bindings(owner)
-      ParameterizedWidth.expressionOf(value).filter(e => e.parameters.nonEmpty &&
+      (ParameterizedWidth.expressionOf(value).orElse(value match {
+        case bits: Bits => ParameterizedVec.packedWidthExpressionOf(bits)
+        case _ => None
+      })).filter(e => e.parameters.nonEmpty &&
         e.parameters.forall(p => owned.exists(_.binding.formal eq p)))
     } else if ((value.component.parent eq owner) && value.isIo) {
       portBinding(value).map(_.binding.actual).orElse {
@@ -57,17 +60,38 @@ private[internals] object NativeWidthFormalSchema {
         }
     }
 
+  private[internals] def ownsExpression(component: Component,
+      expression: ElaborationIntegerExpression): Boolean = {
+    val declared = ExternalFormalParameterRegistry.completeTypedBindingsOf(component)
+    expression.parameters.nonEmpty && expression.parameters.forall(p => declared.exists(_.binding.formal eq p))
+  }
+
   def bindings(component: Component): Vector[ExternalTypedFormalBinding] = {
+    val declared = ExternalFormalParameterRegistry.completeTypedBindingsOf(component)
+    if (declared.isEmpty) return Vector.empty
     val ports = component.getOrdredNodeIo.toVector.flatMap(portBinding)
-    val productParameters = component.getOrdredNodeIo.toVector.flatMap { port =>
-      ParameterizedWidth.expressionOf(port).filter(ElaborationProductDomain.isRetained).toVector.flatMap { expression =>
-        NativePublicationWidth.validate(expression, component, port, "native product port formal")
+    val geometryParameters = component.getOrdredNodeIo.toVector.flatMap { port =>
+      ParameterizedWidth.expressionOf(port).filter(ownsExpression(component, _)).toVector.flatMap { expression =>
+        NativePublicationWidth.validate(expression, component, port, "native derived port formal")
         expression.parameters
       }
     }
+    // A fixed public port may still feed a logical-width packed Vec. Its
+    // exact retained read result supplies width provenance just like a port;
+    // the native audit carrier's finite witness is not definition geometry.
+    val packedParameters = ParameterizedVec.retainedVectorsOf(component)
+      .filterNot(TypedBalancedReductionBackend.ownsConsumedProbe).flatMap { vector =>
+        ParameterizedVec.operationsOf(vector).collect { case read: ParameterizedVecPackedRead => read }
+          .flatMap { read =>
+            ParameterizedVec.packedWidthExpressionOf(read.result).filter(ownsExpression(component, _)).toVector.flatMap { expression =>
+              NativePublicationWidth.validate(expression, component, read.result, "native packed Vec formal")
+              expression.parameters
+            }
+          }
+      }
     ExternalFormalParameterRegistry.completeTypedBindingsOf(component)
       .filter(entry => ports.exists(_.declarationToken eq entry.declarationToken) ||
-        productParameters.exists(_ eq entry.binding.formal))
+        (geometryParameters ++ packedParameters).exists(_ eq entry.binding.formal))
   }
 
   def compatible(left: ExternalTypedFormalBinding, right: ExternalTypedFormalBinding): Boolean = {
@@ -166,9 +190,9 @@ private[internals] object NativeWidthFormalSchema {
   }.orElse {
     val owned = bindings(port.component)
     ParameterizedWidth.expressionOf(port).filter(expression =>
-      ElaborationProductDomain.isRetained(expression) && expression.parameters.nonEmpty &&
+      expression.parameters.nonEmpty &&
         expression.parameters.forall(p => owned.exists(_.binding.formal eq p))).map { expression =>
-      NativePublicationWidth.validate(expression, port.component, port, "canonical product port")
+      NativePublicationWidth.validate(expression, port.component, port, "canonical derived port")
       ExternalFormalParameterRegistry.normalizedDefinitionSchema(expression).copy(
         default = expression.minimum,
         parameters = expression.parameters.map(p => p.copy(default = p.minimum)).sortBy(_.name))

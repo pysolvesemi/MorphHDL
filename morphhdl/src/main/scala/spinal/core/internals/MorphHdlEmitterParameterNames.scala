@@ -56,6 +56,7 @@ object MorphHdlEmitterParameterNames {
                 entry.index.expression.sourceLocation, readOnly = true, staticIndex = Some(entry.index))
             }).orElse(spinal.core.TypedLoopPowerShift.renderedIndex(printer.component, assignment)
               .map { case (source, index) => s"(${printer.emitExpression(source)} >> (1 << $index))" })
+              .orElse(ParameterizedVerilogVecs.nativePackedReadSource(printer, assignment))
               .orElse(ExternalParameterizedNativeResize.emitNative(printer, assignment))
               .orElse(ExternalParameterizedVerilogNativeFallback.emitNativeValue(printer, assignment))
               .orElse(ExternalParameterizedVerilogNativeFallback.emitNativeInitializer(printer, assignment))

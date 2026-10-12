@@ -19,7 +19,7 @@
     },
     ".github/workflows/increment-59c-named-field-vectors.yml": {
       "before_sha256": "fd0064d9d1b2a7e7de8463320861efff711ed13252114c991f098ed121d4dc0b",
-      "after_sha256": "b4349cfae337e7ae93015094f7c4b0e43391ca8ecb88f42951426da2be9f2d61",
+      "after_sha256": "ee4baff23bf39d83cf8221a36cd2ef5675ff4ba51ba7dd1351ee7b892b706808",
       "patches": [
         {
           "before": "\npermissions:\n  contents: read\n\nconcurrency:\n  group: increment-59c-named-field-vectors-${{ github.ref }}\n",
@@ -39,11 +39,11 @@
         },
         {
           "before": "            'morph/Test/testOnly morphhdl.NamedFieldVecTests morphhdl.NamedFieldVecNestedWriteTests morphhdl.NamedFieldVecHierarchyTests morphhdl.NamedFieldVecCollisionTests spinal.core.NamedFieldPackedAliasTests morphhdl.TypedParameterizedVecTests morphhdl.TypedParameterizedVecFormalEquivalenceTests spinal.core.TypedVecShapeTests spinal.core.StructuralIdentityAdversarialTests spinal.core.internals.ParameterizedVerilogFieldLayoutTests spinal.core.internals.TypedBalancedReductionPublicationSafetyTests spinal.core.internals.TypedBalancedReductionCallbackPolicyTests' \\\n",
-          "after": "            'morph/Test/testOnly morphhdl.GuardedVecPublicationTests morphhdl.SharedModuleReferenceTests morphhdl.VecWordPublicationTests spinal.core.internals.UnpackedDirectReadTests morphhdl.NamedFieldVecTests morphhdl.NamedFieldVecNestedWriteTests morphhdl.NamedFieldVecHierarchyTests morphhdl.NamedFieldVecCollisionTests spinal.core.NamedFieldPackedAliasTests morphhdl.TypedParameterizedVecTests morphhdl.TypedParameterizedVecFormalEquivalenceTests spinal.core.TypedVecShapeTests spinal.core.StructuralIdentityAdversarialTests spinal.core.internals.ParameterizedVerilogFieldLayoutTests spinal.core.internals.TypedBalancedReductionPublicationSafetyTests spinal.core.internals.TypedBalancedReductionCallbackPolicyTests' \\\n"
+          "after": "            'morph/Test/testOnly morphhdl.ScopedVecGeometryTests morphhdl.GuardedVecPublicationTests morphhdl.SharedModuleReferenceTests morphhdl.VecWordPublicationTests spinal.core.internals.UnpackedDirectReadTests morphhdl.NamedFieldVecTests morphhdl.NamedFieldVecNestedWriteTests morphhdl.NamedFieldVecHierarchyTests morphhdl.NamedFieldVecCollisionTests spinal.core.NamedFieldPackedAliasTests morphhdl.TypedParameterizedVecTests morphhdl.TypedParameterizedVecFormalEquivalenceTests spinal.core.TypedVecShapeTests spinal.core.StructuralIdentityAdversarialTests spinal.core.internals.ParameterizedVerilogFieldLayoutTests spinal.core.internals.TypedBalancedReductionPublicationSafetyTests spinal.core.internals.TypedBalancedReductionCallbackPolicyTests' \\\n"
         },
         {
           "before": "          suites = ['NamedFieldVecTests', 'NamedFieldVecNestedWriteTests', 'TypedParameterizedVecTests',\n",
-          "after": "          suites = ['GuardedVecPublicationTests', 'SharedModuleReferenceTests', 'VecWordPublicationTests', 'UnpackedDirectReadTests', 'NamedFieldVecTests', 'NamedFieldVecNestedWriteTests', 'TypedParameterizedVecTests',\n"
+          "after": "          suites = ['ScopedVecGeometryTests', 'GuardedVecPublicationTests', 'SharedModuleReferenceTests', 'VecWordPublicationTests', 'UnpackedDirectReadTests', 'NamedFieldVecTests', 'NamedFieldVecNestedWriteTests', 'TypedParameterizedVecTests',\n"
         }
       ]
     },
@@ -109,7 +109,7 @@
     },
     ".github/workflows/increment-59i-combined-closure.yml": {
       "before_sha256": "0ccb2929aae569550d78abf7c8738fb5ef8f2f3c232222e1a9d423195bac5e60",
-      "after_sha256": "08d836ab7858dc787fb46ff56d3ac879ac2e0bd5c7516dd7919f0cfa797778f6",
+      "after_sha256": "8a1104d28141b84cdff0430f3370c03f834f794c309f827b0bcfef9a1fe5d63a",
       "patches": [
         {
           "before": "\npermissions:\n  contents: read\n\nconcurrency:\n  group: increment-59i-combined-${{ github.ref }}\n",
@@ -126,6 +126,10 @@
         {
           "before": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Preserve exact source and run bounded inherited audits\n        shell: bash\n        run: |\n",
           "after": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Consume authenticated candidate provenance\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py\n      - name: Preserve exact source and run bounded inherited audits\n        shell: bash\n        run: |\n"
+        },
+        {
+          "before": "                    'ParameterizedVerilogStructuralLexicalTests': 7,\n",
+          "after": "                    'ParameterizedVerilogStructuralLexicalTests': 8,\n"
         }
       ]
     },

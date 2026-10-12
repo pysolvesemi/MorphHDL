@@ -123,6 +123,10 @@ private[spinal] final case class ParameterizedVecShape(
     elementLayout: ParameterizedVecElementLayout.Layout,
     sourceLocation: Option[String]
 ) {
+  // Captured in the construction scope, never recomputed after that branch closes.
+  private[core] lazy val packedWidthExpression: Option[ElaborationIntegerExpression] =
+    ParameterizedVec.computePackedWidth(this)
+
   def elementWidthDefault: BigInt =
     elementLeaves.foldLeft(BigInt(0))((sum, leaf) => sum + leaf.width.default)
 
@@ -818,6 +822,7 @@ object ParameterizedVec {
       elementLayout = layout,
       sourceLocation = sourceLocation
     )
+    shape.packedWidthExpression
     retain(vector, shape)
     vector
   }
@@ -2187,6 +2192,7 @@ object ParameterizedVec {
     shapeOf(vector) match {
       case None => carrier
       case Some(shape) =>
+        ElabInt.projectExpression(shape.depth, "typed Vec packed read owner")
         val physicalWidth = BigInt(shape.carrierCapacity) * shape.elementWidthDefault
         val logicalWitnessWidth = BigInt(shape.witnessDepth) * shape.logicalElementWidthDefault
         if (
@@ -2221,8 +2227,12 @@ object ParameterizedVec {
           .setName("typed_vec_packed_carrier", weak = true)
           .dontSimplifyIt()
           .setAsVital()
+        // Keep the wrapper inventory invariant across symbolic defaults.
+        // Native simplification may replace an equal-width Resize by its
+        // exact source; publication authenticates that identity as well.
         val result =
-          if (logicalWitnessWidth == physicalWidth) carrier
+          if (logicalWitnessWidth == physicalWidth && (shape.packedWidthExpression.isEmpty ||
+              (shape.depth.parameters.isEmpty && shape.elementLeaves.forall(_.width.parameters.isEmpty)))) carrier
           else
             carrier
               .resize(logicalWitnessWidth.toInt)
@@ -2252,7 +2262,7 @@ object ParameterizedVec {
             case resize: Resize
                 if (resize.input eq carrier) &&
                   resize.size == logicalWitnessWidth.toInt &&
-                  resize.size < carrier.getBitsWidth =>
+                  resize.size <= carrier.getBitsWidth =>
             case _ =>
               fail(
                 "SPINAL-ELAB-VEC-PACKED-READ-WRAPPER-INVALID",
@@ -2495,7 +2505,10 @@ object ParameterizedVec {
       .operations += operation
   }
 
-  private def expectedPackedWidth(
+  private def expectedPackedWidth(shape: ParameterizedVecShape): Option[ElaborationIntegerExpression] =
+    shape.packedWidthExpression
+
+  private[core] def computePackedWidth(
       shape: ParameterizedVecShape
   ): Option[ElaborationIntegerExpression] = {
     val expressions = shape.geometryExpressions

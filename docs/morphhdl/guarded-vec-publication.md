@@ -1,4 +1,4 @@
-# Guarded Vec publication and explicit shared definitions (CA-032–038)
+# Guarded Vec publication and explicit shared definitions (CA-032–041)
 
 These changes retain native assignment, declaration, scope and instance identities.
 They do not change application code, the operator topology of `reduceBalancedTree`,
@@ -83,3 +83,36 @@ The composed fixtures include four-word padded and eight-word banks, manual
 packing, repeated count/level/pipeline guards, COUNT 1–8, masks 0/7, both layouts,
 startup and pre-clock checks, asynchronous reset, randomized and X/Z data.
 Historical application failures and fresh compiler evidence remain separate.
+
+## Scoped packing and recursive geometry (CA-039–041)
+
+Shrinking recursive child ports are validated over their exact active branch.
+For a `COUNT > 1` child, a `((COUNT + 1) / 2) * wordBits` input and its matching
+next-level Vec retain that branch's domain. Packed-width expressions are captured
+while their authoring scope is active; using a branch-local Vec outside that scope
+remains an error.
+
+Logical `Vec.assignFromBits` publication consumes its authenticated native unpacking
+slices and support graph. Absent capacity lanes are not treated as unconditional
+logical accesses. Guarded static reads retain exact assignment-owner bounds,
+including signed and composite payloads. Packing bridges and helpers stay beside
+their exact array declaration. An array declared at module scope remains there
+when a finite writer and sibling structural branches consume it.
+
+Explicit formal definitions retain the same packing audit wrappers for every
+actual default, including an equal-width default. Native comparison uses the
+logical derived width and the complete body; different binary operations still
+fail same-name sharing. This applies to both shrinking and fixed-capacity public
+ports. Instance actuals and the existing recursive termination checks are retained.
+Legacy parameter APIs and independently rooted factorized geometry keep their
+existing validation paths.
+
+`ScopedVecGeometryTests` covers source defaults 1/5, overrides 1–5, Bits/SInt/Bundle
+payloads, both layouts, reversed caller defaults, combined/per-component output,
+repeat generation, wrong child geometry, escaped scope and incompatible bodies.
+Its independent adjacent-pair subtraction model checks order, odd tails, zero,
+all-one, randomized and X/Z values. Each artifact runs Icarus Verilog-2001
+simulation, Verilator synthesis-view lint, Yosys synthesis/latch/driver checks and
+combinational SAT comparison. Structural lexical tests distinguish comparisons
+inside declaration widths from actual declaration initializers. Exact-candidate
+remote qualification remains required in addition to these local tests.

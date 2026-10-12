@@ -136,7 +136,7 @@ jobs:
             -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
             -Dsbt.repository.config="$bootstrap/repositories" -Dsbt.override.build.repos=true \
             -jar "$bootstrap/sbt-launch.jar" "++${{ matrix.scala }}" \
-            'morph/Test/testOnly morphhdl.GuardedVecPublicationTests morphhdl.SharedModuleReferenceTests morphhdl.VecWordPublicationTests spinal.core.internals.UnpackedDirectReadTests morphhdl.NamedFieldVecTests morphhdl.NamedFieldVecNestedWriteTests morphhdl.NamedFieldVecHierarchyTests morphhdl.NamedFieldVecCollisionTests spinal.core.NamedFieldPackedAliasTests morphhdl.TypedParameterizedVecTests morphhdl.TypedParameterizedVecFormalEquivalenceTests spinal.core.TypedVecShapeTests spinal.core.StructuralIdentityAdversarialTests spinal.core.internals.ParameterizedVerilogFieldLayoutTests spinal.core.internals.TypedBalancedReductionPublicationSafetyTests spinal.core.internals.TypedBalancedReductionCallbackPolicyTests' \
+            'morph/Test/testOnly morphhdl.ScopedVecGeometryTests morphhdl.GuardedVecPublicationTests morphhdl.SharedModuleReferenceTests morphhdl.VecWordPublicationTests spinal.core.internals.UnpackedDirectReadTests morphhdl.NamedFieldVecTests morphhdl.NamedFieldVecNestedWriteTests morphhdl.NamedFieldVecHierarchyTests morphhdl.NamedFieldVecCollisionTests spinal.core.NamedFieldPackedAliasTests morphhdl.TypedParameterizedVecTests morphhdl.TypedParameterizedVecFormalEquivalenceTests spinal.core.TypedVecShapeTests spinal.core.StructuralIdentityAdversarialTests spinal.core.internals.ParameterizedVerilogFieldLayoutTests spinal.core.internals.TypedBalancedReductionPublicationSafetyTests spinal.core.internals.TypedBalancedReductionCallbackPolicyTests' \
             "morph/Test/runMain morphhdl.NamedFieldVecArtifactWriter $output/a" \
             "morph/Test/runMain morphhdl.NamedFieldVecArtifactWriter $output/b" \
             "morph/Test/runMain morphhdl.NamedFieldNestedRegisterArtifactWriter $output/register-a" \
@@ -145,7 +145,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
-          suites = ['GuardedVecPublicationTests', 'SharedModuleReferenceTests', 'VecWordPublicationTests', 'UnpackedDirectReadTests', 'NamedFieldVecTests', 'NamedFieldVecNestedWriteTests', 'TypedParameterizedVecTests',
+          suites = ['ScopedVecGeometryTests', 'GuardedVecPublicationTests', 'SharedModuleReferenceTests', 'VecWordPublicationTests', 'UnpackedDirectReadTests', 'NamedFieldVecTests', 'NamedFieldVecNestedWriteTests', 'TypedParameterizedVecTests',
                     'NamedFieldVecCollisionTests', 'NamedFieldVecHierarchyTests', 'NamedFieldPackedAliasTests',
                     'TypedParameterizedVecFormalEquivalenceTests',
                     'TypedVecShapeTests', 'ParameterizedVerilogFieldLayoutTests',

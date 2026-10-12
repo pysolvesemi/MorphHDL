@@ -52,6 +52,18 @@ class ParameterizedVerilogStructuralLexicalTests extends AnyFunSuite {
     assert(consumed == Set("WIDTH", "signed_value", "count"), consumed)
   }
 
+  test("range comparisons are declaration geometry while initializers remain driver uses") {
+    val width = "[(((WIDTH == 1) || (WIDTH != 4) || (WIDTH <= 3) || (WIDTH >= 8)) ? WIDTH : 1)-1:0]"
+    val declaration = s"reg $width value;"
+    assert(ParameterizedVerilogStructural.verilogConsumedNames(declaration) == Set("WIDTH"))
+    val attributed = s"""(* keep = "true" *) $declaration"""
+    assert(ParameterizedVerilogStructural.verilogConsumedNames(attributed) == Set("keep", "WIDTH"))
+    val initialized = s"wire $width value = source;"
+    assert(ParameterizedVerilogStructural.verilogConsumedNames(initialized) == Set("WIDTH", "value", "source"))
+    val extraStatement = s"reg $width value; assign sink = source;"
+    assert(ParameterizedVerilogStructural.verilogConsumedNames(extraStatement).contains("source"))
+  }
+
   test("consumer indexing excludes each definition without losing other references") {
     val names = ParameterizedVerilogStructural.verilogConsumedNames(
       """wire [WIDTH-1:0] local;

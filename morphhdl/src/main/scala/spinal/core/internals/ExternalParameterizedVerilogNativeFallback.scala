@@ -2311,6 +2311,14 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       }
     }
 
+    private lazy val exactPackedAssignmentSupportAssignments =
+      ParameterizedVerilogVecs.exactPackedAssignmentSupportAssignments(component)
+    private lazy val exactPackedAssignmentSupportTargets = {
+      val retained = new IdentityHashMap[BaseType, java.lang.Boolean]()
+      exactPackedAssignmentSupportAssignments.foreach(a => retained.put(a.finalTarget, java.lang.Boolean.TRUE))
+      retained
+    }
+
     private lazy val exactPackedReadSupportAssignments =
       ParameterizedVerilogVecs.exactPackedReadSupportAssignments(component)
 
@@ -2333,7 +2341,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     private lazy val exactPackedVecEvidenceAssignments = {
       val retained =
         new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
-      exactPackedReadSupportAssignments.foreach(assignment =>
+      (exactPackedReadSupportAssignments ++ exactPackedAssignmentSupportAssignments).foreach(assignment =>
         retained.put(assignment, java.lang.Boolean.TRUE))
       ParameterizedVec.retainedVectorsOf(component).foreach { vector =>
         ParameterizedVec.operationsOf(vector).foreach {
@@ -3504,10 +3512,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
             activeBases += baseType
             val result =
               exactPackedVecWidth(baseType)
+                .orElse(ParameterizedVerilogVecs.packedAssignmentTargetWidth(component, baseType).map(retained))
                 .orElse(ExternalParameterizedNativeResize.targetWidthOf(component, baseType).map(retained))
                 .orElse {
                   if (
                     isExactPackedVecFiniteCarrier(baseType) ||
+                    exactPackedAssignmentSupportTargets.containsKey(baseType) ||
                     isExactDynamicVecDecoder(baseType)
                   )
                     Some(WidthLiteral(baseType.getBitsWidth))

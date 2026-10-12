@@ -306,7 +306,7 @@ jobs:
           assert int(suite.get('tests', '0')) == 17, suite.attrib
           counts = {'TypedBalancedReductionCompositeLocalEnableTests': 31,
                     'TypedBalancedReductionCompositeStaticRedirectTests': 7,
-                    'ParameterizedVerilogStructuralLexicalTests': 7,
+                    'ParameterizedVerilogStructuralLexicalTests': 8,
                     'TypedBalancedReductionDeclarationFilterTests': 6,
                     'TypedBalancedReductionNestedResultTests': 8,
                     'TypedBalancedReductionCompositeCaptureTests': 10,

@@ -596,8 +596,13 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
     if (ParameterizedVec.shapeOf(this).nonEmpty && !ParameterizedVec.usesNativeCarrierGeometry) {
       ParameterizedVec.validatePackedAssignment(this, bits)
       val physicalWidth = carrierBitsWidth
+      // A symbolic packed value needs the same audit wrapper at every
+      // witness, including the maximum. Native definition identity must not
+      // depend on whether this particular default needs zero extension.
       val carrier =
-        if (bits.getBitsWidth == physicalWidth) bits
+        if (bits.getBitsWidth == physicalWidth && ParameterizedVec.shapeOf(this).exists(shape =>
+          shape.packedWidthExpression.isEmpty ||
+            (shape.depth.parameters.isEmpty && shape.elementLeaves.forall(_.width.parameters.isEmpty)))) bits
         else bits.resize(physicalWidth).dontSimplifyIt()
       val (_, assignments) =
         ParameterizedVec.captureAssignments(this)(

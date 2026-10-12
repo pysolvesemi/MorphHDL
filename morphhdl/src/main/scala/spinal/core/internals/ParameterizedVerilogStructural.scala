@@ -267,6 +267,7 @@ private[internals] object ParameterizedVerilogStructural {
     }
     val preliminaryPlans =
       plansWithContinuousResolution(ContinuousAssignmentResolution.empty)
+    val packedReadEvidence = ParameterizedVerilogVecs.exactPackedReadStructuralEvidence(component, lines, pc)
     val continuousResolution = sharedContinuousAssignmentResolution(
       component,
       preliminaryPlans,
@@ -275,7 +276,8 @@ private[internals] object ParameterizedVerilogStructural {
       containmentPaths,
       portNames ++ parameters.map(_.name),
       inputPortNames ++ parameters.map(_.name),
-      parameters.map(_.name).toSet
+      parameters.map(_.name).toSet,
+      packedReadEvidence
     )
     val rawPlans =
       if (continuousResolution.isEmpty) preliminaryPlans
@@ -287,12 +289,6 @@ private[internals] object ParameterizedVerilogStructural {
     )
     val capturedBeforeAggregateDeclarations =
       rawPlans.flatMap(_.ranges).flatMap(_.indices).toSet
-    val packedReadEvidence =
-      ParameterizedVerilogVecs.exactPackedReadStructuralEvidence(
-        component,
-        lines,
-        pc
-      )
     val moduleScopeAggregateUses =
       packedReadEvidence.aggregateDeclarationUses
         .filter(use =>
@@ -346,7 +342,8 @@ private[internals] object ParameterizedVerilogStructural {
       rawPlans,
       lines,
       moduleScopeAggregateDeclarations ++ (ElabAreaExport.moduleDeclarations(component, rawPlans.map(_.block)) ++
-        TypedFinitePackedAccess.moduleDeclarations(component, rawPlans.map(_.block))).map { value =>
+        TypedFinitePackedAccess.moduleDeclarations(component, rawPlans.map(_.block)) ++
+        ParameterizedVerilogVecs.moduleOwnedStructuralVecDeclarations(component, rawPlans.map(_.block))).map { value =>
         val range = findDeclarationLine(lines, NativeFiniteStatementLineage.referenceName(component, value), None)
         require(range.start == range.end, "Area export must have one standalone declaration")
         value -> range.start
@@ -2103,10 +2100,24 @@ private[internals] object ParameterizedVerilogStructural {
       ],
       moduleScopeNames: Set[String],
       intrinsicSourceNames: Set[String],
-      parameterNames: Set[String]
+      parameterNames: Set[String],
+      packedReads: ParameterizedVerilogVecs.PackedReadStructuralEvidence
   ): ContinuousAssignmentResolution = {
     val claims = planClaimsByLine(plans)
     val proceduralRanges = proceduralBlocks(lines, None)
+    def deferredRead(index: Int, target: String): Boolean =
+      packedReads.transientLines(index) || packedReads.coveredLeafUses((index, target))
+    val packingConsumers = lines.zipWithIndex.flatMap { case (line, index) =>
+      DirectContinuousAssignment.findFirstMatchIn(stripLineComment(line).trim)
+        .map(statement => index -> statement.group(1))
+    }.toMap
+    val transientConsumers = packedReads.transientLines.flatMap(packingConsumers.get)
+    val coveredConsumers = packedReads.coveredLeafUses.toVector.flatMap { case (index, leaf) =>
+      packingConsumers.get(index).map(_ -> leaf)
+    }.groupBy(_._1).map { case (name, uses) => name -> uses.map(_._2).toSet }
+    def deferredEvidence(evidence: AssignmentEvidence, target: String): Boolean =
+      transientConsumers(evidence.target) ||
+        coveredConsumers.getOrElse(evidence.target, Set.empty[String])(target)
 
     val owners = mutable.LinkedHashMap.empty[Int, ParameterizedStructuralBlock]
     val moduleScopeLines = mutable.LinkedHashSet.empty[Int]
@@ -2243,12 +2254,12 @@ private[internals] object ParameterizedVerilogStructural {
               // demands from already resolved exact native statements too.
               val resolvedNativeDemands = lines.zipWithIndex.flatMap { case (candidate, consumerIndex) =>
                 DirectContinuousAssignment.findFirstMatchIn(stripLineComment(candidate).trim)
-                  .filter(m => continuousAssignmentSourceTokens(m.group(3), m.group(1))(target))
+                  .filter(m => !deferredRead(consumerIndex, target) && continuousAssignmentSourceTokens(m.group(3), m.group(1))(target))
                   .flatMap(_ => owners.get(consumerIndex))
               }.toSet
               val targetDemandOwners = plans.filter { plan =>
                 resolvedNativeDemands(plan.block) || plan.assignmentEvidence.exists { evidence =>
-                  evidence.sourceNames(target)
+                  evidence.sourceNames(target) && !deferredEvidence(evidence, target)
                 }
               }
               val undominatedDemandOwners = targetDemandOwners.filterNot { demand =>
@@ -2852,7 +2863,18 @@ private[internals] object ParameterizedVerilogStructural {
 
     // Each immutable body/line is scanned once, not again for every candidate
     // driver. The per-target definition exclusion is retained by the index.
-    val consumedByBody = plans.map(_.body).distinct.map(body => body -> verilogConsumedNames(body)).toMap
+    // The exact packing support edges disappear during Vec publication. Apply
+    // the same identity-proven deferral to finalized bodies as to source lines.
+    val transientPackingLines = packedReadEvidence.transientLines.map(index => lines(index).trim)
+    val coveredPackingUses = packedReadEvidence.coveredLeafUses.groupBy { case (index, _) => lines(index).trim }
+      .map { case (line, uses) => line -> uses.map(_._2) }
+    val consumedByBody = plans.map(_.body).distinct.map { body =>
+      val remaining = body.split("\n", -1).filterNot(line => transientPackingLines(line.trim))
+      val consumed = verilogConsumedNames(remaining.mkString("\n"))
+      val unproven = remaining.flatMap(line =>
+        verilogConsumedNames(line) -- coveredPackingUses.getOrElse(line.trim, Set.empty[String])).toSet
+      body -> (consumed intersect unproven)
+    }.toMap
     val lineReferences = lexicalLines.map(verilogReferenceNames)
 
     def validateDriverConsumers(
@@ -5245,10 +5267,10 @@ private[internals] object ParameterizedVerilogStructural {
 
   private def isStandaloneDeclarationLine(value: String): Boolean = {
     val declaration = stripLeadingVerilogAttributes(value)
-    isDeclarationLine(declaration) &&
-    declaration.endsWith(";") &&
-    declaration.count(_ == ';') == 1 &&
-    !declaration.dropRight(1).contains("=")
+    // Equality inside an authenticated packed range is geometry, not a
+    // declaration initializer. Match the complete native declarator so an
+    // actual initializer or extra statement still cannot lose its driver.
+    StandaloneDeclaration.pattern.matcher(declaration).matches()
   }
 
   private val StandaloneDeclaration =

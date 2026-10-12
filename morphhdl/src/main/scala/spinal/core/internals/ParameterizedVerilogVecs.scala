@@ -740,6 +740,68 @@ private[internals] object ParameterizedVerilogVecs {
         }
       }
 
+  /** The declared element geometry owns unpacking carriers. Their finite audit
+    * slices are consumed by validatePackedAssignmentLineage, not standalone
+    * accesses that exist at every logical depth.
+    */
+  def packedAssignmentTargetWidth(component: Component, target: BaseType): Option[ElaborationIntegerExpression] = {
+    ParameterizedVec.retainedVectorsOf(component).iterator.flatMap { vector =>
+      ParameterizedVec.shapeOf(vector).iterator.flatMap { shape =>
+        val assignments = ParameterizedVec.operationsOf(vector).collect {
+          case operation: ParameterizedVecPackedAssignment => operation.assignments
+        }.flatten.filter(_.finalTarget eq target)
+        val live = ArrayBuffer.empty[DataAssignmentStatement]
+        target.foreachStatements { case a: DataAssignmentStatement => live += a; case _ => }
+        if ((target.component ne component) || assignments.size != 1 ||
+            !live.exists(_ eq assignments.head)) Iterator.empty
+        else vector.vec.iterator.flatMap(_.asInstanceOf[Data].flatten.zipWithIndex).collect {
+          case (leaf, ordinal) if leaf eq target =>
+            val width = shape.elementLeaves(ordinal).width
+            require(width.default == target.getBitsWidth, "packed assignment leaf width changed")
+            width
+        }
+      }
+    }.toVector.headOption
+  }
+
+  /** Exact nested MultiData unpacking temporaries. Their fixed slices belong
+    * to the audited finite carrier and disappear in the logical bulk write.
+    */
+  def exactPackedAssignmentSupportAssignments(component: Component): Vector[DataAssignmentStatement] = {
+    val live = new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+    component.dslBody.walkStatements {
+      case assignment: DataAssignmentStatement => live.put(assignment, java.lang.Boolean.TRUE)
+      case _ =>
+    }
+    ParameterizedVec.retainedVectorsOf(component).flatMap { vector =>
+      ParameterizedVec.operationsOf(vector).collect { case operation: ParameterizedVecPackedAssignment =>
+        operation.assignments.flatMap { assignment =>
+          val slices = operation.slices.filter(_.target eq assignment.finalTarget)
+          val proof = exactPackedAssignmentRange(assignment.source, operation.carrier, live)
+          if (!live.containsKey(assignment) || slices.size != 1 ||
+              proof.map(p => p.lo -> p.width) != slices.headOption.map(s => s.lo -> s.width))
+            fail("SPINAL-PARAMETERIZED-VERILOG-VEC-PACKED-ASSIGNMENT-SLICE-MISMATCH",
+              "packed assignment lost its exact finite slice lineage", operation.sourceLocation)
+          proof.toVector.flatMap(_.supportAssignments)
+        }
+      }.flatten
+    }.distinct
+  }
+
+  /** A retained aggregate created outside capture keeps its declaration owner
+    * even when its finite writer and individual readers occupy different blocks.
+    */
+  def moduleOwnedStructuralVecDeclarations(component: Component,
+      blocks: Vector[ParameterizedStructuralBlock]): Vector[BaseType] = {
+    val captured = blocks.flatMap(_.declarations)
+    blocks.flatMap(_.vecIndices.map(_.vector)).distinct.flatMap { vector =>
+      val leaves = vector.vec.toVector.flatMap(_.asInstanceOf[Data].flatten)
+      if (leaves.forall(leaf => !leaf.isIo && (leaf.component eq component) &&
+          (leaf.parentScope eq component.dslBody) && !captured.exists(_ eq leaf))) leaves
+      else Vector.empty
+    }.distinct
+  }
+
   /** Identify only native support assignments that the exact retained
     * `MultiData.asBits` carrier proof will erase during Vec publication.
     *
@@ -999,7 +1061,9 @@ private[internals] object ParameterizedVerilogVecs {
   ): Set[String] = {
     val exactDepth = plan.shape.depth.exactDomain.filter { domain =>
       domain.evaluations.size == domain.evidenceValues.size &&
-      domain.evidenceValues == domain.universe &&
+      plan.leaves.forall(leaf =>
+        ParameterizedStructure.exactDeclarationDomainOf(component, leaf.value, domain.root,
+          domain.universe, "packed Vec source declaration", plan.sourceLocation).values == domain.evidenceValues) &&
       (plan.shape.depth.completedParameterRoots match {
         case Vector(root) => root eq domain.root
         case _            => false
@@ -2114,7 +2178,7 @@ private[internals] object ParameterizedVerilogVecs {
             // Publication runs after structural branch contexts have exited;
             // re-projecting here would incorrectly expand that authoring scope.
             val minimumDepth = plan.shape.depth.minimum
-            if (BigInt(access.index) >= minimumDepth) {
+            if (BigInt(access.index) >= minimumDepth && !exactStaticLeafUseBounds(plan, access.index, expectedLeaves)) {
               fail(
                 "SPINAL-PARAMETERIZED-VERILOG-VEC-STATIC-INDEX-EVIDENCE-MISMATCH",
                 s"constant Vec index ${access.index} of '${plan.name}' is outside its retained carrier or complete depth domain",
@@ -2199,19 +2263,37 @@ private[internals] object ParameterizedVerilogVecs {
                   )
               }
             }
-            val end = lines.indexWhere(_.trim == "endmodule")
-            if (end < 0) fail("SPINAL-PARAMETERIZED-VERILOG-VEC-MODULE-BOUNDARY-MISSING",
-              "signed leaf reconstruction requires one native module boundary", plan.sourceLocation)
+            def storage(owner: VecPlan, element: Int, field: Int): (VecPlan, Int, Int) = owner.projection match {
+              case Some(projected) =>
+                val mapping = projected.origin.leaves.find(value => value.elementIndex == element && value.elementLeafIndex == field).get
+                storage(projected.root, mapping.rootElementIndex, mapping.rootElementLeafIndex)
+              case None => (owner, element, field)
+            }
+            val (storagePlan, elementIndex, fieldIndex) = storage(plan, leaf.elementIndex, leaf.leafIndex)
+            val storageName = storagePlan.layout.map(_.fieldForLeaf(fieldIndex).name).getOrElse(storagePlan.name)
+            val storageDeclaration = parseDeclaration(lines, storageName, plan.sourceLocation)
+            val insertion = if (storageDeclaration.direction.nonEmpty) lines.indexWhere(_.trim == "endmodule")
+              else storageDeclaration.lineIndex + 1
+            if (insertion < 0) fail("SPINAL-PARAMETERIZED-VERILOG-VEC-MODULE-BOUNDARY-MISSING",
+              "signed leaf reconstruction requires its exact aggregate owner", plan.sourceLocation)
             val width = render(leaf.shape.width)
             // Retain the already-qualified field-layout alias contract. For
             // legacy packed transport, replay the native declaration's actual
             // qualifier instead of assuming that an SInt must emit signed.
             val qualifier = if (plan.layout.nonEmpty || nativeReadSignedness.get(leaf.value).booleanValue())
               " signed" else ""
-            lines = lines.patch(end, Vector(
-              s"  wire$qualifier [($width)-1:0] ${leaf.name};",
-              s"  assign ${leaf.name} = ${plan.constantSlice(leaf.elementIndex, leaf.leafIndex)};"
-            ), 0)
+            val declaration = s"  wire$qualifier [($width)-1:0] ${leaf.name};"
+            val driver = s"  assign ${leaf.name} = ${plan.constantSlice(leaf.elementIndex, leaf.leafIndex)};"
+            val reconstruction = if (BigInt(elementIndex) < storagePlan.shape.depth.minimum) Vector(declaration, driver)
+            else {
+              val label = storagePlan.geometry.allocatePackingLabel(leaf.name + "_read",
+                candidate => containsIdentifier(lines.mkString("\n"), candidate))
+              val body = Vector(s"  if ($elementIndex < (${render(storagePlan.shape.depth)})) begin : $label",
+                driver, "  end else begin", s"    assign ${leaf.name} = {($width){1'b0}};", "  end")
+              val inGenerate = lines.take(insertion).count(_.trim == "generate") > lines.take(insertion).count(_.trim == "endgenerate")
+              Vector(declaration) ++ (if (inGenerate) body else Vector("  generate") ++ body ++ Vector("  endgenerate"))
+            }
+            lines = lines.patch(insertion, reconstruction, 0)
             reconstructedSignedReads.put(leaf.value, java.lang.Boolean.TRUE)
           } else {
             lines = replaceReferenceIdentifier(
@@ -4376,6 +4458,39 @@ private[internals] object ParameterizedVerilogVecs {
     operations.collect { case value: ParameterizedVecStaticWrite if !covered.containsKey(value.assignment) => value }
   }
 
+  private def exactStaticLeafUseBounds(plan: VecPlan, index: Int, leaves: Vector[Leaf]): Boolean = {
+    val depth = plan.shape.depth
+    depth.exactDomain.exists { domain =>
+      val packed = ParameterizedVec.operationsOf(plan.vector).collect {
+        case read: ParameterizedVecPackedRead =>
+          read.carrierAssignments ++ read.resultAssignments ++ read.supportAssignments
+        case write: ParameterizedVecPackedAssignment => write.assignments ++ write.carrierAssignments
+      }.flatten
+      val uses = ArrayBuffer.empty[DataAssignmentStatement]
+      var unsupported = false
+      def references(expression: Expression): Boolean = {
+        if (expression == null) false
+        else if (leaves.exists(_.value eq expression)) true
+        else if (expression.isInstanceOf[BaseType]) false
+        else { var found = false; expression.foreachExpression(e => found ||= references(e)); found }
+      }
+      plan.vector.component.dslBody.walkStatements {
+        case a: DataAssignmentStatement if !packed.exists(_ eq a) &&
+            (references(a.source) || references(a.target)) => uses += a
+        case a: DataAssignmentStatement =>
+        case tree: TreeStatement => tree.foreachExpression(e => unsupported ||= references(e))
+        case _ =>
+      }
+      !unsupported && uses.nonEmpty && uses.forall { assignment =>
+        ParameterizedStructure.validateProjectedAssignmentDominance(plan.vector.component,
+          assignment, depth, "constant Vec access", plan.sourceLocation)
+        val owner = ParameterizedStructure.exactAssignmentDomainOf(plan.vector.component,
+          assignment, domain.root, domain.universe, "constant Vec access", plan.sourceLocation)
+        owner.values.forall(value => domain.evaluate(value).exists(_ > index))
+      }
+    }
+  }
+
   private def validateAuthoredStaticWrites(
       plan: VecPlan,
       operations: Vector[ParameterizedVecOperation],
@@ -4383,7 +4498,17 @@ private[internals] object ParameterizedVerilogVecs {
   ): Unit = authoredStaticWrites(operations).foreach { write =>
     requireLiveAssignmentEvidence(Vector(write.assignment), live, "static Vec write", write.sourceLocation)
     val exactLeaf = plan.leaves.find(leaf => leaf.elementIndex == write.elementIndex && leaf.leafIndex == write.elementLeafIndex)
-    val minimum = plan.shape.depth.minimum
+    val depth = plan.shape.depth
+    val minimum = depth.exactDomain.map { domain =>
+      ParameterizedStructure.validateProjectedAssignmentDominance(
+        plan.vector.component, write.assignment, depth, "static Vec write depth", write.sourceLocation)
+      val owner = ParameterizedStructure.exactAssignmentDomainOf(plan.vector.component,
+        write.assignment, domain.root, domain.universe, "static Vec write depth", write.sourceLocation)
+      owner.values.map(value => domain.evaluate(value).getOrElse {
+        fail("SPINAL-PARAMETERIZED-VERILOG-VEC-STATIC-WRITE-EVIDENCE-MISMATCH",
+          "static Vec write depth lacks exact owner evaluation", write.sourceLocation)
+      }).min
+    }.getOrElse(depth.minimum)
     if (write.elementIndex < 0 || BigInt(write.elementIndex) >= minimum ||
         !exactLeaf.exists(leaf => leaf.value eq write.selected) ||
         (write.assignment.finalTarget ne write.selected) ||
@@ -5390,7 +5515,10 @@ private[internals] object ParameterizedVerilogVecs {
             (resize.input eq operation.carrier) &&
             logicalWitnessWidth.isValidInt &&
             resize.size == logicalWitnessWidth.toInt &&
-            resize.size < operation.carrier.getBitsWidth
+            resize.size <= operation.carrier.getBitsWidth
+          case source: Bits => (source eq operation.carrier) &&
+            logicalWitnessWidth == operation.carrier.getBitsWidth &&
+            operation.result.getBitsWidth == operation.carrier.getBitsWidth
           case _ => false
         }
       case _ => false
@@ -5423,6 +5551,45 @@ private[internals] object ParameterizedVerilogVecs {
       ),
       proof.supportAssignments
     )
+  }
+
+  /** Emit only the exact recorded logical-width wrapper. The full-capacity
+    * concatenation stays available for the final packing lineage audit. */
+  private[internals] def nativePackedReadSource(printer: ComponentEmitterVerilog,
+      assignment: AssignmentStatement): Option[String] = {
+    ParameterizedVec.retainedVectorsOf(printer.component).iterator.flatMap { vector =>
+      ParameterizedVec.operationsOf(vector).iterator.collect {
+        case read: ParameterizedVecPackedRead if (read.result ne read.carrier) &&
+          read.resultAssignments.exists(_ eq assignment) => read
+      }
+    }.toVector match {
+      case Vector() => None
+      // Independently rooted shapes retain the existing aggregate publisher;
+      // they do not have a scalar width expression for this native hook.
+      case Vector(read) if !ParameterizedVec.packedWidthExpressionOf(read.result)
+          .exists(NativeWidthFormalSchema.ownsExpression(printer.component, _)) => None
+      case Vector(read) =>
+        val width = ParameterizedVec.packedWidthExpressionOf(read.result).get
+        val valid = assignment match {
+          case edge: DataAssignmentStatement if (edge.target eq read.result) &&
+              (edge.finalTarget eq read.result) && (read.result.component eq printer.component) =>
+            edge.source match {
+              case resize: Resize => (resize.input eq read.carrier) &&
+                resize.size == read.result.getBitsWidth && resize.size <= read.carrier.getBitsWidth &&
+                width.default == read.result.getBitsWidth
+              case source: Bits => (source eq read.carrier) &&
+                width.default == read.result.getBitsWidth && read.result.getBitsWidth == read.carrier.getBitsWidth
+              case _ => false
+            }
+          case _ => false
+        }
+        if (!valid) fail("SPINAL-PARAMETERIZED-VERILOG-VEC-PACKED-READ-EVIDENCE-MISMATCH",
+          "logical packed wrapper changed before native emission", read.sourceLocation)
+        NativePublicationWidth.validate(width, printer.component, read.result, "logical packed wrapper")
+        Some(s"${printer.emitReference(read.carrier, false)}[${width.verilog}-1:0]")
+      case _ => fail("SPINAL-PARAMETERIZED-VERILOG-VEC-PACKED-READ-EVIDENCE-MISMATCH",
+        "logical packed wrapper has multiple owners", None)
+    }
   }
 
   /** Follow only printer aliases reachable from the exact retained carrier
@@ -5656,6 +5823,8 @@ private[internals] object ParameterizedVerilogVecs {
           if (resize.input eq source) &&
             resize.size == expectedWidth.toInt &&
             source.getBitsWidth <= resize.size =>
+      case alias: Bits if (alias eq source) && source.getBitsWidth == expectedWidth &&
+          carrier.getBitsWidth == expectedWidth =>
       case _ =>
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-VEC-PACKED-CARRIER-EVIDENCE-MISMATCH",

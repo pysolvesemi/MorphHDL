@@ -558,12 +558,12 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
                 parent, blackBox, root, universe, role, expression.sourceLocation).values
             }.get
           } else {
-            ElabInt.requireAuthoritativeIntegerDomain(
-              expression,
-              s"BlackBox port '$name' width of instance '$instanceName'",
-              "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-PORT-WIDTH-DOMAIN-INVALID",
-              requireExactExtrema = false
-            )
+            val role = s"BlackBox port '$name' width of instance '$instanceName'"
+            ElabInt.authoritativeIntegerOwnerDomain(expression, role,
+              "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-PORT-WIDTH-DOMAIN-INVALID") { (root, universe) =>
+              ParameterizedStructure.exactChildDomainOf(
+                parent, blackBox, root, universe, role, expression.sourceLocation).values
+            }
           }
           if (expression.default != BigInt(port.getBitsWidth)) {
             fail(
@@ -582,7 +582,21 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
               expression.sourceLocation
             )
           }
-          PortRewrite(name, ExpressionBinding(expression))
+          // Keep the exact packed producer's spelling after proving the same
+          // width function; child/producer multiplication order is not identity.
+          val packedSources = ArrayBuffer.empty[Bits]
+          if (port.isInput) port.foreachStatements {
+            case a: DataAssignmentStatement if (a.target eq port) => a.source match {
+              case bits: Bits if bits.component eq parent => packedSources += bits
+              case _ =>
+            }
+            case _ =>
+          }
+          val published = if (packedSources.size == 1)
+            ParameterizedVec.packedWidthExpressionOf(packedSources.head)
+              .filter(ElabInt.equivalentExactFunction(_, expression)).getOrElse(expression)
+          else expression
+          PortRewrite(name, ExpressionBinding(published))
         }
       }
 

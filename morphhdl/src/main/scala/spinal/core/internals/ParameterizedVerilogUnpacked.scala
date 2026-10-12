@@ -159,10 +159,11 @@ private[internals] object ParameterizedVerilogUnpacked {
         val signed = Option(m.group(3)).getOrElse("")
         val index = allocate(shape.name + "_pack_index")
         val label = allocate(shape.name + "_pack")
-        wiring(shape.name) = Vector(s"  genvar $index;", "  generate",
+        val body = Vector(
           s"    for ($index = 0; $index < (${shape.total}); $index = $index + 1) begin : $label",
-          s"      assign ${views(shape.name)}[$index] = ${shape.bit(index)};",
-          "    end", "  endgenerate")
+          s"      assign ${views(shape.name)}[$index] = ${shape.bit(index)};", "    end")
+        wiring(shape.name) = Vector(s"  genvar $index;") ++
+          (if (generateDepth == 0) Vector("  generate") ++ body ++ Vector("  endgenerate") else body)
         Vector(s"${m.group(1)}${m.group(2)}$signed [(${shape.width})-1:0] ${shape.name} $axes;",
           s"  wire [(${shape.total})-1:0] ${views(shape.name)};")
       } else {
@@ -209,12 +210,12 @@ private[internals] object ParameterizedVerilogUnpacked {
       }
     }
     require(seen == byName.keySet, "unpacked Vec publication lost an exact internal declaration")
-    val helpers = functions.toVector.flatMap { case ((name, width), functionName) =>
+    val helpers = functions.toVector.map { case ((name, width), functionName) =>
       val shape = byName(name)
       val offset = allocate(functionName + "_offset")
       val dependency = allocate(functionName + "_dependency")
       val index = allocate(functionName + "_index")
-      Vector(s"  function [($width)-1:0] $functionName;", s"    input integer $offset;",
+      name -> Vector(s"  function [($width)-1:0] $functionName;", s"    input integer $offset;",
         s"    input [(${shape.total})-1:0] $dependency;", s"    integer $index;",
         "    begin", s"      for ($index = 0; $index < ($width); $index = $index + 1)",
         s"        $functionName[$index] = ${shape.bit(s"$offset + $index")};",
@@ -223,11 +224,18 @@ private[internals] object ParameterizedVerilogUnpacked {
     // Direct reads need neither a packed sensitivity witness nor its wiring.
     val unusedViews = shapes.filterNot(x => usedViews(x.name)).map(x => views(x.name)).toSet
     val keptOutput = output.filterNot(line => unusedViews.exists(name => line.trim.endsWith(s"] $name;")))
-    val keptWiring = wiring.iterator.filter { case (name, _) => usedViews(name) }
-      .flatMap(_._2).toVector
-    val end = keptOutput.indexWhere(_.trim == "endmodule")
-    require(end >= 0, "unpacked Vec publication requires a module boundary")
-    keptOutput.patch(end, helpers ++ keptWiring, 0).mkString("\n")
+    // Both the native-memory helper and its packed dependency must share the
+    // certified array declaration's lexical owner, including generate branches.
+    // The allocated view declaration is emitted above beside that exact array;
+    // it is not a name guessed from an unrelated source identifier.
+    val additions = shapes.filter(shape => usedViews(shape.name)).map { shape =>
+      s"wire [(${shape.total})-1:0] ${views(shape.name)};" ->
+        (helpers.filter(_._1 == shape.name).flatMap(_._2) ++ wiring(shape.name))
+    }.toMap
+    require(keptOutput.exists(_.trim == "endmodule"), "unpacked Vec publication requires a module boundary")
+    additions.keys.foreach(line => require(keptOutput.count(_.trim == line) == 1,
+      "unpacked Vec packing bridge lost its exact owner declaration"))
+    keptOutput.flatMap(line => Vector(line) ++ additions.getOrElse(line.trim, Vector.empty)).mkString("\n")
   }
 
   private def splitConcatenation(text: String): Vector[String] = {
