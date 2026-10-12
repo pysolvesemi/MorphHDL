@@ -356,7 +356,8 @@ private[internals] object ParameterizedVerilogStructural {
         lines,
         alternativePaths,
         containmentPaths,
-        portNames ++ parameters.map(_.name)
+        portNames ++ parameters.map(_.name),
+        continuousResolution.promotions.values.map(_.declarationLine).toSet
       )
     validateBranchLocalReferences(resolvedPlans, lines)
     val liveStatements = new IdentityHashMap[Statement, java.lang.Boolean]()
@@ -3103,7 +3104,8 @@ private[internals] object ParameterizedVerilogStructural {
         ParameterizedStructuralBlock,
         Vector[ParameterizedStructuralBlock]
       ],
-      moduleScopeNames: Set[String]
+      moduleScopeNames: Set[String],
+      promotedDeclarationLines: Set[Int]
   ): (Vector[BlockPlan], Set[LineRange], Map[Int, String]) = {
     val emittedAssignmentIdentities = NativeFiniteStatementLineage.lineAssignments(component, lines)
     val claims = mutable.LinkedHashMap.empty[LineRange, ArrayBuffer[BlockPlan]]
@@ -3231,13 +3233,32 @@ private[internals] object ParameterizedVerilogStructural {
             )
           }
           val claimants = claimantPlans(range, claimed, "DECLARATION")
+          // Ancestor plans can claim a child's declaration through witnessed
+          // wiring. Keep an exact captured local at its authoring block when
+          // all other claimants are ancestors; lifting it would move loop
+          // aliases and their helpers outside the generate index they need.
+          val capturedOwners = claimants.filter { plan =>
+            plan.block.declarations.exists { declaration =>
+              Option(declaration.getName()).filter(_.nonEmpty).exists { name =>
+                range == findDeclarationLine(lines, name, plan.block.sourceLocation)
+              }
+            }
+          }
+          val exactOwner = capturedOwners match {
+            // Proven driver promotion carries the declaration with it; the
+            // final dominance audit independently authenticates that receipt.
+            case Vector(owner) if !range.indices.exists(promotedDeclarationLines) && claimants.forall(p =>
+                containmentPaths.getOrElse(owner.block, Vector.empty).exists(_ eq p.block)) =>
+              Some(owner.block)
+            case _ => None
+          }
           relocateSharedDeclaration(
             range,
             claimants,
-            leastCommonContainingBlock(
+            exactOwner.orElse(leastCommonContainingBlock(
               claimants.map(_.block),
               containmentPaths
-            )
+            ))
           )
         }
       }

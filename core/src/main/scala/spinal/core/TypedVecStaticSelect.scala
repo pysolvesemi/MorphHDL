@@ -7,7 +7,8 @@ private[spinal] object TypedVecStaticSelect {
   final class Entry private[TypedVecStaticSelect](val vector: Vec[_ <: BaseType], val index: ElabInt, val source: BaseType,
       val result: BaseType, val assignment: DataAssignmentStatement,
       private[TypedVecStaticSelect] val selectedLane: Int,
-      private[TypedVecStaticSelect] val shape: ParameterizedVecShape)
+      private[TypedVecStaticSelect] val shape: ParameterizedVecShape,
+      val ownerIndex: ElaborationIntegerExpression)
   private[core] def entries(component: Component) = component.userCache.getOrElseUpdate(Key,
     scala.collection.mutable.ArrayBuffer.empty[Entry]).asInstanceOf[scala.collection.mutable.ArrayBuffer[Entry]]
   def apply[T <: BaseType](vector: Vec[T], index: ElabInt): T = {
@@ -36,7 +37,8 @@ private[spinal] object TypedVecStaticSelect {
     result.noBackendCombMerge()
     result := source
     entries(vector.component) += new Entry(vector,index,source,result,
-      result.head.asInstanceOf[DataAssignmentStatement],selectedLane,shape)
+      result.head.asInstanceOf[DataAssignmentStatement],selectedLane,shape,
+      ElabInt.projectExpression(index.expression, "constant Vec selector owner"))
     result
   }
   def of(component: Component, assignment: AssignmentStatement): Option[Entry] =

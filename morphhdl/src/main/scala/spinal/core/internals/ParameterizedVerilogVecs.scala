@@ -1663,7 +1663,8 @@ private[internals] object ParameterizedVerilogVecs {
     def definitionOwned(expression: ElaborationIntegerExpression): Boolean =
       expression.parameters.nonEmpty && expression.parameters.forall(p => owned.exists(_.binding.formal eq p))
     def schema(expression: ElaborationIntegerExpression,
-        vector: Option[Vec[_]] = None): ElaborationIntegerExpression = {
+        vector: Option[Vec[_]] = None,
+        declaration: Option[BaseType] = None): ElaborationIntegerExpression = {
       val normalized = ExternalFormalParameterRegistry.normalizedDefinitionSchema(expression)
       if (!definitionOwned(expression)) normalized else {
         vector match {
@@ -1676,8 +1677,13 @@ private[internals] object ParameterizedVerilogVecs {
               NativePublicationWidth.validate(expression, component, leaf, "native Vec definition geometry")
             }
           case None =>
-            ElaborationWidthAuthority.requireAuthoritative(expression, "native Vec definition geometry",
-              "SPINAL-PARAMETERIZED-VERILOG-FORMAL-WIDTH-AUTHORITY-MISSING")
+            declaration match {
+              case Some(value) =>
+                NativePublicationWidth.validate(expression, component, value, "native Vec definition geometry")
+              case None =>
+                ElaborationWidthAuthority.requireAuthoritative(expression, "native Vec definition geometry",
+                  "SPINAL-PARAMETERIZED-VERILOG-FORMAL-WIDTH-AUTHORITY-MISSING")
+            }
         }
         // Schema-only representative: instance witnesses are not part of an
         // authenticated formal's definition. The symbolic function, complete
@@ -1724,7 +1730,7 @@ private[internals] object ParameterizedVerilogVecs {
       }.map(value => s":$value").getOrElse("")
       s"$name:${expressionSchema(depth)}:${witness(shape.depth, shape.witnessDepth)}:${shape.carrierCapacity}:${leaves.mkString("|")}$recursivePacking$layout"
     }.sorted ++ TypedVecStaticSelect.entries(component).map { entry =>
-      s"constant-index:${entry.vector.getName()}:${expressionSchema(schema(entry.index.expression))}"
+      s"constant-index:${entry.vector.getName()}:${expressionSchema(schema(entry.ownerIndex, declaration = Some(entry.result)))}"
     }.sorted
   }
 

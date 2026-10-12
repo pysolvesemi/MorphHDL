@@ -2530,7 +2530,9 @@ object ParameterizedVec {
       }
       val elementWidth = typed(shape.elementLayout.root.size)
       Some(
-        (elementWidth * ElabInt.fromExpression(shape.depth)).expression
+        ElabInt.projectExpression(
+          (elementWidth * ElabInt.fromExpression(shape.depth)).expression,
+          "logical packed Vec width")
       )
     }
   }
