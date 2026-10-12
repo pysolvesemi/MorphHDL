@@ -1712,7 +1712,16 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         )
       }
 
-    var lines = verilog.split("\n", -1).toVector
+    // Structural publication retains private native statement markers until
+    // all expression rewrites finish. Authenticate them before separating the
+    // suffix from Verilog syntax, and restore every suffix at its original
+    // line so downstream consumers retain the exact native assignment edge.
+    val emittedLines = verilog.split("\n", -1).toVector
+    val lineage = NativeFiniteStatementLineage.survivingLineAssignments(component, emittedLines)
+    val suffixes = emittedLines.map(NativeFiniteStatementLineage.suffixOfLine(component, _))
+    var lines = emittedLines.zip(suffixes).map { case (line, suffix) =>
+      line.dropRight(suffix.length)
+    }
     grouped.toVector
       .sortBy { case (name, _) => -name.length }
       .flatMap { case (_, values) =>
@@ -1742,11 +1751,23 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       }
       val targetCount =
         lines.count(line => assignmentPattern.findFirstIn(line).nonEmpty)
+      def rewriteLines(rewrite: String => String): Vector[String] =
+        lines.zipWithIndex.map { case (line, index) =>
+          val rewritten = rewrite(line)
+          if (rewritten != line && lineage.get(index).exists(_ ne record.assignment)) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-RESIZE-EMITTED-LINEAGE-MISMATCH",
+              s"retained native Resize target '$name' maps to another native assignment edge",
+              record.expression.sourceLocation
+            )
+          }
+          rewritten
+        }
       var exactRewriteCount = 0
       lines = if (record.witnessSize < record.inputWitnessSize) {
         record.sourceName match {
           case None =>
-            lines.map { line =>
+            rewriteLines { line =>
               line match {
                 case assignmentPattern(prefix, rhs, suffix) =>
                   rhs match {
@@ -1765,7 +1786,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                 "(\\s*)\\[\\s*" + (record.witnessSize - 1) +
                 "\\s*:\\s*0\\s*\\](\\s*;\\s*)$"
             ).r
-            lines.map { line =>
+            rewriteLines { line =>
               line match {
                 case exactEdge(prefix, spacing, suffix) =>
                   exactRewriteCount += 1
@@ -1794,7 +1815,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         ).r
         record.sourceName match {
           case None =>
-            lines.map { line =>
+            rewriteLines { line =>
               line match {
                 case assignmentPattern(prefix, rhs, suffix) =>
                   rhs match {
@@ -1813,7 +1834,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                 "'d0\\s*,\\s*" + Pattern.quote(sourceName) +
                 "\\s*\\}(\\s*;\\s*)$"
             ).r
-            lines.map { line =>
+            rewriteLines { line =>
               line match {
                 case exactGrowEdge(prefix, suffix) =>
                   exactRewriteCount += 1
@@ -1838,7 +1859,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         )
       }
     }
-    lines.mkString("\n")
+    lines.zip(suffixes).map { case (line, suffix) => line + suffix }.mkString("\n")
   }
 
   /** Reconstruct one explicit typed UInt resize whose witness-sized carrier

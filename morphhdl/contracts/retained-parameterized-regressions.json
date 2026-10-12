@@ -3723,7 +3723,7 @@
     "morphhdl/src/test/scala/spinal/core/internals/ParameterizedDataShapeTests.scala": "61b19de7b1312efcad3fddafa0ffb5762aa896cd233573c225e0256e282f0776",
     "morphhdl/src/test/scala/spinal/core/internals/ParameterizedVerilogFieldLayoutTests.scala": "6fa832b576222fcaa68e412072a5e248e5e800be1a7e519b94e15204dd8f0cb8",
     "morphhdl/src/test/scala/spinal/core/internals/ParameterizedVerilogStructuralLexicalTests.scala": "aa98b094238bd3ee6a29bcfc9d9af2e1237327e2371edd386c7571ec84dd30cf",
-    "morphhdl/src/test/scala/spinal/core/internals/ParameterizedVerilogTests.scala": "45607c169771db233fb472a5c84ed1fea2d6b4908be0cd7014e9e5621405b9e3",
+    "morphhdl/src/test/scala/spinal/core/internals/ParameterizedVerilogTests.scala": "f2eb2969aa6cb20e1bcb9eaf1d483054265088247bbf88c8fa02318b1c720ebf",
     "morphhdl/src/test/scala/spinal/core/internals/ParameterizedVerilogVecDeclarationTests.scala": "a0375655798edae43cd427f746dea9a7b4c019142a842254075b93d51496a2f5",
     "morphhdl/src/test/scala/spinal/core/internals/RetainedWidthExpressionEquivalenceTests.scala": "b0f0041efcedf75e2221f0d3ffee9684c697595aba3aa479f04a5b8daf036a6d",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionBridgeArtifactWriter.scala": "ea94a64a15bc5c1a155303ab705abd9358d5588615a976a490930a16307c3af0",

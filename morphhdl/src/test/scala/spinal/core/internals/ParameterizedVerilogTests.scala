@@ -572,6 +572,59 @@ endmodule
         )
       }
     }
+
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString,
+        defaultConfigForClockDomains = ClockDomainConfig(resetKind = SYNC))
+      var checked = false
+      config.phasesInserters += { phases =>
+        phases += new Phase {
+          override def hasNetlistImpact: Boolean = false
+          override def impl(pc: PhaseContext): Unit = {
+            val captured = pc.topLevel
+            // Native structural publication retains these exact statement receipts
+            // while the resize pass sees the original witness-sized RHS syntax.
+            val native = Vector(
+              "dout = _zz_dout; // native_edge_0",
+              "dout = {3'd0, _zz_dout_1}; // native_edge_1",
+              "dout = {5'd0, _zz_dout_2}; // native_edge_2"
+            )
+            val edges = NativeFiniteStatementLineage.survivingLineAssignments(captured, native)
+            assert(edges.size == 3)
+            val rewritten = ExternalParameterizedVerilogNativeFallback
+              .rewriteRetainedResizeAssignments(captured, native.mkString("\n"))
+            assert(rewritten.contains("dout = {1'b0, _zz_dout_1}; // native_edge_1"))
+            assert(rewritten.contains("dout = {1'b0, _zz_dout_2}; // native_edge_2"))
+            assert(NativeFiniteStatementLineage.survivingLineAssignments(
+              captured, rewritten.split("\n").toVector) == edges)
+
+            val swapped = native.mkString("\n")
+              .replace("native_edge_1", "temporary_edge")
+              .replace("native_edge_2", "native_edge_1")
+              .replace("temporary_edge", "native_edge_2")
+            val wrongEdge = intercept[ParameterizedVerilogException] {
+              ExternalParameterizedVerilogNativeFallback.rewriteRetainedResizeAssignments(captured, swapped)
+            }
+            assert(wrongEdge.code == "SPINAL-PARAMETERIZED-VERILOG-RESIZE-EMITTED-LINEAGE-MISMATCH")
+            val unknown = native.mkString("\n").replace("native_edge_1", "native_edge_999")
+            val forgedEdge = intercept[ParameterizedVerilogException] {
+              ExternalParameterizedVerilogNativeFallback.rewriteRetainedResizeAssignments(captured, unknown)
+            }
+            assert(forgedEdge.code == "SPINAL-PARAMETERIZED-VERILOG-RESIZE-ASSIGNMENT-NOT-UNIQUE")
+            intercept[IllegalArgumentException] {
+              ExternalParameterizedVerilogNativeFallback.rewriteRetainedResizeAssignments(
+                captured, (native :+ native(1)).mkString("\n"))
+            }
+            checked = true
+          }
+        }
+      }
+      MorphVerilog(config) {
+        new morphhdl.CapturedAssignmentNormalizationSmoke.NestedInitializedRegisters(
+          HdlInt.param("WIDTH", default = 6, min = 1, max = 8))
+      }
+      assert(checked)
+    }
   }
 
   test("retained zero rewrite requires one exact native combinational literal edge") {
