@@ -1,0 +1,29 @@
+name: Recursive unsigned sum exact-candidate targeted dispatcher
+on:
+  push:
+    branches: [control/recursive-sum-8585336b1ea0-consumers]
+    paths:
+      - .github/workflows/recursive-sum-8585336b1ea0-consumers.yml
+      - .github/controllers/recursive-sum-8585336b1ea0-consumers/dispatch.py
+      - .github/controllers/recursive-sum-8585336b1ea0-consumers/dispatch.json
+permissions:
+  contents: read
+  actions: write
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate exact identities and dispatch affected workflows
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/controllers/recursive-sum-8585336b1ea0-consumers/dispatch.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: recursive-sum-8585336b1ea0-consumers-ledger
+          path: dispatch-ledger.jsonl
+          if-no-files-found: error
