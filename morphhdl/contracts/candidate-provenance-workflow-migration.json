@@ -95,7 +95,7 @@
     },
     ".github/workflows/increment-59h-nested-owners.yml": {
       "before_sha256": "0f2f6e3a1649e2f67070ff0b6020192b0f6cb7de345b419bdb8da6a7f8c8e38c",
-      "after_sha256": "d5c54c0d533b61d13dd6e6df434ca2f3cf8dde15a023739ade4eae8f88880b2f",
+      "after_sha256": "a66f928cd8b2c1989d0616213d02cdca23dfefb524eb9b942f5fde48f06a6670",
       "patches": [
         {
           "before": "\npermissions:\n  contents: read\n\nconcurrency:\n  group: increment-59h-nested-owners-${{ github.ref }}\n",
@@ -104,12 +104,16 @@
         {
           "before": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Preserve exact-head evidence and audit native boundaries\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          output=\"$GITHUB_WORKSPACE/target/increment-59h-nested-owners\"\n          mkdir -p \"$output/bootstrap\"\n",
           "after": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Consume authenticated candidate provenance\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py\n      - name: Preserve exact-head evidence and audit native boundaries\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          output=\"$GITHUB_WORKSPACE/target/increment-59h-nested-owners\"\n          mkdir -p \"$output/bootstrap\"\n"
+        },
+        {
+          "before": "              'TypedBalancedReductionNestedOwnerTests': 18,\n",
+          "after": "              'TypedBalancedReductionNestedOwnerTests': 19,\n"
         }
       ]
     },
     ".github/workflows/increment-59i-combined-closure.yml": {
       "before_sha256": "0ccb2929aae569550d78abf7c8738fb5ef8f2f3c232222e1a9d423195bac5e60",
-      "after_sha256": "8a1104d28141b84cdff0430f3370c03f834f794c309f827b0bcfef9a1fe5d63a",
+      "after_sha256": "15a4a18457f06b8eba858769f4653c3ecd12123a6de6008cb0cddd41ef2d136b",
       "patches": [
         {
           "before": "\npermissions:\n  contents: read\n\nconcurrency:\n  group: increment-59i-combined-${{ github.ref }}\n",
@@ -130,6 +134,10 @@
         {
           "before": "                    'ParameterizedVerilogStructuralLexicalTests': 7,\n",
           "after": "                    'ParameterizedVerilogStructuralLexicalTests': 8,\n"
+        },
+        {
+          "before": "                    'TypedBalancedReductionCompositeCaptureTests': 10,\n",
+          "after": "                    'TypedBalancedReductionCompositeCaptureTests': 12,\n"
         }
       ]
     },
