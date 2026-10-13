@@ -634,7 +634,7 @@
     },
     "morphhdl/contracts/retained-parameterized-regressions.json": {
       "mode": "100644",
-      "sha256": "c7a337d53c7fd4023c788716e38483e715d0942972568f32ce9a5ab98b8dee6a"
+      "sha256": "3e94bdbf971e096c75b2be017efd265896ccb9ccb8cd1ded4a4e40e3a2a516c5"
     },
     "morphhdl/examples/contracts/symbolic_data_shapes.v": {
       "mode": "100644",
@@ -722,7 +722,7 @@
     },
     "morphhdl/scripts/check-retained-parameterized-regressions.py": {
       "mode": "100644",
-      "sha256": "48ea1afd9d5cc1049a7a32c7e95546914c15584cda743e30927509b80cdc04fb"
+      "sha256": "9d6830f3eff2b7e9c7995a57f2b2f914764f01b289f934bd9a98879f6c800480"
     },
     "morphhdl/scripts/check-typed-layering-ir.py": {
       "mode": "100644",
@@ -933,7 +933,7 @@
     },
     "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala": {
       "mode": "100644",
-      "sha256": "05e1f142e6600919dba7ac667219d5214be5ce962a10bde9fb64055c4e760993"
+      "sha256": "2069c9e00f6a12a457ed7407aaa5d4643f6662f7cbafd35d42528c5f444df1d7"
     },
     "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogUnpacked.scala": {
       "mode": "100644",
@@ -945,7 +945,7 @@
     },
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala": {
       "mode": "100644",
-      "sha256": "31d2642650ba5bc232e7994a7114f21c61fa2f5ca01a1e070414063ad861975b"
+      "sha256": "4c90673ab7f3c6d4b1428d2be8ee0c086d51be4b427b2b70dd4d1868585eac0f"
     },
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicy.scala": {
       "mode": "100644",
@@ -1360,6 +1360,10 @@
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCombinedTests.scala": {
       "mode": "100644",
       "sha256": "be64ddbba9b277378a924763b77c58c56052c0bb2b5be0d9d466468772e2e61d"
+    },
+    "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeCaptureTests.scala": {
+      "mode": "100644",
+      "sha256": "d14fbec115bbc0d7a151fef602594c206bc1f86092caeb945c481240fe72deeb"
     },
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala": {
       "mode": "100644",
