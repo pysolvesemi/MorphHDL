@@ -865,7 +865,9 @@ private[internals] object ParameterizedVerilogStructural {
         // need an outward replay. Walk statement expressions (including native
         // conditions), preserving exact result identity rather than spelling.
         val outsideConsumers = blocks.filter { consumer =>
-          !containment.getOrElse(consumer, Vector.empty).exists(_ eq block) &&
+          // Detached native templates have no structural-region path. Their
+          // own exact statements are still local consumers, never escapes.
+          (consumer ne block) && !containment.getOrElse(consumer, Vector.empty).exists(_ eq block) &&
             consumer.statements.exists { statement =>
               var usesResult = false
               def inspect(value: Statement): Unit = {

@@ -170,6 +170,34 @@ class TypedBalancedReductionCompositeCaptureTests extends AnyFunSuite {
       }
     })
   }
+  Vector(false, true).foreach { nested =>
+    test(s"runtime captures retain an exact enclosing lexical owner: nested=$nested") {
+      val directory = Files.createTempDirectory("capture-enclosing-owner-")
+      MorphVerilog(SpinalConfig(targetDirectory = directory.toString, headerWithDate = false)) {
+        new Component {
+          setDefinitionName("EnclosingCapture")
+          val records = in(Vec(BalancedCompositeRecord(HdlInt.literal(5), HdlInt.literal(3), HdlInt.literal(7)),
+            HdlInt.param("COUNT", 1, 1, 3)))
+          val select = in Bool()
+          val result = out(BalancedCompositeRecord(HdlInt.literal(5), HdlInt.literal(3), HdlInt.literal(7)))
+          (HdlInt.param("MODE", 1, 0, 1) > HdlInt.literal(0)).generateIf("owner", "fallback") {
+            val captured = !select
+            def reduce(): Unit = {
+              result := records.reduceBalancedTree((a: BalancedCompositeRecord, b: BalancedCompositeRecord) =>
+                Mux(captured, a, b))
+            }
+            if (nested) {
+              (HdlInt.param("INNER", 1, 0, 1) > HdlInt.literal(0)).generateIf("descendant", "unused") {
+                reduce()
+              }.otherwise { result := records(0) }
+            } else reduce()
+          }.otherwise { result := records(0) }
+        }
+      }
+      assert(Files.isRegularFile(directory.resolve("EnclosingCapture.v")))
+    }
+  }
+
   test("captured nodes cannot escape a sibling typed owner") {
     val directory = Files.createTempDirectory("capture-owner-escape-")
     val failure = intercept[Exception] {

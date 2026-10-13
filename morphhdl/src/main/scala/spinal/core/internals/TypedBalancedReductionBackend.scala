@@ -357,6 +357,18 @@ object TypedBalancedReductionBackend {
                 owners.zip(lexicalBlock).exists { case (actual, expected) => actual ne expected })
               fail("LEXICAL-DECLARATION", "reduction anchors and templates must retain one exact direct lexical owner")
           }
+          // Closure operands belong to the reduction's lexical environment.
+          // A later scalar promotion must not legalize a capture from a sibling
+          // or descendant branch. Authenticate declaration identities before
+          // native normalization changes names or extracts replay templates.
+          def containsOwner(block: ParameterizedStructuralBlock): Boolean =
+            lexicalBlock.exists(_ eq block) || block.regions.exists(_.blocks.exists(containsOwner))
+          record.captureSchema.validateBindings()
+          record.captureSchema.hardwareInputs.foreach { input =>
+            val inputOwners = lexicalBlocks.filter(_.declarations.exists(_ eq input))
+            if (inputOwners.size > 1 || inputOwners.exists(block => !containsOwner(block)))
+              fail("CAPTURE-LEXICAL-OWNER", "a captured runtime operand is outside the reduction's exact lexical ancestry")
+          }
           lexicalBlock.foreach { block =>
             validateResultOwnership(record, block)
           }

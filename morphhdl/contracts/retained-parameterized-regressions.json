@@ -2733,7 +2733,9 @@
         "native-looking application assignment cannot bypass either callback inspector",
         "operand field writes cannot gain permission through helper calls or aliases",
         "public Vec reduction retains external captures through native replay",
-        "runtime capture slots stay read-only and independently identity-bound"
+        "runtime capture slots stay read-only and independently identity-bound",
+        "runtime captures retain an exact enclosing lexical owner: nested=false",
+        "runtime captures retain an exact enclosing lexical owner: nested=true"
       ],
       "spinal.core.internals.TypedBalancedReductionCompositeLocalEnableTests": [
         "a composite proof cannot be replayed through the single-scalar API",
@@ -3792,7 +3794,7 @@
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeBridgeInitializationTests.scala": "cf61367f188454c533ad50ff902ac8c18ad5664d4a4667a9e117276ca50618d2",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicyTests.scala": "b1e7d5353d6e8dbe077cecf47f8dd6d56c9742ce0bd484f8d75df40d764ea354",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeCaptureArtifacts.scala": "eb340f801802e323010e4981fd92b81b31742f935c33c9e02a90bff035f0fc7a",
-    "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeCaptureTests.scala": "2c4b203f8d0ecab1d8d70065c8137fc7ca5c87f5d8d035ff4d814b9f62cf9c0a",
+    "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeCaptureTests.scala": "d14fbec115bbc0d7a151fef602594c206bc1f86092caeb945c481240fe72deeb",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableArtifactWriter.scala": "9903d97144818b24cd79cbcb2c7ebc718f8add384a7b356cfc3516e3baefc4f1",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala": "80b4049c454e30da9dce4f7c719d9dc7f21c8fd59a91d36aa83fd6a72948f449",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala": "d41bb26f7b7e2cf4673801484aa967cc2bae990a14dd63e9089d0ed4a8e672ad",
