@@ -1,0 +1,40 @@
+{
+  "repository": "pysolvesemi/MorphHDL",
+  "pr": 195,
+  "base_ref": "parameterized-verilog",
+  "base_sha": "db54d01e5b21c7664f7a0de3795f061d77a3d259",
+  "candidate_ref": "work/remaining-parameterized-increments",
+  "candidate_sha": "b3f388bd97fe810d2206cb992a05f0aa946b5794",
+  "candidate_tree": "6cac280099a2810b11dc2b9379c81f8c7ee28493",
+  "control_ref": "control/ca039-041-b3f388bd97fe-inventory-v2",
+  "control_files": [
+    ".github/workflows/ca039-041-b3f388bd97fe-inventory-v2.yml",
+    ".github/controllers/ca039-041-b3f388bd97fe-inventory-v2/dispatch.py",
+    ".github/controllers/ca039-041-b3f388bd97fe-inventory-v2/dispatch.json"
+  ],
+  "workflows": [
+    {
+      "id": 336665858,
+      "path": ".github/workflows/morphhdl-native-source-guard.yml",
+      "sha256": "f4c437482d3aa970d86b3a64f000bdd934771eec539ac0dd8fcfb94e80d85fc0",
+      "expected_job_names": [
+        "Native source preservation and typed overlay"
+      ],
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    }
+  ],
+  "original_failures": [
+    {
+      "run_id": 38352139423,
+      "workflow_id": 351996892,
+      "head_sha": "ad5b7d579971073a2ad97e2176fa1bf5052d08f5"
+    },
+    {
+      "run_id": 38352154048,
+      "workflow_id": 352827927,
+      "head_sha": "ad5b7d579971073a2ad97e2176fa1bf5052d08f5"
+    }
+  ]
+}
