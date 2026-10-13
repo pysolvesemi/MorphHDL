@@ -1,0 +1,64 @@
+{
+  "repository": "pysolvesemi/MorphHDL",
+  "pr": 195,
+  "base_ref": "parameterized-verilog",
+  "base_sha": "db54d01e5b21c7664f7a0de3795f061d77a3d259",
+  "candidate_ref": "work/remaining-parameterized-increments",
+  "candidate_sha": "51a7eabf37cb3b98a180b3af8368a6d356ef5321",
+  "candidate_tree": "ef2a9eca8b00dbbdbeaf81ac9351cf1a16389b85",
+  "control_ref": "control/ca044-045-51a7eabf37cb-repairs",
+  "control_files": [
+    ".github/workflows/ca044-045-51a7eabf37cb-repairs.yml",
+    ".github/controllers/ca044-045-51a7eabf37cb-repairs/dispatch.py",
+    ".github/controllers/ca044-045-51a7eabf37cb-repairs/dispatch.json"
+  ],
+  "workflows": [
+    {
+      "id": 351996892,
+      "path": ".github/workflows/increment-59h-nested-owners.yml",
+      "sha256": "a66f928cd8b2c1989d0616213d02cdca23dfefb524eb9b942f5fde48f06a6670",
+      "expected_job_names": [
+        "Nested reduction owner source audits",
+        "Nested reduction owners Scala 2.12.18",
+        "Nested reduction owners Scala 2.13.12"
+      ],
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 352827927,
+      "path": ".github/workflows/increment-59i-combined-closure.yml",
+      "sha256": "15a4a18457f06b8eba858769f4653c3ecd12123a6de6008cb0cddd41ef2d136b",
+      "expected_job_names": [
+        "Composite integration source audits",
+        "Composite integration inherited source audits",
+        "Composite integration Scala 2.12.18",
+        "Composite integration Scala 2.13.12",
+        "Cross-Scala composite integration RTL determinism"
+      ],
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 351368935,
+      "path": ".github/workflows/increment-59c-named-field-vectors.yml",
+      "sha256": "788521a457e3e5d1438ccf179c0bcb100be1dfa328a0a502f56cd971e7fd4028",
+      "expected_job_names": [
+        "Named field vectors Scala 2.12.18",
+        "Named field vectors Scala 2.13.12"
+      ],
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    }
+  ],
+  "original_failures": [
+    {
+      "run_id": 38413304806,
+      "workflow_id": 352827927,
+      "head_sha": "df46f6ba6b8bc85621643d1098e46df54bfcf7dd"
+    }
+  ]
+}
