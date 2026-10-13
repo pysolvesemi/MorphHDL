@@ -175,7 +175,7 @@ private[internals] object ParameterizedVerilogStructural {
         block.sourceLocation
       )
     }
-    validateFiniteIndexOwnership(regions)
+    validateFiniteIndexOwnership(component, regions)
     val componentPorts = component.getOrdredNodeIo.toVector
     val portNames = componentPorts
       .flatMap(port => Option(port.getName()))
@@ -489,6 +489,7 @@ private[internals] object ParameterizedVerilogStructural {
     * their existing independent validation paths.
     */
   private def validateFiniteIndexOwnership(
+      component: Component,
       regions: Vector[ParameterizedStructure.StructuralRegion]
   ): Unit = {
     val loopByToken = new IdentityHashMap[
@@ -621,6 +622,13 @@ private[internals] object ParameterizedVerilogStructural {
           )
       }
       block.slices.foreach { slice =>
+        val issued = TypedFinitePackedAccess.reads(component).filter(_.result eq slice.result)
+        if (issued.nonEmpty || slice.finitePackedAccess.nonEmpty) {
+          if (issued.size != 1 || !slice.finitePackedAccess.exists(_ eq issued.head) ||
+              !slice.finiteIndexToken.exists(_ eq issued.head.index.token))
+            fail("SPINAL-ELAB-FINITE-PACKED-EVIDENCE-MISMATCH",
+              "finite packed selection lost its issued geometry proof", slice.sourceLocation)
+        }
         if (
           slice.finiteIndexToken == null ||
           slice.finiteIndexToken.exists(_ == null)
@@ -644,6 +652,14 @@ private[internals] object ParameterizedVerilogStructural {
             "finite-index packed slice",
             slice.sourceLocation
           )
+          slice.finitePackedAccess.foreach { access =>
+            if ((access.index.token ne token) ||
+                !access.matches(slice.source, slice.result, slice.offset, slice.width) ||
+                !access.owns(component, block))
+              fail("SPINAL-ELAB-FINITE-PACKED-EVIDENCE-MISMATCH",
+                "finite packed selection lost its exact source, index or width proof", slice.sourceLocation)
+            ParameterizedStructure.requireFiniteValueOwner(access.index, component, block)
+          }
         }
       }
       block.memoryIndices.foreach { selection =>
@@ -685,6 +701,12 @@ private[internals] object ParameterizedVerilogStructural {
         other.blocks.foreach(block => visitBlock(block, ancestors))
     }
     regions.foreach(region => visitRegion(region, Vector.empty))
+    val retainedSlices = regions.flatMap(ParameterizedStructure.allBlocks).flatMap(_.slices)
+    TypedFinitePackedAccess.reads(component).foreach { access =>
+      if (retainedSlices.count(_.finitePackedAccess.exists(_ eq access)) != 1)
+        fail("SPINAL-ELAB-FINITE-PACKED-EVIDENCE-MISMATCH",
+          "finite packed access must retain exactly one issued slice record", access.index.expression.sourceLocation)
+    }
   }
 
   /** Resolve exact captured Bool type-node operators to their native
@@ -2308,7 +2330,20 @@ private[internals] object ParameterizedVerilogStructural {
               }
             }
           }
-          if (bridgeOwners.nonEmpty) {
+          // One authenticated full finite write drives disjoint word slices.
+          // Its enclosing consumer reads the completed vector, not the local
+          // per-iteration RHS. Keep that driver in the exact loop body.
+          val packedOwners = TypedFinitePackedAccess.writes(component).flatMap { write =>
+            plans.filter(plan =>
+              NativeFiniteStatementLineage.referenceName(component, write.source) == target &&
+              TypedFinitePackedAccess.completeDriver(component, write.source, plan.block) &&
+              Option(statement.group(2)).exists(_.replaceAll("\\s", "") ==
+                s"[(${write.index.expression.verilog}*${write.stride})+:${write.width}]".replaceAll("\\s", "")))
+          }.distinct
+          if (packedOwners.nonEmpty) {
+            require(packedOwners.size == 1, "finite packed write must have one exact driver owner")
+            owners(index) = packedOwners.head.block
+          } else if (bridgeOwners.nonEmpty) {
             if (bridgeOwners.size != 1)
               fail("SPINAL-TYPED-LOOP-VEC-BRIDGE-MISMATCH",
                 "one native Vec bridge has multiple captured owners", None)

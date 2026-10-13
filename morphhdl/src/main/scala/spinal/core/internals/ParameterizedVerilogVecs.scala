@@ -2353,13 +2353,14 @@ private[internals] object ParameterizedVerilogVecs {
   // Collapsing distinct combinational cells into one Verilog variable also
   // collapses their event identity. Default/override writes can then retrigger
   // another cell's process forever, even though the native graph is acyclic.
-  // Keep native cells for fixed internal Vecs with interdependent or guarded
+  // Keep native cells for internal Vecs with interdependent or guarded
   // combinational drivers; an aggregate needed by a dynamic/whole read is a
   // read-only wire view, including continuously driven constant words.
   private def needsIndependentCellEvents(plan: VecPlan): Boolean = {
     if (plan.projection.nonEmpty || plan.layout.nonEmpty ||
-        plan.leaves.exists(l => l.value.isIo || l.value.isReg) ||
-        !plan.shape.geometryExpressions.forall(e => e.parameters.isEmpty && e.generateIndex.isEmpty && e.minimum == e.maximum))
+        (plan.shape.elementLayout.hasNestedVectors &&
+          plan.shape.geometryExpressions.exists(_.parameters.nonEmpty)) ||
+        plan.leaves.exists(l => l.value.isIo || l.value.isReg))
       return false
     val allowed = ParameterizedVec.operationsOf(plan.vector).forall {
       case _: ParameterizedVecStaticIndex | _: ParameterizedVecStaticWrite | _: ParameterizedVecPackedRead => true
@@ -2385,6 +2386,9 @@ private[internals] object ParameterizedVerilogVecs {
       count > 1 || conditional
     }
     if (procedural) return true
+    // Pure continuous symbolic arrays have no procedural event identity to
+    // preserve. Keep their established direct aggregate publication.
+    if (plan.shape.geometryExpressions.exists(_.parameters.nonEmpty)) return false
     val cells = plan.leaves.map(_.value).toSet
     plan.leaves.exists { leaf =>
       val seen = new IdentityHashMap[Expression, java.lang.Boolean]()
@@ -2440,8 +2444,22 @@ private[internals] object ParameterizedVerilogVecs {
       val nativeDeclarations = plan.leaves.map { leaf =>
         originals(parseDeclaration(originals, leaf.name, plan.sourceLocation).lineIndex)
       }
-      val view = if (!keepView) Vector.empty else Vector(s"  wire ${plan.range} ${plan.name};") ++
-        plan.leaves.map(leaf => s"  assign ${plan.constantSlice(leaf.elementIndex, leaf.leafIndex)} = ${leaf.name};")
+      val view = if (!keepView) Vector.empty else {
+        val bridges = plan.leaves.flatMap { leaf =>
+          val driver = s"  assign ${plan.constantSlice(leaf.elementIndex, leaf.leafIndex)} = ${leaf.name};"
+          if (BigInt(leaf.elementIndex) < plan.shape.depth.minimum) Vector(driver)
+          else {
+            val label = plan.geometry.allocatePackingLabel(leaf.name + "_view",
+              candidate => containsIdentifier(lines.mkString("\n"), candidate))
+            Vector(s"  if (${leaf.elementIndex} < (${render(plan.shape.depth)})) begin : $label", driver, "  end")
+          }
+        }
+        val inGenerate = lines.take(declaration.lineIndex).count(_.trim == "generate") >
+          lines.take(declaration.lineIndex).count(_.trim == "endgenerate")
+        val guarded = plan.leaves.exists(leaf => BigInt(leaf.elementIndex) >= plan.shape.depth.minimum)
+        Vector(s"  wire ${plan.range} ${plan.name};") ++
+          (if (guarded && !inGenerate) Vector("  generate") ++ bridges ++ Vector("  endgenerate") else bridges)
+      }
       lines = lines.patch(declaration.lineIndex, nativeDeclarations ++ view, 1)
     }
     lines.mkString("\n")
@@ -7063,8 +7081,7 @@ private[internals] object ParameterizedVerilogVecs {
     }
     val direction = declarations.map(_.direction).distinct
     val nativeNets = declarations.map(_.net).distinct
-    val promote = direction == Vector(None) && nativeNets.toSet == Set("wire", "reg") &&
-      plan.shape.geometryExpressions.forall(e => e.parameters.isEmpty && e.generateIndex.isEmpty && e.minimum == e.maximum)
+    val promote = direction == Vector(None) && nativeNets.toSet == Set("wire", "reg")
     val net = if (promote) Vector("reg") else nativeNets
     if (promote && !needsIndependentCellEvents(plan))
       fail("SPINAL-PARAMETERIZED-VERILOG-VEC-WIRE-DRIVER-MISMATCH",

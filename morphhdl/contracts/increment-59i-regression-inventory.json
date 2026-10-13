@@ -858,6 +858,26 @@
         "an explicit SInt to Bits cast resizes with unsigned bit semantics",
         "same witnesses never correlate an independent predicate root with target width"
       ],
+      "morphhdl.CorrelatedVecPublicationTests": [
+        "finite word geometry rejects foreign",
+        "finite word geometry rejects independent",
+        "finite word geometry rejects inverse",
+        "finite word geometry rejects missing",
+        "finite word geometry rejects overlap",
+        "finite word geometry rejects short",
+        "scoped recursive Vec geometry mode=mixed kind=bits unpacked=false",
+        "scoped recursive Vec geometry mode=mixed kind=bits unpacked=true",
+        "scoped recursive Vec geometry mode=mixed kind=composite unpacked=false",
+        "scoped recursive Vec geometry mode=mixed kind=composite unpacked=true",
+        "scoped recursive Vec geometry mode=mixed kind=signed unpacked=false",
+        "scoped recursive Vec geometry mode=mixed kind=signed unpacked=true",
+        "scoped recursive Vec geometry mode=words kind=bits unpacked=false",
+        "scoped recursive Vec geometry mode=words kind=bits unpacked=true",
+        "scoped recursive Vec geometry mode=words kind=composite unpacked=false",
+        "scoped recursive Vec geometry mode=words kind=composite unpacked=true",
+        "scoped recursive Vec geometry mode=words kind=signed unpacked=false",
+        "scoped recursive Vec geometry mode=words kind=signed unpacked=true"
+      ],
       "morphhdl.CounterSingleAuthorityParityTests": [
         "typed Counter specializations match independent concrete policy matrices"
       ],
@@ -1584,6 +1604,13 @@
         "public typed Mem rejects an equal-but-foreign raw exact schema",
         "public typed Mem rejects bounded symbolic depth without exact evidence",
         "public typed Mem retains canonical exact depth and element geometry"
+      ],
+      "spinal.core.FinitePackedCorrelationTests": [
+        "finite packed correlation rejects replaced offset identity",
+        "finite packed correlation rejects replaced proof identity",
+        "finite packed correlation rejects replaced record identity",
+        "finite packed correlation rejects replaced token identity",
+        "finite packed correlation rejects replaced width identity"
       ],
       "spinal.core.IndependentParameterDomainTests": [
         "composed value functions agree with an independent exhaustive three-root oracle",
@@ -3276,6 +3303,7 @@
     "morphhdl/src/test/scala/morphhdl/ComparisonRoutingContractFixture.scala": "3c97bad965df0b5939bcf30bbf5a4da1776ab2e92ffe2cec852f8bb1ba7e4a0d",
     "morphhdl/src/test/scala/morphhdl/ConditionalForwardingContractFixture.scala": "17e178ecd03bad24bdddbe29c98d376be7f51b95eea47b633006dd6d0ceb1b7e",
     "morphhdl/src/test/scala/morphhdl/ConditionalWidthContractFixture.scala": "10492466f4281597a997518d2da81166a1c5998f8dc7fcf327fc0d878612642d",
+    "morphhdl/src/test/scala/morphhdl/CorrelatedVecPublicationTests.scala": "177676332cde64deb0b2e8c5e2e248b9b15c5e1c2b3ab412e29b623d9c1e065e",
     "morphhdl/src/test/scala/morphhdl/DerivedWidthContractFixture.scala": "76d8cecf59436f684baac6dea2c09b6c5add58b721dc48daf37162fe882140d9",
     "morphhdl/src/test/scala/morphhdl/ExternalHierarchyBoolLiteralBindingTests.scala": "6aa420f847781a5b979cc4c1b4bf8948461f9575aac3ebb9810524f61ada7d9b",
     "morphhdl/src/test/scala/morphhdl/FormalParameterClonePropagationTests.scala": "9d30215d7a0363ee2deaf1b809c1b29d839a791af753e8961e1ca198c770a824",
@@ -3392,6 +3420,7 @@
     "morphhdl/src/test/scala/spinal/core/FiniteBitsIndexTests.scala": "f371b78ea1424dfabdbe4629712fc8c06299d781e76f31860b3dbf88966c1bff",
     "morphhdl/src/test/scala/spinal/core/FiniteFormalBoundaryTests.scala": "cb5ac435061025fd86c1745ae4683600d2cc0f6f38288408d60d3ca1403cb1c5",
     "morphhdl/src/test/scala/spinal/core/FiniteMemIdentityAdversarialTests.scala": "90ee340f1d6c2b086c1dd0f9d55562662b656109d2763271b79d19ff1204854c",
+    "morphhdl/src/test/scala/spinal/core/FinitePackedCorrelationTests.scala": "bdac844f910c8a8eaa75d5d06a5ee02c6790044a7b05d92da6dbedecd0ebb1e0",
     "morphhdl/src/test/scala/spinal/core/IndependentParameterDomainTests.scala": "34c6cf1ab7acc729cac4996b6c7806636d8d40173225377547138a4ade7c2a4e",
     "morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala": "ebce6063ab9f4538df4f51709cdaf81a1554b5ad509a1c0e9c6cc8be07a17c0c",
     "morphhdl/src/test/scala/spinal/core/NamedFieldPackedAliasTests.scala": "ee84f5bf48533015b56edb22e0f70914d65a0777dada62cd9b5bd46c9fa437b4",

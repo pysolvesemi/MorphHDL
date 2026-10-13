@@ -6,8 +6,41 @@ import spinal.idslplugin.Location
 /** Sized packed accesses whose native write edges retain their exact index. */
 private[spinal] object TypedFinitePackedAccess {
   private object Key
+  private object ReadKey
+  def reads(component: Component): Vector[Read] = component.userCache.get(ReadKey)
+    .map(_.asInstanceOf[scala.collection.mutable.ArrayBuffer[Read]].toVector).getOrElse(Vector.empty)
+  private def widthOf(source: Bits): ElaborationIntegerExpression =
+    ParameterizedVec.packedWidthExpressionOf(source).orElse(ParameterizedWidth.expressionOf(source))
+      .getOrElse(ElabInt.literal(source.getBitsWidth).expression)
+
+  /** Issued only by an active finite index. The exact pointwise proof joins
+    * COUNT and packed width before the index is replaced by a native witness.
+    */
+  final class Read private[TypedFinitePackedAccess] (
+      val index: ElabFiniteIndex, val source: Bits, val result: Bits,
+      val offset: ElaborationIntegerExpression, val width: ElaborationIntegerExpression,
+      val stride: Int, val sourceWidth: ElaborationIntegerExpression,
+      val countWidthProof: ElabBool, val nativeWidth: Int,
+      val owner: ParameterizedStructuralLexicalOwner) {
+    def matches(actualSource: BitVector, actualResult: BitVector,
+        actualOffset: ElaborationIntegerExpression, actualWidth: ElaborationIntegerExpression): Boolean =
+      (actualSource eq source) && (actualResult eq result) &&
+        (actualOffset eq offset) && (actualWidth eq width) &&
+        source.getBitsWidth == nativeWidth &&
+        ElabInt.equivalentExpression(widthOf(source), sourceWidth) &&
+        offset.generateIndex == index.expression.generateIndex &&
+        offset.default == index.expression.default * stride &&
+        offset.minimum == index.expression.minimum * stride &&
+        offset.maximum == index.expression.maximum * stride
+
+    def owns(component: Component, block: ParameterizedStructuralBlock): Boolean =
+      (owner.component eq component) && ParameterizedStructure.blockOfLexicalOwner(owner).exists(_ eq block) &&
+        ParameterizedStructure.withLexicalOwnerDomain(owner) {
+          ElabBool.projectedTruth(countWidthProof) == ElabBool.AlwaysTrue
+        }
+  }
   final case class Write(index: ElabFiniteIndex, source: Bits, view: Bits, stride: Int, width: Int,
-      sourceWidth: Int, assignment: DataAssignmentStatement, var target: Expression)
+      sourceWidth: Int, assignment: DataAssignmentStatement, var target: Expression, complete: Boolean)
   def writes(component: Component): Vector[Write] = component.userCache.get(Key)
     .map(_.asInstanceOf[scala.collection.mutable.ArrayBuffer[Write]].toVector).getOrElse(Vector.empty)
 
@@ -19,10 +52,7 @@ private[spinal] object TypedFinitePackedAccess {
     val write = candidates.head
     val drivers = scala.collection.mutable.ArrayBuffer.empty[DataAssignmentStatement]
     write.source.foreachStatements { case a: DataAssignmentStatement => drivers += a; case _ => }
-    val exact = write.source.isComb && write.index.count.parameters.isEmpty &&
-      write.index.count.minimum == write.index.count.maximum && write.width == write.stride &&
-      write.index.count.maximum * write.width == write.source.getBitsWidth &&
-      ParameterizedWidth.expressionOf(write.source).forall(_.parameters.isEmpty) &&
+    val exact = write.source.isComb && write.width == write.stride && write.complete &&
       drivers.size == 1 && (drivers.head eq write.assignment) &&
       (write.assignment.target eq write.target) && (write.assignment.finalTarget eq write.source) &&
       (write.assignment.parentScope eq component.dslBody) && owner.assignments.exists(_ eq write.assignment)
@@ -38,6 +68,7 @@ private[spinal] object TypedFinitePackedAccess {
 
   def moduleDeclarations(component: Component, blocks: Vector[ParameterizedStructuralBlock]): Vector[BaseType] =
     writes(component).map(_.source).distinct.filter(source => !(source.isIo && (source.component eq component)) &&
+      !blocks.exists(_.declarations.exists(_ eq source)) &&
       blocks.exists(block => completeDriver(component, source, block)))
 
   private[core] def retainCoverageTarget(component: Component, assignment: DataAssignmentStatement,
@@ -55,8 +86,30 @@ private[spinal] object TypedFinitePackedAccess {
     val expression = index.expression.copy(verilog = s"(${index.expression.verilog} * $stride)",
       default = index.expression.default * stride, minimum = index.expression.minimum * stride,
       maximum = index.expression.maximum * stride)
-    ParameterizedStructure.recordSlice(source, result, expression, ElabInt.literal(width.value).expression,
-      index.expression.sourceLocation)
+    val sourceWidth = widthOf(source)
+    val projectedWidth = ElabInt.projectExpression(sourceWidth, "finite packed source width")
+    val projectedCount = ElabInt.projectExpression(index.count, "finite packed loop count")
+    val code = "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SLICE-DOMAIN-UNSUPPORTED"
+    ElabFiniteRange.requireCompleteSymbolicDomain(projectedWidth, "finite packed source width", code)
+    ElabFiniteRange.requireCompleteSymbolicDomain(projectedCount, "finite packed loop count", code)
+    if (!((source.component eq Component.current) ||
+        (source.isInput && (source.component.parent eq Component.current))))
+      ParameterizedVerilogException.fail("SPINAL-ELAB-FINITE-PACKED-SOURCE-OWNER-MISMATCH",
+        "finite packed source must belong to its loop component or an exact child input")
+    val proof = (ElabInt.fromExpression(projectedCount) - 1) * stride + width.value <=
+      ElabInt.fromExpression(projectedWidth)
+    if (projectedCount.minimum < 1 || ElabBool.projectedTruth(proof) != ElabBool.AlwaysTrue)
+      ParameterizedVerilogException.fail(code,
+        "finite packed slice must fit its source at every value of the authenticated loop count")
+    val wordWidth = ElabInt.literal(width.value).expression
+    val read = new Read(index, source, result, expression, wordWidth, stride, sourceWidth, proof, source.getBitsWidth,
+      ParameterizedStructure.currentLexicalOwner("finite packed geometry"))
+    Component.current.userCache.getOrElseUpdate(ReadKey, scala.collection.mutable.ArrayBuffer.empty[Read])
+      .asInstanceOf[scala.collection.mutable.ArrayBuffer[Read]] += read
+    val complete = width.value == stride && ElabBool.projectedTruth(
+      (ElabInt.fromExpression(projectedCount) * stride).elabEq(ElabInt.fromExpression(projectedWidth))) == ElabBool.AlwaysTrue
+    ParameterizedStructure.recordSlice(source, result, expression, wordWidth,
+      index.expression.sourceLocation, Some(read))
     result.compositeAssign = new Assignable {
       protected def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)(implicit location: Location): Unit = {
         ParameterizedStructure.requireActiveFiniteIndex(index)
@@ -68,7 +121,7 @@ private[spinal] object TypedFinitePackedAccess {
         val assignment = assignments.head
         val records = result.component.userCache.getOrElseUpdate(Key,
           scala.collection.mutable.ArrayBuffer.empty[Write]).asInstanceOf[scala.collection.mutable.ArrayBuffer[Write]]
-        records += Write(index, source, result, stride, width.value, source.getBitsWidth, assignment, assignment.target)
+        records += Write(index, source, result, stride, width.value, source.getBitsWidth, assignment, assignment.target, complete)
       }
       def getRealSourceNoRec: BaseType = source
     }

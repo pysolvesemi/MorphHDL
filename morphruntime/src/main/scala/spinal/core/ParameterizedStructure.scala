@@ -161,7 +161,8 @@ object ParameterizedStructure {
       offset: ElaborationIntegerExpression,
       width: ElaborationIntegerExpression,
       sourceLocation: Option[String],
-      finiteIndexToken: Option[ElabFiniteIndexToken] = None
+      finiteIndexToken: Option[ElabFiniteIndexToken] = None,
+      finitePackedAccess: Option[TypedFinitePackedAccess.Read] = None
   )
 
   /** Identity-retained alias for one native static Vec element selected by a
@@ -1768,7 +1769,8 @@ object ParameterizedStructure {
       result: BitVector,
       offset: ElaborationIntegerExpression,
       width: ElaborationIntegerExpression,
-      sourceLocation: Option[String]
+      sourceLocation: Option[String],
+      finitePackedAccess: Option[TypedFinitePackedAccess.Read] = None
   ): Unit = {
     val state = requireCapture("packed slice", sourceLocation)
     if ((source eq null) || (result eq null)) {
@@ -1803,7 +1805,10 @@ object ParameterizedStructure {
         sourceLocation
       )
     }
-    validateSliceCompleteDomain(
+    if (finitePackedAccess.nonEmpty) {
+      require(finitePackedAccess.get.matches(source, result, offset, width),
+        "finite packed slice lost its authenticated correlated geometry")
+    } else validateSliceCompleteDomain(
       source,
       offset,
       width,
@@ -1817,7 +1822,9 @@ object ParameterizedStructure {
       assignment,
       offset,
       width,
-      sourceLocation
+      sourceLocation,
+      finitePackedAccess.map(_.index.token),
+      finitePackedAccess
     )
   }
 
