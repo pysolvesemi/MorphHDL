@@ -249,7 +249,7 @@ jobs:
           }
           exact_counts = {
               'ParameterizedStructuralLexicalOwnerTests': 18,
-              'TypedBalancedReductionNestedOwnerTests': 18,
+              'TypedBalancedReductionNestedOwnerTests': 19,
               'TypedBalancedReductionStaticRedirectPolicyTests': 3,
           }
           files = []
