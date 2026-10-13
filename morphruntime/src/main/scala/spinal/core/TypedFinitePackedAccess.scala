@@ -93,9 +93,9 @@ private[spinal] object TypedFinitePackedAccess {
     ElabFiniteRange.requireCompleteSymbolicDomain(projectedWidth, "finite packed source width", code)
     ElabFiniteRange.requireCompleteSymbolicDomain(projectedCount, "finite packed loop count", code)
     if (!((source.component eq Component.current) ||
-        (source.isInput && (source.component.parent eq Component.current))))
+        (source.isIo && source.component != null && (source.component.parent eq Component.current))))
       ParameterizedVerilogException.fail("SPINAL-ELAB-FINITE-PACKED-SOURCE-OWNER-MISMATCH",
-        "finite packed source must belong to its loop component or an exact child input")
+        "finite packed source must belong to its loop component or be an exact direct-child port")
     val proof = (ElabInt.fromExpression(projectedCount) - 1) * stride + width.value <=
       ElabInt.fromExpression(projectedWidth)
     if (projectedCount.minimum < 1 || ElabBool.projectedTruth(proof) != ElabBool.AlwaysTrue)
@@ -113,6 +113,10 @@ private[spinal] object TypedFinitePackedAccess {
     result.compositeAssign = new Assignable {
       protected def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)(implicit location: Location): Unit = {
         ParameterizedStructure.requireActiveFiniteIndex(index)
+        if (!(((source.component eq Component.current) && !source.isInput) ||
+            (source.isInput && source.component != null && (source.component.parent eq Component.current))))
+          ParameterizedVerilogException.fail("SPINAL-ELAB-FINITE-PACKED-TARGET-OWNER-MISMATCH",
+            "finite packed target must be writable in its loop component or an exact direct-child input")
         require(kind == DataAssign && (target eq result), "finite packed assignment must write the complete selected slice")
         val (_, assignments) = ParameterizedVec.captureAssignments(source) {
           source(offset, width) := that.asInstanceOf[Bits]

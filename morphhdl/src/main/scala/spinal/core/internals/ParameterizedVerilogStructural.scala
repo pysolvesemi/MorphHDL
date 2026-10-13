@@ -80,7 +80,8 @@ private[internals] object ParameterizedVerilogStructural {
       ownedNames: Set[String],
       directSourceNames: Set[String],
       childOutputActualNames: Set[String],
-      assignmentEvidence: Vector[AssignmentEvidence]
+      assignmentEvidence: Vector[AssignmentEvidence],
+      vecReadOccurrences: Vector[(BaseType, Int)] = Vector.empty
   )
 
   private final case class AlternativeStep(
@@ -1719,9 +1720,11 @@ private[internals] object ParameterizedVerilogStructural {
         liveStatements,
         plan.block.sourceLocation
       )
+      val readOccurrences = ArrayBuffer.empty[(BaseType, Int)]
       body = rewriteVecSelections(
         body,
         plan.block.vecIndices,
+        readOccurrences,
         plan.block.declarations,
         plan.block.assignments,
         liveStatements,
@@ -1735,7 +1738,7 @@ private[internals] object ParameterizedVerilogStructural {
         liveStatements,
         plan.block.sourceLocation
       )
-      plan.copy(body = body)
+      plan.copy(body = body, vecReadOccurrences = readOccurrences.toVector)
     }
   }
 
@@ -2850,6 +2853,20 @@ private[internals] object ParameterizedVerilogStructural {
         else targets.isEmpty && sources >= 1
       }
 
+    // The authenticated substitution records native occurrences after emitter
+    // inlining/cast materialization. One exact selection can be consumed more
+    // than once (e.g. a comparison followed by a mux). Require one receipt per
+    // leaf and an exact replay count; unrelated aggregate uses remain rejected.
+    def exactReadOccurrences(plan: BlockPlan,
+        reads: Vector[ParameterizedStructure.StructuralVecIndex]): Option[Int] = {
+      val receipts = reads.flatMap(_.result.flatten).map { leaf =>
+        plan.vecReadOccurrences.filter(_._1 eq leaf)
+      }
+      if (receipts.forall(values => values.size == 1 && values.head._2 > 0))
+        Some(receipts.map(_.head._2).sum)
+      else None
+    }
+
     /** A typed Vec is one module-scope packed declaration after Vec
       * publication. Separate exhaustive generate-for bodies may therefore
       * write and read its slices without lexical block containment. Admit
@@ -2892,7 +2909,7 @@ private[internals] object ParameterizedVerilogStructural {
             selection.affineRead.exists(e => e.previous.exists(_.owns(consumer.block)) &&
               selection.finiteIndexToken.exists(t => e.matches(selection.vector, selection.index, t))) &&
               exactAliasUse(consumer.block, selection, write = false)) &&
-          countName(consumer.body, target) == reads.flatMap(_.result.flatten).size
+          exactReadOccurrences(consumer, reads).contains(countName(consumer.body, target))
       }) return true
 
       val writes = owner.vecIndices.filter(selection =>
@@ -2927,8 +2944,7 @@ private[internals] object ParameterizedVerilogStructural {
           ParameterizedVerilogVecs.exactStaticSelectionLine(component, target, line, Some(consumer.block)))
         exactStaticReads || (reads.nonEmpty &&
         reads.size == consumer.block.vecIndices.count(_.vector eq vector) &&
-        countName(consumer.body, target) ==
-          reads.flatMap(_.result.flatten).size)
+        exactReadOccurrences(consumer, reads).contains(countName(consumer.body, target)))
       }
     }
 
@@ -4459,6 +4475,7 @@ private[internals] object ParameterizedVerilogStructural {
   private def rewriteVecSelections(
       body: String,
       selections: Vector[ParameterizedStructure.StructuralVecIndex],
+      readOccurrences: ArrayBuffer[(BaseType, Int)],
       blockDeclarations: Vector[BaseType],
       blockAssignments: Vector[DataAssignmentStatement],
       liveStatements: IdentityHashMap[Statement, java.lang.Boolean],
@@ -4596,6 +4613,11 @@ private[internals] object ParameterizedVerilogStructural {
             readOnly = !writesAlias,
             unitRange = selection.unitRange
           )
+          if (!writesAlias) {
+            val uses = ("(?<![A-Za-z0-9_$])" + Pattern.quote(aliasName) +
+              "(?![A-Za-z0-9_$])").r.findAllMatchIn(verilogReferenceText(rewritten)).size
+            readOccurrences += aliasLeaf -> uses
+          }
           rewritten = replaceName(rewritten, aliasName, target)
           if (containsName(rewritten, aliasName)) {
             fail(
