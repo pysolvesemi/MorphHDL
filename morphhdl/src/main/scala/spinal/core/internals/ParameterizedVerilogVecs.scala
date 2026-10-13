@@ -5513,7 +5513,8 @@ private[internals] object ParameterizedVerilogVecs {
 
     val resultRetained = operation.resultAssignments.filter(assignment => assignment.finalTarget eq operation.result)
     val logicalWitnessWidth =
-      BigInt(plan.shape.witnessDepth) * plan.shape.logicalElementWidthDefault
+      ParameterizedVec.packedWidthExpressionOf(operation.result).map(_.default).getOrElse(
+        BigInt(plan.shape.witnessDepth) * plan.shape.logicalElementWidthDefault)
     val exactLogicalResize = resultRetained match {
       case Vector(assignment) =>
         assignment.source match {
@@ -7242,7 +7243,10 @@ private[internals] object ParameterizedVerilogVecs {
       plan: VecPlan,
       sourceLocation: Option[String]
   ): Unit = {
-    val expected = BigInt(plan.shape.witnessDepth) * plan.shape.logicalElementWidthDefault
+    val expected = ParameterizedVec.packedWidthExpressionOf(data).map { width =>
+      NativePublicationWidth.validate(width, data.component, data, "packed Vec logical witness")
+      width.default
+    }.getOrElse(BigInt(plan.shape.witnessDepth) * plan.shape.logicalElementWidthDefault)
     if (BigInt(data.getBitsWidth) != expected) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-VEC-PACKED-WITNESS-WIDTH-MISMATCH",

@@ -52,6 +52,9 @@ private[internals] object NativeScalarFormalSchema {
       ParameterizedVec.shapeOf(vector).toVector.map(shape => vector -> shape.depth)
     }
     val declarations = ExternalFormalParameterRegistry.completeTypedBindingsOf(component)
+    val memoryDepthFormals = ParameterizedMemory.memoriesOf(component).flatMap { memory =>
+      ParameterizedMemory.metadataOf(memory).toVector.flatMap(_.depth.parameters)
+    }
     // Admit direct declaration formals here, like native packed-port formals.
     // Derived dimensions retain their existing owner-domain path; direct
     // formals may also be narrowed by a completed structural branch.
@@ -77,7 +80,8 @@ private[internals] object NativeScalarFormalSchema {
     declarations.filter { entry =>
       val formal = entry.binding.formal
       (values.exists(_ eq formal) && !geometry.exists(_.name == formal.name)) ||
-        depthFormals.exists(_ eq formal) || scopedScalarUses.exists(_ eq formal) || genericScalarUses.exists(_ eq formal)
+        depthFormals.exists(_ eq formal) || memoryDepthFormals.exists(_ eq formal) ||
+        scopedScalarUses.exists(_ eq formal) || genericScalarUses.exists(_ eq formal)
     }
   }
 
@@ -88,11 +92,21 @@ private[internals] object NativeScalarFormalSchema {
     // supplied actual. Its public defaults must retain that invocation.
     if (component.parent == null) return parameters
     val scalar = bindings(component)
-    NativeWidthFormalSchema.definitionParameters(component, parameters, canonicalSchema).map { parameter =>
-      if (scalar.exists(_.binding.formal eq parameter)) parameter.copy(default = parameter.minimum)
-      else parameter
+    NativeWidthFormalSchema.definitionParameters(component, parameters, canonicalSchema).zip(parameters).map {
+      case (widthParameter, original) =>
+        if (scalar.exists(_.binding.formal eq original)) {
+          if (canonicalSchema) original.copy(default = original.minimum) else original
+        } else widthParameter
     }
   }
+
+  // Body comparison uses normalized formals, while final publication preserves
+  // the supplied default unless one exact shared definition represents multiple
+  // defaults. Instance bindings continue to carry each original actual.
+  def sharedDefaults(candidates: Vector[Component]): Set[String] =
+    candidates.flatMap(bindings).groupBy(_.binding.formal.name).collect {
+      case (name, entries) if entries.map(_.binding.formal.default).distinct.size > 1 => name
+    }.toSet
 
   def validateGroup(candidates: Vector[Component]): Unit = {
     val schemas = candidates.map(component => bindings(component).map { entry =>

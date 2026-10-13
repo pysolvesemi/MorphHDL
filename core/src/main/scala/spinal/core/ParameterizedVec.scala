@@ -557,6 +557,8 @@ object ParameterizedVec {
   private val packedQueue = new ReferenceQueue[Bits]()
   private val retainedPacked =
     mutable.HashMap.empty[ParameterizedVecPackedIdentityRef, ParameterizedVecShape]
+  private val retainedPackedOwnerWidths =
+    mutable.HashMap.empty[ParameterizedVecPackedIdentityRef, ElaborationIntegerExpression]
 
   private def reap(): Unit = {
     var reference = queue.poll().asInstanceOf[ParameterizedVecIdentityRef]
@@ -570,13 +572,15 @@ object ParameterizedVec {
     var reference = packedQueue.poll().asInstanceOf[ParameterizedVecPackedIdentityRef]
     while (reference != null) {
       retainedPacked.remove(reference)
+      retainedPackedOwnerWidths.remove(reference)
       reference = packedQueue.poll().asInstanceOf[ParameterizedVecPackedIdentityRef]
     }
   }
 
   private def retainPacked(
       packed: Bits,
-      shape: ParameterizedVecShape
+      shape: ParameterizedVecShape,
+      ownerWidth: Option[ElaborationIntegerExpression]
   ): Unit = synchronized {
     if (packed == null || shape == null)
       throw new IllegalArgumentException("typed Vec packed metadata must not be null")
@@ -591,10 +595,12 @@ object ParameterizedVec {
           shape.sourceLocation.orElse(existing.sourceLocation)
         )
       case None =>
+        val identity = new ParameterizedVecPackedIdentityRef(packed, packedQueue)
         retainedPacked.update(
-          new ParameterizedVecPackedIdentityRef(packed, packedQueue),
+          identity,
           shape
         )
+        ownerWidth.foreach(width => retainedPackedOwnerWidths.update(identity, width))
     }
   }
 
@@ -621,8 +627,12 @@ object ParameterizedVec {
   private[spinal] def packedWidthExpressionOf(
       packed: Bits
   ): Option[ElaborationIntegerExpression] =
-    packedShapeOf(packed).flatMap { shape =>
-      expectedPackedWidth(shape).map { expected =>
+    exactPackedSource(packed).flatMap { case (shape, aliases) =>
+      val origin = aliases.lastOption.map(_.source).getOrElse(packed)
+      val ownerWidth = synchronized {
+        retainedPackedOwnerWidths.get(new ParameterizedVecPackedIdentityRef(origin, null))
+      }
+      ownerWidth.orElse(expectedPackedWidth(shape)).map { expected =>
         ParameterizedWidth.expressionOf(packed) match {
           case Some(retained) if equivalentPackedWidth(retained, expected) =>
             // The exact packed identity can carry a narrower structural
@@ -2193,8 +2203,11 @@ object ParameterizedVec {
       case None => carrier
       case Some(shape) =>
         ElabInt.projectExpression(shape.depth, "typed Vec packed read owner")
+        val projectedPackedWidth = expectedPackedWidth(shape).map(expression =>
+          ElabInt.projectExpression(expression, "typed Vec packed read width"))
         val physicalWidth = BigInt(shape.carrierCapacity) * shape.elementWidthDefault
-        val logicalWitnessWidth = BigInt(shape.witnessDepth) * shape.logicalElementWidthDefault
+        val logicalWitnessWidth = projectedPackedWidth.map(_.default).getOrElse(
+          BigInt(shape.witnessDepth) * shape.logicalElementWidthDefault)
         if (
           !physicalWidth.isValidInt || !logicalWitnessWidth.isValidInt ||
           physicalWidth < 1 || logicalWitnessWidth < 1 ||
@@ -2271,7 +2284,12 @@ object ParameterizedVec {
               )
           }
         }
-        retainPacked(result, shape)
+        retainPacked(result, shape, projectedPackedWidth)
+        projectedPackedWidth.foreach { expression =>
+          ParameterizedWidth.attachValidated(result,
+            ParameterizedBitCount(logicalWitnessWidth.toInt, None,
+              expression.sourceLocation, Some(expression)), Some(expression))
+        }
         append(
           vector,
           ParameterizedVecPackedRead(
@@ -2519,7 +2537,26 @@ object ParameterizedVec {
       ) { (known, root) =>
         if (known.exists(_ eq root)) known else known :+ root
       }
-    if (roots.size > 1) None
+    // Legacy direct packed-width metadata is valid leaf geometry, but it is
+    // not an ElabInt arithmetic certificate. Keep its existing leaf layout
+    // without inventing a typed packed-width expression from that summary.
+    val legacyDirectWidth = expressions.exists { expression =>
+      !ElaborationWidthAuthority.isAuthoritative(expression) &&
+        expression.exactDomain.isEmpty && expression.generateIndex.isEmpty &&
+        (expression.parameters match {
+          case Vector(parameter) =>
+            expression.verilog == parameter.name &&
+              expression.default == parameter.default &&
+              expression.minimum == parameter.minimum &&
+              expression.maximum == parameter.maximum &&
+              (expression.completedParameterRoots match {
+                case Vector(root) => root eq parameter.declarationRoot
+                case _ => false
+              })
+          case _ => false
+        })
+    }
+    if (roots.size > 1 || legacyDirectWidth) None
     else {
       import ParameterizedVecElementLayout._
       def typed(size: Size): ElabInt = size match {

@@ -241,7 +241,8 @@ object MorphHdlExternalParameterizedVerilog {
     }
 
     val sharedWidthDefaults = exactGroups.map { case (canonical, candidates) =>
-      componentName(canonical) -> NativeWidthFormalSchema.sharedDefaults(candidates.toVector)
+      componentName(canonical) -> (NativeWidthFormalSchema.sharedDefaults(candidates.toVector) ++
+        NativeScalarFormalSchema.sharedDefaults(candidates.toVector))
     }.toMap
     val rewrittenByName = expectedModules.toVector.sorted.flatMap { name =>
       val component = canonicalPublicationByName(name)

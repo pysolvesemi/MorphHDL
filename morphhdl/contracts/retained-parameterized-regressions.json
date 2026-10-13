@@ -2147,7 +2147,9 @@
       "spinal.core.ScalarStructuralIdentityAdversarialTests": [
         "a removed scalar-operator driver cannot be replaced by the same result operands and text",
         "an exact escaping scalar operator is promoted without overclaiming a same-operands peer",
-        "late exact owner extensions preserve scalar operands and authorize only disjoint assignments"
+        "exact sibling scalar uses promote module-port operands including branch-driven outputs",
+        "late exact owner extensions preserve scalar operands and authorize only disjoint assignments",
+        "sibling scalar uses do not authorize promotion of an exact branch-local operand"
       ],
       "spinal.core.StructuralIdentityAdversarialTests": [
         "a consumed projected finite Vec witness cannot promote a raw carrier",
@@ -2905,6 +2907,7 @@
         "finite outer loops retain row indices inside nested reduction branches",
         "fresh nested publication has deterministic names and no duplicate component definitions",
         "initialized register bridge processes retain their outer loop and branch owners",
+        "intact parent-owned child Vec mirrors retain branch-projected packed reads",
         "invalid finite outer loop bounds fail before reduction publication",
         "nested callbacks cannot instantiate uncertified child hardware",
         "nested case and narrowed if branches retain a tree absent at the COUNT one default",
@@ -3741,7 +3744,7 @@
     "morphhdl/src/test/scala/spinal/core/ParameterizedStructureTestAccess.scala": "8856cb0e2136d8f65274a2ff93b3451e449b2f150e21016964556b69212067bb",
     "morphhdl/src/test/scala/spinal/core/ProceduralIdentityAdversarialTests.scala": "8d2c661561461c9d9148f1c05a23c0b725e9346fb7e171685a6579088bccbf73",
     "morphhdl/src/test/scala/spinal/core/RecursivePartitionSafetyTests.scala": "e022224a4b6253c60d523c1ab5fdd76b32de0da32fcab78f4806b3b87a53807a",
-    "morphhdl/src/test/scala/spinal/core/ScalarStructuralIdentityAdversarialTests.scala": "ebd1094b4e96f12dda26e8b2d7ef37250f84fb9c00692cf453726f191d75a622",
+    "morphhdl/src/test/scala/spinal/core/ScalarStructuralIdentityAdversarialTests.scala": "08dd822c71dddc96ebe8f4c47d574f18b8120f67807261db5f3a8768450f1339",
     "morphhdl/src/test/scala/spinal/core/SignednessBoundaryFixture.scala": "09719ced8e01c5a84d585fec706af74503173d16f794b567e82d8e7ceb2cfbda",
     "morphhdl/src/test/scala/spinal/core/StructuralIdentityAdversarialTests.scala": "4142c1db86a42d0ebe8101db068304d059f9514ba5b41109b10360b322cf125d",
     "morphhdl/src/test/scala/spinal/core/SymbolicPublicationEvidenceTests.scala": "0f64ff42bcadd769e04babb22ace81567d03d14fe358b452e88032bae8cf2a32",
@@ -3814,7 +3817,7 @@
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedMechanismHardware.scala": "13af1e43623167394d49c4e9d366bc76b02f974a26a9574d3be2a236df644176",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedMechanismTests.scala": "f4f63d2276b0806c644c365973deb312441dfbbc334c61c4f1b57e6febc4930e",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedOwnerArtifactWriter.scala": "ea16593854ecb244921cbf5b95931eac3063ada3b859602751ed1200d35462c4",
-    "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedOwnerTests.scala": "844dc9015af1204c401d1d1528b61c6a0678935c35d2c14d2dd339a790317287",
+    "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedOwnerTests.scala": "8d0faa895718d87fb3cfb33200455c27e9adcda0a7ed321968cfe6c38e85e26f",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedResultArtifactWriter.scala": "caa98ebc4341d9bced1bee4521d4606b8fb4e684078c8636bce215413abd7337",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedResultHardware.scala": "a07cc3a809934cbd9dc667b3434de65770f9605fe24b4c519fed40f72fcf268d",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedResultTests.scala": "e7fbd7bd1235afdc27bbc61389e032615fca27e574f55fdae249ff6edcc99204",

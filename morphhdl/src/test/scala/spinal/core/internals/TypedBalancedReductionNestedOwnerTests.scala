@@ -175,6 +175,7 @@ private[internals] final class BalancedNestedCorruptMirror(count: HdlInt, mutati
     field.set(mirror, value)
   }
   mutation match {
+    case "none" =>
     case "source" => changeSnapshot("source", unrelated)
     case "selected" => changeSnapshot("selected", child.words.vec(1))
     case "removed" =>
@@ -426,10 +427,20 @@ class TypedBalancedReductionNestedOwnerTests extends AnyFunSuite {
     assert(detail.contains("SPINAL-PARAMETERIZED-VERILOG-VEC-STRUCTURAL-ALIAS-AGGREGATE-UNSUPPORTED"), detail)
   }
 
+  test("intact parent-owned child Vec mirrors retain branch-projected packed reads") {
+    val directory = Files.createTempDirectory("balanced-nested-intact-mirror-")
+    MorphVerilog(TypedBalancedReductionNestedOwnerArtifactWriter.config(directory, "intact.v")) {
+      new BalancedNestedCorruptMirror(HdlInt.param("COUNT", 1, 1, 3), "none")
+    }
+    assert(Files.isRegularFile(directory.resolve("intact.v")))
+  }
+
   Vector("source", "selected", "removed").foreach { mutation =>
     test(s"parent-owned child Vec static mirrors reject $mutation mutation") {
       val detail = rejected(new BalancedNestedCorruptMirror(HdlInt.param("COUNT", 1, 1, 3), mutation))
       assert(detail.contains("VEC") && Vector("EVIDENCE", "MISMATCH", "STALE").exists(detail.contains), detail)
+      assert(!detail.contains("PACKED-WIDTH-MISMATCH") &&
+        !detail.contains("OWNER-REPRESENTATIVE-MISMATCH"), detail)
     }
   }
 

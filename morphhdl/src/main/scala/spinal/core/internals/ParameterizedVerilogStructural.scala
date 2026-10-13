@@ -349,7 +349,7 @@ private[internals] object ParameterizedVerilogStructural {
         value -> range.start
       }
     )
-    val (resolvedPlans, sharedProcessRanges, continuousOutputDeclarations) =
+    val (sharedResolvedPlans, sharedProcessRanges, continuousOutputDeclarations) =
       resolveSharedProceduralProcesses(
         component,
         declarationScopedRawPlans,
@@ -359,6 +359,35 @@ private[internals] object ParameterizedVerilogStructural {
         portNames ++ parameters.map(_.name),
         continuousResolution.promotions.values.map(_.declarationLine).toSet
       )
+    // Native shared-process bodies are conservative before splitting. Scope
+    // each authenticated pure Bool replay using its final consumers, retaining
+    // module scope whenever any native module item still references it.
+    val resolvedPlans = scalarOperatorReplay.valuesIterator.flatten.filter(_.moduleScope)
+      .toVector.groupBy(_.declarationLine).values.map(_.head).toVector.sortBy(_.declarationLine)
+      .foldLeft(sharedResolvedPlans) { (current, replay) =>
+        val captured = current.flatMap(_.ranges).flatMap(_.indices).toSet
+        val moduleConsumer = lines.zipWithIndex.exists { case (line, index) =>
+          index != replay.declarationLine && index != replay.driverLine &&
+            !captured(index) && verilogReferenceNames(line)(replay.name)
+        }
+        val consumers = current.filter(plan => verilogReferenceNames(plan.body)(replay.name))
+        val owner = if (moduleConsumer) None
+          else leastCommonContainingBlock(consumers.map(_.block), containmentPaths)
+        owner match {
+          case Some(block) => current.map { plan =>
+            if (plan.block ne block) plan
+            else {
+              val added = Vector(replay.declarationLine, replay.driverLine)
+              if (added.exists(captured))
+                fail("SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SCALAR-OPERATOR-REPLAY-MISMATCH",
+                  s"promoted scalar '${replay.name}' retained a captured native line")
+              plan.copy(ranges = (plan.ranges ++ added.map(i => LineRange(i, i))).sortBy(_.start),
+                body = added.map(i => lines(i).trim).mkString("\n") + "\n" + plan.body)
+            }
+          }
+          case None => current
+        }
+      }
     validateBranchLocalReferences(resolvedPlans, lines)
     val liveStatements = new IdentityHashMap[Statement, java.lang.Boolean]()
     component.dslBody.walkStatements(value => liveStatements.put(value, java.lang.Boolean.TRUE))
@@ -673,6 +702,7 @@ private[internals] object ParameterizedVerilogStructural {
     val records = blocks.flatMap { block =>
       block.scalarOperators.map(block -> _)
     }
+    val containment = structuralContainmentPaths(ParameterizedStructure.regionsOf(component))
     val capturedStatements = new IdentityHashMap[Statement, java.lang.Boolean]()
     def retainCapturedStatement(value: Statement): Unit = {
       if (capturedStatements.put(value, java.lang.Boolean.TRUE) == null)
@@ -831,14 +861,39 @@ private[internals] object ParameterizedVerilogStructural {
             }
           }
         }
-        found
+        // Captured consumers outside this declaration's lexical subtree also
+        // need an outward replay. Walk statement expressions (including native
+        // conditions), preserving exact result identity rather than spelling.
+        val outsideConsumers = blocks.filter { consumer =>
+          !containment.getOrElse(consumer, Vector.empty).exists(_ eq block) &&
+            consumer.statements.exists { statement =>
+              var usesResult = false
+              def inspect(value: Statement): Unit = {
+                if ((value ne result) && (value ne assignment)) {
+                  value.foreachExpression { expression =>
+                    if (expressionContainsIdentity(expression, result)) usesResult = true
+                  }
+                  value match {
+                    case tree: TreeStatement => tree.foreachStatements(inspect)
+                    case _ =>
+                  }
+                }
+              }
+              inspect(statement)
+              usesResult
+            }
+        }
+        found || outsideConsumers.nonEmpty
       }
       if (moduleScopeConsumer) {
         val sourcesAreModuleScope = record.sources.forall {
           case source: BaseType =>
             live.containsKey(source) &&
             !capturedDeclarations.exists(_ eq source) &&
-            !capturedAssignments.exists(value => value.finalTarget eq source)
+            (!capturedAssignments.exists(value => value.finalTarget eq source) ||
+              ((source.component eq component) && (source.parentScope eq component.dslBody) &&
+                source.isIo && source.getTypeObject == TypeBool && source.getBitsWidth == 1 &&
+                component.getOrdredNodeIo.exists(_ eq source)))
           case _ => false
         }
         if (!sourcesAreModuleScope)
@@ -976,6 +1031,16 @@ private[internals] object ParameterizedVerilogStructural {
     val memo = new IdentityHashMap[Expression, java.lang.Boolean]()
     def independent(value: Expression): Boolean = {
       if (value != null && relocatedState.containsKey(value)) return true
+      // An exact interface declaration is visible at module scope even when
+      // its drivers are selected by structural alternatives. Availability of
+      // this reference does not confer ownership of any of those drivers.
+      value match {
+        case port: BaseType if (port.component eq component) &&
+            (port.parentScope eq component.dslBody) && port.isIo &&
+            live.containsKey(port) && component.getOrdredNodeIo.exists(_ eq port) &&
+            !blocks.exists(_.declarations.exists(_ eq port)) => return true
+        case _ =>
+      }
       if (value == null || captured.containsKey(value)) return false
       if (memo.containsKey(value)) return memo.get(value).booleanValue
       if (checking.containsKey(value)) return false
@@ -1102,7 +1167,7 @@ private[internals] object ParameterizedVerilogStructural {
     }
 
     val blockScalarOperators = scalarOperatorReplay.getOrElse(block, Vector.empty)
-    val promotedScalarOperators = blockScalarOperators.filter(_.moduleScope)
+    val promotedScalarOperators = scalarOperatorReplay.valuesIterator.flatten.filter(_.moduleScope).toVector
     val promotedScalarLines = promotedScalarOperators.flatMap { replay =>
       Vector(replay.declarationLine, replay.driverLine)
     }.toSet
@@ -1370,7 +1435,7 @@ private[internals] object ParameterizedVerilogStructural {
     // Ownership comes from the exact statement/instance handed off by the
     // native emitter, never from a nearby signal name or comment spelling.
     RtlDocumentation.emissionRanges(component, lines).foreach { case (host, start, end) =>
-      if (block.assignments.exists(_ eq host) || block.children.exists(_ eq host))
+      if (ownedAssignments.exists(_ eq host) || block.children.exists(_ eq host))
         ranges += LineRange(start, end)
     }
     val mergedRanges = mergeRanges(ranges.toVector)
@@ -3163,8 +3228,15 @@ private[internals] object ParameterizedVerilogStructural {
         claimants.combinations(2).foreach { pair =>
           val left = pair(0)
           val right = pair(1)
+          // A shared declaration may have exclusive alternatives and nested
+          // claims in the same inventory. The full set then has no common
+          // block, but each nonexclusive pair must still prove exact lexical
+          // containment. Procedural ownership never uses this exception.
+          val nestedDeclaration = kind == "DECLARATION" &&
+            (containmentPaths.getOrElse(left.block, Vector.empty).exists(_ eq right.block) ||
+              containmentPaths.getOrElse(right.block, Vector.empty).exists(_ eq left.block))
           if (
-            !mutuallyExclusive(
+            !nestedDeclaration && !mutuallyExclusive(
               paths.getOrElse(left.block, Vector.empty),
               paths.getOrElse(right.block, Vector.empty)
             )
@@ -4046,6 +4118,55 @@ private[internals] object ParameterizedVerilogStructural {
         }
         sharedProcessRanges += range
       }
+
+    // Shared native processes initially make every alternative claim their
+    // complete dependency declarations. After exact process splitting, restore
+    // a declaration to its authenticated authoring block when every surviving
+    // reference is inside that block. This retains branch-specific geometry
+    // without changing a declaration, driver, or native helper identity.
+    val capturedIndices = current.values.toVector.flatMap(_.ranges).flatMap(_.indices).toSet
+    factoredModuleRanges.toVector.sortBy(_.start).foreach { range =>
+      if (range.start == range.end && !promotedDeclarationLines(range.start)) {
+        standaloneDeclarationName(lines(range.start)).foreach { name =>
+          val exactOwners = plans.filter(_.block.declarations.exists { declaration =>
+            NativeFiniteStatementLineage.referenceName(component, declaration) == name
+          })
+          exactOwners match {
+            case Vector(owner) =>
+              val consumers = current.values.toVector.filter { plan =>
+                plan.body.split("\n", -1).exists { line =>
+                  !standaloneDeclarationName(line).contains(name) &&
+                    verilogReferenceNames(line)(name)
+                }
+              }
+              val moduleConsumer = lines.zipWithIndex.exists { case (line, index) =>
+                index != range.start && !capturedIndices(index) && verilogReferenceNames(line)(name)
+              }
+              if (consumers.nonEmpty && !moduleConsumer && consumers.forall { plan =>
+                  containmentPaths.getOrElse(plan.block, Vector.empty).exists(_ eq owner.block)
+                }) {
+                current.keys.toVector.foreach { block =>
+                  val plan = current(block)
+                  if (plan.ranges.contains(range)) {
+                    val text = lines(range.start).trim
+                    val bodyLines = plan.body.split("\n", -1).toVector
+                    if (bodyLines.count(_.trim == text) != 1)
+                      fail("SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-DECLARATION-REPLAY-MISMATCH",
+                        s"exact declaration for '$name' is not unique in its resolved claimant")
+                    current(block) = plan.copy(ranges = plan.ranges.filterNot(_ == range),
+                      body = bodyLines.filterNot(_.trim == text).mkString("\n"))
+                  }
+                }
+                val plan = current(owner.block)
+                current(owner.block) = plan.copy(
+                  ranges = (plan.ranges :+ range).sortBy(_.start),
+                  body = lines(range.start).trim + "\n" + plan.body)
+              }
+            case _ =>
+          }
+        }
+      }
+    }
 
     val declarationReplacements = continuousOutputDeclarations.map { case (index, replacement) =>
       lines(index).trim -> replacement.trim
