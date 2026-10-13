@@ -1,0 +1,29 @@
+name: CA-042 and CA-043 exact-candidate targeted dispatcher
+on:
+  push:
+    branches: [control/ca042-043-df46f6ba6b8b-repairs]
+    paths:
+      - .github/workflows/ca042-043-df46f6ba6b8b-repairs.yml
+      - .github/controllers/ca042-043-df46f6ba6b8b-repairs/dispatch.py
+      - .github/controllers/ca042-043-df46f6ba6b8b-repairs/dispatch.json
+permissions:
+  contents: read
+  actions: write
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate exact identities and dispatch affected workflows
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/controllers/ca042-043-df46f6ba6b8b-repairs/dispatch.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ca042-043-df46f6ba6b8b-repairs-ledger
+          path: dispatch-ledger.jsonl
+          if-no-files-found: error
