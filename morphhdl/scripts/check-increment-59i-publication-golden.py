@@ -15,7 +15,8 @@ import re
 from pathlib import Path
 
 SCOPE = "59i-publication-abi-defaults"
-DEFAULT_CONTRACT = Path(__file__).resolve().parents[1] / "contracts/increment-59i-publication-golden-scalar-defaults.json"
+DEFAULT_CONTRACT = Path(__file__).resolve().parents[1] / "contracts/increment-59i-publication-golden-indentation.json"
+SCALAR_DEFAULTS_CONTRACT = DEFAULT_CONTRACT.with_name("increment-59i-publication-golden-scalar-defaults.json")
 PREVIOUS_CONTRACT = DEFAULT_CONTRACT.with_name("increment-59i-publication-golden-successor.json")
 HISTORICAL_CONTRACT = DEFAULT_CONTRACT.with_name("increment-59i-publication-golden.json")
 PROFILES = (
@@ -370,7 +371,7 @@ def check(root: Path, duplicate: Path, contract: Path) -> dict:
 def output_file(path: Path, value: dict, roots: tuple[Path, Path], contract: Path | None,
         candidate: bool = False) -> None:
     path = unlinked(path)
-    require(path not in (unlinked(DEFAULT_CONTRACT), unlinked(PREVIOUS_CONTRACT), unlinked(HISTORICAL_CONTRACT)) and
+    require(path not in (unlinked(DEFAULT_CONTRACT), unlinked(SCALAR_DEFAULTS_CONTRACT), unlinked(PREVIOUS_CONTRACT), unlinked(HISTORICAL_CONTRACT)) and
         (contract is None or path != unlinked(contract)),
         "output must not rewrite a reviewed expectation")
     for root in roots:

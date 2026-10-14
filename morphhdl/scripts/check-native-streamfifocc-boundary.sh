@@ -745,6 +745,18 @@ require(
     "focused proof must retain stable public-ingress rejection of an oversized domain",
 )
 
+# Native async plus soft reset replays one exact initializer at two reset sites.
+# Ordinary data edges and every other clock-domain topology still count once.
+require(
+    r"def\s+emittedMultiplicity\(statement:\s*AssignmentStatement\):\s*Int\s*=\s*statement\s+match\s*\{\s*"
+    r"case\s+init:\s*InitAssignmentStatement\s*=>\s*val\s+cd\s*=\s*init\.finalTarget\.clockDomain\s*"
+    r"if\s*\(cd\s*!=\s*null\s*&&\s*cd\.reset\s*!=\s*null\s*&&\s*cd\.config\.resetKind\s*==\s*ASYNC\s*&&\s*"
+    r"cd\.softReset\s*!=\s*null\)\s*2\s*else\s*1\s*case\s+_\s*=>\s*1\s*\}",
+    fallback,
+    "RETAINED-ZERO-CARDINALITY-AUTHORITY-MISSING",
+    "initializer multiplicity must derive only from exact async-reset plus soft-reset native clock-domain identity",
+)
+
 # Retained-width zero lowering may use an emitted name and witness only after
 # the graph proves every matching edge is a direct, full-target invariant zero.
 require(
@@ -773,14 +785,14 @@ require(
     r"initializer\.literal\.getTypeObject\.asInstanceOf\[AnyRef\]\s*\)\s*&&\s*"
     r"literal\.getWidth\s*==\s*initializer\.literal\.getWidth\s*&&\s*"
     r"literal\.getValue\(\)\s*==\s*initializer\.literal\.getValue\(\)\s*"
-    r"case\s+_\s*=>\s*false\s*\}\s*\)\s*=>\s*authorizedEdges\s*\+=\s*1\s*\n"
+    r"case\s+_\s*=>\s*false\s*\}\s*\)\s*=>\s*authorizedEdges\s*\+=\s*emittedMultiplicity\(statement\)\s*\n"
     r".*?if\s*\(\s*authorizedEdges\s*==\s*0\s*\|\|\s*exactEdges\s*\+\s*exactNativeEdges\s*!=\s*authorizedEdges\s*\|\|\s*exactNativeEdges\s*!=\s*nativeEdges\s*\)",
     fallback,
     "RETAINED-ZERO-CARDINALITY-AUTHORITY-MISSING",
     "retained-zero rewriting must carry exact target identity and require emitted/authorized edge cardinality equality",
 )
 require(
-    r"val\s+published\s*=\s*nativeInitializerEmissions\(component\).*?case\s+statement:\s*AssignmentStatement\s+if\s*\(statement\.finalTarget\s+eq\s+initializer\.target\)\s*&&\s*published\.containsKey\(statement\).*?if\s*\(published\.get\(statement\)\s*!=\s*replacement\).*?CONSTANT-INIT-EMITTED-LINEAGE-MISMATCH.*?nativeEdges\s*\+=\s*1",
+    r"val\s+published\s*=\s*nativeInitializerEmissions\(component\).*?case\s+statement:\s*AssignmentStatement\s+if\s*\(statement\.finalTarget\s+eq\s+initializer\.target\)\s*&&\s*published\.containsKey\(statement\).*?if\s*\(published\.get\(statement\)\s*!=\s*replacement\).*?CONSTANT-INIT-EMITTED-LINEAGE-MISMATCH.*?nativeEdges\s*\+=\s*emittedMultiplicity\(statement\)",
     fallback,
     "RETAINED-ZERO-CARDINALITY-AUTHORITY-MISSING",
     "already-symbolic initializer replay must retain exact native assignment identity and matching value before contributing to edge cardinality",
@@ -1400,6 +1412,17 @@ PY
     grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-CROSS-CLOCK-MEMORY-AUTHORITY-MISSING' \
       "$temporary/memory.stderr" ||
       fail SELF-TEST-DIAGNOSTIC 'memory mutation did not report its stable diagnostic'
+
+    for mutation in 's/cd.config.resetKind == ASYNC/true/' 's/cd.softReset != null) 2 else 1/cd.softReset != null) 3 else 1/' 's/authorizedEdges += emittedMultiplicity(statement)/authorizedEdges += 1/' 's/nativeEdges += emittedMultiplicity(statement)/nativeEdges += 1/'; do
+      sed "$mutation" "$fallback_source" > "$temporary/invalid-reset-multiplicity.scala"
+      if MORPHDL_STREAMFIFOCC_FALLBACK_SOURCE="$temporary/invalid-reset-multiplicity.scala" \
+        "$0" --check >"$temporary/multiplicity.stdout" 2>"$temporary/multiplicity.stderr"; then
+        fail SELF-TEST-ACCEPTED 'invalid reset initializer multiplicity mutation passed'
+      fi
+      grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-RETAINED-ZERO-CARDINALITY-AUTHORITY-MISSING' \
+        "$temporary/multiplicity.stderr" ||
+        fail SELF-TEST-DIAGNOSTIC 'reset initializer multiplicity mutation did not report its stable diagnostic'
+    done
 
     sed '0,/exactEdges + exactNativeEdges != authorizedEdges/s//exactEdges + exactNativeEdges != 1/' \
       "$fallback_source" > "$temporary/noncardinal-retained-zero.scala"

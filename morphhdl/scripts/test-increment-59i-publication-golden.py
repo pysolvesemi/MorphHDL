@@ -119,6 +119,7 @@ class PublicationGoldenTests(unittest.TestCase):
         self.assertFalse(self.contract.exists())
         self.reject(lambda: G.output_file(candidate, snapshot, (self.a, self.b), None, candidate=True))
         self.reject(lambda: G.output_file(G.DEFAULT_CONTRACT, snapshot, (self.a, self.b), None, candidate=True))
+        self.reject(lambda: G.output_file(G.SCALAR_DEFAULTS_CONTRACT, snapshot, (self.a, self.b), None, candidate=True))
         self.reject(lambda: G.output_file(G.PREVIOUS_CONTRACT, snapshot, (self.a, self.b), None, candidate=True))
         self.reject(lambda: G.output_file(G.HISTORICAL_CONTRACT, snapshot, (self.a, self.b), None, candidate=True))
         self.contract.write_bytes(G.serialized(snapshot))

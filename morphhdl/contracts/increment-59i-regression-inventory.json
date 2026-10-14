@@ -2051,6 +2051,13 @@
       "spinal.core.internals.NativePublicationWidthTests": [
         "captured partial widths use their exact native owner after construction scope ends"
       ],
+      "spinal.core.internals.NativeStructuralIndentationTests": [
+        "retained for if else arrays recursive instances and pipeline processes have two-space structural layout",
+        "comments strings attributes escaped identifiers and directive continuations remain byte exact",
+        "conditional compilation and case function scopes preserve sibling alignment",
+        "continued quoted strings preserve their closing quote and subsequent structural scope",
+        "native recursive array and optional pipeline publication is already canonically indented"
+      ],
       "spinal.core.internals.NativeWidthPublicationSafetyTests": [
         "emitted assignment collisions or wrong witness edges cannot choose a rewrite target",
         "only the exact equal-width resize normalization retains its captured target geometry",
@@ -3572,6 +3579,7 @@
     "morphhdl/src/test/scala/spinal/core/internals/IndependentParameterPublicationTests.scala": "ef7cfaa257f1654568d897e028ccf5f23f0aa5eb13a0b4c40e5bbb3db5acee11",
     "morphhdl/src/test/scala/spinal/core/internals/LaneExpressionTraceWriter.scala": "88b1ed42017ee05a1e040432bbd1c576fa66b2acee64de79ed550b97cba19e72",
     "morphhdl/src/test/scala/spinal/core/internals/NativePublicationWidthTests.scala": "08bd35a90951bc840f42bc194b612016bd2f5a4bcc1c568afc5e809c835a4389",
+    "morphhdl/src/test/scala/spinal/core/internals/NativeStructuralIndentationTests.scala": "b77c0089830420d7b110475d5761b40a7349df6093229316001b17d2a50a515a",
     "morphhdl/src/test/scala/spinal/core/internals/NativeWidthPublicationSafetyTests.scala": "4b55b7ce2d6f591d30ef51b057c7519d846b8eed0c4de541e9caab0c725352cb",
     "morphhdl/src/test/scala/spinal/core/internals/ParameterizedDataShapeTests.scala": "61b19de7b1312efcad3fddafa0ffb5762aa896cd233573c225e0256e282f0776",
     "morphhdl/src/test/scala/spinal/core/internals/ParameterizedVerilogFieldLayoutTests.scala": "80b72b72ce039088f9f247282a5f0eef3f5c47d2c94b57cfa16e6d5b36d48ba8",
