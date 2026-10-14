@@ -1,0 +1,82 @@
+{
+  "repository": "pysolvesemi/MorphHDL",
+  "pr": 195,
+  "base_ref": "parameterized-verilog",
+  "base_sha": "db54d01e5b21c7664f7a0de3795f061d77a3d259",
+  "candidate_ref": "work/remaining-parameterized-increments",
+  "candidate_sha": "a9c11ef9e28e6ca9068b1ec1b10188976fae63fa",
+  "candidate_tree": "2a7562374431a3af7d11e465e6db51bb9a96b973",
+  "control_ref": "control/ca046-ca050-a9c11ef9e28e-priority",
+  "control_files": [
+    ".github/workflows/ca046-ca050-a9c11ef9e28e-priority.yml",
+    ".github/controllers/ca046-ca050-a9c11ef9e28e-priority/dispatch.py",
+    ".github/controllers/ca046-ca050-a9c11ef9e28e-priority/dispatch.json"
+  ],
+  "workflows": [
+    {
+      "id": 337738060,
+      "path": ".github/workflows/morphhdl-external-structural-process.yml",
+      "sha256": "fda1e76c84c39ccbca2aabe7e2106f548a6bc50eeafcaf24f0b8bcd18e309c14",
+      "expected_job_names": [
+        "Structural/process source boundary",
+        "External structural/process proof Scala 2.12.18",
+        "External structural/process proof Scala 2.13.12"
+      ],
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 336665858,
+      "path": ".github/workflows/morphhdl-native-source-guard.yml",
+      "sha256": "f4c437482d3aa970d86b3a64f000bdd934771eec539ac0dd8fcfb94e80d85fc0",
+      "expected_job_names": [
+        "Native source preservation and typed overlay"
+      ],
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 351996892,
+      "path": ".github/workflows/increment-59h-nested-owners.yml",
+      "sha256": "a66f928cd8b2c1989d0616213d02cdca23dfefb524eb9b942f5fde48f06a6670",
+      "expected_job_names": [
+        "Nested reduction owner source audits",
+        "Nested reduction owners Scala 2.12.18",
+        "Nested reduction owners Scala 2.13.12"
+      ],
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 352827927,
+      "path": ".github/workflows/increment-59i-combined-closure.yml",
+      "sha256": "15a4a18457f06b8eba858769f4653c3ecd12123a6de6008cb0cddd41ef2d136b",
+      "expected_job_names": [
+        "Composite integration source audits",
+        "Composite integration inherited source audits",
+        "Composite integration Scala 2.12.18",
+        "Composite integration Scala 2.13.12",
+        "Cross-Scala composite integration RTL determinism"
+      ],
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 351368935,
+      "path": ".github/workflows/increment-59c-named-field-vectors.yml",
+      "sha256": "788521a457e3e5d1438ccf179c0bcb100be1dfa328a0a502f56cd971e7fd4028",
+      "expected_job_names": [
+        "Named field vectors Scala 2.12.18",
+        "Named field vectors Scala 2.13.12"
+      ],
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    }
+  ],
+  "original_failures": []
+}
