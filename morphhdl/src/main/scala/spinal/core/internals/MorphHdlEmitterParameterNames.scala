@@ -14,7 +14,10 @@ object MorphHdlEmitterParameterNames {
       val allocation = phases.indexWhere(_.isInstanceOf[PhaseAllocateNames])
       require(allocation >= 0, "parameter publication needs native name allocation")
       phases.insert(allocation, new PhaseMisc {
-        override def impl(pc: PhaseContext): Unit = pc.walkComponents(spinal.core.ElabAreaLocalNames.capture)
+        override def impl(pc: PhaseContext): Unit = pc.walkComponents { component =>
+          spinal.core.ElabAreaLocalNames.capture(component)
+          ParameterizedVerilogVecs.capturePackedTransportNames(component)
+        }
       })
       phases.insert(allocation + 2, new MorphHdlEmitterParameterNames)
     }

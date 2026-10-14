@@ -27,10 +27,12 @@ class NativeWidthCompositionTree(mode: String, countActual: ElabInt, widthActual
     } {
       val nextCount = (count + 1) / 2
       val combined = Vec(UInt(width bits), nextCount)
+      val packedWords = if(mode == "fused") Some(Bits((nextCount * width) bits)) else None
       ElabFiniteRange.foreach(nextCount, "combine") { i =>
         i.whenAffineLessThan(2, 1, count, "pair") {
           i(combined) := i.affine(lanes, 2, 0) + i.affine(lanes, 2, 1)
         } { i(combined) := i.affine(lanes, 2, 0) }
+        packedWords.foreach(words => i.packed(words, width, width bits) := i(combined).asBits)
       }
       val nextData = if (mode.contains("soft-reset")) {
         val values = Vec(UInt(width bits), nextCount)
@@ -54,7 +56,8 @@ class NativeWidthCompositionTree(mode: String, countActual: ElabInt, widthActual
       child.ports.reset := io.reset
       child.ports.softReset := io.softReset
       child.ports.enable := io.enable
-      if (mode == "alias") {
+      if (mode == "fused") child.ports.terms := packedWords.get
+      else if (mode == "alias") {
         val nextTerms = Bits((nextCount * width) bits)
         nextTerms := nextData.asBits
         child.ports.terms := nextTerms

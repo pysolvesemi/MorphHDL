@@ -85,6 +85,8 @@ jobs:
             morphhdl.RecursiveUnsignedSumTests \
             morphhdl.SymbolicArrayGeometryTests \
             morphhdl.WidthCompositionTests \
+            morphhdl.SymbolicPackedWordsTests \
+            spinal.core.FinitePackedCorrelationTests \
             spinal.core.internals.NativeStructuralIndentationTests \
             spinal.core.RecursivePartitionSafetyTests \
             morphhdl.BoundedRecursivePowerTests \

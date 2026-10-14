@@ -26,7 +26,12 @@ private[internals] object ParameterizedVerilogUnpacked {
 
   private final case class Selection(offset: String, width: String, end: Int)
 
-  def rewrite(source: String, shapes: Vector[ArrayShape]): String = {
+  /** Issued by exact validated native packing operations, never inferred from names. */
+  final case class PackedDestination(name: String, loop: Option[(String, String)], declaration: String)
+
+  def rewrite(source: String, shapes: Vector[ArrayShape],
+      directPackedDestinations: Map[String, PackedDestination] = Map.empty,
+      directPackedSources: Map[String, Set[String]] = Map.empty): String = {
     if (shapes.isEmpty) return source
     val used = mutable.HashSet.empty[String] ++ "[A-Za-z_][A-Za-z0-9_$]*".r.findAllIn(source)
     def allocate(stem: String): String = {
@@ -38,11 +43,12 @@ private[internals] object ParameterizedVerilogUnpacked {
     }
     val byName = shapes.map(x => x.name -> x).toMap
     require(byName.size == shapes.size, "unpacked Vec names must be unique")
-    val views = shapes.map(x => x.name -> allocate(x.name + "_packed_view")).toMap
-    val usedViews = mutable.HashSet.empty[String]
+    val views = shapes.map(x => x.name -> directPackedDestinations.get(x.name).map(_.name).getOrElse(allocate(x.name + "_packed_view"))).toMap
+    val usedViews = mutable.HashSet.empty[String] ++ directPackedDestinations.keys
     val functions = mutable.LinkedHashMap.empty[(String, String), String]
     val wiring = mutable.LinkedHashMap.empty[String, Vector[String]]
     val seen = mutable.HashSet.empty[String]
+    val arrayDeclarations = mutable.Map.empty[String, String]
     def function(shape: ArrayShape, width: String): String =
       functions.getOrElseUpdate(shape.name -> width, allocate(shape.name + "_read"))
 
@@ -144,6 +150,9 @@ private[internals] object ParameterizedVerilogUnpacked {
     }
     var generateDepth = 0
     val output = expanded.flatMap { line =>
+      val directDriver = directPackedDestinations.exists { case (array, target) =>
+        line.trim == s"assign ${target.name} = $array;"
+      }
       if (line.trim == "generate") generateDepth += 1
       if (line.trim == "endgenerate") generateDepth -= 1
       val declaration = shapes.iterator.flatMap { shape =>
@@ -151,7 +160,8 @@ private[internals] object ParameterizedVerilogUnpacked {
           Pattern.quote(shape.name) + "\\s*;\\s*$").r
         pattern.findFirstMatchIn(line).map(m => (shape, m))
       }.toVector
-      if (declaration.nonEmpty) {
+      if (directDriver) Vector.empty[String]
+      else if (declaration.nonEmpty) {
         require(declaration.size == 1, "ambiguous unpacked Vec declaration")
         val (shape, m) = declaration.head
         seen += shape.name
@@ -159,13 +169,18 @@ private[internals] object ParameterizedVerilogUnpacked {
         val signed = Option(m.group(3)).getOrElse("")
         val index = allocate(shape.name + "_pack_index")
         val label = allocate(shape.name + "_pack")
+        val words = shape.dimensions.map(d => s"($d)").mkString(" * ")
+        val bitOffset = s"($index * (${shape.width}))"
         val body = Vector(
-          s"    for ($index = 0; $index < (${shape.total}); $index = $index + 1) begin : $label",
-          s"      assign ${views(shape.name)}[$index] = ${shape.bit(index)};", "    end")
+          s"    for ($index = 0; $index < ($words); $index = $index + 1) begin : $label",
+          s"      assign ${views(shape.name)}[$bitOffset +: ${shape.width}] = ${shape.element(bitOffset)};", "    end")
         wiring(shape.name) = Vector(s"  genvar $index;") ++
           (if (generateDepth == 0) Vector("  generate") ++ body ++ Vector("  endgenerate") else body)
-        Vector(s"${m.group(1)}${m.group(2)}$signed [(${shape.width})-1:0] ${shape.name} $axes;",
-          s"  wire [(${shape.total})-1:0] ${views(shape.name)};")
+        val arrayDeclaration = s"${m.group(1)}${m.group(2)}$signed [(${shape.width})-1:0] ${shape.name} $axes;"
+        arrayDeclarations(shape.name) = arrayDeclaration
+        Vector(arrayDeclaration) ++
+          (if (directPackedDestinations.contains(shape.name)) Vector.empty
+           else Vector(s"  wire [(${shape.total})-1:0] ${views(shape.name)};"))
       } else {
         val start = "^(\\s*)(assign\\s+)?([A-Za-z_][A-Za-z0-9_$]*)".r.findFirstMatchIn(line)
         val write = start.filter(m => byName.contains(m.group(3))).flatMap { m =>
@@ -189,11 +204,26 @@ private[internals] object ParameterizedVerilogUnpacked {
               Vector(indent + (if (m.group(2) != null) "assign " else "") + s"${shape.element(offset)} $op $rhs;")
             } else if (m.group(2) != null) {
               require(op == "=", "continuous Vec writes must use =")
-              val body = Vector(s"$indent  for ($index = 0; $index < ($width); $index = $index + 1) begin : $label",
-                s"$indent    assign ${shape.bit(s"($offset) + $index")} = $value[$index];",
-                s"$indent  end")
-              Vector(s"${indent}wire [($width)-1:0] $value;", s"${indent}assign $value = $rhs;",
-                s"${indent}genvar $index;") ++
+              val words = for {
+                _ <- wordIndex(selection.offset, shape.width)
+                count <- wordIndex(width, shape.width)
+              } yield count
+              val direct = words.nonEmpty && normalized(selection.offset) == "0" &&
+                normalized(width) == normalized(shape.total) &&
+                directPackedSources.getOrElse(shape.name, Set.empty)(rhs)
+              val input = if (direct) rhs else value
+              val body = words match {
+                case Some(count) =>
+                  val bitOffset = s"($index * (${shape.width}))"
+                  Vector(s"$indent  for ($index = 0; $index < ($count); $index = $index + 1) begin : $label",
+                    s"$indent    assign ${shape.element(s"($offset) + $bitOffset")} = $input[$bitOffset +: ${shape.width}];",
+                    s"$indent  end")
+                case None => Vector(s"$indent  for ($index = 0; $index < ($width); $index = $index + 1) begin : $label",
+                  s"$indent    assign ${shape.bit(s"($offset) + $index")} = $value[$index];",
+                  s"$indent  end")
+              }
+              (if (direct) Vector.empty else Vector(s"${indent}wire [($width)-1:0] $value;", s"${indent}assign $value = $rhs;")) ++
+                Vector(s"${indent}genvar $index;") ++
                 (if (generateDepth == 0) Vector(s"${indent}generate") ++ body ++ Vector(s"${indent}endgenerate") else body)
             } else {
               // Sample RHS and address once, before any blocking element write.
@@ -228,14 +258,31 @@ private[internals] object ParameterizedVerilogUnpacked {
     // certified array declaration's lexical owner, including generate branches.
     // The allocated view declaration is emitted above beside that exact array;
     // it is not a name guessed from an unrelated source identifier.
-    val additions = shapes.filter(shape => usedViews(shape.name)).map { shape =>
-      s"wire [(${shape.total})-1:0] ${views(shape.name)};" ->
+    val additions = shapes.filter(shape => usedViews(shape.name) &&
+      !directPackedDestinations.get(shape.name).exists(_.loop.nonEmpty)).map { shape =>
+      val declaration = if (directPackedDestinations.contains(shape.name))
+        keptOutput.filter(line => line == arrayDeclarations(shape.name) ||
+          line == directPackedDestinations(shape.name).declaration).takeRight(1).map(_.trim)
+      else Vector(s"wire [(${shape.total})-1:0] ${views(shape.name)};")
+      require(declaration.size == 1, "direct word packing lost its exact array declaration")
+      declaration.head ->
         (helpers.filter(_._1 == shape.name).flatMap(_._2) ++ wiring(shape.name))
     }.toMap
     require(keptOutput.exists(_.trim == "endmodule"), "unpacked Vec publication requires a module boundary")
     additions.keys.foreach(line => require(keptOutput.count(_.trim == line) == 1,
       "unpacked Vec packing bridge lost its exact owner declaration"))
-    keptOutput.flatMap(line => Vector(line) ++ additions.getOrElse(line.trim, Vector.empty)).mkString("\n")
+    val fused = directPackedDestinations.toVector.flatMap { case (array, destination) =>
+      destination.loop.map { case (label, index) =>
+        val shape = byName(array)
+        val headers = keptOutput.filter(line => line.trim.startsWith(s"for ($index = 0;") &&
+          line.trim.endsWith(s"begin : $label"))
+        require(headers.size == 1, "word packing lost its authenticated finite-loop header")
+        val offset = s"($index * (${shape.width}))"
+        headers.head -> s"  assign ${destination.name}[$offset +: ${shape.width}] = ${shape.element(offset)};"
+      }
+    }.groupBy(_._1).map { case (header, assignments) => header -> assignments.map(_._2) }
+    keptOutput.flatMap(line => Vector(line) ++ additions.getOrElse(line.trim, Vector.empty) ++
+      fused.getOrElse(line, Vector.empty)).mkString("\n")
   }
 
   private def splitConcatenation(text: String): Vector[String] = {

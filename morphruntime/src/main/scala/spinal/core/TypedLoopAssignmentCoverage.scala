@@ -15,8 +15,14 @@ private[core] object TypedLoopAssignmentCoverage {
     block.slices.foreach { slice =>
       if (slice.offset.default == 0 && slice.offset.minimum == 0 &&
           slice.offset.generateIndex.contains(loop.indexName) &&
-          slice.width.parameters.isEmpty && slice.width.minimum == slice.width.maximum &&
-          ParameterizedProcess.isContiguous(slice, loop.indexName)) {
+          ((slice.width.parameters.isEmpty && slice.width.minimum == slice.width.maximum &&
+            ParameterizedProcess.isContiguous(slice, loop.indexName)) ||
+            slice.finitePackedAccess.exists(read =>
+              read.matches(slice.source, slice.result, slice.offset, slice.width) &&
+              loop.finiteIndexToken.exists(_ eq read.index.token) &&
+              TypedFinitePackedAccess.writes(component).exists(write =>
+                (write.view eq slice.result) && write.complete &&
+                block.assignments.exists(_ eq write.assignment))))) {
         val writes = block.assignments.filter(ParameterizedProcess.matchesTargetSlice(_, slice))
         writes.foreach { assignment => assignment.target match {
           case native: RangedAssignmentFixed =>

@@ -1505,6 +1505,16 @@
         "recursive word widths remain symbolic default=8 masked=true difference=false",
         "recursive word widths remain symbolic default=8 masked=true difference=true"
       ],
+      "morphhdl.SymbolicPackedWordsTests": [
+        "explicitly named packed results retain their transport",
+        "independently used packed results retain their transport",
+        "ordinary fixed slices do not inherit finite-index authority",
+        "out-of-domain symbolic word selection rejects",
+        "overlapping symbolic word writes reject",
+        "symbolic whole-word packing alias",
+        "symbolic whole-word packing direct",
+        "symbolic whole-word packing fused"
+      ],
       "morphhdl.TypedBlackBoxGenericBindingTests": [
         "duplicate generic names fail closed before publication",
         "native VHDL emission consumes typed generic witnesses without symbolic rewriting",
@@ -1620,6 +1630,8 @@
         "recursive width composition mode=alias default=8",
         "recursive width composition mode=direct default=1",
         "recursive width composition mode=direct default=8",
+        "recursive width composition mode=fused default=1",
+        "recursive width composition mode=fused default=8",
         "recursive width composition mode=masked-soft-reset default=1",
         "recursive width composition mode=masked-soft-reset default=8",
         "recursive width composition mode=soft-reset default=1",
@@ -1722,7 +1734,12 @@
         "finite packed correlation rejects replaced proof identity",
         "finite packed correlation rejects replaced record identity",
         "finite packed correlation rejects replaced token identity",
-        "finite packed correlation rejects replaced width identity"
+        "finite packed correlation rejects replaced width identity",
+        "finite packed correlation symbolic rejects replaced offset identity",
+        "finite packed correlation symbolic rejects replaced proof identity",
+        "finite packed correlation symbolic rejects replaced record identity",
+        "finite packed correlation symbolic rejects replaced token identity",
+        "finite packed correlation symbolic rejects replaced width identity"
       ],
       "spinal.core.IndependentParameterDomainTests": [
         "composed value functions agree with an independent exhaustive three-root oracle",
@@ -2746,7 +2763,8 @@
         "symbolic continuous reads slice the packed view without read functions",
         "symbolic procedural reads retain direct-memory helpers for blocking ordering",
         "unaligned and overflowing offsets do not acquire a false whole-word proof",
-        "unaligned windows concatenate actual array bits across element boundaries"
+        "unaligned windows concatenate actual array bits across element boundaries",
+        "whole-word expansion preserves unsigned and signed RHS extension"
       ]
     },
     "morphhdl-passes": {
@@ -3487,6 +3505,7 @@
     "morphhdl/src/test/scala/morphhdl/StructuralGenerateControlTests.scala": "cda3720f0b52d64131552585bab76fd6233e3fbca7e8092db66ffa98dbb4646a",
     "morphhdl/src/test/scala/morphhdl/SymbolicArrayGeometryTests.scala": "6be68f5afa8c2d3f8f4d0481aad3c19845d3502a9dc42dc5d8a6e018877f655a",
     "morphhdl/src/test/scala/morphhdl/SymbolicDataShapesContractFixture.scala": "f9ac5ac237e523f01a8ca7a2f0ed6f88dc4b8da16cbaf2555a3335ab383161e8",
+    "morphhdl/src/test/scala/morphhdl/SymbolicPackedWordsTests.scala": "f1ed866c587e2a1c33469472f1cd047aadf717eeef017813fc16e6979e487e69",
     "morphhdl/src/test/scala/morphhdl/SynchronousEnabledRegisterContractFixture.scala": "94617c61ae05f8e5d75dd805f8aa94a02b6310706c82e66a03878bef3f930c90",
     "morphhdl/src/test/scala/morphhdl/SynchronousRegisterContractFixture.scala": "082f2750a01af4fe7807920d01d9b713674fcefaaa4c703a51d24b253c9452e5",
     "morphhdl/src/test/scala/morphhdl/SynchronousStreamFifoContractFixture.scala": "0ee43976e2f90ebb79b9407bf17f425558932905740adf4c6674cfc20457aafb",
@@ -3503,7 +3522,7 @@
     "morphhdl/src/test/scala/morphhdl/TypedSignednessResumeTests.scala": "09a81d1ebf6aaa3521b7a5dc3d43b6f037939232fe79e36635d17bec6992a3ad",
     "morphhdl/src/test/scala/morphhdl/TypedStreamWidthAdapterFormalEquivalenceTests.scala": "69fa3081097de7dd33445219dc182d3aefcc8ceab5750b233692a0761c672564",
     "morphhdl/src/test/scala/morphhdl/VecWordPublicationTests.scala": "9f0dd3ed4801f1f72c593ad550b3812e7587c0100734134fb5dd1fc99ccf80b5",
-    "morphhdl/src/test/scala/morphhdl/WidthCompositionTests.scala": "d37abcb8b20ac339c0e32ea207b4b3c518a53d095e0712f22f1e1f9f663d2995",
+    "morphhdl/src/test/scala/morphhdl/WidthCompositionTests.scala": "646049bc551801f1753a9ff6e4c9863cf607d34853f6abab349b7c36267cdeb7",
     "morphhdl/src/test/scala/morphhdl/examples/LaneWhenInliningArtifactWriter.scala": "54798833f16c85a3c7a217044114e28f27cc0e720f5b11f8ffd9db091964acc4",
     "morphhdl/src/test/scala/morphhdl/examples/NativeWireExpressionCodecTests.scala": "bb0e60c47651e4600077f8c3a48c1c139d3ee476f2f33c7e22c0d857c7614c60",
     "morphhdl/src/test/scala/morphhdl/examples/SequentialWireRetentionTests.scala": "a582f9329dbcc9bba0a948127b1a2b39d3f70ac72256fc2193b865b784b1225c",
@@ -3527,7 +3546,7 @@
     "morphhdl/src/test/scala/nativeapplication/NativeLibraryMigrationFixture.scala": "fbbde32a5f82903d2d829ba24569fb720251e6b3e1d28d4144b212eac972c474",
     "morphhdl/src/test/scala/nativeapplication/NativeRecursiveTreeFixture.scala": "ae1559d306d40a3817839aad7c114ff631fe4e3d11adc27765e31cb06bdfe7d2",
     "morphhdl/src/test/scala/nativeapplication/NativeTypedLibraryCallSurfaceFixture.scala": "1a1ae61da3917e5879d9ad0c54488209b4f722f256f215671eddf81a3abde397",
-    "morphhdl/src/test/scala/nativeapplication/NativeWidthCompositionTree.scala": "4143d60a107ed9b7fcac80f41f8de82324ffd08c58de4545d0aab610e647458d",
+    "morphhdl/src/test/scala/nativeapplication/NativeWidthCompositionTree.scala": "222e3d24cee6b788f0856fb1d9c49ab299c8e3df55913ce135c7fc11c8ba8ce7",
     "morphhdl/src/test/scala/nativeapplication/NativeWidthRecursiveTree.scala": "0c9f3831e4a6ccebc951babe947d268410920181c4e0b6c0b302e65fe689202d",
     "morphhdl/src/test/scala/nativeapplication/NestedUnsignedExtendedSumProductionArtifactWriter.scala": "ed3a2577f60452bc43bc0f4327232437905aebfe69504d71ef6bc94cdf8e8e5f",
     "morphhdl/src/test/scala/nativeapplication/PureSIntCastFixture.scala": "7d9278c8ac16957885b834d542882774304ef3330cfaa6b7c3a137fdf075d85f",
@@ -3546,7 +3565,7 @@
     "morphhdl/src/test/scala/spinal/core/FiniteBitsIndexTests.scala": "f371b78ea1424dfabdbe4629712fc8c06299d781e76f31860b3dbf88966c1bff",
     "morphhdl/src/test/scala/spinal/core/FiniteFormalBoundaryTests.scala": "cb5ac435061025fd86c1745ae4683600d2cc0f6f38288408d60d3ca1403cb1c5",
     "morphhdl/src/test/scala/spinal/core/FiniteMemIdentityAdversarialTests.scala": "90ee340f1d6c2b086c1dd0f9d55562662b656109d2763271b79d19ff1204854c",
-    "morphhdl/src/test/scala/spinal/core/FinitePackedCorrelationTests.scala": "bdac844f910c8a8eaa75d5d06a5ee02c6790044a7b05d92da6dbedecd0ebb1e0",
+    "morphhdl/src/test/scala/spinal/core/FinitePackedCorrelationTests.scala": "6050c5730e3956c3b8fae4abd0e3165c90f5ddddfb1e3790b8722d31afb89e88",
     "morphhdl/src/test/scala/spinal/core/IndependentParameterDomainTests.scala": "34c6cf1ab7acc729cac4996b6c7806636d8d40173225377547138a4ade7c2a4e",
     "morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala": "ebce6063ab9f4538df4f51709cdaf81a1554b5ad509a1c0e9c6cc8be07a17c0c",
     "morphhdl/src/test/scala/spinal/core/NamedFieldPackedAliasTests.scala": "ee84f5bf48533015b56edb22e0f70914d65a0777dada62cd9b5bd46c9fa437b4",
@@ -3647,7 +3666,7 @@
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionWideningArtifactWriter.scala": "d1eaffde9174f3c756ff8b6c4e614c06fdfaedda289000b405cc5aa005561a74",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionWideningPublicationTests.scala": "35022da5fca2cf139bd43e052b9bc22fa89ed3c99f539c840af9717003a25cfa",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionWidthTransferTests.scala": "47e79d91502d0b1e78245145304779586994ecdd931d39505de08f231d080896",
-    "morphhdl/src/test/scala/spinal/core/internals/UnpackedDirectReadTests.scala": "64e967e2cb45c30be8a785dca600a7df07211a3ba3480d8a18a467aff0af2e1d",
+    "morphhdl/src/test/scala/spinal/core/internals/UnpackedDirectReadTests.scala": "bda53a54ca497e2ad62736f717be4cb97e25e0bc6f864b40246753cba40e6059",
     "morphhdl/src/test/scala/spinal/lib/CounterSingleAuthorityParityTests.scala": "9eedbe0f3ce7a457d4c79ab2c9fc3aa1cb02c932436bc76d30d8ada2ca6780f5",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala": "24b185c3ef7939be404500704e955d598c2493ee7c3a1f737d0cf16267d9c362",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrV1Spec.scala": "835224bc5028bc192976dd96e08906add489d4824d328397466a7e4dd7f31493",

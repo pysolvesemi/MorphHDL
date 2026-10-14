@@ -19,10 +19,15 @@ class WidthCompositionTests extends AnyFunSuite {
     MorphVerilog(config(dir))(new NativeWidthCompositionTree(mode, ElabInt.literal(default)))
     dir -> new String(Files.readAllBytes(dir.resolve("tree.v")), "UTF-8")
   }
-  for(mode <- Seq("direct", "alias", "soft-reset", "masked-soft-reset"); default <- Seq(1,8))
+  for(mode <- Seq("direct", "alias", "fused", "soft-reset", "masked-soft-reset"); default <- Seq(1,8))
   test(s"recursive width composition mode=$mode default=$default") {
     val (dir, rtl) = generate(mode, default)
     assert(rtl == generate(mode, default)._2)
+    if(mode == "alias" || mode == "fused") {
+      assert(!rtl.contains("packed_view") && !rtl.contains("typed_vec_packed_carrier") &&
+        !rtl.contains("typed_vec_packed_result"), rtl)
+      assert(!rtl.contains("_pack_index"), rtl)
+    }
     assert("(?m)^module NativeWidthCompositionTree\\b".r.findAllIn(rtl).size == 1, rtl)
     val instances = (for(n <- Seq(1,2,3,5,8,15,16); w <- Seq(1,8,32,36,64); pipe <- (if(mode=="masked-soft-reset") Seq(0,1) else Seq(1))) yield {
       val latency = if(mode.contains("soft-reset") && pipe==1) log2Up(n) else 0

@@ -177,4 +177,26 @@ for(i=0;i<4;i=i+1) begin index=i; #1; if(y !== (i<3 ? x[i*8 +: 8] : x[23:16])) $
 $finish; end endmodule""")
   }
 
+  test("whole-word expansion preserves unsigned and signed RHS extension") {
+    val rtl = rewrite("""module Top(input [7:0] x, output [23:0] y);
+wire [23:0] storage;
+assign storage = x;
+assign y = storage;
+endmodule""")
+    assert(rtl.contains("_write_value"), rtl)
+    check(rtl, """module tb; reg [7:0] x; wire [23:0] y;
+Top dut(x,y);
+initial begin x=8'hff; #1; if(y!==24'hff) $fatal;
+x=8'bx; #1; if(y!=={16'd0,8'bx}) $fatal; $finish; end endmodule""", lint=false)
+    val signed = rewrite("""module Top(input signed [7:0] x, output [23:0] y);
+wire [23:0] storage;
+assign storage = x;
+assign y = storage;
+endmodule""")
+    check(signed, """module tb; reg signed [7:0] x; wire [23:0] y;
+Top dut(x,y);
+initial begin x=-1; #1; if(y!==24'hffffff) $fatal;
+x=8'bz; #1; if(y!==24'bz) $fatal; $finish; end endmodule""", lint=false)
+  }
+
 }

@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = 'morphhdl/contracts/increment-59i-regression-inventory.json'
 HELPER = 'morphhdl/scripts/check-increment-59i-production-successor.py'
 VERIFIER_SHA256 = 'c275bef6eab3b8c4e17b25e4e7abb30f5cbd7fd9f15c541d167c885cbec80026'
-CONTRACT_SHA256 = '28e5704559b8de7e4621bd13b8faba82b3b07599b20b047ba5ff2db45be68a21'
+CONTRACT_SHA256 = '7ec6ebad45c979c4019053f3b76ba77fe50f77ba38ca18f4af7480f7f93fcb5c'
 
 
 def require(ok, message):

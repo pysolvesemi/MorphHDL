@@ -2365,7 +2365,7 @@ private[internals] object ParameterizedVerilogStructural {
               NativeFiniteStatementLineage.referenceName(component, write.source) == target &&
               TypedFinitePackedAccess.completeDriver(component, write.source, plan.block) &&
               Option(statement.group(2)).exists(_.replaceAll("\\s", "") ==
-                s"[(${write.index.expression.verilog}*${write.stride})+:${write.width}]".replaceAll("\\s", "")))
+                s"[(${write.index.expression.verilog}*${write.strideExpression.verilog})+:${write.widthExpression.verilog}]".replaceAll("\\s", "")))
           }.distinct
           if (packedOwners.nonEmpty) {
             require(packedOwners.size == 1, "finite packed write must have one exact driver owner")

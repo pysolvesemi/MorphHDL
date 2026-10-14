@@ -144,6 +144,10 @@ final class ElabFiniteIndex private[core] (
   def packed(source: Bits, stride: Int, width: BitCount): Bits =
     TypedFinitePackedAccess(this, source, stride, width)
 
+  /** A word slice with a retained positive parameter-constant lane stride. */
+  def packed(source: Bits, stride: ElabInt, width: ParameterizedBitCount): Bits =
+    TypedFinitePackedAccess(this, source, stride, width)
+
   def bit(source: Bits): Bool = {
     val selected = packed(source, 1, 1 bits)
     val result = selected.asBool

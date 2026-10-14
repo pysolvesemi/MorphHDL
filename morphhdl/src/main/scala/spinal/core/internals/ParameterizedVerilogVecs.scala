@@ -2533,6 +2533,118 @@ private[internals] object ParameterizedVerilogVecs {
     result.toMap
   }
 
+  private object PackedTransportNameKey
+
+  /** Native allocation later promotes every name to DATAMODEL_STRONG. Capture
+    * author intent immediately before that boundary, using exact identities.
+    */
+  def capturePackedTransportNames(component: Component): Unit = {
+    val weak = new IdentityHashMap[BaseType, java.lang.Boolean]()
+    ParameterizedVec.retainedVectorsOf(component).foreach { vector =>
+      ParameterizedVec.operationsOf(vector).foreach {
+        case read: ParameterizedVecPackedRead =>
+          Vector(read.carrier, read.result).filter(_.isWeak).foreach(weak.put(_, java.lang.Boolean.TRUE))
+        case _ =>
+      }
+    }
+    component.userCache(PackedTransportNameKey) = weak
+  }
+
+  /** Retire only the two private transports of an already validated packed
+    * read, and only when their sole consumer is one exact full-width local copy.
+    * The public/authored destination remains. No name pattern grants authority.
+    */
+  private def collapsePackedReadTransports(component: Component, source: String,
+      plans: Vector[VecPlan]): (String, Map[String, ParameterizedVerilogUnpacked.PackedDestination]) = {
+    val destinations = scala.collection.mutable.Map.empty[String, ParameterizedVerilogUnpacked.PackedDestination]
+    // A packing read may join a loop only in its exact captured declaration
+    // owner. Neither equal rendered bounds nor an unrelated same-name loop is
+    // sufficient: retain the registered loop, selector token and Vec identity.
+    def enclosing(value: BaseType): Option[Vector[ParameterizedStructuralBlock]] = {
+      var paths = Vector.empty[Vector[ParameterizedStructuralBlock]]
+      def visit(regions: Vector[ParameterizedStructure.StructuralRegion], path: Vector[ParameterizedStructuralBlock]): Unit =
+        regions.foreach(_.blocks.foreach { block =>
+          val next = path :+ block
+          if (block.declarations.exists(_ eq value)) paths :+= next
+          visit(block.regions, next)
+        })
+      visit(ParameterizedStructure.regionsOf(component), Vector.empty)
+      val deepest = paths.sortBy(_.size).lastOption.getOrElse(Vector.empty)
+      if (paths.forall(path => path.size <= deepest.size &&
+          path.zip(deepest).forall { case (left, right) => left eq right })) Some(deepest)
+      else None
+    }
+    def packingLoop(plan: VecPlan, read: ParameterizedVecPackedRead): Option[(String, String)] = {
+      // An outer loop alone does not cover the scalar words of nested axes.
+      if (plan.hasNestedDimensions) return None
+      enclosing(read.result).flatMap { owner =>
+      val regions = owner.lastOption.map(_.regions).getOrElse(ParameterizedStructure.regionsOf(component))
+      regions.collectFirst {
+        case loop: ParameterizedStructure.StructuralFor
+            if loop.finiteIndexToken.nonEmpty &&
+              ElabInt.equivalentExpression(loop.count, plan.shape.depth) &&
+              ParameterizedStructure.allBlocks(loop).flatMap(_.vecIndices).exists(selection =>
+                (selection.vector eq plan.vector) && selection.finiteIndexToken == loop.finiteIndexToken &&
+                TypedLoopVecRange.unitOffset(selection.index, loop.indexName).contains(0)) =>
+          loop.label -> loop.indexName
+      }
+      }
+    }
+    var lines = source.split("\n", -1).toVector
+    val assignments = ArrayBuffer.empty[DataAssignmentStatement]
+    component.dslBody.walkStatements {
+      case a: DataAssignmentStatement => assignments += a
+      case _ =>
+    }
+    plans.filter(_.layout.isEmpty).foreach { plan =>
+      ParameterizedVec.operationsOf(plan.vector).collect { case read: ParameterizedVecPackedRead => read }.foreach { read =>
+        val consumers = assignments.filter(_.source eq read.result)
+        val internal = Vector(read.carrier, read.result)
+        val names = internal.map(_.getName())
+        val weakNames = component.userCache.get(PackedTransportNameKey)
+          .map(_.asInstanceOf[IdentityHashMap[BaseType, java.lang.Boolean]])
+        val plain = internal.forall(v => weakNames.exists(_.containsKey(v)) && !v.isIo && (v.component eq component) &&
+          !v.getTags().exists(t => t.isInstanceOf[CommentTag] || t.isInstanceOf[Attribute]))
+        if (!destinations.contains(plan.name) && (read.carrier ne read.result) && plain && consumers.size == 1 &&
+            names.forall(n => countReferenceIdentifier(lines, n) == 3)) {
+          val consumer = consumers.head
+          val target = consumer.finalTarget
+          val targetAssignment = ("^\\s*assign\\s+" + Pattern.quote(target.getName()) + "\\s*=.*;\\s*$").r
+          val localCopy = (consumer.target eq target) && (target.component eq component) &&
+            target.isComb && !target.isInput &&
+            lines.count(line => targetAssignment.findFirstIn(line).nonEmpty) == 1 &&
+            lines.count(line => isDeclarationCandidate(line) && containsIdentifier(line, target.getName())) == 1
+          def width(v: BaseType) = (v match {
+            case bits: Bits => ParameterizedVec.packedWidthExpressionOf(bits)
+            case _ => None
+          }).orElse(ParameterizedWidth.expressionOf(v))
+          val equivalent = for {
+            left <- width(read.result).filter(_ => localCopy).filter(ElaborationProductDomain.isRetained)
+            right <- width(target).filter(ElaborationProductDomain.isRetained)
+          } yield NativePublicationWidth.equivalentAtOwners(left, read.result, right, target, component)
+          if (localCopy && equivalent.contains(true)) {
+            val carrier = findAssignment(lines, names.head, None, "validated packed transport", read.sourceLocation)
+            val result = findAssignment(lines, names.last, None, "validated packed result", read.sourceLocation)
+            val output = findAssignment(lines, target.getName(), None, "packed transport consumer", read.sourceLocation)
+            val declarations = names.map(n => parseDeclaration(lines, n, read.sourceLocation))
+            if (carrier.continuous && result.continuous && output.continuous &&
+                carrier.rhs.trim == plan.name && result.rhs.trim == names.head &&
+                output.rhs.trim == names.last && declarations.size == 2 &&
+                declarations.forall(d => d.direction.isEmpty && d.net == "wire")) {
+              destinations(plan.name) = ParameterizedVerilogUnpacked.PackedDestination(target.getName(), packingLoop(plan, read),
+                lines(parseDeclaration(lines, target.getName(), read.sourceLocation).lineIndex))
+              val removed = declarations.map(_.lineIndex).toSet ++ Set(carrier.lineIndex, result.lineIndex)
+              lines = lines.updated(output.lineIndex,
+                output.indentation + s"assign ${target.getName()} = ${plan.name};")
+                .zipWithIndex.filterNot(x => removed(x._2)).map(_._1)
+            }
+          }
+        }
+      }
+    }
+    lines.mkString("\n") -> destinations.toMap
+  }
+
   /** Layout selection happens after every retained operation has been lowered. */
   def rewriteUnpacked(component: Component, verilog: String, pc: PhaseContext): String = {
     if (VerilogAggregateOptions.of(pc.config).vecLayout != VerilogAggregateOptions.UnpackedArray)
@@ -2554,7 +2666,19 @@ private[internals] object ParameterizedVerilogVecs {
           Vector(ParameterizedVerilogUnpacked.ArrayShape(plan.name, width, render(plan.shape.depth) +: dimensions))
       }
     }
-    ParameterizedVerilogUnpacked.rewrite(verilog, arrays)
+    val (packedSource, destinations) = collapsePackedReadTransports(component, verilog, plans.filter(p => arrays.exists(_.name == p.name)))
+    // The native packed-assignment pass has already authenticated these exact
+    // source identities and their full aggregate widths. Other RHS values keep
+    // a sized capture wire: slicing an arbitrary narrower net changes extension.
+    val directSources = plans.filter(_.layout.isEmpty).map { plan =>
+      val names = ParameterizedVec.operationsOf(plan.vector).collect {
+        case write: ParameterizedVecPackedAssignment =>
+          (Vector(write.source) ++ write.sourceAliases.flatMap(a => Vector(a.target, a.source)))
+            .map(_.getName())
+      }.flatten.toSet
+      plan.name -> names
+    }.toMap
+    ParameterizedVerilogUnpacked.rewrite(packedSource, arrays, destinations, directSources)
   }
 
   private def operationAssignmentEvidence(operation: ParameterizedVecOperation): Vector[DataAssignmentStatement] = operation match {
