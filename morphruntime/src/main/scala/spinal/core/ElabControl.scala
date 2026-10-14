@@ -90,6 +90,23 @@ object ElabControl {
       otherwise: () => T,
       otherwiseFile: String,
       otherwiseLine: Int
+  ): T = selectChain(alternatives, otherwise, otherwiseFile, otherwiseLine, false)
+
+  /** Statement chain with an absent final else. Only the terminal alternative
+    * is a one-sided generate; earlier alternatives retain ordered exclusion.
+    */
+  def generateSymbolicChain(
+      alternatives: Seq[(ElabBool, () => Unit, String, Int)],
+      sourceFile: String,
+      sourceLine: Int
+  ): Unit = selectChain(alternatives, () => (), sourceFile, sourceLine, true)
+
+  private def selectChain[T](
+      alternatives: Seq[(ElabBool, () => T, String, Int)],
+      otherwise: () => T,
+      otherwiseFile: String,
+      otherwiseLine: Int,
+      absentElse: Boolean
   ): T = {
     val ordered = Option(alternatives).getOrElse(Seq.empty).toVector
     if (ordered.isEmpty) {
@@ -124,7 +141,9 @@ object ElabControl {
             if (continuation) ordered(index + 1)._3 else otherwiseFile
           val falseLine =
             if (continuation) ordered(index + 1)._4 else otherwiseLine
-          captureOne(
+          if (absentElse && !continuation)
+            captureGenerate(condition, file, line, body)
+          else captureOne(
             condition,
             file,
             line,

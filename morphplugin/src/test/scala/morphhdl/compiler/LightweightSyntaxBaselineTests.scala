@@ -35,10 +35,25 @@ class LightweightSyntaxBaselineTests extends AnyFunSuite {
           def localValue[T](value: T, name: String): T = value
         def selectScoped[T](p: ElabScopedCondition, file: String, line: Int)(a: => T)(b: => T)(implicit unit: T =:= Unit): Unit = ()
         def selectSymbolic[T](p: ElabBool, file: String, line: Int)(a: => T)(b: => T): T = a
+        def generateSymbolicChain(xs: Seq[(ElabBool, () => Unit, String, Int)], file: String, line: Int): Unit = ()
         def selectSymbolicChain[T](xs: Seq[(ElabBool, () => T, String, Int)], other: () => T, file: String, line: Int): T = other()
       }
     }
   """
+  test("statement chains with no final else remain Unit and ordered") {
+    val errors = compile(definitions + """
+      package statementchain {
+        import spinal.core._
+        object Probe {
+          def stage(count: ElabInt): Unit = {
+            if (count == 1) new Object
+            else if (count == 2) "discarded result"
+          }
+        }
+      }
+    """, "StatementChain.scala")
+    assert(errors.isEmpty, errors.mkString("\n"))
+  }
   test("parameter equality and derived local guards do not require Boolean coercion") {
     val errors = compile(definitions + """
       package baseline {

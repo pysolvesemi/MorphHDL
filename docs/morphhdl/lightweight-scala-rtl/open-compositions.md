@@ -36,6 +36,5 @@ The durable progress record and the frozen 86-item baseline remain authoritative
 for task scope. In particular, general affine writes, broader helper inference,
 implicit recursive clock ports, callback-effect restrictions, cleanup/readability,
 current-source integrity enrollment, remote qualification and application migration
-are not closed by the local library tests. A missing-else chain with more than one
-symbolic alternative also needs an explicit composition test; the current repair
-covers one symbolic alternative with a Unit else.
+are not closed by the local library tests. Statement-valued symbolic chains with no final else now have local cross-version
+composition and side-effect rejection evidence. Remote qualification remains pending.

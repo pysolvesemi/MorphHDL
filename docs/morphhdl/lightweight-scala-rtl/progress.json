@@ -5,7 +5,7 @@
   "working_directory": "/tmp/morphhdl-lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Balanced library composition locally validated; absent-else chains and literal Vec hierarchy adaptation remain in progress",
+  "phase": "Statement chains locally validated; literal and narrower-symbolic Vec hierarchy capacity adaptation next",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -32,7 +32,8 @@
     "optional integer formals distinguish omission from zero and retain presence through recursive publication",
     "actual lightweight adjacent-pair BalancedTree library with generic typed operations, level bridges, optional mask registers, width parameters and direct recursive construction",
     "native packed assignment retains exact authenticated Vec carriers",
-    "symbolic geometry helpers and concrete bridge-level loops retain staging; unstaged native equality fails explicitly"
+    "symbolic geometry helpers and concrete bridge-level loops retain staging; unstaged native equality fails explicitly",
+    "statement-valued symbolic else-if chains without terminal else retain ordered capture and reject Scala-only effects"
   ],
   "local_logs": [
     "/tmp/lwr01-plugin-all.log",
@@ -128,5 +129,14 @@
     "native_tests_per_scala": 147,
     "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/library-candidate",
     "tool_receipts": "Scala 2.12 final run includes commands, RTL input hashes and tool logs; 2.13 suite log records assertions; local development only"
+  },
+  "local_validation_statement_chains": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "plugin_tests_per_scala": 47,
+    "native_tests_per_scala": 22,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/statement-chains"
   }
 }

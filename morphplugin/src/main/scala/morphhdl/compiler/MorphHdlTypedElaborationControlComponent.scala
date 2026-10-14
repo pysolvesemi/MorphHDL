@@ -1170,11 +1170,14 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
 
     private def rewriteIf(original: If): Tree = {
       val (alternatives, otherwise) = collectChain(original)
+      def emptyUnit(tree: Tree): Boolean = tree match {
+        case Literal(Constant(())) => true
+        case Block(Nil, value) => emptyUnit(value)
+        case _ => false
+      }
+      val absentElse = emptyUnit(otherwise)
       val rewritten =
-        if (alternatives.size == 1 && (otherwise match {
-          case Literal(Constant(())) => true
-          case _ => false
-        })) {
+        if (alternatives.size == 1 && absentElse) {
           val (predicate, body, line) = alternatives.head
           val unitType = Select(Select(Ident(termNames.ROOTPKG), TermName("scala")), TypeName("Unit"))
           Apply(Apply(TypeApply(helperMethod("generateSymbolic"), List(unitType)),
@@ -1203,14 +1206,16 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
                 tuple4Apply,
                 List(
                   predicate,
-                  function0(body),
+                  function0(if (absentElse) Block(List(body), Literal(Constant(()))) else body),
                   Literal(Constant(sourceFile)),
                   Literal(Constant(line))
                 )
               )
             }.toList
           )
-          Apply(
+          if (absentElse) Apply(helperMethod("generateSymbolicChain"), List(
+            sequence, Literal(Constant(sourceFile)), Literal(Constant(sourceLine(original)))))
+          else Apply(
             helperMethod("selectSymbolicChain"),
             List(
               sequence,
