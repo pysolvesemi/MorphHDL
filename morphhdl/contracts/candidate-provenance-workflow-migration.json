@@ -49,7 +49,7 @@
     },
     ".github/workflows/increment-59d-widening.yml": {
       "before_sha256": "34fc93c42b8843eccac9e508d35050662397ed29ec9cd95daa7d51f35658ef96",
-      "after_sha256": "133b8360ce4b5789e5b448a29a33ac8007f62ac2de2d59f0ae88c628e0e7f143",
+      "after_sha256": "36732dbdb454d48ee2ef11c7b1b52da8fe94a28d4643634768707564a7fff0c2",
       "patches": [
         {
           "before": "\npermissions:\n  contents: read\n\nconcurrency:\n  group: increment-59d-widening-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}\n",
@@ -58,6 +58,10 @@
         {
           "before": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Preserve exact-head evidence and validate native boundaries\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          mkdir -p target/increment-59d-widening/bootstrap\n          git rev-parse HEAD > target/increment-59d-widening/head.txt\n",
           "after": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Consume authenticated candidate provenance\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py\n      - name: Preserve exact-head evidence and validate native boundaries\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          mkdir -p target/increment-59d-widening/bootstrap\n          git rev-parse HEAD > target/increment-59d-widening/head.txt\n"
+        },
+        {
+          "before": "          for name, count in [('TypedBalancedReductionWideningPublicationTests',6), ('NativeSymbolicWidthProvenanceTests',5), ('ElaborationWidthAuthorityTests',7), ('NativeWidthPublicationSafetyTests',6), ('NativePublicationWidthTests',1), ('TypedBalancedReductionWidthTransferTests',11), ('TypedBalancedReductionOperatorReplayTests',24), ('TypedBalancedReductionStageReplayTests',23), ('TypedBalancedReductionCallbackPolicyTests',bridge_policy_count), ('TypedBalancedReductionPublicationSafetyTests',8), ('TypedBalancedReductionClosedGraphTests',27), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8)]:\n",
+          "after": "          for name, count in [('TypedBalancedReductionWideningPublicationTests',6), ('NativeSymbolicWidthProvenanceTests',5), ('ElaborationWidthAuthorityTests',8), ('NativeWidthPublicationSafetyTests',6), ('NativePublicationWidthTests',1), ('TypedBalancedReductionWidthTransferTests',11), ('TypedBalancedReductionOperatorReplayTests',24), ('TypedBalancedReductionStageReplayTests',23), ('TypedBalancedReductionCallbackPolicyTests',bridge_policy_count), ('TypedBalancedReductionPublicationSafetyTests',8), ('TypedBalancedReductionClosedGraphTests',27), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8)]:\n"
         }
       ]
     },
@@ -77,7 +81,7 @@
     },
     ".github/workflows/increment-59g-register-bridges.yml": {
       "before_sha256": "7550f1c2d03df276cef036743159326c3ecc9446ad58dddc8d9dcba0bbc7e9f2",
-      "after_sha256": "59bd23eb7e3221f8bb77ee1d9a6b27b33da8af980c1b67be9d5279f8eb04bd12",
+      "after_sha256": "7452e069ca441ec9585f278b7d82e38bc3c0e4588a4b5100019e9c8d39cfe657",
       "patches": [
         {
           "before": "\npermissions:\n  contents: read\n\nconcurrency:\n  group: increment-59g-register-bridges-${{ github.ref }}\n",
@@ -90,6 +94,10 @@
         {
           "before": "          mkdir -p \"$output/bootstrap\"\n          git rev-parse HEAD > \"$output/head.txt\"\n          git archive HEAD | gzip > \"$output/source.tar.gz\"\n          python3 morphhdl/scripts/check-parameterized-integration-source.py\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test\n",
           "after": "          mkdir -p \"$output/bootstrap\"\n          git rev-parse HEAD > \"$output/head.txt\"\n          git archive HEAD | gzip > \"$output/source.tar.gz\"\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py\n          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test\n"
+        },
+        {
+          "before": "                      'TypedBalancedReductionBridgeReplayTests': 12,\n",
+          "after": "                      'TypedBalancedReductionBridgeReplayTests': 13,\n"
         }
       ]
     },
@@ -113,7 +121,7 @@
     },
     ".github/workflows/increment-59i-combined-closure.yml": {
       "before_sha256": "0ccb2929aae569550d78abf7c8738fb5ef8f2f3c232222e1a9d423195bac5e60",
-      "after_sha256": "15a4a18457f06b8eba858769f4653c3ecd12123a6de6008cb0cddd41ef2d136b",
+      "after_sha256": "6f4d812ac31dfcecb0aa4ada9d1288a55a3a69c13fe94556a7a74ae06e226bb6",
       "patches": [
         {
           "before": "\npermissions:\n  contents: read\n\nconcurrency:\n  group: increment-59i-combined-${{ github.ref }}\n",
@@ -138,6 +146,10 @@
         {
           "before": "                    'TypedBalancedReductionCompositeCaptureTests': 10,\n",
           "after": "                    'TypedBalancedReductionCompositeCaptureTests': 12,\n"
+        },
+        {
+          "before": "                    'TypedBalancedReductionNestedResultTests': 8,\n",
+          "after": "                    'TypedBalancedReductionNestedResultTests': 9,\n"
         }
       ]
     },
