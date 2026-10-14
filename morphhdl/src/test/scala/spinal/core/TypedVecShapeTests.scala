@@ -335,16 +335,17 @@ class TypedVecShapeTests extends AnyFunSuite {
     }
   }
 
-  test("widthOfExpr rejects independently rooted Vec dimensions") {
+  test("widthOfExpr retains independently rooted Vec dimensions") {
     withSpinalElaboration { () =>
       val width = parameter("WIDTH", default = 7, minimum = 1, maximum = 16)
       val depth = parameter("DEPTH", default = 5, minimum = 1, maximum = 8)
       val vector = Vec(UInt(width bits), depth)
 
-      val failure = intercept[ParameterizedVerilogException] {
-        widthOfExpr(vector)
-      }
-      assert(failure.code == "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED")
+      val packed = widthOfExpr(vector)
+      assert(ElabBool.projectedTruth(packed.elabEq(width * depth)) == ElabBool.AlwaysTrue)
+      assert(packed.expression.default == 35 && packed.minimum == 1 && packed.maximum == 128)
+      assert(packed.expression.completedParameterRoots.toSet ==
+        (width.expression.completedParameterRoots ++ depth.expression.completedParameterRoots).toSet)
     }
   }
 

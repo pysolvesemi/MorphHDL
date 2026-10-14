@@ -42,6 +42,9 @@ object MorphHdlEmitterParameterNames {
           }
           override def statementSuffix(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): String =
             NativeFiniteStatementLineage.suffix(printer.component, assignment)
+          override def retainCombinationalProcess(printer: ComponentEmitterVerilog,
+              statements: Vector[LeafStatement]): Boolean =
+            spinal.core.TypedStructuralPackedCoverage.retainNativeProcess(printer.component, statements)
           override def scope(printer: ComponentEmitterVerilog, tree: TreeStatement, scope: ScopeStatement,
               output: StringBuilder, indentation: String, body: String => Int): Option[Int] =
             NativeScopedProcessEmitter.scope(printer, tree, scope, output, indentation, body)

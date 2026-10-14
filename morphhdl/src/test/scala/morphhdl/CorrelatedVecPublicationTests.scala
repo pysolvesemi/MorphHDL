@@ -88,6 +88,9 @@ class CorrelatedVecPublicationTests extends AnyFunSuite {
       assert(rtl == generate(mode, kind, unpacked, default)._2)
       assert("(?m)^module CorrelatedTree\\b".r.findAllIn(rtl).size == 1, rtl)
       assert(!rtl.contains("native_edge_"), rtl)
+      if(mode == "mixed") {
+        assert(!"\\bcombined_[0-9]+(?:_view)?\\b".r.findFirstIn(rtl).nonEmpty, rtl)
+      }
       val instances = (1 to 8).map { count =>
         val input = s"terms[${count*8-1}:0]"
         s"CorrelatedTree #(.COUNT($count)) dut$count(.terms($input), .result(result${count}));"

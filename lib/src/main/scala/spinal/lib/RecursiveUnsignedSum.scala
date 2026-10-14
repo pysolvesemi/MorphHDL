@@ -26,30 +26,26 @@ class RecursiveUnsignedSum(countActual: ElabInt, termWidthActual: ElabInt, sumWi
   @dontName val termWidth = values(1)
   @dontName val sumWidth = values(2)
   addPrePopTask(() => ExternalFormalParameterRegistry.retainTypedComponentParameters(this, inventory))
-  val terms = in Bits((count * termWidth) bits)
-  val sum = out UInt(sumWidth bits)
-
-  private class Reference(nextCount: ElabInt) extends BlackBox {
-    setBlackBoxName("RecursiveUnsignedSum")
-    addGeneric("COUNT", nextCount)
-    addGeneric("TERM_WIDTH", termWidth)
-    addGeneric("SUM_WIDTH", sumWidth)
-    val terms = in Bits((nextCount * termWidth) bits)
-    val sum = out UInt(sumWidth bits)
+  private class Ports(values: Vector[ElabInt]) extends Bundle {
+    val terms = in Bits((values(0) * values(1)) bits)
+    val sum = out UInt(values(2) bits)
   }
+  @dontName private val recursion = ElabRecursiveComponent(values)(v => new Ports(v))
+  val terms = recursion.ports.terms
+  val sum = recursion.ports.sum
 
   ElabControl.selectSymbolic(count <= 1, "RecursiveUnsignedSum", 1) {
     sum := ElabPackedPartition.single(terms, termWidth).asUInt.resize(sumWidth)
   } {
     val halves = ElabPackedPartition(terms, count, termWidth)
-    val left = new Reference(count / 2)
-    val right = new Reference(count - count / 2)
+    val left = recursion(count -> (count / 2))
+    val right = recursion(count -> (count - count / 2))
     left.setWeakName("left")
     right.setWeakName("right")
-    left.terms := halves._1
-    right.terms := halves._2
-    ElabPackedPartition.bind(halves._1, left.terms)
-    ElabPackedPartition.bind(halves._2, right.terms)
-    sum := left.sum + right.sum
+    left.ports.terms := halves._1
+    right.ports.terms := halves._2
+    ElabPackedPartition.bind(halves._1, left.ports.terms)
+    ElabPackedPartition.bind(halves._2, right.ports.terms)
+    sum := left.ports.sum + right.ports.sum
   }
 }

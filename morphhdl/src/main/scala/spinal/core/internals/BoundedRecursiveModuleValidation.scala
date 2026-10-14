@@ -24,6 +24,8 @@ private[spinal] object BoundedRecursiveModuleValidation {
     components.collect { case blackBox: BlackBox if blackBox.isBlackBox =>
       blackBox
     }.foreach { blackBox =>
+      ElabRecursiveComponent.validateIdentity(blackBox,
+        MorphHdlExternalParameterizedVerilog.componentParameters(blackBox.parent))
       val targets = owners.filter(_.definitionName == blackBox.definitionName)
       val shared = ElabModuleReference.definitionOf(blackBox)
       shared.foreach { definition =>

@@ -2269,6 +2269,9 @@ private[internals] object ParameterizedVerilogVecs {
                   )
               }
             }
+            // A write-only residual needs no signed read alias after its exact
+            // drivers have been redirected into the aggregate above.
+            if (containsReferenceIdentifier(lines.mkString("\n"), leaf.name)) {
             def storage(owner: VecPlan, element: Int, field: Int): (VecPlan, Int, Int) = owner.projection match {
               case Some(projected) =>
                 val mapping = projected.origin.leaves.find(value => value.elementIndex == element && value.elementLeafIndex == field).get
@@ -2301,6 +2304,7 @@ private[internals] object ParameterizedVerilogVecs {
             }
             lines = lines.patch(insertion, reconstruction, 0)
             reconstructedSignedReads.put(leaf.value, java.lang.Boolean.TRUE)
+            }
           } else {
             lines = replaceReferenceIdentifier(
               lines,
@@ -2356,6 +2360,28 @@ private[internals] object ParameterizedVerilogVecs {
   // Keep native cells for internal Vecs with interdependent or guarded
   // combinational drivers; an aggregate needed by a dynamic/whole read is a
   // read-only wire view, including continuously driven constant words.
+  private object ContinuousCellKey
+  private[internals] def retainContinuousCellDrivers(component: Component, target: BaseType,
+      drivers: Vector[DataAssignmentStatement]): Unit = {
+    val records = component.userCache.getOrElseUpdate(ContinuousCellKey,
+      new IdentityHashMap[BaseType, Vector[DataAssignmentStatement]]())
+      .asInstanceOf[IdentityHashMap[BaseType, Vector[DataAssignmentStatement]]]
+    records.put(target, drivers)
+  }
+  private def hasContinuousCellDrivers(target: BaseType): Boolean =
+    target.component.userCache.get(ContinuousCellKey).exists { value =>
+      val records = value.asInstanceOf[IdentityHashMap[BaseType, Vector[DataAssignmentStatement]]]
+      Option(records.get(target)).exists { expected =>
+        val actual = ArrayBuffer.empty[DataAssignmentStatement]
+        target.foreachStatements {
+          case assignment: DataAssignmentStatement => actual += assignment
+          case _ =>
+        }
+        expected.nonEmpty && actual.size == expected.size &&
+          actual.forall(a => expected.exists(_ eq a))
+      }
+    }
+
   private def needsIndependentCellEvents(plan: VecPlan): Boolean = {
     if (plan.projection.nonEmpty || plan.layout.nonEmpty ||
         (plan.shape.elementLayout.hasNestedVectors &&
@@ -2383,7 +2409,7 @@ private[internals] object ParameterizedVerilogVecs {
           conditional ||= assignment.parentScope != leaf.value.component.dslBody
         case _ =>
       }
-      count > 1 || conditional
+      (count > 1 || conditional) && !hasContinuousCellDrivers(leaf.value)
     }
     if (procedural) return true
     // Pure continuous symbolic arrays have no procedural event identity to

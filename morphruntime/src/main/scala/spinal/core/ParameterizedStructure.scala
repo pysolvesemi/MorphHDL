@@ -124,6 +124,8 @@ object ParameterizedStructure {
     val exactCaseCaptures = new IdentityHashMap[ParameterizedStructuralBlock, ExactCaseCapture]()
     val typedCaseRegions = new IdentityHashMap[StructuralCase, Vector[Set[BigInt]]]()
     val finiteIndexConditions = new IdentityHashMap[StructuralPredicateDomain, (ElabFiniteIndex, Int)]()
+    val finiteAffineConditions = new IdentityHashMap[StructuralPredicateDomain, ElabFiniteAffineGuard]()
+    val activeFiniteAffineGuards = new IdentityHashMap[ElabFiniteIndexToken, Vector[(ElabFiniteAffineGuard, Boolean)]]()
     val activeFinitePredicates = new IdentityHashMap[ElabFiniteIndexToken, Set[BigInt]]()
     val finitePredicateRoots = new IdentityHashMap[ElabFiniteIndexToken, StructuralPredicateRoot]()
     val finiteExternalChildren = new IdentityHashMap[BlackBox, (String, Long)]()
@@ -1114,6 +1116,8 @@ object ParameterizedStructure {
   }
 
   private[core] def authenticatedFinitePredicate(component: Component, branch: StructuralIf): Boolean = {
+    if (storageOption(component).exists(storage => branch.predicateDomain.exists(domain =>
+        Option(storage.finiteAffineConditions.get(domain)).exists(_.authentic(branch))))) return true
     val receipt = for {
       storage <- storageOption(component)
       domain <- branch.predicateDomain
@@ -1137,6 +1141,50 @@ object ParameterizedStructure {
         owner(regionsOf(component))
     }
     receipt.contains(true)
+  }
+
+  private[core] def captureFiniteAffineIf(index: ElabFiniteIndex, coefficient: Int, offset: Int,
+      bound: ElabInt, role: String)(ifTrue: => Unit)(ifFalse: => Unit): Unit = {
+    requireActiveFiniteIndex(index)
+    val state = activeCapture.get()
+    val storage = storageOf(state.component)
+    val proof = new ElabFiniteAffineGuard(state.component, index, coefficient, offset,
+      bound.projectedExpression("finite affine guard"))
+    storage.finiteAffineConditions.put(proof.domain, proof)
+    val previous = Option(storage.activeFiniteAffineGuards.get(index.token))
+    val pending = beginPending(state.component, "finite-affine-if", index.expression.sourceLocation)
+    def capture(positive: Boolean)(body: => Unit): ParameterizedStructuralBlock = {
+      val frames = previous.getOrElse(Vector.empty) :+ (proof -> positive)
+      val reachable = frames.foldLeft(proof.rows.toSet) { case (rows, (guard, branch)) =>
+        rows intersect guard.allowed(branch)
+      }
+      // These are exact correlated parameter/index rows, not the construction
+      // witness. An empty alternative cannot publish any hardware or accesses.
+      if (reachable.isEmpty)
+        return ParameterizedStructuralSynthetic.emptyBlock(index.expression.sourceLocation)
+      storage.activeFiniteAffineGuards.put(index.token, frames)
+      try captureBlock(state.component, index.expression.sourceLocation)(body)
+      finally previous match {
+        case Some(frames) => storage.activeFiniteAffineGuards.put(index.token, frames)
+        case None => storage.activeFiniteAffineGuards.remove(index.token)
+      }
+    }
+    val yes = capture(true)(ifTrue)
+    val no = capture(false)(ifFalse)
+    var label = role
+    var suffix = 2
+    while(storage.labels.contains(label+"_true") || storage.labels.contains(label+"_false")) {
+      label = role+"_"+suffix; suffix += 1
+    }
+    registerIf(pending, proof.condition, label+"_true", label+"_false", yes, no,
+      index.expression.sourceLocation, Some(proof.domain))
+  }
+
+  private[core] def activeAffineGuard(index: ElabFiniteIndex):
+      Option[(Vector[(ElabFiniteAffineGuard, Boolean)], Long)] = {
+    requireActiveFiniteIndex(index)
+    val state = activeCapture.get()
+    Option(storageOf(state.component).activeFiniteAffineGuards.get(index.token)).map(_ -> state.id)
   }
 
   private[core] def previousIndexDomain(index: ElabFiniteIndex): (Long, Set[BigInt]) = {
@@ -2129,7 +2177,11 @@ object ParameterizedStructure {
       vector,
       selected,
       result,
-      retainedStaticVecAccess(vector, selected, index, sourceLocation),
+      // A correlated affine guard proves a scoped read, not an authored
+      // constant access valid at every COUNT. Its private receipt replaces
+      // that static journal entry; exact witness identity is checked below.
+      if (affineRead.exists(_.guarded.nonEmpty)) None
+      else retainedStaticVecAccess(vector, selected, index, sourceLocation),
       index,
       finiteIndexToken,
       sourceLocation,
@@ -2453,7 +2505,10 @@ object ParameterizedStructure {
     val storage = storageOf(component)
     if (!storage.assignmentValidationScheduled) {
       storage.assignmentValidationScheduled = true
-      component.addPrePopTask(() => authorizeMutuallyExclusiveAssignments(component))
+      component.addPrePopTask(() => {
+        authorizeMutuallyExclusiveAssignments(component)
+        TypedStructuralPackedCoverage.retain(component)
+      })
     }
   }
 
@@ -2538,12 +2593,35 @@ object ParameterizedStructure {
       target: BaseType,
       captured: Vector[CapturedAssignment]
   ): Boolean = {
+    // Native carriers have a construction width. Inactive structural branches
+    // can address higher words legally at another parameter value. Replay the
+    // overlap rules at every width admitted by these exact assignment owners.
+    val widths = ParameterizedWidth.expressionOf(target).flatMap(_.exactDomain).map { domain =>
+      captured.flatMap { value =>
+        val owner = exactAssignmentDomainOf(component, value.statement, domain.root,
+          domain.universe, "structural packed assignment overlap", None)
+        owner.values.toVector.map { rootValue =>
+          domain.evaluate(rootValue).filter(n => n > 0 && n.isValidInt).getOrElse {
+            fail("SPINAL-STRUCTURAL-ASSIGNMENT-WIDTH-UNPROVEN",
+              "structural assignment lacks positive width evidence over its complete owner domain", None)
+          }.toInt
+        }
+      }.distinct
+    }.getOrElse(Vector(target.getBitsWidth))
+    widths.nonEmpty && widths.forall(width => nativeOverlapSafeAt(component, target, captured, width))
+  }
+
+  private def nativeOverlapSafeAt(
+      component: Component,
+      target: BaseType,
+      captured: Vector[CapturedAssignment],
+      width: Int
+  ): Boolean = {
     val selected =
       new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
     captured.foreach(value => selected.put(value.statement, java.lang.Boolean.TRUE))
     val seen =
       new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
-    val width = target.getBitsWidth
 
     final case class ScopeFacts(
         definite: AssignedBits,
@@ -2561,6 +2639,7 @@ object ParameterizedStructure {
           Some(bits -> true)
         case value: BitVectorAssignmentExpression if value.finalTarget eq target =>
           val range = value.getMinAssignedBits
+          if (range.hi >= width || range.lo < 0) return None
           bits.add(range)
           Some(bits -> (range.hi == width - 1 && range.lo == 0))
         case _ => None

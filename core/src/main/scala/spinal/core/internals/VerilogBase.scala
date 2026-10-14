@@ -114,6 +114,8 @@ object VerilogBase {
     def source(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String]
     def target(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] = None
     def statementSuffix(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): String = ""
+    def retainCombinationalProcess(printer: ComponentEmitterVerilog,
+        statements: Vector[LeafStatement]): Boolean = false
     def scope(printer: ComponentEmitterVerilog, tree: TreeStatement, scope: ScopeStatement,
         output: StringBuilder, indentation: String, body: String => Int): Option[Int] = None
   }
@@ -243,6 +245,15 @@ trait VerilogBase extends VhdlVerilogBase{
       case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>
         owner.assignmentPublication.statementSuffix(printer, assignment)
       case _ => ""
+    }
+  }
+  private[spinal] final def retainCombinationalProcess(printer: ComponentEmitterVerilog,
+      statements: Vector[LeafStatement]): Boolean = {
+    require(printer.usesVerilogBase(this), "process must belong to this native emitter")
+    this match {
+      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>
+        owner.assignmentPublication.retainCombinationalProcess(printer, statements)
+      case _ => false
     }
   }
   private[spinal] final def emitPublicationScope(printer: ComponentEmitterVerilog,

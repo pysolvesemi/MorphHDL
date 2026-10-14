@@ -4,7 +4,7 @@ import java.nio.file.{Files, Path, Paths}
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
 import spinal.lib.RecursiveUnsignedSum
-import morphhdl.frontend._
+import morphhdl.frontend.HdlInt
 
 object RecursiveUnsignedSumArtifactWriter {
   def generate(directory: Path, default: Int, split: Boolean = false): String = {
@@ -46,7 +46,194 @@ private object RecursiveUnsignedSumNegativeFixture {
   }
 }
 
+object NativeRecursiveTreeArtifactWriter {
+  val kinds = Seq("uint", "bits", "signed", "bundle", "bridge", "register", "sync")
+  def generate(directory: Path, default: Int, kind: String, guardedPairs: Boolean = false): String = {
+    Files.createDirectories(directory)
+    val config = SpinalConfig(targetDirectory=directory.toString, headerWithDate=false,
+      flags=scala.collection.mutable.HashSet[Any](VerilogAggregateOptions(
+        preserveConstantVecs=true, preserveConstantLoops=true,
+        vecLayout=VerilogAggregateOptions.UnpackedArray)))
+    config.netlistFileName = "tree.v"
+    val clock = ClockDomainConfig(resetKind=ASYNC, resetActiveLevel=LOW)
+    def count = ElabInt.literal(default)
+    MorphVerilog(config) {
+      import nativeapplication.NativeRecursiveTreeFixture
+      kind match {
+        case "signed" => new NativeRecursiveTreeFixture(HardType(SInt(8 bits)), 8, count,
+          "TypedSignedTree", clockConfig=clock, guardedPairs=guardedPairs, operation=(a: SInt,b: SInt) => Mux(a > b,a,b))
+        case "bits" => new NativeRecursiveTreeFixture(HardType(Bits(8 bits)), 8, count,
+          "TypedBitsTree", clockConfig=clock, guardedPairs=guardedPairs, operation=(a: Bits,b: Bits) => a | b)
+        case "bundle" =>
+          case class Word() extends Bundle { val value=UInt(8 bits); val valid=Bool() }
+          new NativeRecursiveTreeFixture(HardType(Word()), 8, count, "TypedBundleTree", clockConfig=clock, guardedPairs=guardedPairs,
+            operation=(a: Word,b: Word) => { val r=Word(); r.value := a.value+b.value; r.valid := a.valid && b.valid; r })
+        case "bridge" | "register" => new NativeRecursiveTreeFixture(HardType(UInt(8 bits)), 8, count,
+          "TypedBridgedTree", clockConfig=clock, guardedPairs=guardedPairs, operation=(a: UInt,b: UInt) => a+b,
+          levelBridge=(a: UInt,level: Int) => if(kind=="bridge") a+U(level+1,8 bits)
+            else if(level==1) RegNext(a) init(0) else a)
+        case "sync" => new NativeRecursiveTreeFixture(HardType(UInt(8 bits)), 8, count,
+          "TypedSyncTree", clockConfig=ClockDomainConfig(resetKind=SYNC, resetActiveLevel=HIGH), guardedPairs=guardedPairs,
+          operation=(a: UInt,b: UInt) => a+b)
+        case "uint" => new NativeRecursiveTreeFixture(HardType(UInt(8 bits)), 8, count,
+          "TypedUnsignedTree", clockConfig=clock, guardedPairs=guardedPairs, operation=(a: UInt,b: UInt) => a-b)
+        case _ => throw new IllegalArgumentException("unknown recursive fixture")
+      }
+    }
+    val files = directory.toFile.listFiles().filter(_.getName.endsWith(".v"))
+    assert(files.length == 1)
+    new String(Files.readAllBytes(files.head.toPath), "UTF-8")
+  }
+  def main(args: Array[String]): Unit = {
+    require(args.length == 1, "supply an output directory")
+    for(guarded <- Seq(false,true); default <- Seq(1,5); kind <- kinds)
+      generate(Paths.get(args(0)).resolve(if(guarded) "guarded" else "ordinary").resolve(s"default-$default/$kind"), default, kind, guarded)
+  }
+}
+
 class RecursiveUnsignedSumTests extends AnyFunSuite {
+  for(unpacked <- Seq(false,true))
+  test(s"two-term recursive domain retains exhaustive guarded driver unpacked=$unpacked") {
+    MorphVerilog(SpinalConfig(targetDirectory=Files.createTempDirectory("two-term-recursive-").toString,
+      flags=scala.collection.mutable.HashSet[Any](VerilogAggregateOptions(
+        preserveConstantVecs=true,preserveConstantLoops=true,
+        vecLayout=if(unpacked) VerilogAggregateOptions.UnpackedArray else VerilogAggregateOptions.PackedVector)))) {
+      new nativeapplication.NativeRecursiveTreeFixture(HardType(UInt(8 bits)),2,ElabInt.literal(1),"TwoTermSum",
+        guardedPairs=true,operation=(a: UInt,b: UInt) => a+b)
+    }
+  }
+
+  for(neverTrue <- Seq(false,true))
+  test(s"finite affine guards omit only domain-empty alternatives neverTrue=$neverTrue") {
+    val directory=Files.createTempDirectory("affine-empty-alternative-")
+    MorphVerilog(SpinalConfig(targetDirectory=directory.toString,
+      flags=scala.collection.mutable.HashSet[Any](VerilogAggregateOptions(
+        preserveConstantVecs=true,preserveConstantLoops=true,vecLayout=VerilogAggregateOptions.UnpackedArray)))) {
+      new Component {
+        @dontName val count=HdlInt.param("COUNT",2,2,2).asElabInt
+        val lanes=in(Vec(UInt(8 bits),count))
+        val combined=out(Vec(UInt(8 bits),(count+1)/2))
+        ElabFiniteRange.foreach((count+1)/2,"combine") { i =>
+          i.whenAffineLessThan(2,if(neverTrue) 2 else 1,count,"pair") {
+            if(neverTrue) sys.error("proved empty true branch was elaborated")
+            i(combined) := i.affine(lanes,2,0)+i.affine(lanes,2,1)
+          } {
+            if(!neverTrue) sys.error("proved empty false branch was elaborated")
+            i(combined) := i.affine(lanes,2,0)
+          }
+        }
+      }
+    }
+  }
+
+  for(cycle <- Seq(false, true))
+  test(s"guarded affine bounds cannot authorize same-loop dependencies cycle=$cycle") {
+    val error = intercept[MorphVerilogException] {
+      MorphVerilog(SpinalConfig(targetDirectory=Files.createTempDirectory("guarded-dependency-").toString,
+        flags=scala.collection.mutable.HashSet[Any](VerilogAggregateOptions(
+          preserveConstantVecs=true,preserveConstantLoops=true,vecLayout=VerilogAggregateOptions.UnpackedArray)))) {
+        new Component {
+          @dontName val count=HdlInt.param("COUNT",4,2,8).asElabInt
+          val input=in(UInt(8 bits))
+          val entries=Vec(UInt(8 bits),count)
+          val output=out Bits((count*8) bits)
+          ElabFiniteRange.foreach(count,"cells") { i =>
+            i.whenAffineLessThan(1,1,count,"next") {
+              i(entries) := i.affine(entries,1,1)
+            } {
+              i(entries) := (if(cycle) entries(0) ^ U(1,8 bits) else input)
+            }
+          }
+          output := entries.asBits
+        }
+      }
+    }
+    assert(error.getMessage.contains("SPINAL-ELAB-FINITE-GUARDED-DEPENDENCY-UNSUPPORTED"), error.getMessage)
+  }
+
+  for(mode <- Seq("control", "unguarded", "wrong-guard", "missing-tail", "overlap", "foreign-bound", "overflow", "escaped"))
+  test(s"guarded affine pair loop domain case=$mode") {
+    def generate(): Unit = {
+      MorphVerilog(SpinalConfig(targetDirectory=Files.createTempDirectory("guarded-affine-negative-").toString,
+        flags=scala.collection.mutable.HashSet[Any](VerilogAggregateOptions(
+          preserveConstantVecs=true,preserveConstantLoops=true,vecLayout=VerilogAggregateOptions.UnpackedArray)))) {
+        new Component {
+          @dontName val count=HdlInt.param("COUNT",4,1,8).asElabInt
+          @dontName val other=HdlInt.param("OTHER",4,1,8).asElabInt
+          val lanes=in(Vec(UInt(8 bits),count))
+          val combined=out(Vec(UInt(8 bits),(count+1)/2))
+          @dontName var escaped: ElabFiniteIndex = null
+          ElabFiniteRange.foreach((count+1)/2,"combine") { i =>
+            escaped=i
+            if(mode=="unguarded") i(combined) := i.affine(lanes,2,1)
+            else i.whenAffineLessThan(if(mode=="overflow") Int.MaxValue else 2,
+              if(mode=="wrong-guard") 0 else 1,if(mode=="foreign-bound") other else count,"pair") {
+              val target=i(combined)
+              target := i.affine(lanes,2,0)-i.affine(lanes,2,1)
+              if(mode=="overlap") target := 0
+            } {
+              if(mode!="missing-tail") i(combined) := i.affine(lanes,2,0)
+            }
+          }
+          if(mode=="escaped") {
+            val invalid=out(UInt(8 bits))
+            invalid := escaped.affine(lanes,2,0)
+          }
+        }
+      }
+    }
+    if(mode == "control") generate() else intercept[MorphVerilogException](generate())
+  }
+
+  for(guarded <- Seq(false,true); default <- Seq(1, 5); kind <- NativeRecursiveTreeArtifactWriter.kinds)
+  test(s"typed recursive interface retains clocked payload kind=$kind default=$default guarded=$guarded") {
+    def generate(): String = NativeRecursiveTreeArtifactWriter.generate(
+      Files.createTempDirectory("typed-recursive-tree-"), default, kind, guarded)
+    val rtl=generate()
+    assert("(?m)^module ".r.findAllIn(rtl).size == 1, rtl)
+    assert("(?m)^\\s*Typed[A-Za-z]+Tree #".r.findAllIn(rtl).size == 1, rtl)
+    assert(rtl.contains(".COUNT") && rtl.contains(".INITIAL_COUNT") && rtl.contains(".PIPELINE_MASK"),rtl)
+    if(guarded) { assert(rtl.contains("begin : g_combine_"),rtl); assert(!rtl.contains("wire [7:0] paired"),rtl) }
+    assert(rtl == generate())
+  }
+
+  for(mode <- Seq("duplicate", "foreign", "expression", "escaped", "nondecreasing", "unguarded", "geometry", "name"))
+  test(s"typed recursive declaration rejects $mode") {
+    intercept[MorphVerilogException] {
+      MorphVerilog(SpinalConfig(targetDirectory=Files.createTempDirectory("typed-recursive-negative-").toString)) {
+        new Component {
+          setDefinitionName("TypedNegative")
+          @dontName val count=HdlInt.param("COUNT",3,1,8).asElabInt
+          class Ports(n: ElabInt, extra: Int=0) extends Bundle {
+            val input=in Bits((n*4+extra) bits)
+            val output=out Bits(4 bits)
+          }
+          var calls=0
+          @dontName val recursive=ElabRecursiveComponent(Vector(if(mode=="expression") count+1 else count)) { v =>
+            calls+=1; new Ports(v.head, if(mode=="geometry" && calls>1) 1 else 0)
+          }
+          val io=recursive.ports
+          def child(): Unit = {
+            val next=count/2
+            val r=mode match {
+              case "duplicate" => recursive(count -> next,count -> next)
+              case "foreign" => recursive((count+0) -> next)
+              case "nondecreasing" => recursive()
+              case "name" => setDefinitionName("Changed"); recursive(count -> next)
+              case _ => recursive(count -> next)
+            }
+            r.ports.input := 0
+            io.output := r.ports.output
+          }
+          if(mode=="escaped") {
+            val foreign = new Component { child() }
+          } else if(mode=="unguarded") child()
+          else ElabControl.selectSymbolic(count <= 1,"TypedNegative",1) { io.output := 0 } { child() }
+        }
+      }
+    }
+  }
+
   for(default <- Seq(1,16); split <- Seq(false,true))
   test(s"one recursive unsigned definition retains both branches default=$default split=$split") {
     val dir = Files.createTempDirectory("recursive-sum-")

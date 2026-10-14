@@ -397,6 +397,7 @@ private[internals] object ParameterizedVerilogStructural {
       val path = containmentPathOf(plan.block, containmentPaths)
       val ancestors = path.dropRight(1)
       val inherited = ancestors.flatMap(_.vecIndices)
+      val inheritedReads = ArrayBuffer.empty[(BaseType, Int)]
       val body = inherited.foldLeft(plan.body) { (body, selection) =>
         selection.result.flatten.zipWithIndex.foldLeft(body) { case (text, (alias, leaf)) =>
           val name = requiredName(alias, "inherited structural Vec alias", selection.sourceLocation)
@@ -410,6 +411,11 @@ private[internals] object ParameterizedVerilogStructural {
               fail("SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-ALIAS-PARTIAL-USE-UNSUPPORTED",
                 s"inherited structural Vec alias '$name' has an uncaptured partial use", selection.sourceLocation)
             val writes = plan.block.assignments.exists(_.finalTarget eq alias)
+            if (!writes) {
+              val occurrences = ("(?<![A-Za-z0-9_$])" + Pattern.quote(name) + "(?![A-Za-z0-9_$])").r
+                .findAllMatchIn(text).size
+              inheritedReads += alias -> occurrences
+            }
             val target = ParameterizedVerilogVecs.structuralDynamicSlice(selection.vector,
               selection.index, leaf, selection.sourceLocation, selection.affineRead,
               selection.finiteIndexToken, readOnly = !writes, unitRange = selection.unitRange)
@@ -417,7 +423,7 @@ private[internals] object ParameterizedVerilogStructural {
           }
         }
       }
-      plan.copy(body = body)
+      plan.copy(body = body, vecReadOccurrences = plan.vecReadOccurrences ++ inheritedReads)
     }
     validateContinuousAssignmentDominance(
       component,
@@ -480,6 +486,7 @@ private[internals] object ParameterizedVerilogStructural {
         }
       }
     }
+    TypedStructuralPackedCoverage.validatePublication(component)
     rewritten
   }
 
@@ -604,8 +611,25 @@ private[internals] object ParameterizedVerilogStructural {
             selection.sourceLocation
           )
           selection.affineRead.foreach { evidence =>
+            // A bounds proof does not prove an inter-iteration dependency DAG.
+            // Keep guarded pair/tail reads on separately driven input arrays;
+            // the existing previous-index API owns same-loop dependency proofs.
+            if (evidence.guarded.nonEmpty) {
+              def blocks(value: ParameterizedStructuralBlock): Vector[ParameterizedStructuralBlock] =
+                Vector(value) ++ value.regions.flatMap(_.blocks).flatMap(blocks)
+              val owned = blocks(owner.body)
+              val carriers = selection.vector.vec.toVector.flatMap(_.asInstanceOf[Data].flatten)
+              val aliases = owned.flatMap(_.vecIndices).filter(_.vector eq selection.vector)
+                .flatMap(_.result.flatten)
+              if (owned.flatMap(_.assignments).exists(a =>
+                  (carriers ++ aliases).exists(_ eq a.finalTarget)))
+                fail("SPINAL-ELAB-FINITE-GUARDED-DEPENDENCY-UNSUPPORTED",
+                  "guarded affine bounds do not authorize reading an array written by the same loop; use a separately driven source array",
+                  selection.sourceLocation)
+            }
             if (!evidence.matches(selection.vector, selection.index, token, Some(owner.count)) ||
-                evidence.previous.exists(proof => !proof.owns(block)))
+                evidence.previous.exists(proof => !proof.owns(block)) ||
+                evidence.guarded.exists(proof => !proof.owns(block)))
               fail(
                 "SPINAL-ELAB-FINITE-AFFINE-EVIDENCE-MISMATCH",
                 "affine Vec read no longer matches its exact enclosing range and Vec domain",
@@ -2818,13 +2842,33 @@ private[internals] object ParameterizedVerilogStructural {
 
     def exactSelectionDomain(
         block: ParameterizedStructuralBlock,
-        selection: ParameterizedStructure.StructuralVecIndex
-    ): Boolean =
+        selection: ParameterizedStructure.StructuralVecIndex,
+        readOnly: Boolean = false
+    ): Boolean = {
+      // An affine branch may be exhaustive over its complete correlated
+      // parameter/index domain (for example the sole pair at COUNT=2).
+      // Such a branch preserves full-loop ownership; an ordinary conditional
+      // or a witness-only true predicate does not.
+      def unconditionalPath(parent: ParameterizedStructuralBlock): Boolean =
+        (parent eq block) || parent.regions.exists {
+          case branch: ParameterizedStructure.StructuralIf
+              if ParameterizedStructure.authenticatedFinitePredicate(component, branch) =>
+            branch.predicateDomain.exists { domain =>
+              (domain.whenTrue == domain.universe && unconditionalPath(branch.whenTrue)) ||
+                (domain.whenTrue.isEmpty && unconditionalPath(branch.whenFalse))
+            }
+          case _ => false
+        }
       ParameterizedVec.shapeOf(selection.vector).exists { shape =>
         val owners = selection.finiteIndexToken.toVector.flatMap { token =>
           structuralFors.filter(value =>
-            (value.body eq block) &&
-              value.finiteIndexToken.exists(_ eq token)
+            value.finiteIndexToken.exists(_ eq token) &&
+              (unconditionalPath(value.body) ||
+                (readOnly && containmentPrefix(containmentPathOf(value.body, containmentPaths),
+                  containmentPathOf(block, containmentPaths))) || selection.affineRead.exists(e =>
+                e.guarded.exists(_.owns(block)) &&
+                  containmentPrefix(containmentPathOf(value.body, containmentPaths),
+                    containmentPathOf(block, containmentPaths))))
           )
         }
         owners.size == 1 &&
@@ -2837,6 +2881,7 @@ private[internals] object ParameterizedVerilogStructural {
           case None => selection.unitRange.exists(_.matches) || ElabInt.equivalentExpression(owners.head.count, shape.depth)
         })
       }
+    }
 
     def exactAliasUse(
         block: ParameterizedStructuralBlock,
@@ -2933,9 +2978,13 @@ private[internals] object ParameterizedVerilogStructural {
       ) return false
 
       consumers.forall { consumer =>
-        val reads = consumer.block.vecIndices.filter(selection =>
+        // Nested native branches may consume a selection declared in the
+        // enclosing loop body. Its identity and substitution receipt survive
+        // even though the branch itself did not create that selection.
+        val available = containmentPathOf(consumer.block, containmentPaths).flatMap(_.vecIndices).distinct
+        val reads = available.filter(selection =>
           (selection.vector eq vector) &&
-            exactSelectionDomain(consumer.block, selection) &&
+            exactSelectionDomain(consumer.block, selection, readOnly = true) &&
             exactAliasUse(consumer.block, selection, write = false)
         )
         val staticReads = consumer.body.split("\n", -1).toVector
@@ -2943,7 +2992,7 @@ private[internals] object ParameterizedVerilogStructural {
         val exactStaticReads = staticReads.nonEmpty && staticReads.forall(line =>
           ParameterizedVerilogVecs.exactStaticSelectionLine(component, target, line, Some(consumer.block)))
         exactStaticReads || (reads.nonEmpty &&
-        reads.size == consumer.block.vecIndices.count(_.vector eq vector) &&
+        reads.size == available.count(_.vector eq vector) &&
         exactReadOccurrences(consumer, reads).contains(countName(consumer.body, target)))
       }
     }
@@ -3510,13 +3559,21 @@ private[internals] object ParameterizedVerilogStructural {
           visit(ParameterizedStructure.regionsOf(component))
         }
         val finiteFamily = claimants.forall(plan => finiteOwner(plan.block))
+        val processAssignments = range.indices.flatMap(emittedAssignmentIdentities.get).collect {
+          case a: DataAssignmentStatement => a
+        }.toVector
+        def packedDrivers(plan: BlockPlan): Vector[DataAssignmentStatement] =
+          plan.block.assignments.filter(a => processAssignments.exists(_ eq a))
 
         claimants.combinations(2).foreach { pair =>
           val left = pair(0)
           val right = pair(1)
           val leftPath = paths.getOrElse(left.block, Vector.empty)
           val rightPath = paths.getOrElse(right.block, Vector.empty)
-          if (!mutuallyExclusive(leftPath, rightPath)) {
+          val packedDisjoint = packedDrivers(left).nonEmpty && packedDrivers(right).nonEmpty &&
+            packedDrivers(left).forall(a => packedDrivers(right).forall(b =>
+              TypedStructuralPackedCoverage.disjoint(component,a,b)))
+          if (!mutuallyExclusive(leftPath, rightPath) && !packedDisjoint) {
             fail(
               "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-PROCESS-NONEXCLUSIVE",
               s"native process ${range.start}-${range.end} ('${normalized
@@ -4058,7 +4115,7 @@ private[internals] object ParameterizedVerilogStructural {
         // target and branch, with every native driver owned by this family.
         // Runtime conditionals and ordered writes remain procedural.
         val blockingWhole =
-          """^\s*([A-Za-z_][A-Za-z0-9_$]*)\s*=(?!=)\s*(.*?)\s*;\s*$""".r
+          """^\s*([A-Za-z_][A-Za-z0-9_$]*)(?:\s*\[[^\]]+\])?\s*=(?!=)\s*(.*?)\s*;\s*$""".r
         val fragmentAssignments = claimants.map { plan =>
           plan -> (commonIndices.toVector ++ ownedIndices(plan.block).toVector)
             .distinct.sorted
@@ -4070,8 +4127,15 @@ private[internals] object ParameterizedVerilogStructural {
             blockingWhole.findFirstMatchIn(line).nonEmpty
           )
         }
+        val vecLeaves = ParameterizedVec.retainedVectorsOf(component).flatMap(_.asInstanceOf[Data].flatten)
+        val typedVecFamily = flat && fragmentAssignments.flatMap(_._2).forall { line =>
+          val name = blockingWhole.findFirstMatchIn(line).get.group(1)
+          vecLeaves.exists(leaf => NativeFiniteStatementLineage.referenceName(component, leaf) == name)
+        }
+        val packedFamily = processAssignments.nonEmpty &&
+          processAssignments.forall(a => TypedStructuralPackedCoverage.owns(component,a))
         val continuousFamily = if (
-          flat && (finiteFamily || fragmentAssignments.exists { case (_, statements) =>
+          flat && (finiteFamily || typedVecFamily || packedFamily || fragmentAssignments.exists { case (_, statements) =>
             statements.forall(line => verilogLiteral(blockingWhole.findFirstMatchIn(line).get.group(2)).nonEmpty)
           }) &&
           (normalized.head == "always @* begin" ||
@@ -4100,7 +4164,7 @@ private[internals] object ParameterizedVerilogStructural {
               target.isComb && ((target.component eq component) ||
                 (target.isInput && (target.component.parent eq component)))
             ) && captured.forall(assignment =>
-              (assignment.target eq assignment.finalTarget) &&
+              ((assignment.target eq assignment.finalTarget) || TypedStructuralPackedCoverage.owns(component,assignment)) &&
                 liveDrivers.exists(_ eq assignment)
             ) && liveDrivers.size == captured.size &&
             liveDrivers.forall(assignment => captured.exists(_ eq assignment)) &&
@@ -4116,6 +4180,7 @@ private[internals] object ParameterizedVerilogStructural {
                 )
             }
           if (exactFamily) {
+            captured.foreach(a => TypedStructuralPackedCoverage.converted(component,a))
             nativeTargets.foreach { target =>
               val name = NativeFiniteStatementLineage.referenceName(component, target)
               val declaration =
@@ -4132,6 +4197,8 @@ private[internals] object ParameterizedVerilogStructural {
               val storage = declaration.findFirstMatchIn(line).get
               continuousOutputDeclarations(index) =
                 line.substring(0, storage.start(1)) + "wire" + line.substring(storage.end(1))
+              ParameterizedVerilogVecs.retainContinuousCellDrivers(component, target,
+                liveDrivers.filter(_.finalTarget eq target).toVector)
             }
           }
           exactFamily
@@ -4486,6 +4553,9 @@ private[internals] object ParameterizedVerilogStructural {
     val retainedAliases = new IdentityHashMap[BaseType, java.lang.Boolean]()
     selections.foreach { selection =>
       (ParameterizedVec.shapeOf(selection.vector), selection.staticAccess) match {
+        case (Some(_), None) if selection.affineRead.exists(evidence =>
+            evidence.guarded.nonEmpty && selection.finiteIndexToken.exists(token =>
+              evidence.matches(selection.vector, selection.index, token))) =>
         case (Some(_), Some(retained))
             if retained.index == selection.index.default.toInt &&
               (retained.selected eq selection.selected) &&

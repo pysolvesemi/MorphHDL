@@ -302,6 +302,15 @@ object ExternalFormalParameterRegistry {
 
   private object MultipleTypedFormals
   private final class MultipleTypedOwner(val component: Component)
+  /** Native declaration syntax is collected before pre-pop, then sealed as
+    * one complete inventory. A product-width port belongs to every exact slot
+    * in that inventory, never to an arbitrary collection of minted tokens.
+    */
+  private[core] def retainDeclaredTypedParameters(component: Component,
+      formals: Vector[(ElaborationIntegerParameter,ElaborationIntegerExpression,Option[String])]): Unit = {
+    retainTypedComponentParameters(component,formals)
+    component.userCache.put(MultipleTypedFormals,new MultipleTypedOwner(component))
+  }
   private[spinal] def supportsMultipleTypedFormals(component: Component): Boolean =
     Option(component).flatMap(_.userCache.get(MultipleTypedFormals)).exists {
       case owner: MultipleTypedOwner => owner.component eq component

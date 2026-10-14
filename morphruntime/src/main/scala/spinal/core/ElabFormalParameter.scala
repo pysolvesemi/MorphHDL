@@ -7,6 +7,15 @@ object ElabFormalParameter {
   private object Declarations
   private final class State(val owner: Component) {
     val names = scala.collection.mutable.HashSet.empty[String]
+    val entries = scala.collection.mutable.ArrayBuffer.empty[(ElaborationIntegerParameter,
+      ElaborationIntegerExpression,Option[String])]
+    var sealedInventory = false
+    owner.addPrePopTask(() => {
+      require(!sealedInventory,"formal inventory was already sealed")
+      sealedInventory=true
+      ExternalFormalParameterRegistry.retainDeclaredTypedParameters(owner,entries.toVector)
+      entries.foreach { case (formal,actual,_) => ParameterizedVec.retainComponentFormal(owner,formal,actual) }
+    })
   }
   def apply(actual: ElabInt, name: String, minimum: BigInt = 1,
       maximum: BigInt = 4096): ElabInt = {
@@ -27,15 +36,13 @@ object ElabFormalParameter {
         expression.sourceLocation)
     val state = owner.userCache.getOrElseUpdate(Declarations, new State(owner)).asInstanceOf[State]
     require(state.owner eq owner, "formal declaration storage belongs to another Component")
+    require(!state.sealedInventory,"formal declaration was added after its complete inventory was sealed")
     if (!state.names.add(name))
       ParameterizedVerilogException.fail("SPINAL-ELAB-FORMAL-NAME-DUPLICATE",
         s"formal '$name' is already declared on this Component", expression.sourceLocation)
     val formal = ElaborationIntegerParameter(name, expression.default, minimum, maximum)
     val definition = ElabInt.directParameter(formal, expression.sourceLocation)
-    owner.addPrePopTask(() => {
-      ExternalFormalParameterRegistry.retainDeclaredTypedComponent(owner, formal, expression, expression.sourceLocation)
-      ParameterizedVec.retainComponentFormal(owner, formal, expression)
-    })
+    state.entries += ((formal,expression,expression.sourceLocation))
     definition
   }
 }

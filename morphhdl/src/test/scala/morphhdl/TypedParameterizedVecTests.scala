@@ -798,7 +798,7 @@ class TypedParameterizedVecTests extends AnyFunSuite {
           new PackedUnrelatedWidth(width, depth, unrelated)
         }
       }
-      assert(failure.code == "SPINAL-ELAB-VEC-PACKED-SOURCE-PROVENANCE-MISSING")
+      assert(failure.code == "SPINAL-ELAB-VEC-PACKED-WIDTH-MISMATCH")
       assert(!Files.exists(directory.resolve("packed_unrelated_width.v")))
     }
   }

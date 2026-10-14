@@ -83,6 +83,7 @@ jobs:
             morphhdl.frontend.HdlIntTests
           /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
             morphhdl.RecursiveUnsignedSumTests \
+            morphhdl.SymbolicArrayGeometryTests \
             spinal.core.RecursivePartitionSafetyTests \
             morphhdl.BoundedRecursivePowerTests \
             morphhdl.BoundedRecursiveSafetyTests \
@@ -138,6 +139,14 @@ jobs:
               --rtl /tmp/recursive-sum/rtl/default-$default-split-false/RecursiveUnsignedSum.v \
               --output /tmp/recursive-sum/checks-default-$default
           done
+          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].test.runMain morphhdl.NativeRecursiveTreeArtifactWriter /tmp/recursive-sum/typed/rtl
+          python3 morphhdl/scripts/check-typed-recursive-component.py \
+            --rtl /tmp/recursive-sum/typed/rtl \
+            --output /tmp/recursive-sum/typed/checks
+          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].test.runMain morphhdl.NativeWidthRecursiveArtifactWriter /tmp/recursive-sum/width/rtl
+          python3 morphhdl/scripts/check-symbolic-recursive-width.py \
+            --rtl /tmp/recursive-sum/width/rtl \
+            --output /tmp/recursive-sum/width/checks
 
       - name: Retain recursive reduction evidence
         if: always()

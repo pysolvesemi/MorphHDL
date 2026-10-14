@@ -594,7 +594,18 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
           }
           val published = if (packedSources.size == 1)
             ParameterizedVec.packedWidthExpressionOf(packedSources.head)
-              .filter(ElabInt.equivalentExactFunction(_, expression)).getOrElse(expression)
+              .filter { packed =>
+                if (ElaborationProductDomain.isRetained(packed) &&
+                    ElaborationProductDomain.isRetained(expression)) {
+                  val role = s"packed source of BlackBox port '$name' of '$instanceName'"
+                  def owned(value: ElaborationIntegerExpression) =
+                    ElaborationProductDomain.owner(value, role, value.sourceLocation) { (root, universe) =>
+                      ParameterizedStructure.exactChildDomainOf(
+                        parent, blackBox, root, universe, role, value.sourceLocation).values
+                    }.get
+                  owned(packed).equivalent(owned(expression))
+                } else ElabInt.equivalentExactFunction(packed, expression)
+              }.getOrElse(expression)
           else expression
           PortRewrite(name, ExpressionBinding(published))
         }

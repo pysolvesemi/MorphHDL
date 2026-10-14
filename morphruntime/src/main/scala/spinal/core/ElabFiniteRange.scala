@@ -40,7 +40,8 @@ private[core] final class ElabFiniteAffineVecRead private[core] (
     val token: ElabFiniteIndexToken,
     val coefficient: Int,
     val offset: Int,
-    val previous: Option[ElabFinitePreviousRead] = None
+    val previous: Option[ElabFinitePreviousRead] = None,
+    val guarded: Option[ElabFiniteGuardedAffineRead] = None
 ) {
   private[core] def matches(
       actualVector: Vec[_],
@@ -48,6 +49,11 @@ private[core] final class ElabFiniteAffineVecRead private[core] (
       actualToken: ElabFiniteIndexToken,
       ownerCount: Option[ElaborationIntegerExpression] = None
   ): Boolean = {
+    if (guarded.nonEmpty) return previous.isEmpty &&
+      (baseIndex eq guarded.get.index.expression) && (count eq guarded.get.count) &&
+      (depth eq guarded.get.depth) && coefficient == guarded.get.coefficient && offset == guarded.get.offset &&
+      ParameterizedVec.shapeOf(vector).exists(_.depth eq originalDepth) &&
+      guarded.get.matches(actualVector, actualSelector, actualToken, ownerCount)
     if (previous.nonEmpty) return previous.get.envelope(baseIndex, count, originalDepth, depth, admitted, coefficient, offset) &&
       previous.get.matches(actualVector, actualSelector, actualToken, ownerCount)
     val domainMatches = (count.exactDomain, depth.exactDomain) match {
@@ -101,6 +107,17 @@ final class ElabFiniteIndex private[core] (
     if (!ParameterizedStructure.captureEnabled || expression.generateIndex.isEmpty) {
       if (witness == value) ifTrue else ifFalse
     } else ParameterizedStructure.captureFiniteIndexIf(this, value, role)(ifTrue)(ifFalse)
+  }
+
+  /** Generate-time affine comparison, with correlated parameter/iteration proof.
+    * Both alternatives are structural hardware, not runtime mux branches.
+    */
+  def whenAffineLessThan(coefficient: Int, offset: Int, bound: ElabInt, role: String)
+      (ifTrue: => Unit)(ifFalse: => Unit): Unit = {
+    require(coefficient > 0 && offset >= 0 && bound != null)
+    if (!ParameterizedStructure.captureEnabled || expression.generateIndex.isEmpty) {
+      if (BigInt(coefficient)*witness+offset < bound.witness) ifTrue else ifFalse
+    } else ParameterizedStructure.captureFiniteAffineIf(this,coefficient,offset,bound,role)(ifTrue)(ifFalse)
   }
 
   def onlyEqual(value: Int, role: String)(body: => Unit): Unit = {
@@ -273,7 +290,18 @@ final class ElabFiniteIndex private[core] (
           expression.sourceLocation
         )
     }
-    val maximum = BigInt(coefficient) * (projectedCount.maximum - 1) + offset
+    val guard = ParameterizedStructure.activeAffineGuard(this)
+    val allowed = guard.map { case (frames, _) =>
+      frames.foldLeft(frames.head._1.rows.toSet) { case (rows, (proof, positive)) =>
+        rows intersect proof.allowed(positive)
+      }
+    }
+    val maximum = allowed match {
+      case Some(rows) if rows.nonEmpty => rows.map { case (_, i) => BigInt(coefficient)*i+offset }.max
+      case Some(_) => ParameterizedVerilogException.fail("SPINAL-ELAB-FINITE-AFFINE-DOMAIN-EMPTY",
+        "affine read has no reachable guarded iteration", expression.sourceLocation)
+      case None => BigInt(coefficient) * (projectedCount.maximum - 1) + offset
+    }
     if (!maximum.isValidInt || maximum >= shape.carrierCapacity)
       ParameterizedVerilogException.fail(
         "SPINAL-ELAB-FINITE-AFFINE-DOMAIN-OUT-OF-RANGE",
@@ -291,7 +319,9 @@ final class ElabFiniteIndex private[core] (
     )
     val evidence = new ElabFiniteAffineVecRead(
       vector, selector, expression, projectedCount, shape.depth,
-      projectedDepth, admitted, token, coefficient, offset
+      projectedDepth, admitted, token, coefficient, offset,
+      guarded = guard.map { case (frames, capture) => new ElabFiniteGuardedAffineRead(
+        this, vector, projectedDepth, projectedCount, selector, coefficient, offset, frames, capture, Component.current) }
     )
     if (!evidence.matches(vector, selector, token))
       ParameterizedVerilogException.fail(
@@ -299,7 +329,9 @@ final class ElabFiniteIndex private[core] (
         "finite affine Vec index exceeds the logical depth at an admitted exact-domain point",
         expression.sourceLocation
       )
-    val selected = vector(selectedWitness.toInt)
+    // This is the already-proved affine read's native witness, not an authored
+    // constant selector. Its legal domain is the retained correlated guard.
+    val selected = if (guard.nonEmpty) vector.vec(selectedWitness.toInt) else vector(selectedWitness.toInt)
     ParameterizedStructure.recordAffineVecRead(vector, selected, selector, token, evidence, expression.sourceLocation)
   }
 

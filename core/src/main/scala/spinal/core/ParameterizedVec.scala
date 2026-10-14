@@ -2530,13 +2530,6 @@ object ParameterizedVec {
       shape: ParameterizedVecShape
   ): Option[ElaborationIntegerExpression] = {
     val expressions = shape.geometryExpressions
-    val roots = expressions
-      .flatMap(_.completedParameterRoots)
-      .foldLeft(
-        Vector.empty[ElaborationIntegerParameterRoot]
-      ) { (known, root) =>
-        if (known.exists(_ eq root)) known else known :+ root
-      }
     // Legacy direct packed-width metadata is valid leaf geometry, but it is
     // not an ElabInt arithmetic certificate. Keep its existing leaf layout
     // without inventing a typed packed-width expression from that summary.
@@ -2556,7 +2549,7 @@ object ParameterizedVec {
           case _ => false
         })
     }
-    if (roots.size > 1 || legacyDirectWidth) None
+    if (legacyDirectWidth) None
     else {
       import ParameterizedVecElementLayout._
       def typed(size: Size): ElabInt = size match {
@@ -2578,7 +2571,10 @@ object ParameterizedVec {
       authored: ElaborationIntegerExpression,
       expected: ElaborationIntegerExpression
   ): Boolean =
-    ElabInt.equivalentExactFunction(authored, expected)
+    if (authored eq expected) true // Replaying the exact retained width is not a new scope use.
+    else if (ElaborationProductDomain.isRetained(authored) && ElaborationProductDomain.isRetained(expected))
+      ElaborationProductDomain.equivalent(authored, expected)
+    else ElabInt.equivalentExactFunction(authored, expected)
 
   private def equivalentShape(
       left: ParameterizedVecShape,

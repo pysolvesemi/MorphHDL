@@ -742,7 +742,8 @@ class ComponentEmitterVerilog(
         referenceSetStart()
         emitLeafStatements(process.leafStatements, 0, process.scope, "=", tmp, "    ")
 
-        if (referenceSetSorted().nonEmpty) {
+        if (referenceSetSorted().nonEmpty ||
+            verilogBase.retainCombinationalProcess(this, process.leafStatements.toVector)) {
 //          logics ++= s"  always @ (${referenceSetSorted().mkString(" or ")})\n"
           val sensitivity = if (conditionDependenciesAdded) referenceSetSorted().mkString(" or ") else "*"
           logics ++= s"  always @($sensitivity) begin\n"
