@@ -23,6 +23,7 @@ class MorphHdlTypedElaborationControlComponentTests extends AnyFunSuite {
       |    def >(other: Int): ElabBool = new ElabBool
       |  }
       |  object ElabControl {
+      |    def localValue[T](value: T, name: String): T = value
       |    def selectSymbolic[T](condition: ElabBool, source: String, line: Int)(
       |        whenTrue: => T
       |    )(
@@ -47,6 +48,7 @@ class MorphHdlTypedElaborationControlComponentTests extends AnyFunSuite {
       |    def >(other: Int): ElabBool = new ElabBool
       |  }
       |  object ElabControl {
+      |    def localValue[T](value: T, name: String): T = value
       |    def selectSymbolic[T](condition: ElabBool, source: String, line: Int)(
       |        whenTrue: => T
       |    )(

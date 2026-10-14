@@ -189,3 +189,19 @@ independently unrolled adjacent-pair reference at counts 1/3/17 and widths 1/8/3
 Simulation supplies the separate X/Z checks; the SAT result does not establish
 four-state equivalence. Synthesis profiles instantiate the emitted generic
 module from a concrete wrapper, retaining its original recursive definition.
+
+## Staged local declaration names
+
+An immutable local hardware declaration inside a retained branch or finite loop
+receives its authored Scala spelling through native weak naming. For example,
+`val combined = Vec(...)` keeps `combined` in its generate scope. Explicit
+`setName` choices and keep attributes retain their native priority. This does not
+remove `_zz_` wires, shorten arbitrary names, or grant new ownership/access rights.
+Host values are unchanged; annotated locals are left to their annotation policy.
+
+The SBT build uses a content-addressed MorphHDL plugin path. Zinc must recompile
+plugin consumers when plugin bytes change; an unchanged artifact keeps the same
+option. `checkCompilerPluginCache` verifies stable options, changed-artifact
+invalidation and rejection of altered cached artifacts. This avoids counting
+stale transformed classes as tests of a new frontend. Mill validation remains
+separate and is not established by this SBT check.

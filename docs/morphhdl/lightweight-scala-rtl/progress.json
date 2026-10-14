@@ -5,7 +5,7 @@
   "working_directory": "/tmp/morphhdl-lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "LWR-05/06 aggregate recursion validated locally; staged naming and library integration next",
+  "phase": "Staged local naming validated locally; named recursion and explicit helper propagation next",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -23,7 +23,9 @@
     "ordinary Bits(i * width, width bits) reads/writes using exact native finite packed proof",
     "recursive Bundle/nested Vec schema comparison using exact retained field topology and substituted geometry",
     "read-only nested affine projection retains parent loop/guard identities",
-    "generic signed/bitwise/Bundle callbacks and independent two-state adjacent-pair SAT fixtures"
+    "generic signed/bitwise/Bundle callbacks and independent two-state adjacent-pair SAT fixtures",
+    "authored immutable staged local hardware names with explicit naming and keep priority preserved",
+    "SBT content-addressed plugin options with changed-artifact and cache-tampering controls"
   ],
   "local_logs": [
     "/tmp/lwr01-plugin-all.log",
@@ -34,7 +36,8 @@
     "/tmp/lwr-recursive-safety-212-v3.log",
     "/tmp/lwr-recursive-regression.log",
     "/tmp/lwr-words-regression.log",
-    "/tmp/lwr-aggregate-recursion-regression.log"
+    "/tmp/lwr-aggregate-recursion-regression.log",
+    "/tmp/lwr-local-names-regression.log"
   ],
   "validation_note": "Earlier logs establish development evidence only. Re-run exact final source after all changes before publishing qualification claims.",
   "next": [
@@ -80,5 +83,14 @@
     ],
     "tests_per_scala": 120,
     "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/aggregate-recursion"
+  },
+  "local_validation_staged_naming": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "plugin_tests_per_scala": 38,
+    "native_tests_per_scala": 25,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/staged-naming"
   }
 }

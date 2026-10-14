@@ -10,6 +10,22 @@ import scala.collection.mutable
   * both ordinary SpinalHDL alternatives for later Verilog generate lowering.
   */
 object ElabControl {
+  /** Compiler-supplied lexical spelling for local hardware declarations.
+    * Native naming priorities preserve explicit user names. Names never grant
+    * ownership, width or structural access authority.
+    */
+  def localValue[T](value: T, name: String): T = {
+    val owner = Component.current
+    if (owner != null && name != null && name.nonEmpty && !name.contains("$")) {
+      value match {
+        case data: Data if data.component eq owner => owner.valCallback(data, name)
+        case child: Component if child.parent eq owner => owner.valCallback(child, name)
+        case _ =>
+      }
+    }
+    value
+  }
+
   /** Scoped finite guards currently join statement-valued branches only. */
   def selectScoped[T](condition: ElabScopedCondition, sourceFile: String, sourceLine: Int)
       (ifTrue: => T)(ifFalse: => T)(implicit unit: T =:= Unit): Unit = {

@@ -925,6 +925,11 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       unit: CompilationUnit,
       classified: ClassifiedTrees
   ) extends Transformer {
+    private var stagedDepth = 0
+    private def staged(tree: Tree): Tree = {
+      stagedDepth += 1
+      try transform(tree) finally stagedDepth -= 1
+    }
     private def sourceFile: String =
       Option(unit.source)
         .flatMap(source => Option(source.file))
@@ -1052,13 +1057,13 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       var otherwise: Tree = tree.elsep
       var done = false
       while (!done) {
-        alternatives += ((condition(current.cond), transform(current.thenp), sourceLine(current)))
+        alternatives += ((condition(current.cond), staged(current.thenp), sourceLine(current)))
         current.elsep match {
           case next: If
               if classified.typedIfs.containsKey(next) && directElseIf(current, next) =>
             current = next
           case other =>
-            otherwise = transform(other)
+            otherwise = staged(other)
             done = true
         }
       }
@@ -1090,7 +1095,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
         val whenFalse = if (firstTrue) branches(1).body else branches.head.body
         val result = Apply(Apply(Apply(helperMethod("selectSymbolic"), List(
           condition(original.selector), Literal(Constant(sourceFile)), Literal(Constant(sourceLine(original))))),
-          List(transform(whenTrue))), List(transform(whenFalse)))
+          List(staged(whenTrue))), List(staged(whenFalse)))
         result.setPos(original.pos)
       }
     }
@@ -1156,7 +1161,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
             Literal(Constant(sourceLine(original)))
           )
         ),
-        List(transform(body))
+        List(staged(body))
       )
       rewritten.setPos(original.pos)
     }
@@ -1197,10 +1202,21 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       val core = Select(Select(Ident(termNames.ROOTPKG), TermName("spinal")), TermName("core"))
       val method = Select(Select(core, TermName("ElabFiniteRange")), TermName("foreach"))
       Apply(Apply(method, List(count, Literal(Constant("loop_l" + sourceLine(original))))),
-        List(transform(body))).setPos(original.pos)
+        List(staged(body))).setPos(original.pos)
     }
 
     override def transform(tree: Tree): Tree = tree match {
+      case original: Block if stagedDepth > 0 =>
+        val statements = original.stats.map {
+          case value: ValDef if !value.mods.hasFlag(Flag.MUTABLE) &&
+              !value.mods.hasFlag(Flag.SYNTHETIC) && value.mods.annotations.isEmpty &&
+              !value.name.decodedName.toString.contains("$") && value.rhs.nonEmpty =>
+            val rhs = Apply(helperMethod("localValue"), List(transform(value.rhs),
+              Literal(Constant(value.name.decodedName.toString)))).setPos(value.rhs.pos)
+            treeCopy.ValDef(value, value.mods, value.name, value.tpt, rhs)
+          case other => transform(other)
+        }
+        treeCopy.Block(original, statements, transform(original.expr))
       case original @ Apply(Select(Apply(Select(start, operator), List(end)), _), List(body))
           if classified.typedRanges.containsKey(original) =>
         rewriteRange(original, start, operator, end, body)
@@ -1209,7 +1225,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       case original: If if classified.scopedIfs.containsKey(original) =>
         Apply(Apply(Apply(helperMethod("selectScoped"),
           List(transform(original.cond), Literal(Constant(sourceFile)), Literal(Constant(sourceLine(original))))),
-          List(transform(original.thenp))), List(transform(original.elsep))).setPos(original.pos)
+          List(staged(original.thenp))), List(staged(original.elsep))).setPos(original.pos)
       case original: If if classified.typedIfs.containsKey(original) =>
         rewriteIf(original)
       case original @ Apply(Select(predicate, _), List(body))

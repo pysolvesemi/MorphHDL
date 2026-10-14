@@ -4,6 +4,8 @@ import sbt.Tests._
 
 def parallelTest = scala.sys.env.getOrElse("SBT_TEST_PARALLEL", "1") == "1"
 
+lazy val checkCompilerPluginCache = taskKey[Unit]("Check content-addressed MorphHDL plugin invalidation")
+
 val scalatestVersion = "3.2.14"
 val defaultSettings = Defaults.coreDefaultSettings ++ xerial.sbt.Sonatype.sonatypeSettings ++ Seq(
   organization := "com.github.spinalhdl",
@@ -76,13 +78,31 @@ lazy val all = (project in file("."))
   .settings(
     defaultSettings,
     name := "SpinalHDL-all",
+    checkCompilerPluginCache := {
+      val directory = IO.createTemporaryDirectory
+      try {
+        val artifact = directory / "plugin.jar"
+        IO.write(artifact, "first plugin")
+        val first = CompilerPluginCache.option(artifact)
+        assert(CompilerPluginCache.option(artifact) == first, "unchanged plugin must keep its compiler option")
+        IO.write(artifact, "second plugin")
+        val second = CompilerPluginCache.option(artifact)
+        assert(first != second, "changed plugin bytes must invalidate compiler options")
+        assert(IO.read(file(first.stripPrefix("-Xplugin:"))) == "first plugin", "prior cache must be immutable")
+        IO.write(file(second.stripPrefix("-Xplugin:")), "tampered plugin")
+        var rejected = false
+        try CompilerPluginCache.option(artifact) catch { case _: IllegalArgumentException => rejected = true }
+        assert(rejected, "tampered content-addressed plugin must fail closed")
+      } finally IO.delete(directory)
+      streams.value.log.info("Compiler plugin cache: stable, changed-artifact and tamper controls passed")
+    },
     version := SpinalVersion.all,
     publishArtifact := false,
     publishLocal := {},
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(lib, core),
     ScalaUnidoc / unidoc / scalacOptions ++= Seq(
       s"-Xplugin:${(idslplugin / Compile / packageBin / artifactPath).value.getAbsolutePath}",
-      s"-Xplugin:${(morphplugin / Compile / packageBin).value.getAbsolutePath}",
+      CompilerPluginCache.option((morphplugin / Compile / packageBin).value),
       "-Xplugin-require:morphhdl"
     )
   )
@@ -226,7 +246,7 @@ lazy val morph = (project in file("morphhdl"))
     defaultSettingsWithPlugin,
     Test / scalacOptions += {
       val file = (morphplugin / Compile / packageBin).value
-      s"-Xplugin:${file.getAbsolutePath}"
+      CompilerPluginCache.option(file)
     },
     Test / scalacOptions += "-Xplugin-require:morphhdl",
     name := "MorphHDL-orchestration",
@@ -242,7 +262,7 @@ lazy val lib = (project in file("lib"))
     name := "SpinalHDL-lib",
     Compile / scalacOptions += {
       val file = (morphplugin / Compile / packageBin).value
-      s"-Xplugin:${file.getAbsolutePath}"
+      CompilerPluginCache.option(file)
     },
     Compile / scalacOptions += "-Xplugin-require:morphhdl",
     libraryDependencies += "commons-io" % "commons-io" % "2.11.0",

@@ -27,6 +27,7 @@ class LightweightSyntaxBaselineTests extends AnyFunSuite {
         def foreach(count: ElabInt, role: String)(body: ElabFiniteIndex => Unit): Unit = ()
       }
       object ElabControl {
+          def localValue[T](value: T, name: String): T = value
         def selectScoped[T](p: ElabScopedCondition, file: String, line: Int)(a: => T)(b: => T)(implicit unit: T =:= Unit): Unit = ()
         def selectSymbolic[T](p: ElabBool, file: String, line: Int)(a: => T)(b: => T): T = a
         def selectSymbolicChain[T](xs: Seq[(ElabBool, () => T, String, Int)], other: () => T, file: String, line: Int): T = other()

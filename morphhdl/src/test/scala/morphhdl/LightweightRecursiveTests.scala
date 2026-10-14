@@ -49,6 +49,7 @@ class LightweightRecursiveTests extends AnyFunSuite {
       assert(rtl == generate(default, subtract)._2)
       assert("(?m)^module LightweightRecursiveTree\\b".r.findAllIn(rtl).size == 1, rtl)
       assert(rtl.contains("nextLevel") && rtl.contains("for (") && rtl.contains("else"), rtl)
+      assert(rtl.contains("combined[") && !rtl.contains("structural_vec_alias_1_storage"), rtl)
       val instances = (for (n <- Seq(1,2,3,5,7,8,15,16,17); w <- Seq(1,8,32,36,64)) yield
         s"Check #(.N($n),.W($w)) c_${n}_$w(data);").mkString("\n")
       Files.write(dir.resolve("tb.v"), s"""module Check #(parameter N=1,W=8)(input [1087:0] data);
