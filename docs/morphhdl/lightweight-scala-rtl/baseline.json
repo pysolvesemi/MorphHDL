@@ -1,0 +1,6627 @@
+{
+  "schema": 1,
+  "compiler_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
+  "compiler_tree": "1233f93dbf2b2449c1dc7bae6648ceaf9b3eaf70",
+  "roadmap_sha256": "16bd5047627818f734ac398dc84a98fac6d7432a92ebb3665dd2e6ae858d5d15",
+  "items": [
+    {
+      "id": "LWR-01.01",
+      "phase": "LWR-01",
+      "requirement": "Inventory current low-level call sites across application and library code: parameters, ranges, guards, indices, arrays, packing, hierarchy, recursion, clocks, callbacks and naming.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-01.02",
+      "phase": "LWR-01",
+      "requirement": "Create minimal compile probes for the desired ordinary syntax before declaring any feature unsupported; distinguish existing syntax, wrapper-only improvements and compiler gaps.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-01.03",
+      "phase": "LWR-01",
+      "requirement": "Specify three distinct conditions: concrete Scala `Boolean` selects during elaboration; parameter-only conditions generate HDL branches; hardware `Bool` uses runtime `when` logic.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-01.04",
+      "phase": "LWR-01",
+      "requirement": "Define handling of Scala `if` requiring `Boolean`: select a compiler rewrite/typed staging design that does not coerce symbolic conditions to a concrete witness value.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-01.05",
+      "phase": "LWR-01",
+      "requirement": "Specify symbolic equality/comparison syntax, including `==` versus `===`, so host object equality cannot silently choose a branch.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-01.06",
+      "phase": "LWR-01",
+      "requirement": "Specify the supported staged Scala subset, expression-valued branches, helper-method boundaries and restrictions on side effects, mutation and early return.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-01.07",
+      "phase": "LWR-01",
+      "requirement": "Keep ordinary concrete loops compatible; document explicit intent where a concrete loop must be retained as a generate loop.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-01.08",
+      "phase": "LWR-01",
+      "requirement": "Map new work to existing CA evidence without marking historical bug fixes incomplete; use new issue IDs only for demonstrated new gaps.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-02.01",
+      "phase": "LWR-02",
+      "requirement": "Choose one concise typed declaration for integer/Boolean HDL parameters, including HDL name, default, legal domain and dependent constraints.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-02.02",
+      "phase": "LWR-02",
+      "requirement": "Infer forwarding from constructor arguments and named bindings; remove user-maintained positional formal vectors and `.toElabInt` plumbing from normal code.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-02.03",
+      "phase": "LWR-02",
+      "requirement": "Preserve symbolic arithmetic for widths, depths, counts, slices, logarithms and derived local constants through helper methods and named intermediates.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-02.04",
+      "phase": "LWR-02",
+      "requirement": "Distinguish HDL parameters from Scala specialization arguments such as payload type and operation callback; do not turn hardware registers into parameters.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-02.05",
+      "phase": "LWR-02",
+      "requirement": "Provide clear overflow, signedness, zero-width and illegal-domain diagnostics at the authored expression.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-02.06",
+      "phase": "LWR-02",
+      "requirement": "Retain optional simulation-only parameter checks and the current configurable cleanup policy for `ifndef SYNTHESIS` blocks.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-03.01",
+      "phase": "LWR-03",
+      "requirement": "Lower parameter-dependent `if`/`else if`/`else` to generate branches using existing branch-domain proofs.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-03.02",
+      "phase": "LWR-03",
+      "requirement": "Support nested guards and guards inside finite loops without manual source labels or `ElabBool` control calls.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-03.03",
+      "phase": "LWR-03",
+      "requirement": "Preserve declaration/assignment ownership and branch-local child visibility; hoist only when scope and driver ownership remain valid.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-03.04",
+      "phase": "LWR-03",
+      "requirement": "Reject runtime hardware conditions used as elaboration guards with an actionable diagnostic directing users to `when`.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-03.05",
+      "phase": "LWR-03",
+      "requirement": "Diagnose incomplete combinational assignments, illegal cross-branch references and conflicting drivers without falsely treating mutually exclusive branches as multiple drivers.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-04.01",
+      "phase": "LWR-04",
+      "requirement": "Support `for (i <- 0 until count)` with symbolic finite bounds and a retained HDL `genvar`.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-04.02",
+      "phase": "LWR-04",
+      "requirement": "Support nested loops and multidimensional arrays; preserve row/column structure rather than flattening through bit arithmetic.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-04.03",
+      "phase": "LWR-04",
+      "requirement": "Define supported `to`, non-unit step and reverse ranges; implement them or reject explicitly rather than silently unrolling.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-04.04",
+      "phase": "LWR-04",
+      "requirement": "Support ordinary affine reads/writes such as `lanes(2*i)`, `lanes(2*i+1)` and `terms(counter)(port)`.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-04.05",
+      "phase": "LWR-04",
+      "requirement": "Carry guarded bounds proofs from `if (2*i+1 < count)` into both reads and writes, including odd counts and singleton base cases.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-04.06",
+      "phase": "LWR-04",
+      "requirement": "Prove write coverage, non-overlap and legal index domains; retain negative tests for out-of-bounds and overlapping accesses.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-04.07",
+      "phase": "LWR-04",
+      "requirement": "Allow operation callbacks and helper functions in loop bodies while retaining symbolic-index ownership.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-04.08",
+      "phase": "LWR-04",
+      "requirement": "Preserve a single authored loop containing combine, pipeline and packing statements when their scopes permit it; do not require a separate loop for each assignment.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-04.09",
+      "phase": "LWR-04",
+      "requirement": "Add optional loop labels and stable automatically derived names without exposing compiler-internal source tags.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-05.01",
+      "phase": "LWR-05",
+      "requirement": "Define a documented representation policy for internal `Vec`, nested `Vec`, packed vectors, unpacked array ports and arrays of bundles.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-05.02",
+      "phase": "LWR-05",
+      "requirement": "Preserve element widths, dimensions and signedness as symbolic type information through declaration, indexing, assignment and child connections.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-05.03",
+      "phase": "LWR-05",
+      "requirement": "Offer direct aggregate ports and connections where the selected HDL dialect supports them; provide a documented packed boundary for Verilog targets that cannot express unpacked ports.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-05.04",
+      "phase": "LWR-05",
+      "requirement": "Support whole-array and whole-word assignment without duplicate scalar `combined_1` signals plus array views.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-05.05",
+      "phase": "LWR-05",
+      "requirement": "Support ordinary word slices such as `bits(i * width, width bits)` with automatic correlation proofs for symbolic stride and width.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-05.06",
+      "phase": "LWR-05",
+      "requirement": "Make `asBits` / `assignFromBits` or a concise typed word-view API preserve least-significant-lane-first ordering, signed values and multidimensional ordering.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-05.07",
+      "phase": "LWR-05",
+      "requirement": "Emit word-level packing/unpacking generate loops rather than bit-level division/modulo loops or giant concatenations.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-05.08",
+      "phase": "LWR-05",
+      "requirement": "Preserve combinational constant drivers as continuous/combinational assignments, never initialization-only `initial` blocks.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-05.09",
+      "phase": "LWR-05",
+      "requirement": "Avoid packed-view/carrier/result chains unless a real type/ownership boundary requires them; make unavoidable plumbing anonymous compiler temporaries.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-05.10",
+      "phase": "LWR-05",
+      "requirement": "Cover dynamic hardware indexing separately from symbolic generate indexing, including read muxes, write decoding and out-of-range policy.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-05.11",
+      "phase": "LWR-05",
+      "requirement": "Preserve explicit memory semantics: do not turn register arrays into RAMs or change read latency/reset behavior as a syntax transformation.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-06.01",
+      "phase": "LWR-06",
+      "requirement": "Recognize guarded direct self-construction using `new SameComponent(nextCount, ...)` without executing an unbounded chain of Scala constructors.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-06.02",
+      "phase": "LWR-06",
+      "requirement": "Infer the recursive boundary, typed ports and named parameter forwarding from the component declaration and call site.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-06.03",
+      "phase": "LWR-06",
+      "requirement": "Emit a self-instance of one shared operation-specialized HDL definition, with branch-local connections and legal decreasing parameter bindings.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-06.04",
+      "phase": "LWR-06",
+      "requirement": "Prove termination over the declared parameter domain, including `(count + 1) / 2` under `count > 1` and the `count == 1` base case.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-06.05",
+      "phase": "LWR-06",
+      "requirement": "Reject nondecreasing recursion, missing base cases and unsupported cyclic construction with useful source diagnostics.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-06.06",
+      "phase": "LWR-06",
+      "requirement": "Preserve payload width/type, operation and bridge specialization identity; do not merge different operations because their default samples happen to match.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-06.07",
+      "phase": "LWR-06",
+      "requirement": "Allow multiple root counts/defaults to share the same definition where semantics match; distinguish default values from specialization identity.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-06.08",
+      "phase": "LWR-06",
+      "requirement": "Support real typed child connections and compiler body checks; do not replace recursion with an authored BlackBox or handwritten HDL.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-06.09",
+      "phase": "LWR-06",
+      "requirement": "Specify mutual recursion as a separate capability; either prove/support it explicitly or reject it clearly in the first release.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-07.01",
+      "phase": "LWR-07",
+      "requirement": "Retain arbitrary supported typed binary operations, including subtraction, signed arithmetic, bitwise operations and bundle-valued logic\u2014not just unsigned sum.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-07.02",
+      "phase": "LWR-07",
+      "requirement": "Preserve adjacent-pair ordering and apply `levelBridge` to odd-tail lanes exactly as in the existing Spinal-style API.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-07.03",
+      "phase": "LWR-07",
+      "requirement": "Retain the existing concrete-`Int` bridge-level callback contract; specialize level-dependent callbacks internally rather than exposing manual per-level guards.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-07.04",
+      "phase": "LWR-07",
+      "requirement": "Diagnose unsupported captured parent signals or callback side effects rather than silently wiring across component ownership boundaries.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-07.05",
+      "phase": "LWR-07",
+      "requirement": "Keep `PIPELINE_MASK`: omitted/null removes built-in mask logic; an explicit zero keeps a parameterized combinational default; bit zero selects the first reduction stage.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-07.06",
+      "phase": "LWR-07",
+      "requirement": "Replace application-authored mask arithmetic with a concise library operation whose lowering preserves the current level numbering and legal domains.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-07.07",
+      "phase": "LWR-07",
+      "requirement": "Preserve callback-inserted registers and built-in mask registers without collapsing or duplicating latency; document their composition.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-07.08",
+      "phase": "LWR-07",
+      "requirement": "Infer/forward the current clock domain for ordinary single-domain child components, retaining explicit domains for CDC and genuine multi-domain boundaries.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-07.09",
+      "phase": "LWR-07",
+      "requirement": "Preserve asynchronous reset polarity, synchronous/soft reset priority, enable behavior and initial values through recursive and array-register lowering.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-07.10",
+      "phase": "LWR-07",
+      "requirement": "Emit `INITIAL_COUNT` or other level metadata only when needed; avoid unnecessary clock/pipeline scaffolding only where the public interface contract permits it.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-08.01",
+      "phase": "LWR-08",
+      "requirement": "Allow normal `child.io.input := parentValue` and `parentOutput := child.io.output` with symbolic aggregate widths, without mandatory `ModulePortWires` carriers.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-08.02",
+      "phase": "LWR-08",
+      "requirement": "Infer exact child-port geometry and direction evidence through intermediate expressions and whole-width slices.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-08.03",
+      "phase": "LWR-08",
+      "requirement": "Preserve meaningful explicit Scala names while marking compiler-generated plumbing anonymous; do not use application-specific names as cleanup rules.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-08.04",
+      "phase": "LWR-08",
+      "requirement": "Give parent-side child-port wires predictable names such as `event_source_up_data_out`; avoid adding helper implementation suffixes such as `Ports` by default.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-08.05",
+      "phase": "LWR-08",
+      "requirement": "Retain a user naming/keep mechanism for debug boundaries and attributes; do not remove intentionally named state or observable boundaries merely for appearance.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-08.06",
+      "phase": "LWR-08",
+      "requirement": "Keep generic Rust alias optimization for safe anonymous wires and proven simple combinational output aliases, with width, signedness, driver and generate-scope checks.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-08.07",
+      "phase": "LWR-08",
+      "requirement": "Emit consistent indentation, precedence-aware parentheses, stable generate labels and readable parameterized bounds in native output.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-08.08",
+      "phase": "LWR-08",
+      "requirement": "Share structurally identical component definitions; keep genuine behavioral/type specializations distinct and runtime enables as ports when authored that way.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-09.01",
+      "phase": "LWR-09",
+      "requirement": "Publish the qualified public syntax/API in MorphHDL with migration examples from each low-level construct.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-09.02",
+      "phase": "LWR-09",
+      "requirement": "Rewrite the balanced-tree library body using direct parameters, `if`, `for`, indexing and recursive construction; keep the existing convenient public `reduceBalancedTree` call.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-09.03",
+      "phase": "LWR-09",
+      "requirement": "Preserve operation-specific names such as `StatusCounterDeltaSum` and `StatusEventErrorUnion`; never require recursive/reduceBalancedTree wording in emitted module names.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-09.04",
+      "phase": "LWR-09",
+      "requirement": "Migrate representative CDC synchronizers/reset chains, multidimensional counter terms, CSR arrays and direct child-port connections.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-09.05",
+      "phase": "LWR-09",
+      "requirement": "Remove obsolete application proof/plumbing helpers only after all callers have qualified replacements; retain compatibility adapters for external callers where required.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-09.06",
+      "phase": "LWR-09",
+      "requirement": "Record library reuse decisions and avoid copying compiler algorithms into project RTL or introducing a second reduction algorithm.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-09.07",
+      "phase": "LWR-09",
+      "requirement": "Update application documentation, generation manifests and agreed compiler pins together after candidate qualification; do not silently move dependencies.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-10.01",
+      "phase": "LWR-10",
+      "requirement": "Freeze low-level baseline artifacts, source/compiler identities and expected behavior before migration.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-10.02",
+      "phase": "LWR-10",
+      "requirement": "Test native lightweight lowering before Rust cleanup, then independently validate cleaned RTL; cleanup must not conceal frontend errors.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-10.03",
+      "phase": "LWR-10",
+      "requirement": "Cover counts 1, 2, 3, 5, 7, 8, 15, 16 and supported 32/64 boundaries; cover widths 1, 8, 32, 36 and 64 and multidimensional geometries.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-10.04",
+      "phase": "LWR-10",
+      "requirement": "Cover unsigned/signed addition, non-associative subtraction, bitwise operations, bundles and level-dependent bridges.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-10.05",
+      "phase": "LWR-10",
+      "requirement": "Cover omitted masks, explicit zero and every legal mask for representative capacities; test reset, soft reset, enable stalls and odd-tail latency.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-10.06",
+      "phase": "LWR-10",
+      "requirement": "Override multiple parameters in the same emitted definition, including non-default child widths/counts and repeated roots with different defaults.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-10.07",
+      "phase": "LWR-10",
+      "requirement": "Run negative tests for invalid domains, width/signedness mismatches, unproven indices, overlapping writers, nonterminating recursion and illegal ownership.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-10.08",
+      "phase": "LWR-10",
+      "requirement": "Compare public-output traces against the frozen baseline, including X/Z-sensitive alias cases; use appropriate formal/equivalence checks for combinational transformations.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-10.09",
+      "phase": "LWR-10",
+      "requirement": "Regenerate twice and compare native and cleaned output hashes; verify expected arrays, generate loops, one shared recursive definition and absence of redundant carriers.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-10.10",
+      "phase": "LWR-10",
+      "requirement": "Run fresh lint and Questa unit tests with real children; bind bench geometry to the generation profile and reject port-width mismatches.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-10.11",
+      "phase": "LWR-10",
+      "requirement": "Run affected CDC/clock-stop, CSR, reduction and product integration suites; identify profiles not exercised rather than claiming all-profile qualification.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-10.12",
+      "phase": "LWR-10",
+      "requirement": "Verify downstream synthesis compatibility for the selected packed/unpacked dialect and confirm no unintended latches, storage or latency changes.",
+      "status": "pending",
+      "evidence": []
+    },
+    {
+      "id": "LWR-10.13",
+      "phase": "LWR-10",
+      "requirement": "Publish exact commands, hashes, tool versions, result logs, limitations and rollback/migration instructions; close checkboxes only with corresponding evidence.",
+      "status": "pending",
+      "evidence": []
+    }
+  ],
+  "call_sites": [
+    {
+      "repository": "compiler",
+      "path": "frontend/src/main/scala/morphhdl/frontend/FrontendException.scala",
+      "sha256": "400121225f4fbf4937a5f1833200b952925ce4f5b7e4f0df8d4fbbf28bc67264",
+      "lines": {
+        "parameters": [
+          198,
+          200,
+          284,
+          286,
+          386,
+          438,
+          440,
+          447
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/main/scala/morphhdl/frontend/FrontendSession.scala",
+      "sha256": "dc007c9849e9f5013fb1cb8a18013275b04db306fb557980f55c68b4089841ff",
+      "lines": {
+        "loops": [
+          255,
+          270,
+          289
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/main/scala/morphhdl/frontend/GenerateCaseBuilder.scala",
+      "sha256": "beace57517658b981227d4cc1715b1bdf05ecee079f9a7f369748589ea570e98",
+      "lines": {
+        "loops": [
+          20,
+          32
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/main/scala/morphhdl/frontend/HdlBool.scala",
+      "sha256": "db2a42a3e37a4269cff8c236a19cd000a3936b40e0fea314847d0465bf9609a9",
+      "lines": {
+        "loops": [
+          106,
+          112
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/main/scala/morphhdl/frontend/HdlRange.scala",
+      "sha256": "587cca7b111dbfea57feab9406288633fd9d1534bb6d93526184bde3feab0a57",
+      "lines": {
+        "loops": [
+          5,
+          14,
+          16,
+          17,
+          18,
+          31,
+          34,
+          35
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/main/scala/morphhdl/frontend/NativeStructuralFrontend.scala",
+      "sha256": "fde57c68e4f39ef75b713270946f8f3c6c64cdfb539540673fabcbf933855479",
+      "lines": {
+        "loops": [
+          25,
+          34,
+          66
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/main/scala/morphhdl/frontend/NaturalSymbolicConditional.scala",
+      "sha256": "a86c37e204f5a692293357c019d170beb4d7e66b6ed6aa8369ee375ffa5b8b53",
+      "lines": {
+        "control": [
+          12,
+          40
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/main/scala/morphhdl/frontend/ParamRtlFrontend.scala",
+      "sha256": "6b09569da861d5f45ed090a06d360261a71fa75ed0d655199a5ad78f0c83c512",
+      "lines": {
+        "parameters": [
+          70,
+          1067,
+          1213,
+          1286
+        ],
+        "loops": [
+          42,
+          43
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/main/scala/morphhdl/frontend/formalParam.scala",
+      "sha256": "b2e0d235745d87f42650c419ca4ab811c337046d1d7d0cf431f131b40d3e8897",
+      "lines": {
+        "parameters": [
+          7,
+          11,
+          16,
+          19
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/main/scala/morphhdl/frontend/package.scala",
+      "sha256": "debba0489cd7ac345e44ea807ac19feea552a2929c37c4af9d754a857b11b828",
+      "lines": {
+        "loops": [
+          83,
+          84,
+          87,
+          88,
+          130,
+          131
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/AddressWidthFrontendTests.scala",
+      "sha256": "99daeed84faf19e5da289565f6fd3f130a9657c9e7229c433f94e284654de53e",
+      "lines": {
+        "parameters": [
+          65,
+          66,
+          95,
+          96,
+          144,
+          145,
+          196,
+          253,
+          261,
+          277,
+          289,
+          290,
+          336,
+          355,
+          370,
+          376,
+          381
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/AnalyzedFrontendBooleanTests.scala",
+      "sha256": "e0aab5013dae6af8c52423d6fee1f2c1fd55208a264ac0990b63be66c0254d0e",
+      "lines": {
+        "parameters": [
+          13,
+          63,
+          95,
+          96
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/AsynchronousEnabledRegisterFrontendTests.scala",
+      "sha256": "f08a168cd501d0c1b27073c27649534c699d1b0d9fa7cdc170868e17aee05b67",
+      "lines": {
+        "parameters": [
+          91,
+          133,
+          134,
+          456,
+          516
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/AsynchronousRegisterFrontendTests.scala",
+      "sha256": "73400ec50c94bed28a3645a72a47b8eac45f7ae4470750dfa6a1409bddcfb6b6",
+      "lines": {
+        "parameters": [
+          69,
+          110,
+          111,
+          318,
+          380
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/BooleanLocalParameterFrontendTests.scala",
+      "sha256": "c442fff7b4dfcf7e2e506b79d48191079acd0e7ca45b3845dc7a91663d607625",
+      "lines": {
+        "parameters": [
+          27,
+          92,
+          430
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/BooleanParameterBindingFrontendTests.scala",
+      "sha256": "7c1e6faba56a7ae76ba7381201dce284a2fcc8724d528d7b592b9eb2ee0fcacc",
+      "lines": {
+        "parameters": [
+          23,
+          97,
+          175,
+          196,
+          217,
+          239,
+          282,
+          310
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/CeilLog2FrontendTests.scala",
+      "sha256": "7ab77ef07c74341a5ecb5a7925130bde2c72b197ec84bee63b1574233ba09aea",
+      "lines": {
+        "parameters": [
+          52,
+          53,
+          76,
+          110
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/CombinationalIfFrontendTests.scala",
+      "sha256": "02099b708b5d2ba3137971d8320fd4dd2c42ef4fa3cef48f88f83d311b9c6317",
+      "lines": {
+        "parameters": [
+          49,
+          90,
+          91,
+          295,
+          333,
+          437,
+          512
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/FrontendProvenanceTests.scala",
+      "sha256": "92a0bb86f0dba9372fef01ea4e9a6e2bfecee9e37cd372d11ffbc1f1ca8d7c38",
+      "lines": {
+        "parameters": [
+          10,
+          11,
+          32,
+          33,
+          65,
+          91,
+          92,
+          177,
+          178,
+          179,
+          199,
+          200,
+          225,
+          226,
+          255,
+          256
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/GenerateCaseFrontendTests.scala",
+      "sha256": "25ab0a8c00d0c500613e6bee030fee6549595cb7c535cb28ab2a8f83640a3119",
+      "lines": {
+        "parameters": [
+          14,
+          63,
+          64,
+          102,
+          103,
+          137,
+          144,
+          262,
+          305,
+          355
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/GenerateForFrontendTests.scala",
+      "sha256": "8d3189c305b9ad4a671315f275f298f52f337e03b75311950c85351aa66fbc41",
+      "lines": {
+        "parameters": [
+          16,
+          17,
+          59,
+          72,
+          81,
+          109,
+          124,
+          141,
+          168,
+          195,
+          196,
+          210,
+          224,
+          247,
+          248,
+          262,
+          288,
+          289,
+          311,
+          334,
+          370,
+          391,
+          421
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/GenerateIfFrontendTests.scala",
+      "sha256": "07194cf6693c660dda7242ee0e681d7b75e55719f67fd4e28d860a374f5cd9a2",
+      "lines": {
+        "parameters": [
+          48,
+          49,
+          76,
+          77,
+          173,
+          250,
+          291,
+          348
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/HdlBoolTests.scala",
+      "sha256": "5d04d8379a5b58d4a68834885b92734e94f6a841164bb2ed537caebddf6678f1",
+      "lines": {
+        "parameters": [
+          26,
+          88,
+          89,
+          109,
+          110,
+          124,
+          125,
+          184,
+          185,
+          215,
+          234,
+          257,
+          275,
+          342,
+          343
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/HdlIntTests.scala",
+      "sha256": "2498e80e5e114d7ddbbeeaf8e7c7633dd37f37e2b36e94e32d5bc96d0fe8b0b8",
+      "lines": {
+        "parameters": [
+          22,
+          44,
+          59,
+          100,
+          272,
+          399,
+          400,
+          408,
+          409,
+          430,
+          469,
+          503,
+          518,
+          519,
+          534,
+          559,
+          567,
+          579,
+          593,
+          598,
+          605,
+          616,
+          623,
+          633,
+          638,
+          643,
+          651,
+          657,
+          677,
+          699,
+          780,
+          803,
+          806,
+          809,
+          833
+        ],
+        "names": [
+          202,
+          701,
+          754
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/LocalParameterFrontendTests.scala",
+      "sha256": "ac5903284575b18304f12aec5fa5bbcc3f4de712f7d853d945ab8f77b59ae700",
+      "lines": {
+        "parameters": [
+          11,
+          37,
+          71,
+          213,
+          251,
+          273,
+          286,
+          306
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/SynchronousCounterFrontendTests.scala",
+      "sha256": "93c135b021314bd40e10956d68e0394e1c40c8787ec7338f60df135b90866195",
+      "lines": {
+        "parameters": [
+          24,
+          53,
+          54,
+          71,
+          84,
+          110,
+          146,
+          147
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/SynchronousEnabledRegisterFrontendTests.scala",
+      "sha256": "ab840358abbf04798665eacddbd9fa2f7384f496b8eb5778d135f0df2178c8ea",
+      "lines": {
+        "parameters": [
+          81,
+          123,
+          124,
+          378,
+          431
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/SynchronousReadFirstSimpleDualPortMemoryFrontendTests.scala",
+      "sha256": "1b922e803131bad6f84ecea50601ceb743b53e94fe62d3bd36ae730363b5434e",
+      "lines": {
+        "parameters": [
+          34,
+          35
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/SynchronousReadFirstSinglePortMemoryFrontendTests.scala",
+      "sha256": "7c1c19a3c415ff1d64f85d463d8740d2f8f63885a6c8ea37336ba2583576043c",
+      "lines": {
+        "parameters": [
+          83,
+          84,
+          132,
+          133,
+          181,
+          182,
+          529,
+          577
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/SynchronousRegisterFrontendTests.scala",
+      "sha256": "7fc8bbda73c7ea9befd81db12482024189e11b54f0d1d564e82c5b61ca1bce14",
+      "lines": {
+        "parameters": [
+          48,
+          89,
+          90,
+          356,
+          414,
+          503
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/SynchronousStreamFifoFrontendTests.scala",
+      "sha256": "e8386cb6172d892c6e86866ce9d03114f9e1ac9c46d42e539ae190a9c46bceee",
+      "lines": {
+        "parameters": [
+          32,
+          33,
+          103,
+          158,
+          165,
+          171,
+          202
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/SynchronousStreamM2sPipeFrontendTests.scala",
+      "sha256": "b25a6a5aeb3e23e0ead0b2a8c787c221f202f843d4f5d87e3c7f50094e3b91d5",
+      "lines": {
+        "parameters": [
+          30
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/TypedParameterFrontendTests.scala",
+      "sha256": "8eea2da94092bd0fdc712f880f8869bb68b0e5a32a76ead02d81cfa314ac972f",
+      "lines": {
+        "parameters": [
+          8,
+          23,
+          37,
+          45,
+          64
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "frontend/src/test/scala/morphhdl/frontend/compatibility/SpinalImportCompatibilityTests.scala",
+      "sha256": "288f982de1dd671c5a6b348e31cbffd5798aa465b8caef47ea7a01e21eb12f14",
+      "lines": {
+        "parameters": [
+          13,
+          29
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/Counter.scala",
+      "sha256": "236ccfcddc45c673684996da1dbc89a94b2fd769dc0e868f5df31a24a29ce1c0",
+      "lines": {
+        "control": [
+          742
+        ],
+        "packing": [
+          1409
+        ],
+        "clock": [
+          474,
+          480
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/CrossClock.scala",
+      "sha256": "1dc85e99b0d9590717cdd91255af755fc10bfa366dbd1d96ef5d4ba201999d2e",
+      "lines": {
+        "packing": [
+          188
+        ],
+        "clock": [
+          41,
+          46,
+          52,
+          69,
+          98,
+          136,
+          147,
+          176,
+          201,
+          202,
+          222,
+          239,
+          240,
+          248,
+          272,
+          280,
+          307,
+          318,
+          319,
+          320,
+          321,
+          339,
+          341,
+          375,
+          379,
+          435,
+          445,
+          460
+        ],
+        "names": [
+          187
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/Flow.scala",
+      "sha256": "3c559dcdea38549cb91c9c28b542b22ade6d765c68622f979108abc58671ff7f",
+      "lines": {
+        "control": [
+          196
+        ],
+        "packing": [
+          389
+        ],
+        "clock": [
+          87,
+          88,
+          89,
+          153,
+          166,
+          300,
+          301,
+          302,
+          308,
+          309,
+          310,
+          331,
+          332,
+          333,
+          345,
+          346,
+          347,
+          357,
+          366
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/Fragment.scala",
+      "sha256": "7c2947f61b9db012ed4f16f1271f2eca129dd3a9928ca4add24244185b0d0964",
+      "lines": {
+        "packing": [
+          322,
+          334,
+          380,
+          439,
+          449
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/Mem.scala",
+      "sha256": "aea25e484f0db7d20b8fe90610d7381b277f9c3ae5023dfcecac20f9ce2bc17e",
+      "lines": {
+        "packing": [
+          69
+        ],
+        "clock": [
+          132
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/Misc.scala",
+      "sha256": "681d7ea8d96b34395eb28d4e9fe8da44d62204a01fc2ce6c254c5015daa7cbbf",
+      "lines": {
+        "clock": [
+          195,
+          196,
+          209,
+          216
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/PackedBundle.scala",
+      "sha256": "4ef2b3992cf0360da1ba37d047eedae1953d76eb7ceed7d2d49ca60c7c25ccc7",
+      "lines": {
+        "packing": [
+          92,
+          99,
+          126,
+          133
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/RecursiveUnsignedSum.scala",
+      "sha256": "73424f93e3dd49772722785dec2b1c80915e36f28d64f166c53f0b24a0afe87c",
+      "lines": {
+        "control": [
+          37
+        ],
+        "recursion": [
+          33
+        ],
+        "names": [
+          14
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/Stream.scala",
+      "sha256": "eebd9d4415b27a16bf87205d354390145ab1d5535e17a9ebf5e7676ac2809200",
+      "lines": {
+        "control": [
+          231,
+          286
+        ],
+        "loops": [
+          2328,
+          2382,
+          2510,
+          2513
+        ],
+        "packing": [
+          607,
+          1147,
+          2259,
+          2272,
+          2396,
+          2432,
+          2510,
+          2513,
+          2716,
+          3148,
+          3372,
+          3577,
+          3578,
+          3588,
+          3589,
+          3836,
+          3978,
+          3987,
+          3988,
+          4003,
+          4004,
+          4063,
+          4072,
+          4073,
+          4098,
+          4099,
+          4118,
+          4122,
+          4251,
+          4597,
+          4598,
+          4625,
+          4720,
+          4747,
+          4748
+        ],
+        "clock": [
+          378,
+          384,
+          469,
+          475,
+          492,
+          498,
+          504,
+          676,
+          2969,
+          2972,
+          2975,
+          2981,
+          2984,
+          3012,
+          3019,
+          3027,
+          3047,
+          3063,
+          3088,
+          3089,
+          3095,
+          3096,
+          3097,
+          3268,
+          3269,
+          3274,
+          3287,
+          3327,
+          3421,
+          3612,
+          3620,
+          3624,
+          3633,
+          3642,
+          3694,
+          3734,
+          3786,
+          3896,
+          3902,
+          3908,
+          3909,
+          3912
+        ],
+        "names": [
+          2056,
+          2060,
+          2066,
+          2084,
+          2109,
+          2326,
+          2337,
+          2365,
+          2368,
+          2391,
+          2394,
+          2408,
+          2422,
+          2430,
+          2432,
+          2439,
+          2464,
+          2489,
+          2518,
+          2526,
+          2537,
+          2829,
+          3187,
+          3198,
+          3232,
+          3369,
+          3381,
+          3520,
+          3521,
+          3522,
+          3523,
+          3524,
+          3563,
+          3570,
+          3594,
+          3595,
+          3596,
+          3597,
+          3675,
+          3676,
+          3677,
+          3774,
+          4309,
+          4323
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/Utils.scala",
+      "sha256": "ba3a95eb632601df8d111d46d76dedfed320d5f005813b331f81bd0822635ddc",
+      "lines": {
+        "loops": [
+          471
+        ],
+        "packing": [
+          83,
+          137,
+          167,
+          224,
+          227,
+          230,
+          234,
+          271,
+          280,
+          283,
+          289,
+          290,
+          297,
+          381,
+          395,
+          444,
+          459,
+          1056,
+          1057,
+          1058,
+          1060,
+          1079,
+          1335,
+          1451
+        ],
+        "clock": [
+          570,
+          683,
+          709,
+          712,
+          718,
+          728,
+          729,
+          1411,
+          1416,
+          1424,
+          1433,
+          1437
+        ],
+        "callback": [
+          997,
+          1005,
+          1007,
+          1074,
+          1075
+        ],
+        "names": [
+          1123,
+          1307,
+          1309
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/blackbox/anlogic/eagle/Blackbox.scala",
+      "sha256": "ce0404986cb1c4e27dfc0795bc319c5002f76c363d2db51b17100d9025a513bf",
+      "lines": {
+        "clock": [
+          65
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/blackbox/ihp/sg13g2/PhaseIhpBlackBox.scala",
+      "sha256": "15f1a13763b35f5274cfc76d90a2f2fbab688624e5381cd575f2d2f8d1015667",
+      "lines": {
+        "clock": [
+          51
+        ],
+        "names": [
+          65,
+          68,
+          71,
+          72,
+          73,
+          74,
+          76,
+          89,
+          90,
+          92,
+          94,
+          95,
+          96,
+          97,
+          98,
+          99,
+          100,
+          101,
+          127,
+          130,
+          131,
+          132,
+          133,
+          135,
+          142,
+          143,
+          144,
+          145,
+          159,
+          160,
+          161,
+          162,
+          164,
+          166,
+          167,
+          168,
+          169,
+          170,
+          171,
+          172,
+          173,
+          174,
+          175,
+          176,
+          177,
+          178,
+          179,
+          180,
+          181,
+          182,
+          183,
+          184,
+          185,
+          186
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/blackbox/ihp/sg13g2/PhaseIhpBlackBoxDemo.scala",
+      "sha256": "8a77a88f6242bcbb66b50a90e46232934cc0a968ceae2b83fe0d1235e869f325",
+      "lines": {
+        "names": [
+          27
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/blackbox/lattice/ecp5/EHXPLLL.scala",
+      "sha256": "521cc0718a97e6a8df312ead6d030b9efd6552c9f9a1ec750867a20ee6ea98b9",
+      "lines": {
+        "clock": [
+          127
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/blackbox/lattice/ecp5/IO.scala",
+      "sha256": "a6ace99b67b1c34fbc69d4858154fe53b2bcf574c1477021cae6b06f590beb9f",
+      "lines": {
+        "clock": [
+          22,
+          38,
+          54,
+          55,
+          71,
+          73
+        ],
+        "names": [
+          81
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/blackbox/lattice/ice40/Blackbox.scala",
+      "sha256": "8521f1f2ab5cb2fda4869878d8faf5b7ed7f74e53de500a7efd6c58aaa8d6267",
+      "lines": {
+        "clock": [
+          353,
+          358,
+          359,
+          360,
+          364,
+          372,
+          475
+        ],
+        "names": [
+          461
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/blackbox/xilinx/s7/Clocking.scala",
+      "sha256": "360ed37c9d37206963c4802feb68ea4e55abb359a88b552a2702b4ceb24394bd",
+      "lines": {
+        "clock": [
+          15,
+          34,
+          88
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/blackbox/xilinx/s7/FF.scala",
+      "sha256": "8476c7d45ff1f4f95607522508a1f04fc603065885b71135858806b9ad7aecd4",
+      "lines": {
+        "clock": [
+          8
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/blackbox/xilinx/s7/IO.scala",
+      "sha256": "79c2d8f5fc47ad403c0d9f6b40e6cab127329730f4f194bfb48fbb57d6d6e62f",
+      "lines": {
+        "clock": [
+          64,
+          68,
+          69,
+          71,
+          72,
+          205,
+          206,
+          208
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba3/ahblite/AhbLite3.scala",
+      "sha256": "0a63f96c313f12eaf6fd35a5794da2c4a0bb910a71404a84c81d7df155688b9f",
+      "lines": {
+        "packing": [
+          160
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba3/ahblite/AhbLite3Arbiter.scala",
+      "sha256": "92c1db4bf94ea45371c1b6f4899a0a3183c321af1775f792861fce41a1c19d26",
+      "lines": {
+        "packing": [
+          68
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba3/ahblite/AhbLite3Decoder.scala",
+      "sha256": "f6645df0750c8e5a5f4eed1de44fae97fdd9f5b44748fe02072dce3f20055993",
+      "lines": {
+        "packing": [
+          155
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba3/apb/APB3.scala",
+      "sha256": "7300e708f57ecbbb22b7876982d3b0eb3dbda9e3b6c90cf931449fee0aac813d",
+      "lines": {
+        "clock": [
+          110
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba3/apb/Apb3CCToggle.scala",
+      "sha256": "45501424e51b85ad2af32c4e15154ac4a6b4f9a1e9a852f568d8fb53562cb063",
+      "lines": {
+        "clock": [
+          35,
+          36,
+          53,
+          67,
+          113
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba3/apb/Apb3ToBmb.scala",
+      "sha256": "daadef30cf42c39af9b525377edd092d4ecdd238abbdf5cfd0b571797dfaee86",
+      "lines": {
+        "packing": [
+          32
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba3/apb/sim/Apb3Driver.scala",
+      "sha256": "1c10d9d205877708f64ef93c587714e35294e140e7a36573c324929aa6568844",
+      "lines": {
+        "clock": [
+          3,
+          7
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba3/apb/sim/Apb3Monitor.scala",
+      "sha256": "998c2287e8f7dbfdbab61e9a29affc9002424bcb32445adeed917040a056e7d8",
+      "lines": {
+        "clock": [
+          3,
+          9,
+          70
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/apb/Apb4.scala",
+      "sha256": "bfc44f45035f608560b3125a8818b2c35de14a8466a7478ef65bc8034847095b",
+      "lines": {
+        "clock": [
+          78
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/apb/Apb4Decoder.scala",
+      "sha256": "7838eeb0479837071e059a976dc02e6dc06cd4935a4522d8fc80c46ccb1888c2",
+      "lines": {
+        "packing": [
+          19
+        ],
+        "names": [
+          27
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/apb/sim/Apb4Driver.scala",
+      "sha256": "0867efaf2c31ef59384b21c3e1f8dcf02bb295d1aa9e57c5ad4286952be16f43",
+      "lines": {
+        "clock": [
+          3,
+          7
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/apb/sim/Apb4Monitor.scala",
+      "sha256": "83baa12ad685236ea65c03489692c58e7ee99741bc7513d67861f3d7abb657a4",
+      "lines": {
+        "clock": [
+          3,
+          10,
+          73
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axi/Axi4.scala",
+      "sha256": "d164a866b0839afb48ab0ac4f8ba3f56fe651eb7ac14ec7414925daeaf5cb1bf",
+      "lines": {
+        "packing": [
+          321,
+          322
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axi/Axi4CC.scala",
+      "sha256": "c8f3773cf4aab7e9806fa103e26c0b016f06194d6bff5c6568a0c27cfba1cfb4",
+      "lines": {
+        "clock": [
+          7,
+          8,
+          22,
+          23,
+          40,
+          41,
+          85,
+          86
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axi/Axi4Channel.scala",
+      "sha256": "5ada352bfeb2a0c4e046db3694704aa1e1f5c0f7ac5d2cecfa71c80013c19021",
+      "lines": {
+        "packing": [
+          575
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axi/Axi4Decoder.scala",
+      "sha256": "f9fd03688805dde5df6d785b32677ff107bf0d7dde0377d3f9ceb84382c2b741",
+      "lines": {
+        "packing": [
+          22,
+          33,
+          46,
+          83,
+          96,
+          107,
+          119,
+          171,
+          172,
+          173,
+          186,
+          206,
+          222,
+          234
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axi/Axi4ReadOnly.scala",
+      "sha256": "ea9f5da781746eaa0183d6671af3775bb9ff16f8ada4166e33b5027155ea555a",
+      "lines": {
+        "clock": [
+          117
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axi/Axi4SharedOnChipRam.scala",
+      "sha256": "9b8084f6b570c2bd8b6b3d6df02097c8a4c2b4555bd7a2c02e224f071170ef90",
+      "lines": {
+        "clock": [
+          72,
+          73
+        ],
+        "names": [
+          20
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axi/Axi4WriteOnly.scala",
+      "sha256": "5552a1713bdb6093c09c55255d9d32407e7094d91742af24ddc7cfea1866ce63",
+      "lines": {
+        "clock": [
+          185
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axi/Misc.scala",
+      "sha256": "5a91b02a1734c15e145fa99175015d20cd750a8d750fcebd982682d351e7a17a",
+      "lines": {
+        "names": [
+          40,
+          41,
+          42,
+          43,
+          64,
+          65,
+          66,
+          67,
+          85,
+          86,
+          87,
+          88,
+          124
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axi/sim/Agent.scala",
+      "sha256": "a30feef019627017b38d4c8cf5d94e41b606bf0fa3f178a7262d27cf9046183e",
+      "lines": {
+        "clock": [
+          15,
+          16,
+          19,
+          161,
+          162,
+          165,
+          286,
+          287,
+          290,
+          358,
+          359,
+          362,
+          365,
+          368,
+          465,
+          466,
+          469,
+          577,
+          578,
+          581
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axi/sim/Axi4Master.scala",
+      "sha256": "956695c1f9555019b59e0b97c2918c93698e97531809054d31a6884058509fcc",
+      "lines": {
+        "clock": [
+          45
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axi/sim/AxiMemorySim.scala",
+      "sha256": "abedb21e3953a51c5e5b334e27326756f2ef590bca029d10d82d4bb66823e5c7",
+      "lines": {
+        "clock": [
+          287
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axilite/AxiLite4.scala",
+      "sha256": "7f0e9f18b0b23dcc7be887f9f663e614624a7fa15694151caaa5d3657cfc01f4",
+      "lines": {
+        "names": [
+          257,
+          258,
+          259,
+          260,
+          273,
+          274,
+          275,
+          276
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axilite/sim/AxiLite4Driver.scala",
+      "sha256": "4819110e71757178abf167f004ee210d765da234ec5e016bd9df99ad4b23119d",
+      "lines": {
+        "clock": [
+          11,
+          93,
+          130
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axilite/sim/AxiLite4Master.scala",
+      "sha256": "7d0ba83cf27b8514885642c0e5efc85ad8013e263d7d51b929a7567999be8891",
+      "lines": {
+        "clock": [
+          31
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axilite/sim/AxiLite4Monitor.scala",
+      "sha256": "61082ca52da2da9887982416ce0a90e329b63f1166f0b8ce801a98849d45091b",
+      "lines": {
+        "clock": [
+          12,
+          57
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axis/Axi4Stream.scala",
+      "sha256": "be4ea90812ee0cb238f3df514fd66b8c49939d5df17306894fa3f83d78e3d6e3",
+      "lines": {
+        "packing": [
+          105,
+          112,
+          135,
+          151
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axis/sim/Axi4StreamMaster.scala",
+      "sha256": "a8c7c1d40e3591e122656bcc92f12dd0b28cd4eb27a8c787b2bfe450b4dea816",
+      "lines": {
+        "clock": [
+          35
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axis/sim/Axi4StreamSlave.scala",
+      "sha256": "498961edbda938c65c274a8889d857ca8cdae25b93fe852359ea61c7f5455851",
+      "lines": {
+        "clock": [
+          34
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/avalon/Dma.scala",
+      "sha256": "9da333f6d2632f6d8f281cf45635f4d4080415dd2c734ced27d838d70adff88b",
+      "lines": {
+        "packing": [
+          58
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/avalon/sim/AvalonSTAgent.scala",
+      "sha256": "5198b5c0041e9d7e200165c11be6bdc5d1f5ae32f8b042547475cec808c6c315",
+      "lines": {
+        "clock": [
+          12,
+          68
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/bmb/Axi4SharedToBmb.scala",
+      "sha256": "09fbef7c0e2906341f2a04abe0565c81b5219d2693c9364731c977d830e4d476",
+      "lines": {
+        "packing": [
+          27
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/bmb/BmbCc.scala",
+      "sha256": "b0fa804a098eebf859988bba6bac51af1bdfc61d8c3db2557de3a2ddea7af610",
+      "lines": {
+        "clock": [
+          9,
+          10,
+          22,
+          23
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/bmb/BmbDecoder.scala",
+      "sha256": "6109990e5d8c79a9ea4622ba11f918cc2eb37509bf90d7ddc0c732022b30e641",
+      "lines": {
+        "names": [
+          268
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/bmb/BmbGenerators.scala",
+      "sha256": "7a7d89e46710f18820084f6949ff820aeb8779259305088cf0f67d2ef043198b",
+      "lines": {
+        "clock": [
+          137,
+          144,
+          156,
+          160,
+          167,
+          172,
+          208,
+          209
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/bmb/BmbInterconnectGenerator.scala",
+      "sha256": "a803cc60b0edd071113f21b379e96e9011ecc6407b6ff870508eba3f4622f2a9",
+      "lines": {
+        "clock": [
+          32,
+          174,
+          311,
+          326,
+          343,
+          361,
+          375,
+          381,
+          386,
+          387,
+          398,
+          401,
+          402
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/bmb/BmbInvalidateMonitor.scala",
+      "sha256": "e80afef67e6072f3a5cf45ef40059184316c345ea89914163c3099e63cc3ec4f",
+      "lines": {
+        "packing": [
+          39
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/bmb/sim/BmbBridgeTester.scala",
+      "sha256": "1fceb5423c3976a25597c6196e45807cc65a1b75dfa27d14468cf2d9bb0b99a5",
+      "lines": {
+        "clock": [
+          17,
+          19
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/bmb/sim/BmbDriver.scala",
+      "sha256": "be880381f8a196d1062b6044605baf9beb919ef978e5df9f95d6281fcb15275a",
+      "lines": {
+        "clock": [
+          12
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/bmb/sim/BmbInterconnectTester.scala",
+      "sha256": "a0836ce9d8c82161db06b914a5ffa675aca0bc3ef263db5936c35177aec113d2",
+      "lines": {
+        "clock": [
+          3,
+          14,
+          15,
+          20,
+          21
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/bmb/sim/BmbMasterAgent.scala",
+      "sha256": "5108cb650621a1fe952d262c07e9428b3095f2d4b07505945cb6e63f82b07085",
+      "lines": {
+        "clock": [
+          15
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/bmb/sim/BmbMemoryAgent.scala",
+      "sha256": "5544dc73caac9bd343a1961bbc3eded22c5087f5ded6a69d4cd64813e46d45d4",
+      "lines": {
+        "clock": [
+          26
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/bmb/sim/BmbMemoryTester.scala",
+      "sha256": "292b05d2a8250fd44c594000f6e569de43155943f6df7dd5f9d10e56b49e502a",
+      "lines": {
+        "clock": [
+          13,
+          70
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/bmb/sim/BmbMonitor.scala",
+      "sha256": "de63679ac64d36e2b2415e638a3564bf19c644b9ff8218eed57380262e33be01",
+      "lines": {
+        "clock": [
+          13
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/bram/BRAMSlaveFactory.scala",
+      "sha256": "9d3af8aeb84047f218404d8c2374f988b6b6ae5d6d72f41e83d7c539049a1bb8",
+      "lines": {
+        "packing": [
+          82,
+          97,
+          115
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/bram/sim/BRAMDriver.scala",
+      "sha256": "9b67358fe2122f3c2cc36726c3f474b7091c55485e26775e7b4e001355886414",
+      "lines": {
+        "clock": [
+          3,
+          7
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/bsb/BsbInterconnectGenerator.scala",
+      "sha256": "bdaafe2ce980e8f4350cc40c2f5144d4f188c6befe945d0868cfaba0c0c90bff",
+      "lines": {
+        "clock": [
+          25,
+          36,
+          54,
+          55
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/bsb/sim/BsbArgents.scala",
+      "sha256": "fbb9a011af1d07a515c2f32dab48a0bb4ec76fa92dd65490b685491b02fa3ce7",
+      "lines": {
+        "clock": [
+          3,
+          13,
+          32
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/bsb/sim/BsbBridgeTester.scala",
+      "sha256": "09fd34b6f7bab185513dedbdd6ccedfcd57bb95f0b745dcdddcf0c72d89717e7",
+      "lines": {
+        "clock": [
+          14,
+          15
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/fabric/Node.scala",
+      "sha256": "e4a32e31fa6a4448202d976cd9aa7d224b76a422505f9a8f8d6c3be130293ae3",
+      "lines": {
+        "clock": [
+          7
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/localbus/sim/MemBusDriver.scala",
+      "sha256": "12bdd619f040bc6659589379cd108282f7e1fab7e9ec447cd76fa3bc1116dd12",
+      "lines": {
+        "clock": [
+          6
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/localbus/sim/MemVIP.scala",
+      "sha256": "f96dcc1df6a63f4cc3e2c67fe68fef8dfdd562c5e805a4964cfbe5a4bfd9c417",
+      "lines": {
+        "clock": [
+          12,
+          18,
+          32,
+          43,
+          51,
+          88
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/localbus/sim/MinBusDriver.scala",
+      "sha256": "15703f1ef1cbb274fbc35368fa48c7566bfc2a885a8d40e666f05aa5fee1798b",
+      "lines": {
+        "clock": [
+          7
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/misc/BusSlaveFactory.scala",
+      "sha256": "9ad81eafc5aa41a125806a8e744ae88fdfe0d8d9f0c0187f5143a11ccea0f63a",
+      "lines": {
+        "packing": [
+          426,
+          460,
+          461,
+          464,
+          466,
+          547,
+          551,
+          583,
+          598,
+          612,
+          941,
+          1001,
+          1008,
+          1246,
+          1273,
+          1300,
+          1305
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/misc/Misc.scala",
+      "sha256": "71c9a22ec0edc0e7f67b092cd5358cce1bae8d27aa1d54c3cd98885412d3397d",
+      "lines": {
+        "packing": [
+          39,
+          46
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/misc/args/Args.scala",
+      "sha256": "ef8af77e24a71eee0e96078fdb11790c29a94d5a8dd02421d020db0c65320122",
+      "lines": {
+        "names": [
+          54,
+          57
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/regif/Block/RamInst.scala",
+      "sha256": "7b8e898b4301bafae38e731211c34a6873e064d9c99b93bb073963bca2e34b53",
+      "lines": {
+        "names": [
+          13,
+          16,
+          23,
+          26
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/regif/Block/RdFifoInst.scala",
+      "sha256": "46dc3c0779fb60f597f138f834826a1e82ed300f9bad369478ef55ee19a19af1",
+      "lines": {
+        "names": [
+          13,
+          15
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/regif/Block/RegBase.scala",
+      "sha256": "de63c8163fa02af1c97cc63f9e740c07346f297fec079b4a6ab777c6e397176b",
+      "lines": {
+        "packing": [
+          51,
+          70,
+          115,
+          134,
+          153,
+          168,
+          183,
+          202
+        ],
+        "names": [
+          13,
+          18,
+          20,
+          49,
+          60
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/regif/Block/RegInst.scala",
+      "sha256": "755cb6d4d191c369cc0570ef7fbb9b35f01dbcf446dfacfe629b3c8ac52b9556",
+      "lines": {
+        "packing": [
+          290
+        ],
+        "names": [
+          10,
+          103,
+          105,
+          167,
+          169,
+          383
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/regif/Block/RegSlice.scala",
+      "sha256": "4ee2db5193214742cb38f6aae707301d1a9941484bc3f36b21fadf19f4f821f4",
+      "lines": {
+        "names": [
+          37,
+          47,
+          50,
+          51
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/regif/Block/WrFifoInst.scala",
+      "sha256": "e80f5c0309db35f7b85f17456402e9ce493f70e70b56bd7357d24eb156924890",
+      "lines": {
+        "names": [
+          11,
+          15
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/regif/BusIf.scala",
+      "sha256": "86d92ef47ea501a31e08be64f77c2ffc00283442fac7f11b55702671520505de",
+      "lines": {
+        "names": [
+          139
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/regif/BusIfBase.scala",
+      "sha256": "584da445899c844b4e229b5b690be84322c779ee9b7dfd79794ac55815cc3687",
+      "lines": {
+        "packing": [
+          151,
+          152,
+          153,
+          161,
+          162,
+          163,
+          171,
+          172,
+          173,
+          181,
+          182,
+          183,
+          186
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/regif/Factory/IntrBase.scala",
+      "sha256": "179a14a28dbc13acdb9f9399ed6bce3b57f66c3a08287a4e0af51717452dffb8",
+      "lines": {
+        "names": [
+          23
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/regif/Field.scala",
+      "sha256": "841efe737333e1d784e61cf99465ebd52b4806d9e2c0018e6fa696ea0b3c84d3",
+      "lines": {
+        "names": [
+          19
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/regif/Macros.scala",
+      "sha256": "0d7dddb458297b2b4a5686f0d0c488fb48e9e55a436ffbb38c26f0f26830fa9a",
+      "lines": {
+        "packing": [
+          69
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/Bus.scala",
+      "sha256": "1f0c31cef039e1f42356b7a6ed91a613709dcde04319d92b44875052f7a7ad7f",
+      "lines": {
+        "clock": [
+          183
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/Cc.scala",
+      "sha256": "57d12103d31cf4936798fdf155ab2b1c80f2dec2dcf0064f45161ddb88755bed",
+      "lines": {
+        "clock": [
+          7,
+          8
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/Decoder.scala",
+      "sha256": "31af3de5dd32a6120b9b3c38d0ccf103c66624dc27938c72b71ec10387ac5242",
+      "lines": {
+        "packing": [
+          124
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/TransferFilter.scala",
+      "sha256": "1c1050a9a1a125cfd9e5e97543e7186150d7a191021d3638341c42cf25a7c211",
+      "lines": {
+        "packing": [
+          23
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/WidthAdapter.scala",
+      "sha256": "1b59df936f8e92b8b11d9e0b30cc32c2768c25b8902a8ff97a6f01f9da318867",
+      "lines": {
+        "packing": [
+          82
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala",
+      "sha256": "711dd2d45ad3e2ed7ed4623f5c1cea5744570fab189973e59e10c21f810d65af",
+      "lines": {
+        "packing": [
+          508,
+          703,
+          734,
+          768,
+          878,
+          879,
+          897,
+          1622
+        ],
+        "names": [
+          1934
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/coherent/CacheFiber.scala",
+      "sha256": "15b1c0ad26cc1d6d6a06fd92e29a701cdd5d106f5a82de0d59306b210133e654",
+      "lines": {
+        "packing": [
+          114
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Hub.scala",
+      "sha256": "30dd3f583bd3b8b173f29e33620c9839d35453d539233ff82d2e8408d2e79ea0",
+      "lines": {
+        "packing": [
+          458,
+          511
+        ],
+        "names": [
+          854,
+          871
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/coherent/HubFiber.scala",
+      "sha256": "086a9c29831081f55b5138b40e6993b09bbeded66d12c582d0f6f4b5fec3c359",
+      "lines": {
+        "packing": [
+          107
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/sim/BridgeTestbench.scala",
+      "sha256": "40675ae0deae5983cf428cd7c574eb6ed47688ba529d1d90b2d81ffe90ee03b6",
+      "lines": {
+        "clock": [
+          9
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/sim/Checker.scala",
+      "sha256": "1032318586ac1d29e0c747e78e4ea4a390ab0eba885d9acf5f55a396046f4db2",
+      "lines": {
+        "clock": [
+          3
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/sim/MasterAgent.scala",
+      "sha256": "ffb87cae4545cc9e6b98b61ec7917735ee69332923563d0b8723ea82896d3e03",
+      "lines": {
+        "clock": [
+          46
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/sim/MasterDriver.scala",
+      "sha256": "57fbe39ffb334894e6b716203e571e72b66ebdc700869110b69ec40253ef1669",
+      "lines": {
+        "clock": [
+          8
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/sim/MasterTester.scala",
+      "sha256": "e7a0103c427c3899e0aba84864cf126967d3d1ea1495a21412c774d2bc301c0a",
+      "lines": {
+        "clock": [
+          32
+        ],
+        "names": [
+          74,
+          216
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/sim/MemoryAgent.scala",
+      "sha256": "96f902fe4da26f1ca3ebe3d070a617620132079f6fe39ae5b68e1dd933e8fe9b",
+      "lines": {
+        "clock": [
+          3,
+          13
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/sim/Monitor.scala",
+      "sha256": "db1d19818fde3875bfa616201c71b52c249196fc218653c73c23959f4f9b0769",
+      "lines": {
+        "clock": [
+          21
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/sim/SlaveDriver.scala",
+      "sha256": "f1a0e331a9cd269e551fa8cda2a52bfb403e15679de04e600d74331df7144825",
+      "lines": {
+        "clock": [
+          9
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/eth/BmbMacEth.scala",
+      "sha256": "fc6a682dac8ca8e0f251224f3f21f4a91837a78c416ad116b574929c76b3c949",
+      "lines": {
+        "clock": [
+          18,
+          19
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/eth/Gmii.scala",
+      "sha256": "dc8dc723b06b64e181e69c2501db85931dea9623d1608870ad377d39f2ba38b2",
+      "lines": {
+        "clock": [
+          97
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/eth/Mac.scala",
+      "sha256": "88926ccbbe177d8379dcd753dfd9e5622a4985019f3adec98168163e67cdbec4",
+      "lines": {
+        "clock": [
+          80,
+          81,
+          93,
+          96,
+          99,
+          103,
+          106,
+          108,
+          120,
+          121,
+          142,
+          143,
+          152
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/eth/MacRx.scala",
+      "sha256": "7ef423697070de71c2d8783324913ca4b1407352aa967a378f7727f0db836c2c",
+      "lines": {
+        "packing": [
+          117,
+          118,
+          395
+        ],
+        "clock": [
+          191,
+          192,
+          238,
+          313
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/eth/MacTx.scala",
+      "sha256": "894b8f80f4d5c6a7782c917c6b7f79d97c63ce8f6d4202063e27288cace534cc",
+      "lines": {
+        "packing": [
+          509,
+          619,
+          717,
+          718,
+          737,
+          738,
+          739,
+          740,
+          741
+        ],
+        "clock": [
+          11,
+          12,
+          47,
+          65,
+          88,
+          89
+        ],
+        "names": [
+          372
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/eth/Phy.scala",
+      "sha256": "16ac6d7282ce7db78732de55634ce5d368dc88d273c4f28516ed76cadcacd809",
+      "lines": {
+        "clock": [
+          76,
+          138,
+          139,
+          175
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/eth/sg/MacBackend.scala",
+      "sha256": "f5c2582b164955bc3ef9a25878e7e898df924885b8c997c3d4e8df8fd5ee9cec",
+      "lines": {
+        "clock": [
+          69,
+          70,
+          76
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/eth/sg/MacSg.scala",
+      "sha256": "237b2921a70169470ad1b68703d7c9142dff455d2f5a7b0c66b4da81bebdf38e",
+      "lines": {
+        "clock": [
+          42,
+          43,
+          44,
+          55,
+          62,
+          90,
+          110
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/eth/sg/MacSgFiber.scala",
+      "sha256": "6e118d84d2438e0201b2932762f9541ef97438502694d2c78458b0bfdab4c6ca",
+      "lines": {
+        "clock": [
+          58,
+          59,
+          81
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/i2c/Apb3I2cCtrl.scala",
+      "sha256": "208a59dd0a5b059033fd78f0c5de0a76e3c42531c8ba8a91f96dcf20af1be30f",
+      "lines": {
+        "names": [
+          31
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/i2c/I2CSlave.scala",
+      "sha256": "e55cc82254394e5146414175f1aeb832f53d6bf811a56c018dbad0aa0f9b1877",
+      "lines": {
+        "clock": [
+          61,
+          65
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/i2c/I2cCtrl.scala",
+      "sha256": "678643d5448479658438ccd535243588882ce73d767d1a08a6f82ff957149619",
+      "lines": {
+        "packing": [
+          307
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/jtag/JtagGenerators.scala",
+      "sha256": "ce140e6f681255ee60dfff77520f5ad2c5bff31e0f0a1afa661d735c71d04138",
+      "lines": {
+        "clock": [
+          9,
+          19
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/jtag/JtagTap.scala",
+      "sha256": "90639ecf2af658b1f7c88dd8535b91452e7c25c546e76c628bf1d4ddafd9a4cf",
+      "lines": {
+        "clock": [
+          84,
+          143,
+          144,
+          179
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/jtag/JtagTapFactory.scala",
+      "sha256": "bb960e4cf78259cc6e06b5deb332432cba9c2774c230db2fdae6cf6842389810",
+      "lines": {
+        "clock": [
+          22,
+          38
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/jtag/JtagTapInstructions.scala",
+      "sha256": "b7286104adb2e0a9192015ecf912faf7b369b951e9a96be4dc4eacbc877b72d2",
+      "lines": {
+        "packing": [
+          71,
+          124
+        ],
+        "clock": [
+          145,
+          156,
+          222,
+          223
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/jtag/Traits.scala",
+      "sha256": "813a7451c2ee664d81250c4afa909b33a2e99a2a544a3cfe9a0baad8fb858dc1",
+      "lines": {
+        "clock": [
+          58,
+          61
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/jtag/altera/VJtag2BmbMaster.scala",
+      "sha256": "318040479e295b5e06f0a422648baf1f70197d48ebf359d47edc2ab507c5e8a0",
+      "lines": {
+        "clock": [
+          19,
+          21
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/jtag/altera/VJtagTap.scala",
+      "sha256": "5d4b51a97d04cd5a6ffe973d26272af384ca481b160de7b31912da5ed59e8713",
+      "lines": {
+        "clock": [
+          37,
+          40
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/jtag/lattice/ecp5/JtagTap.scala",
+      "sha256": "38fab73ef7916e4473b329a7e22e5a74e520d84d886f30c2a8758e8e97ffc678",
+      "lines": {
+        "packing": [
+          123
+        ],
+        "clock": [
+          54,
+          159,
+          160,
+          185
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/jtag/lattice/ecp5/JtagTapCommands.scala",
+      "sha256": "e4793ec874c2f7128452dd6ff01c1c14fb125b2fa429d013a040455147508d55",
+      "lines": {
+        "packing": [
+          104,
+          165
+        ],
+        "clock": [
+          171,
+          182
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/jtag/xilinx/Bscane2BmbMaster.scala",
+      "sha256": "23523feab883b794ca0d71f65ab54480963b1fbb25c6963a7d8f0199e7cb815e",
+      "lines": {
+        "clock": [
+          18,
+          20
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/spi/SpiMasterCtrl.scala",
+      "sha256": "4ad5ca59a816e5b5ea2e00c18eced81128f3b2955c576409b81f1f29da7a54b3",
+      "lines": {
+        "packing": [
+          54,
+          59,
+          131,
+          134,
+          138
+        ],
+        "names": [
+          275,
+          277
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/spi/SpiSlaveCtrl.scala",
+      "sha256": "db0df393adb8a56b41a17cbada08139d4338e6bb1804a5a2e04d3af17ed17a69",
+      "lines": {
+        "names": [
+          158,
+          159
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/spi/sim/FlashModel.scala",
+      "sha256": "c4081adbf4c69f549783d1e50b80c0808b5c386e95be6aa46c7d3e6376cac03e",
+      "lines": {
+        "clock": [
+          10
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/spi/xdr/Apb3SpiXdrMasterCtrl.scala",
+      "sha256": "e51d78583d9dec4dcd4e11419839b54e44c379c03d7b973f07ba783203052aaf",
+      "lines": {
+        "clock": [
+          50
+        ],
+        "names": [
+          47,
+          48,
+          49,
+          50,
+          52
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/spi/xdr/SpiXdrMasterCtrl.scala",
+      "sha256": "f3f6dac23d12175c5f4d91a9fa3a78416b36868394f60ab7491522018e37e739",
+      "lines": {
+        "packing": [
+          680
+        ],
+        "clock": [
+          30,
+          49,
+          53,
+          246,
+          255,
+          264,
+          269
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/uart/AvalonMMUartCtrl.scala",
+      "sha256": "0d06f1b9408ee9ccd92662361d8f0c968aa5cce1e4ab17eb9f21b261129967ba",
+      "lines": {
+        "clock": [
+          14
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/uart/UartCtrl.scala",
+      "sha256": "8dced6e371688ec794fa4f996b10f6bc552bfcc79eddf86048ca66f548751cee",
+      "lines": {
+        "clock": [
+          34,
+          201,
+          297
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/usb/ohci/UsbOhci.scala",
+      "sha256": "85654c56ded57404e64d624b7d7433a7655b3b17166d36931b9c056c893365c1",
+      "lines": {
+        "packing": [
+          190,
+          210,
+          597,
+          1079,
+          1080,
+          1400
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/usb/ohci/UsbOhciAxi4.scala",
+      "sha256": "38c89355c3d7264d5c85d8e32c7d850d5ce2bd1dabbfc66e18a84a10e7194706",
+      "lines": {
+        "clock": [
+          49,
+          50,
+          55
+        ],
+        "names": [
+          51
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/usb/ohci/UsbOhciAxi4Apb3.scala",
+      "sha256": "6f7e6f101a6083af77dc193d69b5373b83a053131080889d42a735f07ec77d36",
+      "lines": {
+        "clock": [
+          51,
+          52,
+          53,
+          63,
+          129,
+          130
+        ],
+        "names": [
+          59
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/usb/ohci/UsbOhciTilelinkFiber.scala",
+      "sha256": "692b9e9fb4550ebdcfba2d1991fbdb65549b3b900180d75bf858624e6516b250",
+      "lines": {
+        "clock": [
+          16
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/usb/ohci/UsbOhciWishbone.scala",
+      "sha256": "3a20a57e394fcf11cf807304e1f41e02fde0eb29724e608b38e3a2b11ccdbee6",
+      "lines": {
+        "clock": [
+          46,
+          47,
+          52
+        ],
+        "names": [
+          48
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/usb/phy/UsbDevicePhyNative.scala",
+      "sha256": "68770a63b31661522f04a54c3bdea708841fb3cc0265c0df68750865502fad2b",
+      "lines": {
+        "packing": [
+          244
+        ],
+        "clock": [
+          17
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/usb/phy/UsbHubLsFs.scala",
+      "sha256": "815315736e1e5a6456e9ac659174fb27df0354928839d98f7f319d4eeceb0b23",
+      "lines": {
+        "clock": [
+          67,
+          74
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/usb/phy/UsbHubPhy.scala",
+      "sha256": "ed08b43922499547741b0319c8fd9aac1f387709dff9bdb00c3c70efd816f4b0",
+      "lines": {
+        "packing": [
+          484
+        ],
+        "clock": [
+          118
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/usb/phy/UsbPhyFsNative.scala",
+      "sha256": "3614f19d8a4f24684706d4f6570d53ad59ee9569f2bbc50fd96c096ac67c3c47",
+      "lines": {
+        "packing": [
+          359
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/usb/sim/Agent.scala",
+      "sha256": "7a59c7ed5e47024918a28af4c730e8ed66579aed603f5ae6a7f9c943862213ae",
+      "lines": {
+        "clock": [
+          21
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/usb/udc/UsbDeviceCtrl.scala",
+      "sha256": "362c6e62a33953188fac14c60cd476865709ccfacf6b8f6ccf6c308b976094f3",
+      "lines": {
+        "clock": [
+          70,
+          77
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/com/usb/udc/UsbDeviceWithPhyWishbone.scala",
+      "sha256": "88d89e730beae04dcff1d578b1ffc75750ae912e521fc085af8201ac870f095a",
+      "lines": {
+        "clock": [
+          9,
+          55,
+          61,
+          65
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/debug/DebugModule.scala",
+      "sha256": "a6bdcdc57484daeb91abbfbd88c183b978b09d4e371eb63daeb0fb9181750bd6",
+      "lines": {
+        "packing": [
+          82,
+          83
+        ],
+        "clock": [
+          99
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/debug/DebugModuleFiber.scala",
+      "sha256": "3e2cd84259e6363b3fbcc54c745a2820fcd5fc2430c0d0acc9ac58cb1e6569f6",
+      "lines": {
+        "clock": [
+          39,
+          87,
+          105,
+          164
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/debug/DebugTransportModuleJtag.scala",
+      "sha256": "4aba1c6eab2f57694d823477336839be3d7580ff3d17cb1617d1c93adaee0cce",
+      "lines": {
+        "clock": [
+          14,
+          15,
+          109,
+          111,
+          117,
+          132,
+          133,
+          152,
+          158
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/debug/JtagTunnel.scala",
+      "sha256": "fa94d77b0e1d43e342c88fd72f3a59914de8b06fcb37d276683c576111660c7a",
+      "lines": {
+        "clock": [
+          63
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/impl/Alu.scala",
+      "sha256": "2c212a71faad3fe18be8e928835ab0051c80fc45a3ec9c364ebd06950dd99fc5",
+      "lines": {
+        "packing": [
+          18,
+          35
+        ],
+        "names": [
+          49
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/impl/DCache.scala",
+      "sha256": "a63b204a0d2bbe9676af6e1e4010657f97ded7076f9ef31e386dd8462dfbf226",
+      "lines": {
+        "names": [
+          539
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/impl/Misc.scala",
+      "sha256": "4c4af5399929f9a17f1d2194aadd89ac156179a2f75db3f498076b21156a7b45",
+      "lines": {
+        "packing": [
+          30,
+          87,
+          88,
+          157,
+          211,
+          224,
+          261,
+          275
+        ],
+        "names": [
+          313
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/impl/RiscvCore.scala",
+      "sha256": "ea31d5b366d56c98f16c15f227b729e0ae667534568d1610c3ab16cb309d3d74",
+      "lines": {
+        "packing": [
+          651,
+          882
+        ],
+        "names": [
+          402,
+          1077,
+          1144
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/impl/bench/CoreFMaxBench.scala",
+      "sha256": "f66662038f39f590243c5c336f30c97519caeb2fdb6781723374e53a13925cbe",
+      "lines": {
+        "names": [
+          58
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/impl/bench/CoreFMaxQuartus.scala",
+      "sha256": "9612a2a8f38e2ed3596d2d3f5d55fb195df0dd1f9dea30fd56462fa347c0a44a",
+      "lines": {
+        "names": [
+          92,
+          126,
+          157,
+          189
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/impl/bench/CoreUut.scala",
+      "sha256": "2d3c7c3e74979acdf9f17bf04ebe0228727036506ee6f1d6a77ad676448e219d",
+      "lines": {
+        "packing": [
+          149
+        ],
+        "names": [
+          270
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/impl/build/RiscvAhbLite3.scala",
+      "sha256": "15f1cd863ba99770a4774f53d457b7a0fa472b2b48ddd9469ccb5febb37a2bf3",
+      "lines": {
+        "clock": [
+          49
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/impl/build/RiscvAvalon.scala",
+      "sha256": "32a0c7547e1310b3431ddc0c5219ae8c39569e96619c9754b8bd3adc30326df6",
+      "lines": {
+        "clock": [
+          47,
+          146,
+          147,
+          151
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/impl/build/RiscvAxi4.scala",
+      "sha256": "e47caaa20aa5b40c6ddc1753aab9be55ffac9dbea4f38523495c0b3bed2cfbe1",
+      "lines": {
+        "clock": [
+          50
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/impl/extension/BarrelShifterFullExtension.scala",
+      "sha256": "a6d03501922ed3bf15ad0956208dfc6fc840d804ef61d244c751032939b11ad9",
+      "lines": {
+        "packing": [
+          21
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/impl/extension/BarrelShifterLightExtension.scala",
+      "sha256": "6282aea8c3ea1bc3451b3290dce07d7891b8f43a498c8eccc22409a0c63c4d23",
+      "lines": {
+        "packing": [
+          22,
+          28
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/impl/extension/DataBusExtension.scala",
+      "sha256": "6658c789fc6f6a0d0b189cefb99e75f7515e684b56e13243cd0d457efad60686",
+      "lines": {
+        "names": [
+          15,
+          70
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/impl/extension/DebugExtension.scala",
+      "sha256": "5220f176c447b7bec25d78d24d7efd3d2612d3d3c31ea3766d59ce1f7722f65c",
+      "lines": {
+        "packing": [
+          126,
+          128
+        ],
+        "clock": [
+          80
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/impl/extension/DivExtension.scala",
+      "sha256": "835d4a27c94022ed22d9d4af0752a645d7233f87106224de5b4fd9021cfbfe8e",
+      "lines": {
+        "packing": [
+          23
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/impl/extension/InstructionBusExtension.scala",
+      "sha256": "aac0d78db6887252fa756226f1219e70c100ec8bc8e0357884cf3ead9f4fdefc",
+      "lines": {
+        "names": [
+          23,
+          63
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/impl/extension/MulExtension.scala",
+      "sha256": "099ee22e15193d12132679c813a5b321dced5f087415ca7806f7d5c779868936",
+      "lines": {
+        "packing": [
+          77,
+          80
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/cpu/riscv/impl/extension/SimpleInterruptExtension.scala",
+      "sha256": "ac709dc726b7bc3a722ad5ddc7054bd3cefe39ec3cd76df1c90f867570b9edba",
+      "lines": {
+        "names": [
+          26
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/eda/TimingExtractor.scala",
+      "sha256": "a7dd2dfb25e83cb62dcfa6f1bb71983eb1d1e69b7900c09e544ba900390c8023",
+      "lines": {
+        "clock": [
+          12,
+          27,
+          38,
+          67,
+          73,
+          80,
+          96,
+          97,
+          101,
+          108,
+          111,
+          114,
+          141,
+          143,
+          148,
+          151,
+          170,
+          185,
+          216,
+          218,
+          219
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/eda/altera/QSys.scala",
+      "sha256": "71a826d2f42871f77de024505683ce5bfd1666ee893b295508cffad6bf5463dd",
+      "lines": {
+        "clock": [
+          19,
+          101,
+          104,
+          105,
+          161,
+          162,
+          255,
+          258,
+          261,
+          264,
+          294,
+          333,
+          334,
+          375,
+          376,
+          460,
+          461,
+          577,
+          578
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/eda/altera/ip/alt_inbuf.scala",
+      "sha256": "6f85de4c0bda5b24ba0252d3d5123fe90d71280dec8881a85b161b9d77e4d275",
+      "lines": {
+        "names": [
+          23
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/eda/altera/ip/alt_inbuf_diff.scala",
+      "sha256": "90b3567cd4c75f86418e3d658f37a7935e72673931b4addc63fe22e772e21e84",
+      "lines": {
+        "names": [
+          26
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/eda/altera/ip/alt_outbuf.scala",
+      "sha256": "cecb7120ad2e8cc3f9b73b23b5d58ea90bb69bba244b9c2c1017489a57d22e52",
+      "lines": {
+        "names": [
+          25
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/eda/altera/ip/alt_outbuf_diff.scala",
+      "sha256": "284b9c0121fc8c30a5708b5bee74770894a5fbb36c39802351767bc3ffb57da0",
+      "lines": {
+        "names": [
+          28
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/eda/altera/ip/alt_outbuf_tri.scala",
+      "sha256": "ca74c91e61ce130a737170189d4773b649c180b9f3d11bb99ed2790a823a0fa5",
+      "lines": {
+        "names": [
+          29
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/eda/altera/ip/alt_outbuf_tri_diff.scala",
+      "sha256": "c610b39c33aad08e85403763f24090eb42807d30ce0f141e90b33ee353f86c09",
+      "lines": {
+        "names": [
+          27
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/eda/bench/Bench.scala",
+      "sha256": "f8d5b518b454b749328934b69f66a1ee2d233bf95eeddbbe6c259215c856f671",
+      "lines": {
+        "packing": [
+          62,
+          80,
+          255
+        ],
+        "clock": [
+          57,
+          70
+        ],
+        "names": [
+          47,
+          50,
+          132,
+          141,
+          147,
+          259
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/eda/microsemi/LiberoFlow.scala",
+      "sha256": "505e179673394952a30e3296cd9ca8f317911bfd178a13744bc531160c62956b",
+      "lines": {
+        "names": [
+          91
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/eda/xilinx/TimingExtractorXdc.scala",
+      "sha256": "41bbb35f56c8f96c1ce865b4014278276d3a6e218a139296bfa689ab316495e1",
+      "lines": {
+        "clock": [
+          4,
+          85
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/experimental/bus/neutral/NeutralStreamDma.scala",
+      "sha256": "348b4d2ef7f6962457e0306088c7f16e3fee4b2455985f25b114b338f0e7c19e",
+      "lines": {
+        "clock": [
+          17,
+          146,
+          163
+        ],
+        "names": [
+          172
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/experimental/math/Floating.scala",
+      "sha256": "c9bddcf375ddd4378c826a0aec889d55ec4bbeefb5c73c266f21267570f09fcd",
+      "lines": {
+        "packing": [
+          72,
+          74,
+          79,
+          195,
+          229,
+          231,
+          291,
+          293
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/formal/GlobalClock.scala",
+      "sha256": "e85a089ff8490edbd98cfe0c8617fcd2b742b72f04826887d2d94e83094caa11",
+      "lines": {
+        "clock": [
+          8,
+          11,
+          16,
+          22,
+          33,
+          38,
+          44
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/fsm/Example.scala",
+      "sha256": "02f8b5911a9dfdd50afab6c33ce91a93d7fe42254444fe396c838be5df6a1fe7",
+      "lines": {
+        "clock": [
+          499,
+          502,
+          505
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/fsm/State.scala",
+      "sha256": "010c94dc0461f749a3b32ba61fc588729e8afe002f9f51611d08d90823f97e7a",
+      "lines": {
+        "clock": [
+          394
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/fsm/StateMachine.scala",
+      "sha256": "3395d67aaa78782d0a31d3d40b94c47edcd9e696cb76aa4d46e63baa937b3d1c",
+      "lines": {
+        "packing": [
+          381
+        ],
+        "names": [
+          219
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/generator/ClockDomainGenerator.scala",
+      "sha256": "cb41ad4a113eeb35fdeac5ae44ba2a949b6763d3e7be6e3c6552e9e63692ac1b",
+      "lines": {
+        "clock": [
+          21,
+          22,
+          23,
+          28,
+          29,
+          33,
+          35,
+          36,
+          37,
+          39,
+          40,
+          62,
+          66,
+          67,
+          70,
+          71,
+          74,
+          79,
+          80,
+          86,
+          87,
+          91,
+          106,
+          117,
+          120,
+          124,
+          133,
+          141,
+          143,
+          149,
+          150,
+          155,
+          157,
+          158,
+          161,
+          164,
+          165,
+          166,
+          169,
+          174,
+          176,
+          177,
+          178,
+          180,
+          181,
+          182,
+          189,
+          190,
+          192,
+          196,
+          203,
+          204,
+          205,
+          206,
+          207,
+          217,
+          224,
+          234,
+          235,
+          241,
+          246,
+          254,
+          255,
+          278,
+          286,
+          289,
+          295,
+          296,
+          298,
+          299,
+          303,
+          319
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/generator/Generator.scala",
+      "sha256": "1d6972bb446ddab92d4ce58c90db877b3c32fb7097bcb06e4df2eadb8afe0b72",
+      "lines": {
+        "clock": [
+          27
+        ],
+        "names": [
+          122
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/generator/package.scala",
+      "sha256": "c3395ef97ccaf9d593e5a7a7a46fa7a34cc80b7bfceae28c5ef36cca6ff3b7c0",
+      "lines": {
+        "clock": [
+          3,
+          14,
+          16
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/generator_backup/ClockDomainGenerator.scala",
+      "sha256": "4937d68031eccf0deef9e7de91998fdb687cd2620f08a7530e807cd1612084c7",
+      "lines": {
+        "clock": [
+          17,
+          18,
+          20,
+          25,
+          27,
+          28,
+          31,
+          34,
+          35,
+          36,
+          39,
+          45,
+          46,
+          47,
+          49,
+          50,
+          56,
+          60,
+          61,
+          62,
+          63,
+          64,
+          89,
+          95,
+          101,
+          109,
+          110,
+          130,
+          138,
+          141,
+          143,
+          144,
+          146,
+          147,
+          151,
+          167
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/generator_backup/Generator.scala",
+      "sha256": "48a74b02dcf3a4dad1413ea0f4441b8bad4b5d5c7f0d92f6edb9bab2d53785e2",
+      "lines": {
+        "clock": [
+          233,
+          234,
+          236,
+          237,
+          238,
+          247,
+          248,
+          249,
+          274,
+          287,
+          331,
+          333,
+          335
+        ],
+        "names": [
+          391,
+          393,
+          394
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/graphic/VideoDma.scala",
+      "sha256": "cba293dc36cd9e9ff38a0b8a6f1f050639cb98f73f1bec7c0899eae6014c44a5",
+      "lines": {
+        "clock": [
+          42,
+          136,
+          143,
+          158
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/graphic/hdmi/TmdsEncoder.scala",
+      "sha256": "5466a80253659d1b3727c65beeaf745f74541220ecdcfc616f19617c5ed3b921",
+      "lines": {
+        "packing": [
+          48
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/graphic/hdmi/VgaToHdmi.scala",
+      "sha256": "1f4b8618b246e0367283f584e95484f291f004c5cbc3ba25328ed4b78a4f0440",
+      "lines": {
+        "clock": [
+          9
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/graphic/vga/AvalonMMVgaCtrl.scala",
+      "sha256": "7cb2ae2c7157c2b10417592ed01f5bddd0d726ce2286365f286a52320a91988c",
+      "lines": {
+        "clock": [
+          31,
+          62,
+          77,
+          84,
+          104,
+          105,
+          110,
+          111
+        ],
+        "names": [
+          95,
+          106,
+          112
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/graphic/vga/Axi4VgaCtrl.scala",
+      "sha256": "54dbed33cf1cbdf4aea200c45a83b53045a97fa34be78bb363525158fc198537",
+      "lines": {
+        "clock": [
+          18,
+          65,
+          77,
+          79,
+          94
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/graphic/vga/BmbVgaCtrl.scala",
+      "sha256": "cc3b68ce9f16777a2fedeb5044d0de97be2f960efe701543c61e484452abf5ef",
+      "lines": {
+        "clock": [
+          36,
+          49,
+          71,
+          81,
+          117
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/graphic/vga/TilelinkVgaCtrl.scala",
+      "sha256": "973e8ccb5068a4d9a743509c64b648da3496e7d571bc082ce13a9cfc7d059ca6",
+      "lines": {
+        "clock": [
+          81,
+          183,
+          212,
+          244,
+          266,
+          315
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/io/InOutVecToBits.scala",
+      "sha256": "90cbb413e2f38208b22dd289217906e83f6b7c2a3221887cfe99001ea25975be",
+      "lines": {
+        "packing": [
+          37,
+          38
+        ],
+        "names": [
+          14
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/io/InOutWrapper.scala",
+      "sha256": "61c3dbf1173540cd52c011a59b3ec0bd793e83d36b0aa1f93892a625297bc10f",
+      "lines": {
+        "packing": [
+          86,
+          87,
+          97,
+          106,
+          108
+        ],
+        "names": [
+          27,
+          36,
+          90,
+          100,
+          111,
+          118
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/logic/Symplify.scala",
+      "sha256": "228b20ed41566f07eb381695a7253c8589d2521199199cc96f4894fb1704daa9",
+      "lines": {
+        "packing": [
+          17,
+          27
+        ],
+        "names": [
+          341,
+          352,
+          369,
+          380
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/math/Bcd.scala",
+      "sha256": "bf0925008c6922a6d35fb4c60b7f4b83a3c2b575efa008cd196b43fcf910c512",
+      "lines": {
+        "packing": [
+          134,
+          141,
+          191
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/math/Divider.scala",
+      "sha256": "a78ee7bac7dff481ed91d91013b8084527da47d5a4fcfb49fb79a5ab72c075d0",
+      "lines": {
+        "packing": [
+          62,
+          63
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/memory/sdram/dfi/function/BmbSpliter.scala",
+      "sha256": "517d9cc2373d600f9607f9c3eb23251e82cd24462479c567848738714f1ff23a",
+      "lines": {
+        "packing": [
+          232
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/memory/sdram/dfi/function/DfiAlignment.scala",
+      "sha256": "efc985bdbaa8cbc6385eeb60457c375bb4f132155eb788f7d97977054b689b56",
+      "lines": {
+        "packing": [
+          16,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/memory/sdram/dfi/function/MakeTask.scala",
+      "sha256": "5ef2f90d7d98c63c36f08999dcbdbc4387a5979a370b327ac6ea62e2cc09ff09",
+      "lines": {
+        "packing": [
+          70,
+          71
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/memory/sdram/dfi/function/Task2IDFI.scala",
+      "sha256": "cf950df3c634c9c85aab391168a771c703f7c08ebd3bda4a9332f73d70f978ef",
+      "lines": {
+        "packing": [
+          24,
+          25,
+          26,
+          43,
+          50,
+          58,
+          66,
+          73,
+          80
+        ],
+        "names": [
+          15,
+          16,
+          17,
+          19,
+          66,
+          73
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/memory/sdram/dfi/sim/DfiMemoryAgent.scala",
+      "sha256": "cfa3aa9d58361283e2ed5a62ad4f420ef5a4b0be7593248404311b2c6bbb21cd",
+      "lines": {
+        "clock": [
+          8,
+          54
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/memory/sdram/sdr/SdramCtrl.scala",
+      "sha256": "fd20733ab41c2ab6b0148b5a8603a3de2fc27f79e76f4d53e98f87843a5a02ff",
+      "lines": {
+        "packing": [
+          164,
+          397,
+          398,
+          405,
+          410,
+          418,
+          420,
+          427
+        ],
+        "clock": [
+          134,
+          453
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/memory/sdram/sdr/sim/SdramModel.scala",
+      "sha256": "a2e7c5e659882052c7ff702ce4f11a42de30c7d74c209da5307698520d654765",
+      "lines": {
+        "clock": [
+          13
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/memory/sdram/xdr/Backend.scala",
+      "sha256": "babafffd55a5a1407ffff161e75d55e1f97dbd28aa7d348c1ea5e497ca12f53a",
+      "lines": {
+        "packing": [
+          187,
+          189,
+          195,
+          196,
+          201,
+          203,
+          212,
+          214
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/memory/sdram/xdr/BmbAdapter.scala",
+      "sha256": "99087de2262a95e8b0561a510dd28b33de58bec980af050375075b8416b16948",
+      "lines": {
+        "clock": [
+          34,
+          35,
+          62,
+          63,
+          66
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/memory/sdram/xdr/CtrlWithPhy.scala",
+      "sha256": "053220e6a9d67674d7dccc0597330a4a34629aca6d207dfa71c5d20e562bfa9f",
+      "lines": {
+        "clock": [
+          19
+        ],
+        "names": [
+          124,
+          140
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/memory/sdram/xdr/Tasker.scala",
+      "sha256": "97858791cdcbb52c5b6784f32a43146469d17d7fc578371580387d25cdacb778",
+      "lines": {
+        "packing": [
+          157
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/memory/sdram/xdr/phy/Ecp5Sdrx2Phy.scala",
+      "sha256": "3771ba37439437d4199be0bee51c0e66869e81f3f4199f06bf43f1e672c15ad3",
+      "lines": {
+        "packing": [
+          52,
+          55,
+          59,
+          62,
+          66,
+          69
+        ],
+        "clock": [
+          97
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/memory/sdram/xdr/phy/RtlPhy.scala",
+      "sha256": "e405f08310c8dc4ed0987d2dec79043369586269ce4985438fac90423cab149b",
+      "lines": {
+        "packing": [
+          134,
+          136,
+          146
+        ],
+        "clock": [
+          62,
+          144
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/memory/sdram/xdr/phy/XilinxS7Phy.scala",
+      "sha256": "caf904a3aa00c8fb97cdfd7347a3cb9b782e9537c0af39e3ff2d5b0e6fa11aa6",
+      "lines": {
+        "packing": [
+          214
+        ],
+        "clock": [
+          29,
+          30,
+          31,
+          43,
+          57,
+          61,
+          85,
+          86,
+          169,
+          199,
+          210,
+          215,
+          262,
+          289
+        ],
+        "names": [
+          73,
+          273,
+          295
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/misc/InterruptNode.scala",
+      "sha256": "bed60e04a602a38cfcb1bd9c7f5ccea9e4531d35b6b2c436fbdbad729b40868d",
+      "lines": {
+        "clock": [
+          18,
+          34
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/misc/Plru.scala",
+      "sha256": "cb3a48187373b377e9e26a856a9083e08bc2e8ef60d419d755863818d3df11f6",
+      "lines": {
+        "packing": [
+          43
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/misc/Timer.scala",
+      "sha256": "14157370a0973579541032f6f7b53fc55d11aa755a5882e09e27e3c1920865d9",
+      "lines": {
+        "packing": [
+          46,
+          47
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/misc/aia/APlic.scala",
+      "sha256": "fbcaf024af888a6105dc1f6d2d0d6a064fb575ec75d5377d60c284a952dcfa8c",
+      "lines": {
+        "packing": [
+          260
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/misc/aia/APlicMapper.scala",
+      "sha256": "d3845ad040f1b4b1e0faa7335290673452df2e616e746fde91442a424a6ece4b",
+      "lines": {
+        "packing": [
+          203,
+          208,
+          209
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/misc/aia/APlicSource.scala",
+      "sha256": "7dd1c1c58643d0fa2da53e3c1bb4a3b403e18dbb8e7ff7e1d39f90dad7cc43db",
+      "lines": {
+        "packing": [
+          114,
+          117,
+          216,
+          239,
+          241
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/misc/aia/ImsicFile.scala",
+      "sha256": "83fc2b911f94181e723716f2e214da9f7f482bb3c211abf30729a8fa479c3537",
+      "lines": {
+        "packing": [
+          60,
+          259
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/misc/aia/ImsicTrigger.scala",
+      "sha256": "a1c168e04cb30087dda4f51a250383c10ad6a5634ccde32e2722438568d8ed8e",
+      "lines": {
+        "packing": [
+          27
+        ],
+        "names": [
+          176,
+          187
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/misc/aia/TilelinkAPlic.scala",
+      "sha256": "d16fbba3b7fc125dbd6b4bd38229424e27bacbe81a2aef6e358acc716d031de4",
+      "lines": {
+        "packing": [
+          86,
+          218
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/misc/aia/TilelinkImsicTrigger.scala",
+      "sha256": "4ae917d8edfac7e45a04518a1828d81c17edb38bb4658ea60d108b74687f7f66",
+      "lines": {
+        "names": [
+          141
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/misc/analog/DacSigmaDelta.scala",
+      "sha256": "5ec43f4d03ad218b1135266092d8541bc6d178d1741e199e1d335505b8a30283",
+      "lines": {
+        "packing": [
+          83
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/misc/plic/Axi4Plic.scala",
+      "sha256": "dd5a54e3946272a5e6f4e4f744e9dc41cb91fc9ed3c4ac4acebc0e1e4590a2cc",
+      "lines": {
+        "packing": [
+          31
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/misc/plic/AxiLite4Plic.scala",
+      "sha256": "fd9ea9f12f403d9b24d534d05059c051f94ab4db174f6119ee6e3b696bac5a59",
+      "lines": {
+        "packing": [
+          30
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/misc/plic/TilelinkPlic.scala",
+      "sha256": "9dcc2090fe2df684e6ee8c868dbf9e36d910bc9e36407c553cbd5318d1fa68e3",
+      "lines": {
+        "packing": [
+          41
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/misc/plic/WishbonePlic.scala",
+      "sha256": "806dd052ba682a291f18682a6a44ef5341bf3d6571f4f5ce1e2881e4e467bad8",
+      "lines": {
+        "packing": [
+          31
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/misc/plugin/Fiber.scala",
+      "sha256": "ac5260a758636cd10b8ec2b77e9e01e7084b8da00ddee074d187b6c3b34cdfae",
+      "lines": {
+        "names": [
+          12,
+          13,
+          62
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/pipeline/Connection.scala",
+      "sha256": "101f9e6215a475ad88e1eb469c0c478b38aef83ad404e541ed543030f077ed66",
+      "lines": {
+        "packing": [
+          127
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/sim/Flow.scala",
+      "sha256": "3b07106d403b516c641e179bd014e381662b84b825d3c70080cfc00c74cf7093",
+      "lines": {
+        "clock": [
+          3,
+          10,
+          13,
+          27,
+          30,
+          42,
+          61
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/sim/Stream.scala",
+      "sha256": "47483d6f53526acc9c870dbcace4447c795526e71a82432cb3e4c5c1574e691f",
+      "lines": {
+        "clock": [
+          12,
+          19,
+          61,
+          62,
+          64,
+          75,
+          89,
+          164,
+          171,
+          193,
+          203,
+          211,
+          222,
+          255,
+          284
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/sim/bus/wishbone/WishboneDriver.scala",
+      "sha256": "edac13db78bbccbc2e2d39ba5f6e52718796e09cc82eb421a45e636d815e8d3c",
+      "lines": {
+        "clock": [
+          11,
+          18
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/sim/bus/wishbone/WishboneMonitor.scala",
+      "sha256": "6162d6ccf9510ce2e92ac6fc41159a8be81ee626e438425a8cdc384b77388a13",
+      "lines": {
+        "clock": [
+          10,
+          17
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/soc/pinsec/Pinsec.scala",
+      "sha256": "f68cc7dc1c13d6c9c297fb955bbd1939a421a689b0a23e129ae880f27ad862d9",
+      "lines": {
+        "clock": [
+          102,
+          104,
+          109,
+          135,
+          141,
+          146,
+          151,
+          155,
+          156,
+          225
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/system/debugger/SystemDebugger.scala",
+      "sha256": "8b47dcd86b3a3ad9f10c98936d8e6753b86086c5a50a957b7ccbca96626de936",
+      "lines": {
+        "clock": [
+          80,
+          84,
+          88,
+          109,
+          113,
+          125,
+          142,
+          145,
+          203
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/system/dma/sg/DmaSg.scala",
+      "sha256": "4cc56f795d7bf83ea031664b4ee42259e0dcb3cb26bff996ef7a12aaca30b451",
+      "lines": {
+        "packing": [
+          1278,
+          1286
+        ],
+        "clock": [
+          1535,
+          1641
+        ],
+        "names": [
+          1893
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/system/dma/sg2/DmaSgReadOnly.scala",
+      "sha256": "b3612002600b2c307300240a47d05a692c4e6d7b5c8d77957636f73ba98c50fb",
+      "lines": {
+        "packing": [
+          232,
+          233,
+          301
+        ],
+        "clock": [
+          99,
+          100,
+          125,
+          126,
+          497,
+          503
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib/system/dma/sg2/DmaSgWriteOnly.scala",
+      "sha256": "c8e715ae79b0c6729bd81d883026ab037ccf38a00678d4e10c031bb7fa808420",
+      "lines": {
+        "packing": [
+          391,
+          392,
+          451,
+          522
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "lib/src/main/scala/spinal/lib.scala",
+      "sha256": "e3e2d93389b1be7ca2b9f93232001f32fbd86fb5bf9e7834ac8ba8f41f9811b3",
+      "lines": {
+        "clock": [
+          52
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "morphhdl/src/test/scala/spinal/lib/CounterSingleAuthorityParityTests.scala",
+      "sha256": "9eedbe0f3ce7a457d4c79ab2c9fc3aa1cb02c932436bc76d30d8ada2ca6780f5",
+      "lines": {
+        "packing": [
+          80
+        ],
+        "clock": [
+          422
+        ],
+        "names": [
+          52,
+          53,
+          54,
+          55,
+          85,
+          102
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "morphruntime/src/main/scala/spinal/core/ElabAreaCollection.scala",
+      "sha256": "34e18e8f4c97eb9cf76eb60d7068c9a882be7a38d4efdb1415f6fc56c74a0bad",
+      "lines": {
+        "loops": [
+          146
+        ],
+        "names": [
+          149
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "morphruntime/src/main/scala/spinal/core/ElabControl.scala",
+      "sha256": "2d9139142adae543c7cd00e217d81263704297bd6920f37542145392111bb7f7",
+      "lines": {
+        "control": [
+          20,
+          47,
+          65
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "morphruntime/src/main/scala/spinal/core/ElabFiniteAffineGuard.scala",
+      "sha256": "f5c875968654849b0aba2fb67668298e6b9730a8cfa8dbdbe62cc3ac19dcee25",
+      "lines": {
+        "loops": [
+          11,
+          13
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "morphruntime/src/main/scala/spinal/core/ElabFinitePreviousRead.scala",
+      "sha256": "122d95c5efd003f3e2622c2314d1cb1034d5b6a95c0efbf3057ff2183957c9ca",
+      "lines": {
+        "loops": [
+          22,
+          23
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "morphruntime/src/main/scala/spinal/core/ElabFiniteRange.scala",
+      "sha256": "d190910a912ed6ea267eceece35202514f275eb67783d6471fcdf33c144c35fc",
+      "lines": {
+        "loops": [
+          175,
+          215,
+          281,
+          284,
+          378,
+          418
+        ],
+        "affine": [
+          115
+        ],
+        "packing": [
+          139,
+          157
+        ],
+        "names": [
+          534,
+          537
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "morphruntime/src/main/scala/spinal/core/ElabFormalParameter.scala",
+      "sha256": "1429e75c1df8c349dec2b73e4716228dfecf400970ff81e10bdc49636cf59180",
+      "lines": {
+        "parameters": [
+          6
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "morphruntime/src/main/scala/spinal/core/ElabProcess.scala",
+      "sha256": "c86b332d54c691ff8013098feb86922cda3c6afc6a0959e53c4010e4c4beec6e",
+      "lines": {
+        "loops": [
+          57
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "morphruntime/src/main/scala/spinal/core/ElabRecursiveComponent.scala",
+      "sha256": "2099508bea36b46bb7b2ed5c4d67bcee76a2c1a77497fa6c290d5944de74b263",
+      "lines": {
+        "recursion": [
+          7,
+          12,
+          40
+        ],
+        "names": [
+          16,
+          49
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "morphruntime/src/main/scala/spinal/core/ElabScopedProcess.scala",
+      "sha256": "2c53b04d27a57a9b751870c4b3cf31d0c0708155f5363c813dad324b3dd31a5c",
+      "lines": {
+        "loops": [
+          43
+        ],
+        "packing": [
+          352,
+          354,
+          395,
+          400,
+          403
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "morphruntime/src/main/scala/spinal/core/ExternalFormalParameterRegistry.scala",
+      "sha256": "ff8417c482caa2683ee8fe7217d960cf622a04c888b9d86231e8b717f4cb3b50",
+      "lines": {
+        "parameters": [
+          129
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "morphruntime/src/main/scala/spinal/core/ParameterizedProcess.scala",
+      "sha256": "3fce17c0ddcb03a11b4c346157345798bc37da880a6e1cdaaab0d6be29b66f19",
+      "lines": {
+        "loops": [
+          795
+        ],
+        "names": [
+          545
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala",
+      "sha256": "2fc4c4f14d9157468b49b2b40e4cdbd517f27c25eb8c0b198ce32a0ab9c3bd6b",
+      "lines": {
+        "loops": [
+          1067,
+          1131,
+          1779,
+          1784,
+          1790,
+          3896
+        ],
+        "packing": [
+          2410
+        ],
+        "names": [
+          2138,
+          2289
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "morphruntime/src/main/scala/spinal/core/TypedFinitePackedAccess.scala",
+      "sha256": "5013f729f04d79c21d1af7a4f7bc2e43d12ac11e6dc3e4b2b00cbd0ca3a50d85",
+      "lines": {
+        "loops": [
+          126,
+          127,
+          147,
+          148
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "morphruntime/src/main/scala/spinal/core/TypedLoopRegisterStorage.scala",
+      "sha256": "2c0bb7dd3d4d5592a266e14874f21661075a8c52d017055b9e496ed09f795d93",
+      "lines": {
+        "clock": [
+          12
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/main/scala/spinal/lib/misc/pipeline/PipelineDemo.scala",
+      "sha256": "d2401b69e33764f1cffeeeff72594f146eddea6caf2c02a6565f881f84cf835b",
+      "lines": {
+        "clock": [
+          451
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/CounterFormalTester.scala",
+      "sha256": "9f324e235f9dc31600d5e4bff3c26f8e445b717959cac3f7ce27b77f2bf51afc",
+      "lines": {
+        "packing": [
+          136,
+          149,
+          324,
+          335,
+          807
+        ],
+        "clock": [
+          14
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/CounterTester.scala",
+      "sha256": "25889670428153ebdcf7a98372a5664fd1f812d92c6eb447bf5a6faa012fb015",
+      "lines": {
+        "clock": [
+          20,
+          28,
+          1257,
+          1258
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/SpinalSimDmaSg2ReadOnlyTester.scala",
+      "sha256": "9eedf19eeed0611507e8b1dea21eec32dbde705e69f81485aa9007584d638029",
+      "lines": {
+        "clock": [
+          3,
+          30
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/SpinalSimDmaSg2WriteOnlyTester.scala",
+      "sha256": "7599f7da0abbcef3ac25e79ce22eca5c328a4cb80d41cc9acce58ea2d3c9d152",
+      "lines": {
+        "clock": [
+          3
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/SpinalSimMacSgTester.scala",
+      "sha256": "c46c1d9e3c8c65f53df9e445a0774e918d97dbddc966a58f8dd6e35f6b04305a",
+      "lines": {
+        "clock": [
+          3,
+          52,
+          53,
+          54
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/SpinalSimStreamFifoCCTester.scala",
+      "sha256": "80d11dec98c098dab70e03f2c6a033302010250b3280d8950978a29381585e9b",
+      "lines": {
+        "clock": [
+          62,
+          63,
+          108,
+          112,
+          113,
+          161,
+          165,
+          166,
+          221,
+          225,
+          226
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/UtilsChecker.scala",
+      "sha256": "7dbf864de436a1997876bbcc000ebee01fdf455b1d27d9e70080cd71a72df86e",
+      "lines": {
+        "packing": [
+          40
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/bus/amba4/axi/Axi4AdapterTester.scala",
+      "sha256": "25deff1f06fd8975a88fa1acf04ea51a725fa0c2f8746825887548f8e39a6dc5",
+      "lines": {
+        "clock": [
+          17,
+          86
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/bus/amba4/axi/Axi4SharedOnChipRamTester.scala",
+      "sha256": "bb2341285df7a6215c3d6637f87bbc1414977c0d451edb131a291efacec3e4e4",
+      "lines": {
+        "clock": [
+          61
+        ],
+        "names": [
+          10
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/bus/amba4/axis/Axi4StreamSimpleWidthAdapterTester.scala",
+      "sha256": "3782ad7222dd79efbdf02e747ac0cfa38223a76fe35d5f73d15e08388d204e37",
+      "lines": {
+        "clock": [
+          97
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/bus/amba4/axis/Axi4StreamWidthAdapterTester.scala",
+      "sha256": "7abdecbe879fbc4332e0a1eecf261d2f0eafe6236baef34e96fe1f9e564a07d4",
+      "lines": {
+        "clock": [
+          94
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/bus/regif/RegIfACC30.scala",
+      "sha256": "f44000fcaef74f8bceb4a1a941939e5345e3d3e62e6718dab9b5f8b7ba23a18b",
+      "lines": {
+        "clock": [
+          445,
+          449
+        ],
+        "names": [
+          20
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/bus/regif/RegIfDefaultErrorStateTester.scala",
+      "sha256": "b136e1c3153d2e25e711fc2c5ed70cf6464c3cfd529fdc185acdd621056efbe1",
+      "lines": {
+        "names": [
+          27,
+          28
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/bus/regif/RegIfExample.scala",
+      "sha256": "3d8483240ca029ee2cbfefdcd1bc381a228931b4169d645a6b71eb2151db8d3e",
+      "lines": {
+        "names": [
+          133,
+          227
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/bus/regif/RegIfMemFifoTester.scala",
+      "sha256": "1e49c2cb737294fa708f55609618e1dbbf2610d48f553f573405f9b5bf677762",
+      "lines": {
+        "clock": [
+          119,
+          123
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/bus/regif/StrbTester.scala",
+      "sha256": "f8045c81401f6134258840d17adb17e2fdcdcc72aa45beb1a3e3760676665466",
+      "lines": {
+        "names": [
+          44
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/bus/tilelink/Dump.scala",
+      "sha256": "89aada76b5223e990de96076bf2e29f9c9052f3e244b41221d15a130adee3981",
+      "lines": {
+        "clock": [
+          184,
+          185
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/bus/tilelink/InterconnectTester.scala",
+      "sha256": "e7c8faa8e057bc8b744506c283e15449388d2c97ae7715702079f6308f0641c1",
+      "lines": {
+        "clock": [
+          916
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/bus/tilelink/demo/Demo.scala",
+      "sha256": "f2a94ab8a1a528976a79d44a4aa89ff43cce551ae09d350780c5ce2f46cf18fe",
+      "lines": {
+        "clock": [
+          184,
+          185,
+          210,
+          211
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/com/eth/SpinalSimMacTester.scala",
+      "sha256": "c29abc330203a760f2a12e42ff45b40c63fa73d56ea5d78486dfea876188bc91",
+      "lines": {
+        "clock": [
+          409,
+          410,
+          595,
+          596
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/experimental/math/FloatingTester.scala",
+      "sha256": "f5922c9937601e2c8a3781413163be28bc78b2515cbc131fcbbd807875b8b97b",
+      "lines": {
+        "packing": [
+          69,
+          74
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/experimental/math/FloatingTester2.scala",
+      "sha256": "61a7c514dede6b7b789b5d297a20687d6a9a167e46ef618501734d64c8c57c14",
+      "lines": {
+        "packing": [
+          46,
+          57,
+          68,
+          79,
+          90
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/memory/sdram/xdr/SdramXdrSdrSpinalSim.scala",
+      "sha256": "3d270c524ea12746a4ae4328efa59539d8e6b296bf569b8a1f1a43bf44aa3d94",
+      "lines": {
+        "clock": [
+          118,
+          133,
+          134,
+          149,
+          150,
+          163,
+          164,
+          178,
+          192,
+          206,
+          207,
+          221,
+          222,
+          237,
+          238,
+          535,
+          724,
+          738,
+          752,
+          765,
+          814,
+          828,
+          842,
+          855
+        ],
+        "names": [
+          772
+        ]
+      }
+    },
+    {
+      "repository": "compiler",
+      "path": "tester/src/test/scala/spinal/lib/misc/pipeline/PipelineTester.scala",
+      "sha256": "4563c04e9abdacab5dea1ddbb4b8d1377d00f43228d158ec57494f3c7d2fae32",
+      "lines": {
+        "clock": [
+          27
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "gen/displaycontroller/GenerateDdrFrameReader.scala",
+      "sha256": "52872d44c847dbc591af48cdeaf4fadc5619c16d6f1375c22aed773b02335135",
+      "lines": {
+        "parameters": [
+          23
+        ],
+        "clock": [
+          28
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "gen/displaycontroller/GenerateDdrPixelUnpacker.scala",
+      "sha256": "4267e963509446a3cf1f0a2114f0ae501a3db9bc82b02e4e30f60fb8a23718bc",
+      "lines": {
+        "parameters": [
+          32,
+          34,
+          35
+        ],
+        "clock": [
+          23
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "gen/displaycontroller/GenerateFrameSafeSourceSelector.scala",
+      "sha256": "ddf016ccaae65903350bbc246855833b1eb746eda6f4a563677ffb4362aba006",
+      "lines": {
+        "parameters": [
+          32
+        ],
+        "clock": [
+          21
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "gen/displaycontroller/GenerateFramebufferHandoff.scala",
+      "sha256": "147bc2eb69f700a2023ecebf1c5b4b0fe55a884d1546b2ef58c2cecf39338556",
+      "lines": {
+        "parameters": [
+          22
+        ],
+        "clock": [
+          19
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "gen/displaycontroller/GenerateLiveProcessingPipeline.scala",
+      "sha256": "b9f850427fc80d0ec5368cd56a4211b1c4ae8c0557c24e2d6b01a0c0909a139d",
+      "lines": {
+        "parameters": [
+          27
+        ],
+        "clock": [
+          22
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "gen/displaycontroller/GenerateProgressiveTiming.scala",
+      "sha256": "713c6956bdef0c4b0dfb74c55d6523389c88faf3a210200b11e0e349d7ce1677",
+      "lines": {
+        "clock": [
+          14
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "gen/displaycontroller/GenerateRgbDpiOutputFormatter.scala",
+      "sha256": "c9ee3b3ee5911acc52162b3fae148c2a4bea4a3b778dec76075120ebb28815d0",
+      "lines": {
+        "parameters": [
+          24
+        ],
+        "clock": [
+          16
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "gen/displaycontroller/GenerateSafeOutputRecoveryCoordinator.scala",
+      "sha256": "56c0f887166c4c23150dde4090c061a013a6cb41b790bafcc9b6019c59a7ec26",
+      "lines": {
+        "parameters": [
+          28
+        ],
+        "clock": [
+          34
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "gen/displaycontroller/GenerateStandaloneSafePixelSource.scala",
+      "sha256": "2b53c6d27e52045127d5b2af3a837d90dbefcf2a34aa3bcfccdeacc02193e7cd",
+      "lines": {
+        "parameters": [
+          12
+        ],
+        "clock": [
+          11
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "gen/displaycontroller/GenerateYcbcr420Reconstructor.scala",
+      "sha256": "140dc672ba36d2d07e108e987dc8794546722b82f4847abc609371c6b1781543",
+      "lines": {
+        "parameters": [
+          28,
+          29,
+          30
+        ],
+        "clock": [
+          22
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "gen/displaycontroller/GenerateYcbcr422Reconstructor.scala",
+      "sha256": "dc39295f5a9e3b8829b84d87fbbfe868a408b3895bd80a8ba9abe81f645a062c",
+      "lines": {
+        "parameters": [
+          29,
+          30
+        ],
+        "clock": [
+          20
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "gen/displaycontroller/GenerateYcbcr444Csc.scala",
+      "sha256": "d6663f99089c8bef3deeaee66222a35346e276f41cffa29f98130182b6d041ae",
+      "lines": {
+        "parameters": [
+          35
+        ],
+        "clock": [
+          31
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/DisplayControllerProgressiveTimingGenerator.scala",
+      "sha256": "3474fe5e6804e218a712b404d7e70d0085753c3b6f9f38e761b785b5e31a3c45",
+      "lines": {
+        "hierarchy": [
+          6,
+          51
+        ],
+        "clock": [
+          16,
+          17,
+          18,
+          21
+        ],
+        "names": [
+          14,
+          99
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/DisplayControllerRtlConfig.scala",
+      "sha256": "f8efc393908d01b49d7bb1e78125665d9b6cda56db15ebef408462b501976da8",
+      "lines": {
+        "clock": [
+          16
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/GenerationConfig.scala",
+      "sha256": "45ebb3fb1122de3ab40664e396c1c9fa7eb88e57aa6b94ca9705679c4ffa4f65",
+      "lines": {
+        "clock": [
+          15
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/cdc/CdcChannels.scala",
+      "sha256": "4478353b19d2e8a736e56f85ba66c8f77b10ecf8f7072d82a43fa8f4478f97b8",
+      "lines": {
+        "parameters": [
+          27,
+          28,
+          67,
+          68,
+          69,
+          111,
+          112,
+          113,
+          114,
+          115,
+          116,
+          117,
+          118
+        ],
+        "hierarchy": [
+          178,
+          184
+        ],
+        "clock": [
+          22,
+          34,
+          38,
+          46,
+          63,
+          72,
+          92,
+          107,
+          137
+        ],
+        "names": [
+          43,
+          85,
+          96,
+          142,
+          143,
+          146,
+          149,
+          152,
+          154,
+          157,
+          159,
+          160,
+          170,
+          172,
+          191,
+          193,
+          198,
+          200,
+          202,
+          204,
+          206
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/cdc/CdcPrimitives.scala",
+      "sha256": "513a0f50265c790260fc89b42cb2009b0d250e57d45557bd3e8fe69f70a10395",
+      "lines": {
+        "parameters": [
+          12,
+          31,
+          32,
+          48,
+          60,
+          82,
+          83
+        ],
+        "packing": [
+          53,
+          123,
+          131
+        ],
+        "hierarchy": [
+          90,
+          115,
+          120,
+          128,
+          136
+        ],
+        "clock": [
+          11,
+          30,
+          36,
+          59,
+          79,
+          104,
+          113,
+          118,
+          126
+        ],
+        "names": [
+          29,
+          114,
+          119,
+          127,
+          135
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/cdc/DisplayControllerClockResetCdc.scala",
+      "sha256": "cd011c6729cbe87afb75cd8ac877ed0f69799157d5d819c3650b3b486580cc5c",
+      "lines": {
+        "hierarchy": [
+          239,
+          258,
+          347
+        ],
+        "clock": [
+          61,
+          78,
+          79,
+          80,
+          81,
+          87,
+          100,
+          101,
+          102,
+          103,
+          186,
+          199,
+          200,
+          201,
+          202,
+          208,
+          209,
+          210,
+          211,
+          221,
+          237,
+          255,
+          274,
+          305,
+          342
+        ],
+        "names": [
+          63,
+          89,
+          238,
+          257,
+          299,
+          309,
+          346
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/cdc/DisplayControllerCsrApplyTransport.scala",
+      "sha256": "d0299392f5d8b2cdb81be07d044c7a26d654b0351de1c7be578358f3f0fce6f2",
+      "lines": {
+        "clock": [
+          28,
+          31,
+          32,
+          36,
+          37,
+          42,
+          83
+        ],
+        "names": [
+          40,
+          41
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/cdc/DisplayControllerFramebufferHandoffAsync.scala",
+      "sha256": "f17a520c9f55379d962608e3872a4367c7934314017eee90244156d521ac4fcd",
+      "lines": {
+        "clock": [
+          23,
+          29,
+          30,
+          31,
+          32,
+          39,
+          95
+        ],
+        "names": [
+          35,
+          36,
+          37,
+          38
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/cdc/DisplayControllerSplitClockResetCdc.scala",
+      "sha256": "5ff8640b34346ac276fb5c0db92eefc5fcd9b9db6c6500f961285d310d87b9ff",
+      "lines": {
+        "packing": [
+          153,
+          154
+        ],
+        "hierarchy": [
+          97,
+          100,
+          101,
+          270
+        ],
+        "clock": [
+          66,
+          70,
+          80,
+          118,
+          122,
+          168,
+          176,
+          197,
+          289,
+          310,
+          321
+        ],
+        "names": [
+          170,
+          182,
+          183,
+          291,
+          317
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/cdc/DisplayControllerSplitReader.scala",
+      "sha256": "0d79cef2d1f4ca053678a995a6757a18c65b1cfcbc669dd98e7316e26f8af0c6",
+      "lines": {
+        "packing": [
+          65,
+          74,
+          84,
+          85,
+          145,
+          155,
+          156
+        ],
+        "hierarchy": [
+          6,
+          27,
+          174
+        ],
+        "clock": [
+          23,
+          24,
+          25,
+          38,
+          39,
+          51,
+          87,
+          118,
+          160,
+          182,
+          194,
+          195
+        ],
+        "names": [
+          45,
+          50,
+          65,
+          66,
+          197,
+          200
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/cdc/DisplayControllerStableCsr.scala",
+      "sha256": "f3ce6424aa9c966de401c42f312adb7d9e1082c3320799d1049f0642d8624cfb",
+      "lines": {
+        "packing": [
+          71,
+          72,
+          94,
+          152,
+          153,
+          166,
+          197
+        ],
+        "hierarchy": [
+          28,
+          61
+        ],
+        "clock": [
+          17,
+          20,
+          21,
+          44,
+          48,
+          53,
+          65,
+          82,
+          138,
+          140,
+          145,
+          168,
+          174,
+          178
+        ],
+        "names": [
+          142,
+          164,
+          170
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/cdc/DisplayControllerStableStatus.scala",
+      "sha256": "2f7e91c8ddb4d7bf6c9415f51bc76f6a5e0e1e69cb6a70e0374303048ddd1fce",
+      "lines": {
+        "packing": [
+          69,
+          116,
+          117,
+          122,
+          123
+        ],
+        "hierarchy": [
+          33
+        ],
+        "clock": [
+          20,
+          24,
+          25,
+          26,
+          95,
+          99,
+          105
+        ],
+        "names": [
+          43,
+          50,
+          81
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/cdc/DisplayControllerTopClockSupervisor.scala",
+      "sha256": "77703d48e8ca215507619d52c4587801d71d87c24be28ee58b13f823b5b50040",
+      "lines": {
+        "hierarchy": [
+          5,
+          48,
+          49,
+          50
+        ],
+        "clock": [
+          18,
+          21,
+          22,
+          27,
+          40,
+          41,
+          56
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/common/BalancedTree.scala",
+      "sha256": "9ce22eb4ec1ddd1b0b34199f42e12827e2f8dec249cd757d450131cad09cc639",
+      "lines": {
+        "parameters": [
+          33,
+          37,
+          40,
+          50
+        ],
+        "control": [
+          45,
+          83,
+          110,
+          122
+        ],
+        "loops": [
+          77,
+          93,
+          106,
+          136
+        ],
+        "affine": [
+          94,
+          95,
+          97
+        ],
+        "packing": [
+          78,
+          79,
+          80,
+          101,
+          102,
+          103,
+          138,
+          139,
+          140,
+          223
+        ],
+        "recursion": [
+          66
+        ],
+        "clock": [
+          20,
+          72,
+          75,
+          184,
+          215
+        ],
+        "callback": [
+          19,
+          22,
+          34,
+          35,
+          39,
+          40,
+          58,
+          59,
+          65,
+          88,
+          118,
+          125,
+          126,
+          169,
+          171,
+          172,
+          174,
+          186,
+          197,
+          198,
+          205,
+          208,
+          237,
+          239,
+          242,
+          243
+        ],
+        "names": [
+          30,
+          76,
+          87,
+          90,
+          91,
+          111,
+          123,
+          131,
+          188,
+          221,
+          225
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/common/GenerationConfig.scala",
+      "sha256": "e989327cd3166111d80f85e75a34f03bb100d0c543c99cc8729316c3016be035",
+      "lines": {
+        "clock": [
+          17
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/common/ModulePortWires.scala",
+      "sha256": "550fc4ce008f7d8d4ab671454cdc519dc64927913a76f5dd6d1e3aaa76560c53",
+      "lines": {
+        "hierarchy": [
+          8
+        ],
+        "names": [
+          13
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/common/SignedRoundClip.scala",
+      "sha256": "70e2ac2ff3086b9daad74658e99353d799ae63b732bd007cfa16d27b93936395",
+      "lines": {
+        "packing": [
+          23
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/common/UnsignedRoundedAverage.scala",
+      "sha256": "d46506af72663789058880f21628a7f0f2d53abbeeb6cfa81283e384f52c0f72",
+      "lines": {
+        "parameters": [
+          7
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/control/DisplayControllerAxiLiteCsrCommit.scala",
+      "sha256": "97087b53e5d0d6e951928a059b0b447a7742474d25b5d05952fb5a1743340343",
+      "lines": {
+        "parameters": [
+          37
+        ],
+        "loops": [
+          412
+        ],
+        "packing": [
+          224,
+          236,
+          298,
+          302,
+          308,
+          315,
+          324,
+          327,
+          334,
+          335,
+          355,
+          364,
+          365,
+          416,
+          417,
+          422,
+          428,
+          435,
+          440,
+          441,
+          461
+        ],
+        "clock": [
+          55,
+          56,
+          57,
+          60,
+          179,
+          180,
+          181,
+          198,
+          374
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/control/GenerateCsrCommit.scala",
+      "sha256": "dbc55ecac64dd347df7f2281200b06c82b0a947edd197630a33a67ec99f3becc",
+      "lines": {
+        "clock": [
+          21
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/ddr/DanAxiVDisplay.scala",
+      "sha256": "e6c2404d523809d428881660109449b75042b05047ba8946f6911a3519b4a211",
+      "lines": {
+        "names": [
+          10
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/ddr/DisplayControllerDdrFrameReader.scala",
+      "sha256": "0f430979cb3c8e9246f0278a92fc1fd85fddc2395e8af739e76befefed18fa14",
+      "lines": {
+        "packing": [
+          248,
+          249,
+          250,
+          253,
+          254
+        ],
+        "clock": [
+          17,
+          18,
+          19,
+          22,
+          91,
+          92
+        ],
+        "names": [
+          202
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/ddr/DisplayControllerDdrPixelUnpackerRgbNormalizer.scala",
+      "sha256": "26bb916ffbe0356d4e86eb7a8a7fda062114be42833dac8c1c2ce38e0d054e98",
+      "lines": {
+        "clock": [
+          78,
+          79,
+          80,
+          83,
+          125,
+          276,
+          277
+        ],
+        "names": [
+          14,
+          26,
+          68,
+          415,
+          419,
+          429
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/ddr/DisplayControllerFramebufferReadinessHandoff.scala",
+      "sha256": "a79f4c628c78624d246f590a9acc241a6e4073c08f7a71cadd8744ecf7b16bc6",
+      "lines": {
+        "clock": [
+          40,
+          41,
+          42,
+          45,
+          172,
+          245,
+          249,
+          266,
+          270,
+          275,
+          278,
+          298
+        ],
+        "names": [
+          116
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/ingress/DisplayControllerLiveAxisIngress.scala",
+      "sha256": "a3e6f103848b536e3a546f94dcf56c05e426a4729071aea33a42b57c92ad89fd",
+      "lines": {
+        "packing": [
+          160
+        ],
+        "clock": [
+          42,
+          43,
+          44,
+          47,
+          77,
+          132,
+          152,
+          164,
+          186
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/ingress/LiveAxisIngressVerilog.scala",
+      "sha256": "c84904311d509b8353ac0e8e7fa048097e1f41c5b299c7e46ccb4d0ea2879fc4",
+      "lines": {
+        "parameters": [
+          18,
+          19
+        ],
+        "clock": [
+          13
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/live/DisplayControllerLiveProcessingPipeline.scala",
+      "sha256": "34f43236e84a69a1cefd1e6d53d6e737e8b416ce794f428d229543993ebc7413",
+      "lines": {
+        "packing": [
+          206,
+          207,
+          224
+        ],
+        "clock": [
+          27,
+          28,
+          29,
+          32,
+          57,
+          150,
+          151,
+          179
+        ],
+        "names": [
+          26,
+          187,
+          209,
+          213,
+          217,
+          223
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/live/DisplayControllerYcbcr420Reconstructor.scala",
+      "sha256": "7bb9029f112c837663c2b7951822767eecce474d8cbf4b87ca1645b4f9e87ee6",
+      "lines": {
+        "parameters": [
+          4,
+          30,
+          31,
+          54
+        ],
+        "loops": [
+          380
+        ],
+        "packing": [
+          138,
+          142,
+          188,
+          198,
+          281,
+          289
+        ],
+        "hierarchy": [
+          90,
+          221
+        ],
+        "clock": [
+          57,
+          58,
+          59,
+          62,
+          101,
+          135
+        ],
+        "names": [
+          32,
+          56,
+          85,
+          89,
+          215,
+          232,
+          233,
+          234,
+          244,
+          245,
+          319,
+          320,
+          323,
+          324,
+          326,
+          329,
+          330,
+          334
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/live/DisplayControllerYcbcr422Reconstructor.scala",
+      "sha256": "5cbbe2a439a6ead616905c4c0c540be561dcd6945ddac544cf5051dd56602693",
+      "lines": {
+        "packing": [
+          170,
+          171,
+          230,
+          231
+        ],
+        "clock": [
+          16,
+          17,
+          18,
+          21,
+          50
+        ],
+        "names": [
+          15,
+          86,
+          87,
+          203,
+          207,
+          208
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/live/DisplayControllerYcbcr444Csc.scala",
+      "sha256": "c9bd22db2acc64142e4d5882e354bfabc7872cd7526393a2359a8d6d1b058178",
+      "lines": {
+        "packing": [
+          83
+        ],
+        "hierarchy": [
+          124
+        ],
+        "clock": [
+          38,
+          39,
+          40,
+          43,
+          64
+        ],
+        "names": [
+          37,
+          123,
+          134
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/live/GenerateLiveFormatDispatch.scala",
+      "sha256": "c3056c8afdb64f97219db4212837952ef4e84dd4afd83f7e60e8b8be6cb45433",
+      "lines": {
+        "parameters": [
+          21
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/live/GenerateLiveRgbAlignmentPeer.scala",
+      "sha256": "71640b5fc5b669bee65efdb53db29cbdc3efa882509e861ff936cc2b8f40ad6b",
+      "lines": {
+        "parameters": [
+          15,
+          23
+        ],
+        "clock": [
+          14,
+          22
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/live/GenerateLiveRgbBypass.scala",
+      "sha256": "ceccb8a3139ccd25663bc8fdec45b411a46da19b33a0aff461a177e07948b693",
+      "lines": {
+        "parameters": [
+          31
+        ],
+        "clock": [
+          25
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/live/LiveFormatDispatchRgbBypass.scala",
+      "sha256": "62b615e9dd54b9877429d9ac6981ac2a404a4285e5ba35f5e0aca2f070c71f09",
+      "lines": {
+        "clock": [
+          47,
+          48,
+          49
+        ],
+        "names": [
+          15,
+          82
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/live/LiveRgbBypass.scala",
+      "sha256": "c7218218993d15fe638af402dfa3691b6ddda4dc95d122bfc848ffeb17360273",
+      "lines": {
+        "packing": [
+          51
+        ],
+        "names": [
+          27
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/output/DisplayControllerRgbDpiOutputFormatter.scala",
+      "sha256": "18e330280aa364f91c25c46d6faa600a3bb2b0e29eb7cafb4d396cf016453a7a",
+      "lines": {
+        "hierarchy": [
+          233
+        ],
+        "clock": [
+          24,
+          25,
+          26,
+          29,
+          65,
+          72
+        ],
+        "names": [
+          18,
+          70,
+          161,
+          162,
+          177,
+          184,
+          210,
+          211,
+          232,
+          244,
+          248,
+          249,
+          250,
+          299,
+          324,
+          325
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/recovery/DanVidEmpty.scala",
+      "sha256": "e2f09ac033f64e9c91c1ca1ffdcfcb5d8227ab9ee24429c417c5e90b2e186aa0",
+      "lines": {
+        "names": [
+          10
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/recovery/DisplayControllerSafeOutputRecoveryCoordinator.scala",
+      "sha256": "43527b75467d0cd319740cba517382e21c413b47dca3b47249473d75cd92e38b",
+      "lines": {
+        "clock": [
+          27,
+          28,
+          29,
+          32,
+          115
+        ],
+        "names": [
+          26,
+          252
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/recovery/DisplayControllerSafePixelSource.scala",
+      "sha256": "9d14d8d620d9ec6c643a1dbbb4ff3a184c0e540a2c6593028e44eb029f91cdc0",
+      "lines": {
+        "clock": [
+          34,
+          35,
+          36,
+          39,
+          81,
+          84,
+          87
+        ],
+        "names": [
+          29
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/selector/DisplayControllerFrameSafeSourceSelector.scala",
+      "sha256": "b22f99d4a28ce65f2a451b233104a714bae03014064c72d703bc28589d407c94",
+      "lines": {
+        "packing": [
+          297
+        ],
+        "clock": [
+          92,
+          93,
+          94,
+          97,
+          150,
+          221,
+          248
+        ],
+        "names": [
+          10,
+          35,
+          76
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/status/DisplayControllerSaturatingCounter.scala",
+      "sha256": "3c5bb1247ef3c029e8125cfadc4b63a8a08cc5daf6268683e9871814e548a5d3",
+      "lines": {
+        "parameters": [
+          4,
+          10
+        ],
+        "names": [
+          20
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/status/DisplayControllerStatusCounterInterrupt.scala",
+      "sha256": "ba0636702afa376c9d26377a23693d7afa2fd658579321a3ff9ad507bc7eab72",
+      "lines": {
+        "packing": [
+          265,
+          288
+        ],
+        "clock": [
+          24,
+          25,
+          26,
+          29,
+          138,
+          212
+        ],
+        "names": [
+          198,
+          206
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/status/GenerateSaturatingCounter.scala",
+      "sha256": "b98803ded425d2a5de1fd92292f831f9e1ad6e958f041eab09e56b2879f57731",
+      "lines": {
+        "parameters": [
+          14
+        ],
+        "names": [
+          15,
+          16
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/status/GenerateStatusCounterInterrupt.scala",
+      "sha256": "64f8e83d00b5f20aa3867efdbf8f7d8a51f432bd9e0c2cb32fea53ca466e1ecc",
+      "lines": {
+        "parameters": [
+          11
+        ]
+      }
+    },
+    {
+      "repository": "application",
+      "path": "spinal/displaycontroller/top/DisplayControllerTop.scala",
+      "sha256": "e874287b58981348348dc8cfeb19bdf1e0c01e7ffa3e234b0bc11d259e9bde63",
+      "lines": {
+        "parameters": [
+          126
+        ],
+        "packing": [
+          463,
+          464,
+          585,
+          632,
+          664,
+          667,
+          695,
+          696,
+          697,
+          706,
+          707,
+          711,
+          712,
+          713,
+          714,
+          715,
+          716,
+          717,
+          718,
+          720,
+          795,
+          803,
+          855,
+          859,
+          863,
+          891,
+          977,
+          985,
+          992,
+          994,
+          998
+        ],
+        "clock": [
+          117,
+          118,
+          119,
+          120,
+          302,
+          303,
+          304,
+          440,
+          554,
+          566,
+          698,
+          738,
+          810,
+          819,
+          837,
+          906
+        ],
+        "names": [
+          43
+        ]
+      }
+    }
+  ]
+}

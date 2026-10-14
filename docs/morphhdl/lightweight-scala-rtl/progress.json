@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "task": "Implement all 86 Lightweight Scala RTL roadmap requirements",
+  "roadmap": "/home/kartik/projects/py_francis/display_controller/docs/plans/morphhdl-lightweight-scala-rtl-roadmap.md",
+  "working_directory": "/tmp/morphhdl-lightweight-scala-rtl",
+  "branch": "work/lightweight-scala-rtl",
+  "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
+  "phase": "LWR-01 through LWR-04 implementation and local validation",
+  "completed_phases": [],
+  "remote_qualification": "not launched; no new candidate published",
+  "application_migration": "not started; requires qualified compiler",
+  "implemented_pending_qualification": [
+    "versioned semantics and read-only inventory of 86 requirements / 373 source files",
+    "RtlParam integer/Boolean declarations using native formal identity",
+    "ordinary zero-based symbolic until/to lowering with concrete-loop compatibility",
+    "Vec(scopedIndex) syntax through authenticated native selector",
+    "literal affine index arithmetic and guarded less-than selection",
+    "scoped equality with Scala integer specialization and fail-closed unsupported equality",
+    "statement-only scoped conditional joins; reject witness-valued host results"
+  ],
+  "local_logs": [
+    "/tmp/lwr01-plugin-all.log",
+    "/tmp/lwr-initial-regression.log",
+    "/tmp/lwr-scoped-plugin-213.log",
+    "/tmp/lwr-affine-regression.log"
+  ],
+  "validation_note": "Earlier logs establish development evidence only. Re-run exact final source after all changes before publishing qualification claims.",
+  "next": [
+    "Complete both-Scala affine/parameter/Vec regression run and resolve failures",
+    "Implement and test direct recursive-construction opt-in; draft is outside repository in /tmp/lwr-recursion-draft",
+    "Complete parameter/helper propagation, array/word/hierarchy and pipeline requirements with negative controls",
+    "Update source review manifests and test inventories; publish clean candidate and targeted CI before full CI",
+    "Migrate application/library only after qualified syntax; retain existing behavior and freeze comparison evidence",
+    "Close each of 86 requirements only with corresponding acceptance evidence"
+  ],
+  "coordination": "Main checkout is reserved for existing PR195 qualification monitor and its pending provenance repair. Do not disturb it. No new roadmap monitor exists yet.",
+  "foundation_commit": "add13aa283366e91579d0b48a0c91374c17f229c",
+  "local_validation": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "plugin_tests_per_scala": 34,
+    "native_tests_per_scala": 51,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/foundations"
+  }
+}
