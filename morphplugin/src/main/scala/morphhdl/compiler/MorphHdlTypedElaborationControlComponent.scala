@@ -28,15 +28,25 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
   private sealed trait BindingKind
   private case object TypedIntegerBinding extends BindingKind
   private case object TypedBooleanBinding extends BindingKind
+  private case object ScopedIndexBinding extends BindingKind
+  private case object ScopedBooleanBinding extends BindingKind
   private case object ScalaIntegerBinding extends BindingKind
   private case object OrdinaryBinding extends BindingKind
+
+  private val coreCarrierKinds: Map[String, BindingKind] = Map(
+    "ElabInt" -> TypedIntegerBinding, "ElabBool" -> TypedBooleanBinding,
+    "ElabScopedIndex" -> ScopedIndexBinding, "ElabFiniteIndex" -> ScopedIndexBinding,
+    "ElabScopedCondition" -> ScopedBooleanBinding)
+
 
   private final case class ClassifiedTrees(
       typedIfs: IdentityHashMap[Tree, java.lang.Boolean],
       typedMatches: IdentityHashMap[Tree, java.lang.Boolean],
       typedGenerates: IdentityHashMap[Tree, java.lang.Boolean],
       typedRequires: IdentityHashMap[Tree, java.lang.Boolean],
-      typedEqualities: IdentityHashMap[Tree, java.lang.Boolean]
+      typedEqualities: IdentityHashMap[Tree, java.lang.Boolean],
+      typedRanges: IdentityHashMap[Tree, java.lang.Boolean],
+      scopedIfs: IdentityHashMap[Tree, java.lang.Boolean]
   )
 
   private final case class WildcardMembers(
@@ -186,6 +196,8 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     val typedGenerates = new IdentityHashMap[Tree, java.lang.Boolean]()
     val typedRequires = new IdentityHashMap[Tree, java.lang.Boolean]()
     val typedEqualities = new IdentityHashMap[Tree, java.lang.Boolean]()
+    val typedRanges = new IdentityHashMap[Tree, java.lang.Boolean]()
+    val scopedIfs = new IdentityHashMap[Tree, java.lang.Boolean]()
 
     final class LexicalScope {
       val terms = mutable.LinkedHashMap.empty[TermName, BindingKind]
@@ -241,10 +253,8 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       }
       decoded(name) match {
         case "Int" | "Byte" | "Short" | "Char" => ScalaIntegerBinding
-        case "ElabInt" if currentPackage == Vector("spinal", "core") =>
-          TypedIntegerBinding
-        case "ElabBool" if currentPackage == Vector("spinal", "core") =>
-          TypedBooleanBinding
+        case name if currentPackage == Vector("spinal", "core") =>
+          coreCarrierKinds.getOrElse(name, OrdinaryBinding)
         case _                                      => OrdinaryBinding
       }
     }
@@ -308,12 +318,9 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
 
     def qualifiedTypeKind(tree: Tree): BindingKind =
       normalizedPath(tree) match {
-        case Some(Vector("spinal", "core", "ElabInt"))
+        case Some(Vector("spinal", "core", name))
             if unshadowedRoot("spinal", tree) =>
-          TypedIntegerBinding
-        case Some(Vector("spinal", "core", "ElabBool"))
-            if unshadowedRoot("spinal", tree) =>
-          TypedBooleanBinding
+          coreCarrierKinds.getOrElse(name, OrdinaryBinding)
         case Some(Vector("scala", "Int" | "Byte" | "Short" | "Char"))
             if unshadowedRoot("scala", tree) =>
           ScalaIntegerBinding
@@ -340,7 +347,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
         .getOrElseUpdate(name, mutable.LinkedHashSet.empty) += canonicalPredef
 
     val predefControlNames = Set("require", "assert")
-    val trackedWildcardTypes = Set("ElabInt", "ElabBool")
+    val trackedWildcardTypes = coreCarrierKinds.keySet
     val trackedWildcardTerms =
       predefControlNames ++ Set("spinal", "scala", "Predef")
 
@@ -430,18 +437,9 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
             else resolvedExternalWildcardMembers(value.expr)
 
           if (canonicalCorePrefix) {
-            if (!excluded("ElabInt"))
-              addCandidate(
-                scopes.head.wildcardTypes,
-                TypeName("ElabInt"),
-                TypedIntegerBinding
-              )
-            if (!excluded("ElabBool"))
-              addCandidate(
-                scopes.head.wildcardTypes,
-                TypeName("ElabBool"),
-                TypedBooleanBinding
-              )
+            coreCarrierKinds.foreach { case (name, kind) =>
+              if (!excluded(name)) addCandidate(scopes.head.wildcardTypes, TypeName(name), kind)
+            }
           } else if (!canonicalPredefPrefix) {
             // Known external providers contribute only members that they
             // actually export. Unknown and current-run providers remain
@@ -453,18 +451,10 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
             val possibleTerms = resolvedMembers
               .map(_.termNames)
               .getOrElse(trackedWildcardTerms)
-            if (possibleTypes("ElabInt") && !excluded("ElabInt"))
-              addCandidate(
-                scopes.head.wildcardTypes,
-                TypeName("ElabInt"),
-                OrdinaryBinding
-              )
-            if (possibleTypes("ElabBool") && !excluded("ElabBool"))
-              addCandidate(
-                scopes.head.wildcardTypes,
-                TypeName("ElabBool"),
-                OrdinaryBinding
-              )
+            coreCarrierKinds.keys.foreach { name =>
+              if (possibleTypes(name) && !excluded(name))
+                addCandidate(scopes.head.wildcardTypes, TypeName(name), OrdinaryBinding)
+            }
             Vector("spinal", "scala", "Predef").foreach { name =>
               if (possibleTerms(name) && !excluded(name))
                 scopes.head.importedTerms += TermName(name)
@@ -491,11 +481,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
           scopes.head.importedTerms += TermName(exposed)
           val importedKind =
             if (canonicalCorePrefix)
-              imported match {
-                case "ElabInt"  => TypedIntegerBinding
-                case "ElabBool" => TypedBooleanBinding
-                case _          => OrdinaryBinding
-              }
+              coreCarrierKinds.getOrElse(imported, OrdinaryBinding)
             else OrdinaryBinding
           addCandidate(
             scopes.head.explicitTypes,
@@ -538,6 +524,18 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
         val argumentIsInteger =
           argumentKind == TypedIntegerBinding || argumentKind == ScalaIntegerBinding
         decoded(operator) match {
+          case "+" | "*" if
+              (receiverKind == ScopedIndexBinding && argumentKind == ScalaIntegerBinding) ||
+              (receiverKind == ScalaIntegerBinding && argumentKind == ScopedIndexBinding) =>
+            ScopedIndexBinding
+          case "<" if receiverKind == ScopedIndexBinding && argumentIsInteger =>
+            ScopedBooleanBinding
+          case "elabEq" | "elabNe" if receiverKind == ScopedIndexBinding && argumentKind == ScalaIntegerBinding =>
+            ScopedBooleanBinding
+          case "==" | "!=" if
+              (receiverKind == ScopedIndexBinding && argumentKind == ScalaIntegerBinding) ||
+              (receiverKind == ScalaIntegerBinding && argumentKind == ScopedIndexBinding) =>
+            ScopedBooleanBinding
           case "+" | "-" | "*" | "/" | "%"
               if receiverKind == TypedIntegerBinding && argumentIsInteger =>
             TypedIntegerBinding
@@ -561,6 +559,12 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
           case _ => OrdinaryBinding
         }
 
+      case Select(receiver, operator)
+          if decoded(operator) == "unary_!" && expressionKind(receiver) == ScopedBooleanBinding =>
+        ScopedBooleanBinding
+      case Apply(Select(receiver, operator), Nil)
+          if decoded(operator) == "unary_!" && expressionKind(receiver) == ScopedBooleanBinding =>
+        ScopedBooleanBinding
       case Select(receiver, operator)
           if decoded(operator) == "unary_!" &&
             expressionKind(receiver) == TypedBooleanBinding =>
@@ -741,10 +745,8 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
               prepareScope(definition.stats)
               if (currentPackage == Vector("spinal", "core")) {
                 definition.stats.foreach {
-                  case declared: ClassDef if decoded(declared.name) == "ElabInt" =>
-                    scopes.head.localTypes.update(declared.name, TypedIntegerBinding)
-                  case declared: ClassDef if decoded(declared.name) == "ElabBool" =>
-                    scopes.head.localTypes.update(declared.name, TypedBooleanBinding)
+                  case declared: ClassDef if coreCarrierKinds.contains(decoded(declared.name)) =>
+                    scopes.head.localTypes.update(declared.name, coreCarrierKinds(decoded(declared.name)))
                   case _ =>
                 }
               }
@@ -830,11 +832,26 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
             traverse(branch.body)
           }
 
+        case original @ Apply(Select(Apply(Select(_, operator), List(end)), each), List(body: Function))
+            if decoded(each) == "foreach" && Set("until", "to")(decoded(operator)) =>
+          if (isTypedInteger(end)) {
+            mark(typedRanges, original)
+            traverse(end)
+            withScope {
+              body.vparams.foreach { parameter =>
+                bind(parameter)
+                if (parameter.tpt.isEmpty) scopes.head.terms.update(parameter.name, ScopedIndexBinding)
+              }
+              traverse(body.body)
+            }
+          } else super.traverse(original)
+
         case original: Match =>
           if (isTypedBoolean(original.selector)) mark(typedMatches, original)
           super.traverse(original)
 
         case original: If =>
+          if (expressionKind(original.cond) == ScopedBooleanBinding) mark(scopedIfs, original)
           if (isTypedBoolean(original.cond)) mark(typedIfs, original)
           super.traverse(original)
 
@@ -849,11 +866,16 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
 
         case original @ Apply(Select(left, operator), List(right))
             if decoded(operator) == "==" || decoded(operator) == "!=" =>
-          val leftTyped = isTypedInteger(left)
-          val rightTyped = isTypedInteger(right)
+          val leftTyped = isTypedInteger(left) || expressionKind(left) == ScopedIndexBinding
+          val rightTyped = isTypedInteger(right) || expressionKind(right) == ScopedIndexBinding
+          if ((expressionKind(left) == ScopedIndexBinding || expressionKind(right) == ScopedIndexBinding) &&
+              expressionKind(original) != ScopedBooleanBinding &&
+              !List(left, right).exists { case Literal(Constant(null)) => true; case _ => false })
+            global.reporter.error(original.pos,
+              "MORPHDL-SCOPED-EQUALITY-UNSUPPORTED: a scoped index currently supports equality with a Scala integer specialization only")
           if (
             (leftTyped || rightTyped) &&
-            expressionKind(original) == TypedBooleanBinding
+            Set[BindingKind](TypedBooleanBinding, ScopedBooleanBinding)(expressionKind(original))
           )
             typedEqualities.put(
               original,
@@ -871,7 +893,9 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       typedMatches,
       typedGenerates,
       typedRequires,
-      typedEqualities
+      typedEqualities,
+      typedRanges,
+      scopedIfs
     )
   }
 
@@ -1160,9 +1184,32 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       rewritten.setPos(original.pos)
     }
 
+    private def rewriteRange(original: Tree, start: Tree, operator: Name,
+        end: Tree, body: Tree): Tree = {
+      start match {
+        case Literal(Constant(0)) =>
+        case _ => global.reporter.error(start.pos,
+          "MORPHDL-TYPED-RANGE-START-UNSUPPORTED: symbolic finite ranges currently require a literal zero start")
+      }
+      val count = if (decoded(operator) == "to")
+        Apply(Select(transform(end), TermName("$plus")), List(Literal(Constant(1))))
+      else transform(end)
+      val core = Select(Select(Ident(termNames.ROOTPKG), TermName("spinal")), TermName("core"))
+      val method = Select(Select(core, TermName("ElabFiniteRange")), TermName("foreach"))
+      Apply(Apply(method, List(count, Literal(Constant("loop_l" + sourceLine(original))))),
+        List(transform(body))).setPos(original.pos)
+    }
+
     override def transform(tree: Tree): Tree = tree match {
+      case original @ Apply(Select(Apply(Select(start, operator), List(end)), _), List(body))
+          if classified.typedRanges.containsKey(original) =>
+        rewriteRange(original, start, operator, end, body)
       case original: Match if classified.typedMatches.containsKey(original) =>
         rewriteBooleanMatch(original)
+      case original: If if classified.scopedIfs.containsKey(original) =>
+        Apply(Apply(Apply(helperMethod("selectScoped"),
+          List(transform(original.cond), Literal(Constant(sourceFile)), Literal(Constant(sourceLine(original))))),
+          List(transform(original.thenp))), List(transform(original.elsep))).setPos(original.pos)
       case original: If if classified.typedIfs.containsKey(original) =>
         rewriteIf(original)
       case original @ Apply(Select(predicate, _), List(body))
@@ -1187,7 +1234,9 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
         !classified.typedMatches.isEmpty ||
         !classified.typedGenerates.isEmpty ||
         !classified.typedRequires.isEmpty ||
-        !classified.typedEqualities.isEmpty
+        !classified.typedEqualities.isEmpty ||
+        !classified.typedRanges.isEmpty ||
+        !classified.scopedIfs.isEmpty
       )
         unit.body =
           new TypedControlTransformer(unit, classified).transform(unit.body)

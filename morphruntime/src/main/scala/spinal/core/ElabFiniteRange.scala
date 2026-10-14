@@ -99,7 +99,14 @@ final class ElabFiniteIndex private[core] (
     private[core] val expression: ElaborationIntegerExpression,
     private[core] val count: ElaborationIntegerExpression,
     private[core] val token: ElabFiniteIndexToken
-) {
+) extends ElabScopedIndex {
+  private[core] override def select[T <: Data](vector: Vec[T]): T = apply(vector)
+  def +(offset: Int): ElabScopedIndex = new ElabFiniteAffineIndex(this, 1, offset)
+  def *(coefficient: Int): ElabScopedIndex = new ElabFiniteAffineIndex(this, coefficient, 0)
+  def elabEq(value: Int): ElabScopedCondition = new ElabFiniteAffineIndex(this, 1, 0).elabEq(value)
+  def <(bound: ElabInt): ElabScopedCondition = new ElabFiniteAffineIndex(this, 1, 0) < bound
+
+
   /** Capture a structural alternative for this exact, lexically active index.
     * Both callbacks describe hardware; this does not create a runtime mux.
     */

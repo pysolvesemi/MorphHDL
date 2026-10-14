@@ -364,6 +364,9 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
   /** Access an element of the vector by an `UInt` index */
   def apply(address: UInt): T = access(address)
 
+  /** Generate-time access with the index's authenticated lexical ownership. */
+  def apply(index: ElabScopedIndex): T = index.select(this)
+
   private def readEmu(address : UInt): T = {
     if(elements.size == 0){
       throw new Exception("Can't mux a Vec of size zero")

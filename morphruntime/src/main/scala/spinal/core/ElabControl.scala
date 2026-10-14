@@ -10,6 +10,13 @@ import scala.collection.mutable
   * both ordinary SpinalHDL alternatives for later Verilog generate lowering.
   */
 object ElabControl {
+  /** Scoped finite guards currently join statement-valued branches only. */
+  def selectScoped[T](condition: ElabScopedCondition, sourceFile: String, sourceLine: Int)
+      (ifTrue: => T)(ifFalse: => T)(implicit unit: T =:= Unit): Unit = {
+    require(condition != null, "scoped condition must not be null")
+    condition.capture("guard_l" + sourceLine)(unit(ifTrue))(unit(ifFalse))
+  }
+
   private val ElseIfMarkerPrefix = "else_if_"
   private object GeneratedIfOrdinalStorageKey
 
