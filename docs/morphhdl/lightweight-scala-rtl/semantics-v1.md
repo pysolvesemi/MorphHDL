@@ -162,3 +162,15 @@ subtraction use adjacent pairs, carry odd tails unchanged, and truncate each
 operation to the configured width. It uses ordinary `if`, `for`, `Vec(i)`, guarded
 `Vec(2*i+1)`, and `new LightweightRecursiveTree(...)`. Subtraction is tested against
 an adjacent-pair reference, not a flat or associative reduction.
+
+## Ordinary word slices (LWR-05, implementation under test)
+
+Within a retained finite loop, `bits(i * width, width bits)` forwards an
+`ElabInt` stride and width to the existing correlated packed-access proof.
+`bits(i * 8, 8 bits)` uses its fixed-width counterpart. Both forms return the
+native assignable Bits slice, so the same syntax supports reads and writes.
+Offsets carry the issuing loop identity; neither a Scala integer witness nor a
+hardware UInt conversion participates. Escaping the offset does not extend its
+authority. Nonzero affine offsets are currently rejected explicitly; arbitrary
+shifted windows are not claimed by this adapter. Existing advanced packed-access
+APIs remain available with their own supported bounds and ownership rules.

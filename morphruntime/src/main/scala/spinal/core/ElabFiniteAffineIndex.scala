@@ -6,6 +6,19 @@ private[core] final class ElabFiniteAffineIndex(
   require(index != null && coefficient > 0 && offset >= 0,
     "scoped affine selectors require a positive coefficient and nonnegative offset")
 
+  private def requireWordOffset(): Unit =
+    if (offset != 0) ParameterizedVerilogException.fail("SPINAL-SCOPED-WORD-OFFSET-UNSUPPORTED",
+      "ordinary packed word access currently requires an unshifted index times its stride", index.expression.sourceLocation)
+
+  private[core] def selectPacked(source: Bits, width: BitCount): Bits = {
+    requireWordOffset()
+    index.packed(source, coefficient, width)
+  }
+  def *(width: ElabInt): ElabScopedWordOffset = {
+    requireWordOffset()
+    new ElabFiniteWordOffset(index, width * coefficient)
+  }
+
   def +(amount: Int): ElabScopedIndex =
     new ElabFiniteAffineIndex(index, coefficient, Math.addExact(offset, amount))
 

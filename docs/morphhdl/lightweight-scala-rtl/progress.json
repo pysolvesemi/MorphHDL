@@ -5,7 +5,7 @@
   "working_directory": "/tmp/morphhdl-lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "LWR-06 direct recursive-constructor implementation and cross-Scala local validation",
+  "phase": "LWR-05 packed-word adapter validated locally; aggregate recursion expansion next",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -19,7 +19,8 @@
     "statement-only scoped conditional joins; reject witness-valued host results",
     "opt-in direct self-construction with inferred interface/formals and exact specialization forwarding",
     "recursive scalar-element Vec port geometry substitution independent of native carrier capacity",
-    "authored recursive child names and class-derived default module identity"
+    "authored recursive child names and class-derived default module identity",
+    "ordinary Bits(i * width, width bits) reads/writes using exact native finite packed proof"
   ],
   "local_logs": [
     "/tmp/lwr01-plugin-all.log",
@@ -28,7 +29,8 @@
     "/tmp/lwr-affine-regression.log",
     "/tmp/lwr-recursive-native-212-v5.log",
     "/tmp/lwr-recursive-safety-212-v3.log",
-    "/tmp/lwr-recursive-regression.log"
+    "/tmp/lwr-recursive-regression.log",
+    "/tmp/lwr-words-regression.log"
   ],
   "validation_note": "Earlier logs establish development evidence only. Re-run exact final source after all changes before publishing qualification claims.",
   "next": [
@@ -58,5 +60,13 @@
     "plugin_tests_per_scala": 38,
     "native_tests_per_scala": 35,
     "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/direct-recursion"
+  },
+  "local_validation_words": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "tests_per_scala": 17,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/words"
   }
 }

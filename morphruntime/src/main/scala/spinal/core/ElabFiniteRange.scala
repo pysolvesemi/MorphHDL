@@ -100,6 +100,8 @@ final class ElabFiniteIndex private[core] (
     private[core] val count: ElaborationIntegerExpression,
     private[core] val token: ElabFiniteIndexToken
 ) extends ElabScopedIndex {
+  private[core] def selectPacked(source: Bits, width: BitCount): Bits = packed(source, 1, width)
+  def *(width: ElabInt): ElabScopedWordOffset = new ElabFiniteWordOffset(this, width)
   private[core] override def select[T <: Data](vector: Vec[T]): T = apply(vector)
   def +(offset: Int): ElabScopedIndex = new ElabFiniteAffineIndex(this, 1, offset)
   def *(coefficient: Int): ElabScopedIndex = new ElabFiniteAffineIndex(this, coefficient, 0)

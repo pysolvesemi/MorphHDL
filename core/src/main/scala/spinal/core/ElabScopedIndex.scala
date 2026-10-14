@@ -5,6 +5,8 @@ package spinal.core
   */
 abstract class ElabScopedIndex private[core] () {
   private[core] def select[T <: Data](vector: Vec[T]): T
+  private[core] def selectPacked(source: Bits, width: BitCount): Bits
+  def *(width: ElabInt): ElabScopedWordOffset
   def +(offset: Int): ElabScopedIndex
   def *(coefficient: Int): ElabScopedIndex
   def elabEq(value: Int): ElabScopedCondition
@@ -20,4 +22,11 @@ abstract class ElabScopedCondition private[core] () { self =>
       self.capture(role)(ifFalse)(ifTrue)
   }
   private[core] def capture(role: String)(ifTrue: => Unit)(ifFalse: => Unit): Unit
+}
+
+/** A symbolic word offset retains its original finite-loop index and stride.
+  * It is not a host integer or a runtime hardware address.
+  */
+abstract class ElabScopedWordOffset private[core] () {
+  private[core] def selectPacked(source: Bits, width: ParameterizedBitCount): Bits
 }
