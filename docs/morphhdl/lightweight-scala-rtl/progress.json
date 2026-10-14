@@ -5,7 +5,7 @@
   "working_directory": "/tmp/morphhdl-lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Staged local naming validated locally; named recursion and explicit helper propagation next",
+  "phase": "Parameter forwarding and helper staging locally validated; balanced-tree library adoption and pipeline tests next",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -25,7 +25,11 @@
     "read-only nested affine projection retains parent loop/guard identities",
     "generic signed/bitwise/Bundle callbacks and independent two-state adjacent-pair SAT fixtures",
     "authored immutable staged local hardware names with explicit naming and keep priority preserved",
-    "SBT content-addressed plugin options with changed-artifact and cache-tampering controls"
+    "SBT content-addressed plugin options with changed-artifact and cache-tampering controls",
+    "named recursive constructor bindings preserve authored evaluation order and exact parameter/specialization identities",
+    "explicit local helper return types propagate staging with lexical shadowing controls",
+    "unsupported symbolic reverse/by reject explicitly",
+    "optional integer formals distinguish omission from zero and retain presence through recursive publication"
   ],
   "local_logs": [
     "/tmp/lwr01-plugin-all.log",
@@ -37,7 +41,8 @@
     "/tmp/lwr-recursive-regression.log",
     "/tmp/lwr-words-regression.log",
     "/tmp/lwr-aggregate-recursion-regression.log",
-    "/tmp/lwr-local-names-regression.log"
+    "/tmp/lwr-local-names-regression.log",
+    "/tmp/lwr-parameter-binding-regression.log"
   ],
   "validation_note": "Earlier logs establish development evidence only. Re-run exact final source after all changes before publishing qualification claims.",
   "next": [
@@ -92,5 +97,14 @@
     "plugin_tests_per_scala": 38,
     "native_tests_per_scala": 25,
     "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/staged-naming"
+  },
+  "local_validation_parameter_bindings": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "plugin_tests_per_scala": 43,
+    "native_tests_per_scala": 26,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/parameter-bindings"
   }
 }

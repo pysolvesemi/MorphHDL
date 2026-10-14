@@ -201,6 +201,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
 
     final class LexicalScope {
       val terms = mutable.LinkedHashMap.empty[TermName, BindingKind]
+      val callResults = mutable.LinkedHashMap.empty[TermName, BindingKind]
       val localTypes = mutable.LinkedHashMap.empty[TypeName, BindingKind]
       val explicitTypes =
         mutable.LinkedHashMap.empty[TypeName, mutable.LinkedHashSet[BindingKind]]
@@ -221,6 +222,16 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       scopes.collectFirst {
         case scope if scope.terms.contains(name) => scope.terms(name)
       }
+
+    def callResult(method: Tree): BindingKind = {
+      val name = method match {
+        case Ident(n: TermName) => Some(n)
+        case _ => None
+      }
+      name.flatMap(n => scopes.collectFirst {
+        case scope if scope.terms.contains(n) => scope.callResults.getOrElse(n, OrdinaryBinding)
+      }).getOrElse(OrdinaryBinding)
+    }
 
     def hasVisibleTerm(name: TermName): Boolean =
       scopes.exists(scope => scope.terms.contains(name) || scope.importedTerms(name))
@@ -516,6 +527,8 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       case Literal(Constant(_: Char))  => ScalaIntegerBinding
       case Literal(Constant(_: Int))   => ScalaIntegerBinding
 
+      case Apply(method, _) if callResult(method) != OrdinaryBinding => callResult(method)
+
       case Apply(Select(receiver, operator), List(argument)) =>
         val receiverKind = expressionKind(receiver)
         val argumentKind = expressionKind(argument)
@@ -624,6 +637,21 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       }
     }
 
+    def bindMethods(values: List[Tree]): Unit = {
+      values.collect { case method: DefDef => method }.groupBy(_.name).foreach {
+        case (name, List(method)) =>
+          val result = withScope {
+            method.tparams.foreach(parameter => bindTypeOrdinary(parameter.name))
+            typeKind(method.tpt)
+          }
+          if (result != OrdinaryBinding) {
+            scopes.head.callResults(name) = result
+            if (method.vparamss.isEmpty) scopes.head.terms(name) = result
+          }
+        case _ => // Overloaded methods require typer resolution, never guess.
+      }
+    }
+
     def prebindTerms(values: List[Tree]): Unit = {
       values.foreach {
         case definition: ValDef    => bindOrdinary(definition.name)
@@ -632,6 +660,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
         case _                     =>
       }
 
+      bindMethods(values)
       var changed = true
       var remaining = values.size + 1
       while (changed && remaining > 0) {
@@ -730,6 +759,21 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
         value: Tree
     ): Unit = values.put(value, java.lang.Boolean.TRUE)
 
+    def unsupportedRangeTraversal(range: Tree): Boolean = {
+      def symbolicBase(tree: Tree): Boolean = tree match {
+        case Apply(Select(_, operator), List(end)) if Set("until", "to")(decoded(operator)) =>
+          isTypedInteger(end)
+        case Select(inner, method) if decoded(method) == "reverse" => symbolicBase(inner)
+        case Apply(Select(inner, method), _) if Set("by", "reverse")(decoded(method)) => symbolicBase(inner)
+        case _ => false
+      }
+      range match {
+        case Select(inner, method) if decoded(method) == "reverse" => symbolicBase(inner)
+        case Apply(Select(inner, method), _) if Set("by", "reverse")(decoded(method)) => symbolicBase(inner)
+        case _ => false
+      }
+    }
+
     object Classifier extends Traverser {
       override def traverse(current: Tree): Unit = current match {
         case definition: PackageDef =>
@@ -807,6 +851,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
               case imported: Import => recordImport(imported)
               case _                =>
             }
+            bindMethods(block.stats)
             block.stats.foreach { statement =>
               traverse(statement)
               statement match {
@@ -831,6 +876,11 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
             traverse(branch.guard)
             traverse(branch.body)
           }
+
+        case original @ Apply(Select(range, each), List(_: Function))
+            if decoded(each) == "foreach" && unsupportedRangeTraversal(range) =>
+          reporter.error(original.pos,
+            "MORPHDL-TYPED-RANGE-TRAVERSAL-UNSUPPORTED: symbolic ranges require forward unit traversal; reverse and by are unsupported")
 
         case original @ Apply(Select(Apply(Select(_, operator), List(end)), each), List(body: Function))
             if decoded(each) == "foreach" && Set("until", "to")(decoded(operator)) =>

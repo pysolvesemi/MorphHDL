@@ -156,4 +156,54 @@ class LightweightSyntaxBaselineTests extends AnyFunSuite {
     assert(errors.exists(_.message.contains("MORPHDL-SCOPED-EQUALITY-UNSUPPORTED")), errors.mkString("\n"))
   }
 
+  test("explicit helper return types stage local and member calls") {
+    val errors = compile(definitions + """
+      package baseline {
+        import spinal.core._
+        object Probe {
+          def next(n: ElabInt): ElabInt = (n + 1) / 2
+          def leaf(n: ElabInt): ElabBool = n.elabEq(1)
+          def stage(count: ElabInt): Unit = {
+            def local(n: ElabInt): ElabInt = next(n)
+            if (leaf(count)) () else {
+              for (i <- 0 until local(count)) ()
+              if (next(count) > 1) () else ()
+            }
+          }
+        }
+      }
+    """, "LightweightHelpers.scala")
+    assert(errors.isEmpty, errors.mkString("\n"))
+  }
+  test("helper shadowing preserves ordinary return semantics") {
+    val errors = compile(definitions + """
+      package baseline {
+        import spinal.core._
+        object Probe {
+          def leaf(n: ElabInt): ElabBool = n.elabEq(1)
+          def stage(count: ElabInt): Int = {
+            def leaf(n: Int): Boolean = n == 1
+            if (leaf(1)) 7 else 9
+          }
+          def generic[ElabInt](value: ElabInt): ElabInt = value
+          def host: Int = if (generic(true)) 7 else 9
+        }
+      }
+    """, "LightweightHelperShadowing.scala")
+    assert(errors.isEmpty, errors.mkString("\n"))
+  }
+
+  test("symbolic reverse and by reject with an explicit traversal diagnostic") {
+    for (range <- Seq("(0 until count).reverse", "(0 until count).by(2)", "(0 to count).by(-1)")) {
+      val errors = compile(definitions + s"""
+        package baseline {
+          object Probe {
+            def loops(count: spinal.core.ElabInt): Unit = for (i <- $range) ()
+          }
+        }
+      """, "LightweightRangeTraversal.scala")
+      assert(errors.exists(_.message.contains("MORPHDL-TYPED-RANGE-TRAVERSAL-UNSUPPORTED")), errors.mkString("\n"))
+    }
+  }
+
 }

@@ -57,4 +57,21 @@ class DirectRecursiveSyntaxTests extends AnyFunSuite {
       assert(errors.exists(_.message.contains("MORPHDL-DIRECT-RECURSION-UNSUPPORTED")), errors.mkString("\n"))
     }
   }
+  test("named recursive bindings preserve declaration identity in any authored order") {
+    for (call <- Seq("new Tree(operation = operation, widthActual = width, countActual = count)",
+        "new Tree(count, operation = operation, widthActual = width)")) {
+      val errors = compile(fixture(call), "NamedRecursive.scala")
+      assert(errors.isEmpty, errors.mkString("\n"))
+    }
+  }
+  test("invalid named recursive bindings reject rather than guessing") {
+    for (call <- Seq("new Tree(countActual = count, countActual = width, operation = operation)",
+        "new Tree(countActual = count, widthActual = width, other = operation)",
+        "new Tree(widthActual = width, countActual = count)",
+        "new Tree(countActual = count, widthActual = width, operation = operation + 1)")) {
+      val errors = compile(fixture(call), "InvalidNamedRecursive.scala")
+      assert(errors.exists(_.message.contains("MORPHDL-DIRECT-RECURSION-UNSUPPORTED")), errors.mkString("\n"))
+    }
+  }
+
 }

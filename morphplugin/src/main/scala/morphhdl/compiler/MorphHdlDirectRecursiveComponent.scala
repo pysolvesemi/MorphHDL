@@ -35,6 +35,9 @@ final class MorphHdlDirectRecursiveComponent(val global: Global) extends PluginC
     case Apply(Select(factory, method), List(_, Ident(actual: TermName), _, _))
         if method.decodedName.toString == "int" && path(factory).lastOption.contains("RtlParam") =>
       Some(value.name -> actual)
+    case Apply(Select(factory, method), List(_, Ident(actual: TermName), _, _, _))
+        if method.decodedName.toString == "optionalInt" && path(factory).lastOption.contains("RtlParam") =>
+      Some(value.name -> actual)
     case _ => None
   }
 
@@ -90,6 +93,34 @@ final class MorphHdlDirectRecursiveComponent(val global: Global) extends PluginC
         n == original.name && arguments.map(_.toString) == original.tparams.map(_.name.toString)
       case _ => false
     }
+    // Parse named constructor bindings before typer, when no default getters or
+    // argument reordering have obscured their authored identities. Both supported
+    // Scala parsers expose a two-child named-argument node with different names.
+    def resolvedArguments(call: Tree, args: List[Tree]): Option[List[(TermName, Tree)]] = {
+      val ordered = scala.collection.mutable.LinkedHashMap.empty[TermName, Tree]
+      var positional = 0
+      var sawNamed = false
+      var invalid = false
+      def fail(at: Tree, reason: String): Unit = { reject(at, reason); invalid = true }
+      args.foreach { arg =>
+        val named = Set("AssignOrNamedArg", "NamedArg")(arg.productPrefix)
+        if (named) {
+          sawNamed = true
+          arg.children match {
+            case List(Ident(name: TermName), value) if names.contains(name) =>
+              if (ordered.contains(name)) fail(arg, "duplicate recursive constructor argument: " + name)
+              else ordered(name) = value
+            case List(Ident(name), _) => fail(arg, "unknown recursive constructor argument: " + name)
+            case _ => fail(arg, "recursive named argument must name a constructor parameter")
+          }
+        } else if (sawNamed) fail(arg, "positional recursive argument follows a named argument")
+        else if (positional >= names.size) fail(arg, "too many recursive constructor arguments")
+        else { ordered(names(positional)) = arg; positional += 1 }
+      }
+      val missing = names.filterNot(ordered.contains)
+      if (missing.nonEmpty) fail(call, "recursive calls require explicit bindings for: " + missing.mkString(", "))
+      if (invalid) None else Some(ordered.toList)
+    }
     object Calls extends Transformer {
       private var shadows = Set.empty[String]
       private val protectedNames = names.map(_.decodedName.toString).toSet ++
@@ -126,24 +157,23 @@ final class MorphHdlDirectRecursiveComponent(val global: Global) extends PluginC
           if (shadows.nonEmpty) {
             reject(call, "recursive constructor bindings are shadowed in this scope: " + shadows.toVector.sorted.mkString(", "))
             call
-          } else if (args.size != parameters.size || args.exists(a => Set("AssignOrNamedArg", "NamedArg")(a.productPrefix))) {
-            reject(call, "recursive calls currently require every constructor argument in declaration order")
-            call
-          } else {
-            val pairs = parameters.zip(args).flatMap { case (parameter, actual) =>
-              overridesByArgument.get(parameter.name) match {
-                case Some(formal) =>
-                  Some(Apply(Select(Select(Ident(termNames.ROOTPKG), TermName("scala")), TermName("Tuple2")),
-                    List(Ident(formal), transform(actual))))
-                case None =>
-                  actual match {
-                    case Ident(n: TermName) if n == parameter.name =>
-                    case _ => reject(actual, "recursive specialization arguments must forward their exact constructor binding")
-                  }
-                  None
+          } else resolvedArguments(call, args) match {
+            case None => call
+            case Some(ordered) =>
+              val pairs = ordered.flatMap { case (parameter, actual) =>
+                overridesByArgument.get(parameter) match {
+                  case Some(formal) =>
+                    Some(Apply(Select(Select(Ident(termNames.ROOTPKG), TermName("scala")), TermName("Tuple2")),
+                      List(Ident(formal), transform(actual))))
+                  case None =>
+                    actual match {
+                      case Ident(n: TermName) if n == parameter =>
+                      case _ => reject(actual, "recursive specialization arguments must forward their exact constructor binding")
+                    }
+                    None
+                }
               }
-            }
-            Apply(Ident(boundaryName), pairs).setPos(call.pos)
+              Apply(Ident(boundaryName), pairs).setPos(call.pos)
           }
         case _ => super.transform(tree)
       }

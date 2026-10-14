@@ -9,10 +9,11 @@ package spinal.core
   */
 object RtlParam {
   private object DeclarationKey
-  private type Declarations = scala.collection.mutable.ArrayBuffer[(ElabInt, ElabInt)]
+  private case class Declaration(formal: ElabInt, actual: ElabInt, active: Boolean)
+  private type Declarations = scala.collection.mutable.ArrayBuffer[Declaration]
   private[core] def authenticates(owner: Component, formal: ElabInt, actual: ElabInt): Boolean =
     owner.userCache.get(DeclarationKey).exists(_.asInstanceOf[Declarations].exists {
-      case (issued, supplied) => (issued eq formal) && (supplied eq actual)
+      case Declaration(issued, supplied, _) => (issued eq formal) && (supplied eq actual)
     })
 
   def int(name: String, default: Int, minimum: BigInt, maximum: BigInt): ElabInt =
@@ -20,10 +21,36 @@ object RtlParam {
 
   def int(name: String, actual: ElabInt, minimum: BigInt, maximum: BigInt): ElabInt = {
     val formal = ElabFormalParameter(actual, name, minimum, maximum)
-    val entries = Component.current.userCache.getOrElseUpdate(DeclarationKey,
-      scala.collection.mutable.ArrayBuffer.empty[(ElabInt, ElabInt)]).asInstanceOf[Declarations]
-    entries += ((formal, actual))
+    remember(formal, actual, active = true)
     formal
+  }
+
+  private def remember(formal: ElabInt, actual: ElabInt, active: Boolean): Unit = {
+    val entries = Component.current.userCache.getOrElseUpdate(DeclarationKey,
+      scala.collection.mutable.ArrayBuffer.empty[Declaration]).asInstanceOf[Declarations]
+    entries += Declaration(formal, actual, active)
+  }
+
+  private[core] def active(owner: Component, formal: ElabInt, actual: ElabInt): Boolean = {
+    require(authenticates(owner, formal, actual), "parameter declaration identity is missing")
+    owner.userCache(DeclarationKey).asInstanceOf[Declarations].find(_.formal eq formal).get.active
+  }
+
+  /** A null actual omits the HDL formal and returns an authenticated constant.
+    * Explicit zero is an active parameter, distinct from omission. Recursion
+    * keeps the same optional-parameter presence as its enclosing definition.
+    */
+  def optionalInt(name: String, actual: ElabInt, minimum: BigInt, maximum: BigInt,
+      absent: Int): ElabInt = {
+    require(Component.current != null, "optional parameter requires a component")
+    require(minimum <= maximum && BigInt(absent) >= minimum && BigInt(absent) <= maximum,
+      "absent parameter value must belong to its declared domain")
+    if (actual != null) int(name, actual, minimum, maximum)
+    else {
+      val value = ElabInt.literal(absent)
+      remember(value, null, active = false)
+      value
+    }
   }
 
   /** Boolean parameters are represented by a bounded 0/1 HDL integer. */

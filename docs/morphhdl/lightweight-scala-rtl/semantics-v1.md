@@ -140,8 +140,10 @@ Every native edge still undergoes decreasing-domain, ownership, port geometry
 and driver validation. The annotation requires the MorphHDL compiler plugin.
 
 The current prototype requires one constructor argument list, formals declared
-before `io`, and every recursive constructor argument supplied in declaration
-order. Integer formals map to distinct constructor arguments; other arguments
+before `io`, and every recursive constructor argument supplied explicitly.
+Positional and named bindings are supported; named bindings may be reordered.
+Duplicate, unknown, missing and positional-after-named bindings reject. Authored
+parameter expression evaluation order is retained. Integer formals map to distinct constructor arguments; other arguments
 must forward their exact unshadowed constructor binding. Changing an operation,
 payload factory or other specialization during recursion is rejected. Construction paths
 not rewritten by the frontend are rejected by an ancestry guard;
@@ -205,3 +207,43 @@ option. `checkCompilerPluginCache` verifies stable options, changed-artifact
 invalidation and rejection of altered cached artifacts. This avoids counting
 stale transformed classes as tests of a new frontend. Mill validation remains
 separate and is not established by this SBT check.
+
+
+## Explicit helper boundaries and range traversal
+
+A non-overloaded local/member helper with an explicitly declared `ElabInt` or
+`ElabBool` result may feed staged control through an ordinary unqualified call:
+
+```scala
+def nextCount(n: ElabInt): ElabInt = (n + 1) / 2
+def isLeaf(n: ElabInt): ElabBool = n.elabEq(1)
+if (isLeaf(count)) io.result := io.terms(0)
+else for (i <- 0 until nextCount(count)) { /* typed body */ }
+```
+
+The syntax pass uses the lexical return-type declaration, then ordinary Scala
+typing and native expression validation still apply. A shadowing host helper
+retains host semantics. Inferred helper return types, overloaded helpers and
+arbitrary qualified member calls need explicit typed result bindings at present;
+no carrier meaning is guessed from a method name or argument subtree. This does
+not authorize side effects or cross-component captures.
+
+Symbolic `reverse` and `by` traversals are rejected with
+`MORPHDL-TYPED-RANGE-TRAVERSAL-UNSUPPORTED`; they do not silently unroll. Forward
+zero-based `until` and `to` retain the existing supported meanings. Ordinary
+concrete Scala ranges are unaffected.
+
+## Optional integer parameters
+
+`RtlParam.optionalInt("PIPELINE_MASK", actual, 0, 7, 0)` declares a native formal
+when `actual` is non-null, including an explicit zero. A null actual omits the
+formal and returns a declaration-owned constant with the supplied absent value.
+That value must belong to the declared finite domain. Presence is a Scala
+specialization choice; it cannot change inside one recursive definition.
+
+The inferred recursive boundary retains every exact declaration slot internally,
+but publishes generics only for present parameters. Recursive source may forward
+the returned optional slot directly. An omitted slot may be forwarded only by
+its exact declaration identity or null; replacing it with an unrelated expression
+rejects. Active slots retain ordinary native domain/substitution validation.
+There is still no positional formal vector in authored recursive code.

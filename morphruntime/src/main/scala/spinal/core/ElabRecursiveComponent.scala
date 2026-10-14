@@ -17,7 +17,7 @@ object ElabRecursiveComponent {
   }
 
   def inferred[P <: Data](bindings: Seq[(ElabInt, ElabInt)])(
-      interface: Vector[ElabInt] => P): Declaration[P] = {
+      interface: Vector[ElabInt] => P): InferredDeclaration[P] = {
     val owner = Component.current
     require(owner != null && bindings != null && bindings.nonEmpty,
       "inferred recursion requires a current component and constructor bindings")
@@ -26,7 +26,33 @@ object ElabRecursiveComponent {
         "inferred recursive parameter must retain its exact declaration and constructor actual")
     }
     if (owner.definitionName == null) owner.setDefinitionName(spinal.core.internals.classNameOf(owner))
-    apply(bindings.map(_._1))(interface)
+    val slots = bindings.toVector
+    val enabled = slots.map { case (formal, actual) => RtlParam.active(owner, formal, actual) }
+    val nativeFormals = slots.zip(enabled).collect { case ((formal, _), true) => formal }
+    val native = apply(nativeFormals) { actuals =>
+      val byIdentity = nativeFormals.zip(actuals)
+      interface(slots.zip(enabled).map {
+        case ((formal, _), true) => byIdentity.find(_._1 eq formal).get._2
+        case ((formal, _), false) => formal
+      })
+    }
+    new InferredDeclaration(native, slots.map(_._1), enabled)
+  }
+
+  final class InferredDeclaration[P <: Data] private[ElabRecursiveComponent](
+      native: Declaration[P], slots: Vector[ElabInt], enabled: Vector[Boolean]) {
+    val ports: P = native.ports
+    def apply(overrides: (ElabInt, ElabInt)*): Reference[P] = {
+      require(overrides.map(_._1).distinct.size == overrides.size,
+        "inferred recursive bindings must be unique")
+      overrides.foreach { case (key, value) =>
+        val slot = slots.indexWhere(_ eq key)
+        require(slot >= 0, "inferred recursive binding has no exact declaration")
+        if (!enabled(slot)) require(value == null || (value eq key),
+          "an omitted recursive parameter must retain its omission identity")
+      }
+      native(overrides.filter { case (key, _) => enabled(slots.indexWhere(_ eq key)) }: _*)
+    }
   }
 
   private object Key

@@ -16,10 +16,12 @@ final class LightweightRecursiveTree(countActual: ElabInt, widthActual: ElabInt,
     val terms = in(Vec(UInt(width bits), count))
     val result = out UInt(width bits)
   }
-  if (count == 1) {
+  def isLeaf(n: ElabInt): ElabBool = n.elabEq(1)
+  def reducedCount(n: ElabInt): ElabInt = (n + 1) / 2
+  if (isLeaf(count)) {
     io.result := io.terms(0)
   } else {
-    val nextCount = (count + 1) / 2
+    val nextCount = reducedCount(count)
     val combined = Vec(UInt(width bits), nextCount)
     for (i <- 0 until nextCount) {
       if (2 * i + 1 < count) {
@@ -27,7 +29,7 @@ final class LightweightRecursiveTree(countActual: ElabInt, widthActual: ElabInt,
         else combined(i) := io.terms(2 * i) + io.terms(2 * i + 1)
       } else combined(i) := io.terms(2 * i)
     }
-    val nextLevel = new LightweightRecursiveTree(nextCount, width, subtract)
+    val nextLevel = new LightweightRecursiveTree(subtract = subtract, widthActual = width, countActual = nextCount)
     nextLevel.io.terms := combined
     io.result := nextLevel.io.result
   }
