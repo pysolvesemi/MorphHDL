@@ -143,19 +143,24 @@ The current prototype requires one constructor argument list, formals declared
 before `io`, and every recursive constructor argument supplied in declaration
 order. Integer formals map to distinct constructor arguments; other arguments
 must forward their exact unshadowed constructor binding. Changing an operation,
-payload factory or other specialization during recursion is rejected. Helpers
-that construct the recursive class indirectly are rejected by an ancestry guard;
+payload factory or other specialization during recursion is rejected. Construction paths
+not rewritten by the frontend are rejected by an ancestry guard;
 mutual recursion is not supported. An explicitly authored module name is retained;
 otherwise the ordinary native class-derived definition name is established before
 structural capture. This name is not an identity or termination proof.
 
-Scalar-element Vec ports are compared as authenticated aggregate surfaces, not
-as their differing finite native lane inventories. Depth and element width are
-proved independently after substitution. Direct child Vec assignment works
+Scalar and uniform-direction composite Vec ports are compared as authenticated
+aggregate surfaces, not as their differing finite native lane inventories. Record
+field order, scalar types and nested dimensions are retained; every geometry
+factor is proved independently after substitution. Mixed-direction recursive
+aggregate ports remain outside this prototype. Direct child Vec assignment works
 without author-written packed transport carriers. The generated unpacked-to-packed
 transport currently still includes a read helper; removing unnecessary transport
 is tracked separately and is not claimed complete. Nested Vec/Bundle recursive
-port support and callback/register/pipeline integration are not yet qualified.
+ports and fixed-width typed callbacks have local tests; register/pipeline
+integration is not yet qualified. Nested affine reads carry the original
+read-only proof through exact alias identities; this does not authorize affine
+writes.
 
 `LightweightRecursiveTests` is the executable example: unsigned addition and
 subtraction use adjacent pairs, carry odd tails unchanged, and truncate each
@@ -174,3 +179,13 @@ hardware UInt conversion participates. Escaping the offset does not extend its
 authority. Nonzero affine offsets are currently rejected explicitly; arbitrary
 shifted windows are not claimed by this adapter. Existing advanced packed-access
 APIs remain available with their own supported bounds and ownership rules.
+
+
+`LightweightCompositeRecursiveTests` covers signed comparison, bitwise XOR and
+Bundle-valued subtraction/validity callbacks. `LightweightNestedRecursiveTests`
+covers row-wise adjacent subtraction with independent count/column overrides.
+`LightweightFormalTests` proves two-state scalar addition/subtraction against an
+independently unrolled adjacent-pair reference at counts 1/3/17 and widths 1/8/36.
+Simulation supplies the separate X/Z checks; the SAT result does not establish
+four-state equivalence. Synthesis profiles instantiate the emitted generic
+module from a concrete wrapper, retaining its original recursive definition.

@@ -603,7 +603,7 @@ private[internals] object ParameterizedVerilogVecs {
     }
     val selectorText = staticIndex.flatMap(_ => NativeLocalParameters.reference(vector.component, selector))
       .getOrElse(selector.verilog)
-    structuralNestedSlice(vector, selector, leafIndex, sourceLocation).foreach { slice =>
+    structuralNestedSlice(vector, selector, leafIndex, sourceLocation, readOnly).foreach { slice =>
       return if (readOnly && isSignedLeaf(shape.elementLeaves(leafIndex))) s"$$signed($slice)" else slice
     }
     val name = requiredVecName(vector, sourceLocation.orElse(shape.sourceLocation))
@@ -634,7 +634,7 @@ private[internals] object ParameterizedVerilogVecs {
     */
   private def structuralNestedSlice(
       vector: Vec[_], selector: ElaborationIntegerExpression, leafIndex: Int,
-      sourceLocation: Option[String]
+      sourceLocation: Option[String], readOnly: Boolean
   ): Option[String] = {
     val selections = structuralVecSelectionsOf(vector.component)
     def ownerOf(value: Vec[_]): Option[ParameterizedStructure.StructuralVecIndex] = {
@@ -651,7 +651,8 @@ private[internals] object ParameterizedVerilogVecs {
     if (ownerOf(vector).isEmpty) return None
     case class Projection(root: Vec[_], leaf: Int, coordinates: Vector[String], axis: Int)
     def project(value: Vec[_], index: ElaborationIntegerExpression, ordinal: Int,
-                visited: Vector[Vec[_]]): Projection = {
+                visited: Vector[Vec[_]],
+                receipt: Option[ParameterizedStructure.StructuralVecIndex] = None): Projection = {
       if (visited.exists(_ eq value))
         fail("SPINAL-PARAMETERIZED-VERILOG-VEC-NESTED-ALIAS-CYCLE",
           "nested structural selections contain an identity cycle", sourceLocation)
@@ -659,12 +660,19 @@ private[internals] object ParameterizedVerilogVecs {
         fail("SPINAL-PARAMETERIZED-VERILOG-VEC-STRUCTURAL-SHAPE-MISSING",
           "nested structural selection lost its retained shape", sourceLocation)
       }
-      if (index.generateIndex.isEmpty || index.verilog != index.generateIndex.get ||
-          index.parameters.nonEmpty || index.default != 0 || index.minimum != 0 ||
-          index.maximum != shape.depth.maximum - 1 ||
-          shape.depth.maximum != BigInt(shape.carrierCapacity))
+      val fullRange = index.generateIndex.nonEmpty && index.verilog == index.generateIndex.get &&
+        index.parameters.isEmpty && index.default == 0 && index.minimum == 0 &&
+        index.maximum == shape.depth.maximum - 1
+      // A parent affine selection remains read-only and retains its exact
+      // issued selector, vector and loop token. Its guarded owner is checked
+      // by structural validation; composing a child coordinate cannot widen it.
+      val affine = readOnly && receipt.exists(parent =>
+        (parent.vector eq value) && (parent.index eq index) &&
+          parent.affineRead.exists(evidence => parent.finiteIndexToken.exists(token =>
+            evidence.matches(value, index, token))))
+      if ((!fullRange && !affine) || shape.depth.maximum != BigInt(shape.carrierCapacity))
         fail("SPINAL-PARAMETERIZED-VERILOG-VEC-STRUCTURAL-DOMAIN-MISMATCH",
-          "nested structural selection requires the exact full finite Vec domain", sourceLocation)
+          "nested structural selection requires an exact finite domain or authenticated read-only affine parent", sourceLocation)
       ownerOf(value) match {
         case None =>
           val layout = ParameterizedVerilogFieldLayout.fromShape(shape,
@@ -678,7 +686,7 @@ private[internals] object ParameterizedVerilogVecs {
             if (parentOrdinal < 0)
               fail("SPINAL-PARAMETERIZED-VERILOG-VEC-NESTED-ALIAS-OWNER-MISMATCH",
                 "nested element lost its exact enclosing alias leaf", sourceLocation)
-            project(parent.vector, parent.index, parentOrdinal, visited :+ value)
+            project(parent.vector, parent.index, parentOrdinal, visited :+ value, Some(parent))
           }
           val first = projections.head
           val rootShape = ParameterizedVec.shapeOf(first.root).get

@@ -66,9 +66,38 @@ class LightweightRecursiveSafetyTests extends AnyFunSuite {
     rejected(new LightweightUnsafeRecursion(ElabInt.literal(3), "preserved"),
       "RECURSION-METRIC-NONDECREASING")
   }
+  test("recursive aggregate rejects reordered same-width record fields") {
+    rejected(new LightweightReorderedInterface, "RECURSION-PORT-SCHEMA-MISMATCH")
+  }
   for (mode <- Seq("depth", "width")) {
     test(s"recursive Vec port rejects wrong substituted $mode") {
       rejected(new LightweightWrongVecGeometry(mode), "RECURSION-PORT-SCHEMA-MISMATCH")
     }
+  }
+}
+
+private class OriginalRecord extends Bundle { val first = UInt(8 bits); val second = UInt(8 bits) }
+private class ReorderedRecord extends Bundle { val second = UInt(8 bits); val first = UInt(8 bits) }
+private class LightweightReorderedInterface extends Component {
+  setDefinitionName("ReorderedInterface")
+  val count: ElabInt = RtlParam.int("COUNT", 3, 1, 8)
+  val terms = in(Vec(new OriginalRecord, count))
+  val result = out UInt(8 bits)
+  if (count == 1) result := terms(0).first
+  else {
+    val next = (count + 1) / 2
+    val child = new BlackBox {
+      setBlackBoxName("ReorderedInterface")
+      addGeneric("COUNT", next)
+      val terms = in(Vec(new ReorderedRecord, next))
+      val result = out UInt(8 bits)
+    }
+    val driven = Vec(new ReorderedRecord, next)
+    for (i <- 0 until next) {
+      driven(i).first := 0
+      driven(i).second := 0
+    }
+    child.terms := driven
+    result := child.result
   }
 }

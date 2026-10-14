@@ -230,7 +230,7 @@ private[spinal] object BoundedRecursiveModuleValidation {
     // Flattened native carrier counts are construction capacity, not interface
     // geometry. Compare each symbolic dimension after formal substitution.
     final case class Surface(name: String, leaf: BaseType,
-        geometry: Vector[ElaborationIntegerExpression], aggregate: Boolean)
+        geometry: Vector[ElaborationIntegerExpression], layout: Option[ParameterizedVecLayoutNode])
     def surfaces(component: Component): Vector[Surface] = {
       val ports = component.getOrdredNodeIo.toVector.filterNot(_.isSuffix)
       val vectors = ParameterizedVec.retainedVectorsOf(component).filter { vector =>
@@ -243,23 +243,37 @@ private[spinal] object BoundedRecursiveModuleValidation {
       val aggregates = roots.map { vector =>
         val shape = ParameterizedVec.shapeOf(vector).get
         val leaves = vector.asInstanceOf[MultiData].flatten.toVector
-        // Scalar-element vectors have one homogeneous direction and type.
-        // Mixed records require a field-wise surface and remain unsupported.
-        if (shape.elementFields.size != 1 || shape.elementFields.head.path.nonEmpty ||
-            shape.elementFields.head.dimensions.nonEmpty || leaves.exists(leaf =>
-              leaf.isInOut || leaf.getTypeObject != leaves.head.getTypeObject ||
-              leaf.getDirection != leaves.head.getDirection || covered.exists(_ eq leaf)))
+        val elementLeaves = vector.vec.map(_.asInstanceOf[Data].flatten.toVector).toVector
+        if (leaves.exists(leaf => leaf.isInOut ||
+              leaf.getDirection != leaves.head.getDirection || covered.exists(_ eq leaf)) ||
+            elementLeaves.exists(element => element.size != shape.elementLeaves.size ||
+              element.zip(shape.elementLeaves).exists { case (leaf, field) =>
+                leaf.getTypeObject != field.typeObject
+              }))
           fail("SPINAL-PARAMETERIZED-VERILOG-RECURSION-PORT-SCHEMA-MISMATCH",
-            "recursive Vec interface requires disjoint homogeneous scalar-element ports", shape.sourceLocation)
+            "recursive Vec interface lost its disjoint exact leaf types or uniform port direction", shape.sourceLocation)
         covered ++= leaves
-        Surface(vector.getName(), leaves.head,
-          Vector(shape.depth, shape.elementFields.head.width), aggregate = true)
+        Surface(vector.getName(), leaves.head, shape.geometryExpressions, Some(shape.fieldLayout))
       }
       aggregates ++ ports.filterNot(port => covered.exists(_ eq port)).map { port =>
         Surface(port.getName(), port, Vector(ParameterizedWidth.expressionOf(port)
-          .getOrElse(ElabInt.literal(port.getBitsWidth).expression)), aggregate = false)
+          .getOrElse(ElabInt.literal(port.getBitsWidth).expression)), None)
       }
     }
+    // Compare recursive packing topology and scalar types independently of
+    // finite carrier capacities. Geometry is proved separately at every axis.
+    def sameLayout(left: ParameterizedVecLayoutNode, right: ParameterizedVecLayoutNode): Boolean =
+      (left, right) match {
+        case (a: ParameterizedVecLayoutScalar, b: ParameterizedVecLayoutScalar) =>
+          a.path == b.path && a.typeObject == b.typeObject
+        case (a: ParameterizedVecLayoutArray, b: ParameterizedVecLayoutArray) =>
+          sameLayout(a.element, b.element)
+        case (a: ParameterizedVecLayoutRecord, b: ParameterizedVecLayoutRecord) =>
+          a.children.size == b.children.size && a.children.zip(b.children).forall {
+            case (x, y) => sameLayout(x, y)
+          }
+        case _ => false
+      }
     val ports = surfaces(owner)
     val referenced = surfaces(reference)
     if (ports.isEmpty || ports.map(_.name).distinct.size != ports.size ||
@@ -269,7 +283,12 @@ private[spinal] object BoundedRecursiveModuleValidation {
         "self-reference ports must match the complete owning module interface", None)
     ports.foreach { port =>
       val other = referenced.find(_.name == port.name).get
-      if (port.aggregate != other.aggregate || port.leaf.isInOut ||
+      val layoutMatches = (port.layout, other.layout) match {
+        case (Some(left), Some(right)) => sameLayout(left, right)
+        case (None, None) => true
+        case _ => false
+      }
+      if (!layoutMatches || port.leaf.isInOut ||
           port.leaf.getTypeObject != other.leaf.getTypeObject ||
           port.leaf.getDirection != other.leaf.getDirection ||
           port.geometry.size != other.geometry.size ||

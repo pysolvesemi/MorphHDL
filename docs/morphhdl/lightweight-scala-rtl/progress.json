@@ -5,7 +5,7 @@
   "working_directory": "/tmp/morphhdl-lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "LWR-05 packed-word adapter validated locally; aggregate recursion expansion next",
+  "phase": "LWR-05/06 aggregate recursion validated locally; staged naming and library integration next",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -20,7 +20,10 @@
     "opt-in direct self-construction with inferred interface/formals and exact specialization forwarding",
     "recursive scalar-element Vec port geometry substitution independent of native carrier capacity",
     "authored recursive child names and class-derived default module identity",
-    "ordinary Bits(i * width, width bits) reads/writes using exact native finite packed proof"
+    "ordinary Bits(i * width, width bits) reads/writes using exact native finite packed proof",
+    "recursive Bundle/nested Vec schema comparison using exact retained field topology and substituted geometry",
+    "read-only nested affine projection retains parent loop/guard identities",
+    "generic signed/bitwise/Bundle callbacks and independent two-state adjacent-pair SAT fixtures"
   ],
   "local_logs": [
     "/tmp/lwr01-plugin-all.log",
@@ -30,11 +33,12 @@
     "/tmp/lwr-recursive-native-212-v5.log",
     "/tmp/lwr-recursive-safety-212-v3.log",
     "/tmp/lwr-recursive-regression.log",
-    "/tmp/lwr-words-regression.log"
+    "/tmp/lwr-words-regression.log",
+    "/tmp/lwr-aggregate-recursion-regression.log"
   ],
   "validation_note": "Earlier logs establish development evidence only. Re-run exact final source after all changes before publishing qualification claims.",
   "next": [
-    "Implement ordinary packed-word syntax and extend recursive aggregate schemas with negative controls",
+    "Preserve authored staged local names; continue actual library adoption and clock/pipeline/bridge support",
     "Extend aggregate recursive interfaces, ordinary packed-word access, helper inference, and callback/pipeline integration",
     "Complete parameter/helper propagation, array/word/hierarchy and pipeline requirements with negative controls",
     "Update source review manifests and test inventories; publish clean candidate and targeted CI before full CI",
@@ -68,5 +72,13 @@
     ],
     "tests_per_scala": 17,
     "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/words"
+  },
+  "local_validation_aggregate_recursion": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "tests_per_scala": 120,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/aggregate-recursion"
   }
 }
