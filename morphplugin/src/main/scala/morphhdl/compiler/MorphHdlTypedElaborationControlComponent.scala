@@ -572,6 +572,14 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
           case _ => OrdinaryBinding
         }
 
+      case Select(receiver, method)
+          if expressionKind(receiver) == TypedIntegerBinding &&
+            Set("log2Up", "addressWidth", "pow2")(decoded(method)) => TypedIntegerBinding
+      case Select(receiver, method)
+          if expressionKind(receiver) == TypedIntegerBinding && decoded(method) == "isPow2" => TypedBooleanBinding
+      case Select(receiver, method)
+          if expressionKind(receiver) == TypedBooleanBinding && decoded(method) == "toElabInt" => TypedIntegerBinding
+
       case Select(receiver, operator)
           if decoded(operator) == "unary_!" && expressionKind(receiver) == ScopedBooleanBinding =>
         ScopedBooleanBinding
@@ -882,7 +890,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
           reporter.error(original.pos,
             "MORPHDL-TYPED-RANGE-TRAVERSAL-UNSUPPORTED: symbolic ranges require forward unit traversal; reverse and by are unsupported")
 
-        case original @ Apply(Select(Apply(Select(_, operator), List(end)), each), List(body: Function))
+        case original @ Apply(Select(Apply(Select(start, operator), List(end)), each), List(body: Function))
             if decoded(each) == "foreach" && Set("until", "to")(decoded(operator)) =>
           if (isTypedInteger(end)) {
             mark(typedRanges, original)
@@ -891,6 +899,16 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
               body.vparams.foreach { parameter =>
                 bind(parameter)
                 if (parameter.tpt.isEmpty) scopes.head.terms.update(parameter.name, ScopedIndexBinding)
+              }
+              traverse(body.body)
+            }
+          } else if (expressionKind(start) == ScalaIntegerBinding && expressionKind(end) == ScalaIntegerBinding) {
+            traverse(start)
+            traverse(end)
+            withScope {
+              body.vparams.foreach { parameter =>
+                bind(parameter)
+                if (parameter.tpt.isEmpty) scopes.head.terms.update(parameter.name, ScalaIntegerBinding)
               }
               traverse(body.body)
             }
@@ -1153,7 +1171,15 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     private def rewriteIf(original: If): Tree = {
       val (alternatives, otherwise) = collectChain(original)
       val rewritten =
-        if (alternatives.size == 1) {
+        if (alternatives.size == 1 && (otherwise match {
+          case Literal(Constant(())) => true
+          case _ => false
+        })) {
+          val (predicate, body, line) = alternatives.head
+          val unitType = Select(Select(Ident(termNames.ROOTPKG), TermName("scala")), TypeName("Unit"))
+          Apply(Apply(TypeApply(helperMethod("generateSymbolic"), List(unitType)),
+            List(predicate, Literal(Constant(sourceFile)), Literal(Constant(line)))), List(body))
+        } else if (alternatives.size == 1) {
           val (predicate, body, line) = alternatives.head
           Apply(
             Apply(

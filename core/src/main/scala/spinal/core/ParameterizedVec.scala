@@ -2441,6 +2441,13 @@ object ParameterizedVec {
         assignments,
         shape
       )
+      // Packed assignment publication consumes every exact native leaf edge.
+      // Ordinary helper-local Vecs have no reflected declaration name; protect
+      // the authenticated target inventory just as packed reads protect theirs.
+      if (!vector.isNamed) vector.setName("typed_vec", weak = true)
+      vector.vec.foreach(element =>
+        element.asInstanceOf[Data].flatten.foreach(_.dontSimplifyIt().setAsVital())
+      )
       val sourceAliases = exactPackedSource(source).map(_._2).getOrElse(Vector.empty)
       sourceAliases.foreach { alias =>
         alias.target.dontSimplifyIt()

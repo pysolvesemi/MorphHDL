@@ -5,7 +5,7 @@
   "working_directory": "/tmp/morphhdl-lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Parameter forwarding and helper staging locally validated; balanced-tree library adoption and pipeline tests next",
+  "phase": "Balanced library composition locally validated; absent-else chains and literal Vec hierarchy adaptation remain in progress",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -29,7 +29,10 @@
     "named recursive constructor bindings preserve authored evaluation order and exact parameter/specialization identities",
     "explicit local helper return types propagate staging with lexical shadowing controls",
     "unsupported symbolic reverse/by reject explicitly",
-    "optional integer formals distinguish omission from zero and retain presence through recursive publication"
+    "optional integer formals distinguish omission from zero and retain presence through recursive publication",
+    "actual lightweight adjacent-pair BalancedTree library with generic typed operations, level bridges, optional mask registers, width parameters and direct recursive construction",
+    "native packed assignment retains exact authenticated Vec carriers",
+    "symbolic geometry helpers and concrete bridge-level loops retain staging; unstaged native equality fails explicitly"
   ],
   "local_logs": [
     "/tmp/lwr01-plugin-all.log",
@@ -42,11 +45,21 @@
     "/tmp/lwr-words-regression.log",
     "/tmp/lwr-aggregate-recursion-regression.log",
     "/tmp/lwr-local-names-regression.log",
-    "/tmp/lwr-parameter-binding-regression.log"
+    "/tmp/lwr-parameter-binding-regression.log",
+    "/tmp/lwr-library-tree-212.log",
+    "/tmp/lwr-library-tree-212-v2.log",
+    "/tmp/lwr-library-tree-212-v3.log",
+    "/tmp/lwr-library-tree-212-v4.log",
+    "/tmp/lwr-library-tree-212-v5.log",
+    "/tmp/lwr-library-expanded-212.log",
+    "/tmp/lwr-library-boundaries-212.log",
+    "/tmp/lwr-library-boundaries-212-v2.log",
+    "/tmp/lwr-library-cross-regression.log"
   ],
   "validation_note": "Earlier logs establish development evidence only. Re-run exact final source after all changes before publishing qualification claims.",
   "next": [
-    "Preserve authored staged local names; continue actual library adoption and clock/pipeline/bridge support",
+    "Finish native BalancedTree pipeline/bridge tests, then public adapters, symbolic widths and both Scala versions",
+    "Repair direct literal-depth Vec hierarchy connection with authenticated carrier adaptation; see open-compositions.md",
     "Extend aggregate recursive interfaces, ordinary packed-word access, helper inference, and callback/pipeline integration",
     "Complete parameter/helper propagation, array/word/hierarchy and pipeline requirements with negative controls",
     "Update source review manifests and test inventories; publish clean candidate and targeted CI before full CI",
@@ -106,5 +119,14 @@
     "plugin_tests_per_scala": 43,
     "native_tests_per_scala": 26,
     "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/parameter-bindings"
+  },
+  "local_validation_balanced_library": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "native_tests_per_scala": 147,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/library-candidate",
+    "tool_receipts": "Scala 2.12 final run includes commands, RTL input hashes and tool logs; 2.13 suite log records assertions; local development only"
   }
 }

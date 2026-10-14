@@ -11,6 +11,10 @@ class LightweightSyntaxBaselineTests extends AnyFunSuite {
       final class ElabInt {
         def +(n: Int): ElabInt = this
         def /(n: Int): ElabInt = this
+        def log2Up: ElabInt = this
+        def addressWidth: ElabInt = this
+        def pow2: ElabInt = this
+        def isPow2: ElabBool = new ElabBool
         def >(n: Int): ElabBool = new ElabBool
         def elabEq(n: Int): ElabBool = new ElabBool
         def elabNe(n: Int): ElabBool = new ElabBool
@@ -27,6 +31,7 @@ class LightweightSyntaxBaselineTests extends AnyFunSuite {
         def foreach(count: ElabInt, role: String)(body: ElabFiniteIndex => Unit): Unit = ()
       }
       object ElabControl {
+        def generateSymbolic[T](p: ElabBool, file: String, line: Int)(body: => T): T = body
           def localValue[T](value: T, name: String): T = value
         def selectScoped[T](p: ElabScopedCondition, file: String, line: Int)(a: => T)(b: => T)(implicit unit: T =:= Unit): Unit = ()
         def selectSymbolic[T](p: ElabBool, file: String, line: Int)(a: => T)(b: => T): T = a
@@ -204,6 +209,26 @@ class LightweightSyntaxBaselineTests extends AnyFunSuite {
       """, "LightweightRangeTraversal.scala")
       assert(errors.exists(_.message.contains("MORPHDL-TYPED-RANGE-TRAVERSAL-UNSUPPORTED")), errors.mkString("\n"))
     }
+  }
+
+  test("logarithmic geometry intermediates retain their symbolic carrier") {
+    val errors = compile(definitions + """
+      package baseline {
+        import spinal.core._
+        object Probe {
+          def stage(count: ElabInt): Unit = {
+            val levels = count.log2Up
+            val words = levels.pow2
+            val address = words.addressWidth
+            if (levels == 0) () else for (i <- 0 until address) ()
+            if (words.isPow2) () else ()
+            val capacity: Int = 8
+            for (level <- 0 until capacity) { if (levels == level) () }
+          }
+        }
+      }
+    """, "LightweightGeometryHelpers.scala")
+    assert(errors.isEmpty, errors.mkString("\n"))
   }
 
 }
