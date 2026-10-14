@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "80482939c37ae041800fb96e68b4b00bf34075b8"
+      "approved_tree": "dc477d4ac11661eaaac0865793eaa7d3ccd0b2bc"
     },
     {
       "path": "idslpayload/src/main",
@@ -27,7 +27,7 @@
     {
       "path": "lib/src/main",
       "baseline_tree": "76cd20a58e83ff73404632aec84bb03f2dd4dea9",
-      "approved_tree": "9ca3d0abfc4916788a276a8211718a5a191e409b"
+      "approved_tree": "80bc5d5edd8b1db17cce267fd5d4a1f022f9670f"
     },
     {
       "path": "scalaplugin/src/main",
@@ -1651,15 +1651,16 @@
         "CA-036\u2013CA-038: retain branch-local typed Vec owner naming",
         "CA-039\u2013CA-041: scoped logical Vec packing and witness-invariant audit wrappers",
         "CA-039\u2013CA-041 targeted CI repair: packed expression owner projection",
-        "CA-039\u2013CA-041 current-head qualification repair: legacy Vec compatibility and exact packed-read owner receipts"
+        "CA-039\u2013CA-041 current-head qualification repair: legacy Vec compatibility and exact packed-read owner receipts",
+        "CA-048: independently parameterized Vec element width and depth"
       ],
-      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged. Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence. CDC-WIRE-01 qualification exposes a read-only identity inventory from retained Vec operation and completed-write journals. Visit only the closed compiler-owned record families and their exact native expressions with identity-based cycle suppression, so optional late wrapper planning preserves the publisher's witness slices, carriers and assignment evidence. No native Vec algorithm, journal contents, parameter domain or public layout is changed. Packed-assignment support tracing follows only exact fixed slices, reviewed Bits casts, and same-component directionless combinational intermediates with one root-scope assignment; it stops at the recorded carrier or source identities. Supporting-driver traversal is read-only and cannot relax the publisher's existing proof obligations. The October 2 request adds explicitly opted-in constant geometry retention and exact literal-depth metadata for constant typed-loop Vec operands; no symbolic root or witness domain is fabricated. Static writes preserve anonymous literal identity without pinning its width; exact native literal-clone receipts retain normalization lineage. Capture complete static scope paths and enclosing When identities across native switches. Retain lazy, exact original bit-view extraction identities on the Vec object, validate before consuming once, and retain constant loop operand shape without changing native read/write semantics. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged. With constant Vec preservation enabled, native tabulation records exact returned element/flattened leaf identities before later publication. Construction aliases require distinct component-owned nodes and are revalidated; unrelated raw carrier references, foreign owners and changed identities remain rejected. No native operator, assignment, pruning or disabled-option algorithm is changed. Retained static writes and packed reads assign an unnamed exact Vec owner a weak fallback name so existing protected owner-relative leaves survive pruning. Explicit and reflected names remain authoritative; static writes do not add vitality or change native assignment, geometry, or pruning algorithms. Capture the exact logical packed-width expression while its authoring owner is active. Single-root symbolic packing and unpacking keep an exact audit wrapper even at an equal-width witness, so native definition identity is independent of actual defaults. Revalidate the original assignment, carrier, widths and normalized equal-width alias before publication. Unretained native Vec operations and independently rooted factorized geometry keep their existing paths. Certify the logical packed-width expression with its exact active projection during construction, including full-domain Bool packing; publication does not fabricate missing provenance. Preserve legacy direct leaf-width metadata without inventing typed arithmetic authority. For typed packed reads, retain an identity-keyed construction-owner width projection, use its exact logical witness, and validate publication against the retained projection and final native owner while preserving carrier, layout and read-lineage checks.",
+      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged. Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence. CDC-WIRE-01 qualification exposes a read-only identity inventory from retained Vec operation and completed-write journals. Visit only the closed compiler-owned record families and their exact native expressions with identity-based cycle suppression, so optional late wrapper planning preserves the publisher's witness slices, carriers and assignment evidence. No native Vec algorithm, journal contents, parameter domain or public layout is changed. Packed-assignment support tracing follows only exact fixed slices, reviewed Bits casts, and same-component directionless combinational intermediates with one root-scope assignment; it stops at the recorded carrier or source identities. Supporting-driver traversal is read-only and cannot relax the publisher's existing proof obligations. The October 2 request adds explicitly opted-in constant geometry retention and exact literal-depth metadata for constant typed-loop Vec operands; no symbolic root or witness domain is fabricated. Static writes preserve anonymous literal identity without pinning its width; exact native literal-clone receipts retain normalization lineage. Capture complete static scope paths and enclosing When identities across native switches. Retain lazy, exact original bit-view extraction identities on the Vec object, validate before consuming once, and retain constant loop operand shape without changing native read/write semantics. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged. With constant Vec preservation enabled, native tabulation records exact returned element/flattened leaf identities before later publication. Construction aliases require distinct component-owned nodes and are revalidated; unrelated raw carrier references, foreign owners and changed identities remain rejected. No native operator, assignment, pruning or disabled-option algorithm is changed. Retained static writes and packed reads assign an unnamed exact Vec owner a weak fallback name so existing protected owner-relative leaves survive pruning. Explicit and reflected names remain authoritative; static writes do not add vitality or change native assignment, geometry, or pruning algorithms. Capture the exact logical packed-width expression while its authoring owner is active. Single-root symbolic packing and unpacking keep an exact audit wrapper even at an equal-width witness, so native definition identity is independent of actual defaults. Revalidate the original assignment, carrier, widths and normalized equal-width alias before publication. Unretained native Vec operations and independently rooted factorized geometry keep their existing paths. Certify the logical packed-width expression with its exact active projection during construction, including full-domain Bool packing; publication does not fabricate missing provenance. Preserve legacy direct leaf-width metadata without inventing typed arithmetic authority. For typed packed reads, retain an identity-keyed construction-owner width projection, use its exact logical witness, and validate publication against the retained projection and final native owner while preserving carrier, layout and read-lineage checks. CA-048 composes exact typed element-width and depth expressions through the existing product-domain authority, retaining legacy direct-width rejection. Packed-width equivalence compares exact expression identity or authenticated product functions and root domains; no witness-derived geometry is introduced.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedVec.scala",
         "mode": "100644",
-        "blob": "f2bb540cf62dad5e97ec0b32ae74871233bee0ca",
-        "sha256": "7cedb166181c39e3a66f7e3bf80937f979a272680b65ac9998adb1f400a737aa"
+        "blob": "29611b730ced9dea48a56732fe4073befa1414de",
+        "sha256": "8918658dbfb1da84019a8d34031eefb09948da5a4092d0d7900c866286dec71d"
       },
       "edits": []
     },
@@ -3165,9 +3166,10 @@
         "Qualification repair: authenticated BOOT initializer publication",
         "CA-023: authenticated memory and synchronous read geometry before native canonical grouping",
         "Default enum debug string suppression",
-        "CA-028: authenticated retained Area collection publication"
+        "CA-028: authenticated retained Area collection publication",
+        "CA-049: complete guarded static packed assignment publication"
       ],
-      "reason": "Retain native symbolic-legality publication and the generation-scoped signed declaration, cast, literal, resize and unsigned-transport callbacks. The typed expression planner controls optional wrapper suppression; every mandatory wrapper present before depth cutting remains, and CDC-WIRE-01 suppresses new depth wrappers only when complete expansion and all receiving widths are proven. Approved unsigned expression slices use a deterministic Verilog-2001 function with the full authoritative source input width and exact constant result range, preserving truncation and four-state semantics. Helper and argument names are allocated in the same namespace after reserving component/width parameter identities, and functions are cached by symbolic width and range. Signed/unknown or otherwise unproven expressions and the ordinary backend keep inherited emission. Qualification repair reserves declaration-local width names without composing finished branch domains, and passes the exact emitter owner when preserving a retained unsigned wrapper's authoritative logical range. All old public wrapper entry points and ordinary backend behavior remain intact. Emit dependency-ordered typed local parameters through the native localparams buffer after the parameterized backend prepares exact live uses. Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative. Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. CA-005 adds explicit native ANSI-port context while preserving body declaration behavior. Include actual ANSI context and parameter-aware unsigned native temporary/operand publication. Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative. Route BOOT initial assignments through the existing default-disabled owner-bound source publication hook, retaining the exact init statement; preserve ordinary literal emission when the hook returns no replacement. CA-023 preserves child-owned symbolic memory geometry before native identity comparison using optional exact-owner hooks. Enum report formatting follows the existing native enum-string setting and falls back to numeric encoding when disabled.",
+      "reason": "Retain native symbolic-legality publication and the generation-scoped signed declaration, cast, literal, resize and unsigned-transport callbacks. The typed expression planner controls optional wrapper suppression; every mandatory wrapper present before depth cutting remains, and CDC-WIRE-01 suppresses new depth wrappers only when complete expansion and all receiving widths are proven. Approved unsigned expression slices use a deterministic Verilog-2001 function with the full authoritative source input width and exact constant result range, preserving truncation and four-state semantics. Helper and argument names are allocated in the same namespace after reserving component/width parameter identities, and functions are cached by symbolic width and range. Signed/unknown or otherwise unproven expressions and the ordinary backend keep inherited emission. Qualification repair reserves declaration-local width names without composing finished branch domains, and passes the exact emitter owner when preserving a retained unsigned wrapper's authoritative logical range. All old public wrapper entry points and ordinary backend behavior remain intact. Emit dependency-ordered typed local parameters through the native localparams buffer after the parameterized backend prepares exact live uses. Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative. Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. CA-005 adds explicit native ANSI-port context while preserving body declaration behavior. Include actual ANSI context and parameter-aware unsigned native temporary/operand publication. Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative. Route BOOT initial assignments through the existing default-disabled owner-bound source publication hook, retaining the exact init statement; preserve ordinary literal emission when the hook returns no replacement. CA-023 preserves child-owned symbolic memory geometry before native identity comparison using optional exact-owner hooks. Enum report formatting follows the existing native enum-string setting and falls back to numeric encoding when disabled. CA-049: retain one exact native serialization of authenticated complete static packed processes, including constant-only bodies. The opt-in policy defaults false, validates the exact emitter and statement inventory, and requires every retained assignment to become a continuous driver before publication. Ordinary native constant-function emission is unchanged.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
@@ -3177,8 +3179,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
-        "blob": "197d25f720009483038a9a26a400a9c2f7c4a000",
-        "sha256": "eafe7ce3739b356dc41896b799fcdf3b887e8e68e525f9dacb8681be7047a602"
+        "blob": "b9269362431874c31dca4f4548e790f280e080ea",
+        "sha256": "0b5110d7ee67e59b8d10634cc92cba966dea701452e440b916bbf1052769da0a"
       },
       "edits": [
         {
@@ -3611,6 +3613,29 @@
           ]
         },
         {
+          "id": "ca049-complete-packed-process-serialization",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "CA-049: retain one exact native serialization of authenticated complete static packed processes, including constant-only bodies. The opt-in policy defaults false, validates the exact emitter and statement inventory, and requires every retained assignment to become a continuous driver before publication. Ordinary native constant-function emission is unchanged.",
+          "baseline_span": {
+            "start": 28954,
+            "end": 28954,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 30853,
+            "end": 30946,
+            "sha256": "95b57b5b6f86ce7df1179be9cbc7f26770f1ba724e202977bc8ecbb17405bafb"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "verilogBase.retainCombinationalProcess(this, process.leafStatements.toVector)",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "componentemitterverilog-compiler-repair-20261004-18",
           "kind": "backend-isolation",
           "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
@@ -3621,8 +3646,8 @@
             "sha256": "427fc1d018836ecb79319064cdfd846a47932f57f9b49526858c5a95631d78fe"
           },
           "approved_span": {
-            "start": 30949,
-            "end": 31092,
+            "start": 31042,
+            "end": 31185,
             "sha256": "3fb57b9a9ac37cc7841ce977b6d7dbcc4cfc14f8244fff484e42fb5e30a13afa"
           },
           "required_exact_text": [
@@ -3644,8 +3669,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 31483,
-            "end": 31491,
+            "start": 31576,
+            "end": 31584,
             "sha256": "c803710302d5769d8fcd51958c516ff27f2a3c5ad9373c348d1d180c04a74624"
           },
           "required_exact_text": [
@@ -3667,8 +3692,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 32452,
-            "end": 32460,
+            "start": 32545,
+            "end": 32553,
             "sha256": "c803710302d5769d8fcd51958c516ff27f2a3c5ad9373c348d1d180c04a74624"
           },
           "required_exact_text": [
@@ -3690,8 +3715,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 33369,
-            "end": 33412,
+            "start": 33462,
+            "end": 33505,
             "sha256": "1794ecaa1c3a1eef7b39e6b6f5be5733901984a97cb93f96ea7198c9f73d24ec"
           },
           "required_exact_text": [
@@ -3713,8 +3738,8 @@
             "sha256": "01a2089c40a92f3b297f39a78a68717b51f6cd7891d2ef73202b322264aa1546"
           },
           "approved_span": {
-            "start": 33505,
-            "end": 33731,
+            "start": 33598,
+            "end": 33824,
             "sha256": "88de62fb2343ad2e2fb539986b5e4b07cb80a375814ee0398366cefabd35c191"
           },
           "required_exact_text": [
@@ -3741,8 +3766,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 34445,
-            "end": 34477,
+            "start": 34538,
+            "end": 34570,
             "sha256": "5ed9c53493ff8a0cd206862b672b27ebe2812b9604fcf0163ccbcb7113198f03"
           },
           "required_exact_text": [
@@ -3764,8 +3789,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 34889,
-            "end": 34921,
+            "start": 34982,
+            "end": 35014,
             "sha256": "5ed9c53493ff8a0cd206862b672b27ebe2812b9604fcf0163ccbcb7113198f03"
           },
           "required_exact_text": [
@@ -3787,8 +3812,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 38095,
-            "end": 38476,
+            "start": 38188,
+            "end": 38569,
             "sha256": "dcf9157377ec34fda03e2dd9bfd8938003f9d11fe017123e073865e09378482c"
           },
           "required_exact_text": [
@@ -3815,8 +3840,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 38545,
-            "end": 38789,
+            "start": 38638,
+            "end": 38882,
             "sha256": "2882c877c3467137bda71d615172edbcd8a738871335f64221cdda2a57fd1fde"
           },
           "required_exact_text": [
@@ -3838,8 +3863,8 @@
             "sha256": "d75a074b03d426e310a7f1def1943ebcdc14835b161f8a472a237f374855decd"
           },
           "approved_span": {
-            "start": 38874,
-            "end": 38883,
+            "start": 38967,
+            "end": 38976,
             "sha256": "596d40a4ed24c02a31b19d6e633f46f64304a672b40f793d8c6deab868beb0e2"
           },
           "required_exact_text": [
@@ -3861,8 +3886,8 @@
             "sha256": "d75a074b03d426e310a7f1def1943ebcdc14835b161f8a472a237f374855decd"
           },
           "approved_span": {
-            "start": 39317,
-            "end": 39326,
+            "start": 39410,
+            "end": 39419,
             "sha256": "596d40a4ed24c02a31b19d6e633f46f64304a672b40f793d8c6deab868beb0e2"
           },
           "required_exact_text": [
@@ -3884,8 +3909,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 39657,
-            "end": 39712,
+            "start": 39750,
+            "end": 39805,
             "sha256": "6042b1972c4d763f5fd04c89b6a83c71df291ea0e06c5bbb99ae3c12c3f886a1"
           },
           "required_exact_text": [
@@ -3907,8 +3932,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 42838,
-            "end": 42914,
+            "start": 42931,
+            "end": 43007,
             "sha256": "f671cdd69a92da60879a9557acffbcdb5e06944433bfdc67901dea138f375ea7"
           },
           "required_exact_text": [
@@ -3930,8 +3955,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 46201,
-            "end": 46240,
+            "start": 46294,
+            "end": 46333,
             "sha256": "0197ec1f122bfde6c08bae644032794aef7080ee2d50aabc73de0077e7939912"
           },
           "required_exact_text": [
@@ -3953,8 +3978,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 46684,
-            "end": 46733,
+            "start": 46777,
+            "end": 46826,
             "sha256": "0b4b7b080f1784c7096c7df53a3807748655700db4664a0612abf4ab49a41042"
           },
           "required_exact_text": [
@@ -3976,8 +4001,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 48551,
-            "end": 48557,
+            "start": 48644,
+            "end": 48650,
             "sha256": "0cba10bc1f335de9d4e1eac6c4f7aa62e523aa54144b9482ffddc09d32a279cf"
           },
           "required_exact_text": [
@@ -3999,8 +4024,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 50449,
-            "end": 50455,
+            "start": 50542,
+            "end": 50548,
             "sha256": "0cba10bc1f335de9d4e1eac6c4f7aa62e523aa54144b9482ffddc09d32a279cf"
           },
           "required_exact_text": [
@@ -4022,8 +4047,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 50881,
-            "end": 50939,
+            "start": 50974,
+            "end": 51032,
             "sha256": "eba8edacc4c1d2dabaedc3bd41b2d03ae7f1397f6998e33d6d4fb45473394834"
           },
           "required_exact_text": [
@@ -4045,8 +4070,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 51701,
-            "end": 51731,
+            "start": 51794,
+            "end": 51824,
             "sha256": "2f76cb5530fec66aa067821b521e1d4220de0bba6c058aef734c5dd4dad22b48"
           },
           "required_exact_text": [
@@ -4068,8 +4093,8 @@
             "sha256": "bcc1ae295e0226637c244b5841cd5caa43896af4545f00b72ae5d9479a1554e3"
           },
           "approved_span": {
-            "start": 52050,
-            "end": 52176,
+            "start": 52143,
+            "end": 52269,
             "sha256": "85fec5dd172d5b13dfe77d34a4cf3f5cb9d50976039962296ca6425d2ec17b46"
           },
           "required_exact_text": [
@@ -4091,8 +4116,8 @@
             "sha256": "69af64d494ef07db908023094ede88292d99c677154c0e4e513476dd95abfcd5"
           },
           "approved_span": {
-            "start": 57612,
-            "end": 58038,
+            "start": 57705,
+            "end": 58131,
             "sha256": "922a4e40562347a20cb4bf09f0846c78f3140482556bf3791e72362c6de3df54"
           },
           "required_exact_text": [
@@ -4114,8 +4139,8 @@
             "sha256": "224f2e0625b2bc43531b17b127daf159ae9fd4063570519957dab3e45aca5a5e"
           },
           "approved_span": {
-            "start": 76408,
-            "end": 77142,
+            "start": 76501,
+            "end": 77235,
             "sha256": "5b1cb27397675b20ebaf1e0f2141d817f2f3820e520db1d789449eb793beed39"
           },
           "required_exact_text": [
@@ -4137,8 +4162,8 @@
             "sha256": "ca47fea6d8fe4bc58f1df50ee7561d0d009b5392895796780e725c8fe9027e70"
           },
           "approved_span": {
-            "start": 77244,
-            "end": 77322,
+            "start": 77337,
+            "end": 77415,
             "sha256": "2081c0d75cf652f45b4fe49b37a2b8d4063bafa35ee2fde26cbfb9129c5c19d5"
           },
           "required_exact_text": [
@@ -4160,8 +4185,8 @@
             "sha256": "5ab9cf83395528e05ec149d6439e8d00a22eb4da89d5e53c19ba9269c966e10b"
           },
           "approved_span": {
-            "start": 77428,
-            "end": 77463,
+            "start": 77521,
+            "end": 77556,
             "sha256": "326bf2045ad9d01e74b5f534adf9fd5b5029b0b8b8d14a0d4083c47e0229a7ad"
           },
           "required_exact_text": [
@@ -4183,8 +4208,8 @@
             "sha256": "89bc1fe93bb1cc8830095ff2a7a90cd0867955fef57f6b6d00f0afdc5de52bd1"
           },
           "approved_span": {
-            "start": 77991,
-            "end": 78026,
+            "start": 78084,
+            "end": 78119,
             "sha256": "e9ebbfd545de2822adbac4c549192adaca12ddcf7fb2e402b382df26c3cf81ca"
           },
           "required_exact_text": [
@@ -4206,8 +4231,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 78646,
-            "end": 78697,
+            "start": 78739,
+            "end": 78790,
             "sha256": "610b6a0d6cab0ce9fc13c6efcd9a54bd25c0b5c24be5f6d734715b0118fc9573"
           },
           "required_exact_text": [
@@ -4229,8 +4254,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 79099,
-            "end": 79154,
+            "start": 79192,
+            "end": 79247,
             "sha256": "af29fb703f43eb5753c8ab99b789e07fce193db9044e4004beacab8820d2da1a"
           },
           "required_exact_text": [
@@ -4252,8 +4277,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 80188,
-            "end": 80251,
+            "start": 80281,
+            "end": 80344,
             "sha256": "6883a57b205d14f99fda4bb6fb61a0b54cb6b2e1cc3bc38d6281dca30b10738f"
           },
           "required_exact_text": [
@@ -4275,8 +4300,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 80315,
-            "end": 80322,
+            "start": 80408,
+            "end": 80415,
             "sha256": "a7e394f7029082eb74696a89f0aa7eb78b10270ba0714adf19d82856a8636f04"
           },
           "required_exact_text": [
@@ -4298,8 +4323,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 80392,
-            "end": 80399,
+            "start": 80485,
+            "end": 80492,
             "sha256": "a7e394f7029082eb74696a89f0aa7eb78b10270ba0714adf19d82856a8636f04"
           },
           "required_exact_text": [
@@ -4321,8 +4346,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 82956,
-            "end": 83016,
+            "start": 83049,
+            "end": 83109,
             "sha256": "f020273bb7525f0220e1be119610447feaaafda59154e2ee21fb712d2f6992aa"
           },
           "required_exact_text": [
@@ -4853,9 +4878,10 @@
         "Compiler repair: ANSI derived widths and native unsigned temporary/operand sizing",
         "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026",
         "CA-023: authenticated memory and synchronous read geometry before native canonical grouping",
-        "CA-028: authenticated retained Area collection publication"
+        "CA-028: authenticated retained Area collection publication",
+        "CA-049: complete guarded static packed assignment publication"
       ],
-      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results. CDC-WIRE-01 qualification preserves the historical two-argument wrapper method and adds an internal owner-checked overload for retained unsigned symbolic carriers. The default backend remains on inherited concrete emission; signed declaration policy ranges retain precedence, with no new state in the historical interface. Add a default-disabled exact-occurrence scalar range callback so the native printer can reference module-local typed constants without changing ordinary concrete emission. Add owner-checked optional assignment/source/target/scope callbacks with storage confined to DeclarationPolicyOwner. Keep the historical interface stateless, preserve existing declaration and signedness hooks, and retain default native printing when no policy applies. CA-005 adds explicit native ANSI-port context while preserving body declaration behavior. Include actual ANSI context and parameter-aware unsigned native temporary/operand publication. Extend the existing optional owner-bound publication policy with concrete default methods for native conditions, ranges, operands, constant shifts and BlackBox generics. Validate exact emitter/instance association identity, retain historical public wrapper entry points and avoid new abstract VerilogBase accessors. CA-023 preserves child-owned symbolic memory geometry before native identity comparison using optional exact-owner hooks.",
+      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results. CDC-WIRE-01 qualification preserves the historical two-argument wrapper method and adds an internal owner-checked overload for retained unsigned symbolic carriers. The default backend remains on inherited concrete emission; signed declaration policy ranges retain precedence, with no new state in the historical interface. Add a default-disabled exact-occurrence scalar range callback so the native printer can reference module-local typed constants without changing ordinary concrete emission. Add owner-checked optional assignment/source/target/scope callbacks with storage confined to DeclarationPolicyOwner. Keep the historical interface stateless, preserve existing declaration and signedness hooks, and retain default native printing when no policy applies. CA-005 adds explicit native ANSI-port context while preserving body declaration behavior. Include actual ANSI context and parameter-aware unsigned native temporary/operand publication. Extend the existing optional owner-bound publication policy with concrete default methods for native conditions, ranges, operands, constant shifts and BlackBox generics. Validate exact emitter/instance association identity, retain historical public wrapper entry points and avoid new abstract VerilogBase accessors. CA-023 preserves child-owned symbolic memory geometry before native identity comparison using optional exact-owner hooks. CA-049: retain one exact native serialization of authenticated complete static packed processes, including constant-only bodies. The opt-in policy defaults false, validates the exact emitter and statement inventory, and requires every retained assignment to become a continuous driver before publication. Ordinary native constant-function emission is unchanged.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
         "mode": "100644",
@@ -4865,15 +4891,15 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
         "mode": "100644",
-        "blob": "b9a09cd64403d6c314c8e8a8d8c2b65f83ffe4ca",
-        "sha256": "5655fa1189c6a7d517b1295bbf283c2fb882149c6eca5c751d35b6d014ec1865"
+        "blob": "b78d13887e38d6476d1162b8a1f2874406898f08",
+        "sha256": "ebc8b30a92b2cf826e3ad60b9e55e90f9c233ad0686b0b69b1d9b83ef773ade6"
       },
       "edits": [
         {
           "id": "verilogbase-compiler-repair-20261004-1",
           "kind": "backend-isolation",
           "owner": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
-          "reason": "Extend the existing optional owner-bound publication policy with concrete default methods for native conditions, ranges, operands, constant shifts and BlackBox generics. Validate exact emitter/instance association identity, retain historical public wrapper entry points and avoid new abstract VerilogBase accessors. Retained surrounding reviewed behavior: Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL. CA-023 adds optional exact-owner memory geometry and read-wrapper range publication, retaining concrete fallback without a policy. CA-028: reviewed opt-in exact native assignment target/lineage handoff; no-policy native output is unchanged. Structural legality remains owned and checked in MorphHDL.",
+          "reason": "Extend the existing optional owner-bound publication policy with concrete default methods for native conditions, ranges, operands, constant shifts and BlackBox generics. Validate exact emitter/instance association identity, retain historical public wrapper entry points and avoid new abstract VerilogBase accessors. Retained surrounding reviewed behavior: Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL. CA-023 adds optional exact-owner memory geometry and read-wrapper range publication, retaining concrete fallback without a policy. CA-028: reviewed opt-in exact native assignment target/lineage handoff; no-policy native output is unchanged. Structural legality remains owned and checked in MorphHDL. CA-049: retain one exact native serialization of authenticated complete static packed processes, including constant-only bodies. The opt-in policy defaults false, validates the exact emitter and statement inventory, and requires every retained assignment to become a continuous driver before publication. Ordinary native constant-function emission is unchanged.",
           "baseline_span": {
             "start": 1997,
             "end": 1997,
@@ -4881,8 +4907,8 @@
           },
           "approved_span": {
             "start": 1997,
-            "end": 7547,
-            "sha256": "fcb24202319636e02f5897a81d679cc7e529c42eac8c7ec5b27656d7d0f1a859"
+            "end": 7676,
+            "sha256": "74aa5c867e27182743171874b0ec6ef28e4e2e114cc4a9d875445f717ca3c4be"
           },
           "required_exact_text": [
             {
@@ -4901,16 +4927,16 @@
           "id": "verilogbase-compiler-repair-20261004-2",
           "kind": "backend-isolation",
           "owner": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
-          "reason": "Extend the existing optional owner-bound publication policy with concrete default methods for native conditions, ranges, operands, constant shifts and BlackBox generics. Validate exact emitter/instance association identity, retain historical public wrapper entry points and avoid new abstract VerilogBase accessors. Retained surrounding reviewed behavior: Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL. CA-028: reviewed opt-in exact native assignment target/lineage handoff; no-policy native output is unchanged. Structural legality remains owned and checked in MorphHDL.",
+          "reason": "Extend the existing optional owner-bound publication policy with concrete default methods for native conditions, ranges, operands, constant shifts and BlackBox generics. Validate exact emitter/instance association identity, retain historical public wrapper entry points and avoid new abstract VerilogBase accessors. Retained surrounding reviewed behavior: Publish actual ANSI-port declaration context and exact owning native unsigned wrapper/operand occurrences through optional MorphHDL callbacks; retain unbound native emission and existing signed declaration authority. Width expressions and literal zero-extension remain owned by MorphHDL. CA-028: reviewed opt-in exact native assignment target/lineage handoff; no-policy native output is unchanged. Structural legality remains owned and checked in MorphHDL. CA-049: retain one exact native serialization of authenticated complete static packed processes, including constant-only bodies. The opt-in policy defaults false, validates the exact emitter and statement inventory, and requires every retained assignment to become a continuous driver before publication. Ordinary native constant-function emission is unchanged.",
           "baseline_span": {
             "start": 2040,
             "end": 2040,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 7590,
-            "end": 14304,
-            "sha256": "11ace1cb1bc298250e6ed1c6813b9fd3543da466dd4b8878bfe48712efe99aaf"
+            "start": 7719,
+            "end": 14881,
+            "sha256": "b1575db1a8c5fe6b47834ff28ba739ba1cac0a6ae51262ae0e5d92d511103ee6"
           },
           "required_exact_text": [
             {
@@ -4931,8 +4957,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 14758,
-            "end": 14765,
+            "start": 15335,
+            "end": 15342,
             "sha256": "6245d2f0ea7a1d0460fbe86cbd208ad1d7d58d086f001ee42242e3e4499569c9"
           },
           "required_exact_text": [
@@ -4954,8 +4980,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 14904,
-            "end": 16831,
+            "start": 15481,
+            "end": 17408,
             "sha256": "432099b3508f1aaef1f64f32ac7fde45ecf28c6bba0d3f143c6441d1f8169877"
           },
           "required_exact_text": [
@@ -4982,8 +5008,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 17006,
-            "end": 17013,
+            "start": 17583,
+            "end": 17590,
             "sha256": "6245d2f0ea7a1d0460fbe86cbd208ad1d7d58d086f001ee42242e3e4499569c9"
           },
           "required_exact_text": [
@@ -5005,8 +5031,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 20720,
-            "end": 21750,
+            "start": 21297,
+            "end": 22327,
             "sha256": "56319951196214167718350f3b81e8b46370dc04e5b875817b361068543d1603"
           },
           "required_exact_text": [
@@ -5028,8 +5054,8 @@
             "sha256": "fa2bfa4f5ea95c799ebe96586a5315bb97aa17fd79c39ce7d33a6422dca7bb9b"
           },
           "approved_span": {
-            "start": 22440,
-            "end": 22622,
+            "start": 23017,
+            "end": 23199,
             "sha256": "31edf5ff0fe4d85d963b486b8f0ca15d3788400ac28b11334541e3fb299dac49"
           },
           "required_exact_text": [
@@ -6164,15 +6190,16 @@
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
-        "User-requested opt-in recursive unsigned reduction"
+        "User-requested opt-in recursive unsigned reduction",
+        "CA-046: typed direct recursive Component interface"
       ],
-      "reason": "Explicit combinational unsigned modular sum component with native typed formals, guarded self-references and authenticated packed partitions; leaves existing reduceBalancedTree unchanged.",
+      "reason": "Explicit combinational unsigned modular sum component with native typed formals, guarded self-references and authenticated packed partitions; leaves existing reduceBalancedTree unchanged. CA-046 replaces the application-authored BlackBox interface and generic duplication with ElabRecursiveComponent. One typed port constructor is reused for the exact definition and its two guarded references; arithmetic, domains and partitions are unchanged.",
       "baseline": null,
       "approved": {
         "path": "lib/src/main/scala/spinal/lib/RecursiveUnsignedSum.scala",
         "mode": "100644",
-        "blob": "6b21af45290b742b6b9748d2fbc2fd3e91493a44",
-        "sha256": "1e06afa99e6f9d37e4e7c74cd8ba16d9690db29df3c2323c0d3eb87692563144"
+        "blob": "3dd7c264c7b3eb38832f83f9d2064b93638b17ff",
+        "sha256": "73424f93e3dd49772722785dec2b1c80915e36f28d64f166c53f0b24a0afe87c"
       },
       "edits": []
     },
