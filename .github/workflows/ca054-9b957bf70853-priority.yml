@@ -1,0 +1,29 @@
+name: CA-054 exact-candidate targeted dispatcher
+on:
+  push:
+    branches: [control/ca054-9b957bf70853-priority]
+    paths:
+      - .github/workflows/ca054-9b957bf70853-priority.yml
+      - .github/controllers/ca054-9b957bf70853-priority/dispatch.py
+      - .github/controllers/ca054-9b957bf70853-priority/dispatch.json
+permissions:
+  contents: read
+  actions: write
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate exact identities and dispatch affected workflows
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/controllers/ca054-9b957bf70853-priority/dispatch.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ca054-9b957bf70853-priority-ledger
+          path: dispatch-ledger.jsonl
+          if-no-files-found: error
