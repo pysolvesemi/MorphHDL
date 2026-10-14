@@ -97,7 +97,7 @@ A recognized `for (i <- 0 until count)` with an `ElabInt` bound lowers directly
 to the existing finite-range capture. `0 to end` uses `end + 1`. Nonzero starts
 reject explicitly; ordinary concrete loops remain unchanged. Direct `lanes(i)` delegates to the existing scoped selector. Literal affine
 arithmetic and less-than guards delegate to native correlated proofs. Direct
-recursive constructors remain pending. No roadmap
+recursive constructors are described in the prototype section below. No roadmap
 phase is closed by these initial adapters alone.
 
 Direct `lanes(i)` access for the exact scoped loop index delegates through
@@ -129,3 +129,36 @@ specialization. Other scoped equality rejects; it cannot silently become host
 object equality. Scoped branch expressions cannot return a selected host value.
 These are local checks; roadmap completion requires remote qualification and the
 remaining composition, pipeline, recursion and migration evidence.
+
+## Direct-constructor prototype (LWR-06, qualification pending)
+
+A final component annotated with `@_root_.spinal.core.rtlRecursive` can declare
+integer `RtlParam` formals and a single `io` Bundle, then construct itself directly
+inside a proven parameter branch. The frontend derives an interface constructor
+and exact formal bindings; it does not execute the recursive Scala constructor.
+Every native edge still undergoes decreasing-domain, ownership, port geometry
+and driver validation. The annotation requires the MorphHDL compiler plugin.
+
+The current prototype requires one constructor argument list, formals declared
+before `io`, and every recursive constructor argument supplied in declaration
+order. Integer formals map to distinct constructor arguments; other arguments
+must forward their exact unshadowed constructor binding. Changing an operation,
+payload factory or other specialization during recursion is rejected. Helpers
+that construct the recursive class indirectly are rejected by an ancestry guard;
+mutual recursion is not supported. An explicitly authored module name is retained;
+otherwise the ordinary native class-derived definition name is established before
+structural capture. This name is not an identity or termination proof.
+
+Scalar-element Vec ports are compared as authenticated aggregate surfaces, not
+as their differing finite native lane inventories. Depth and element width are
+proved independently after substitution. Direct child Vec assignment works
+without author-written packed transport carriers. The generated unpacked-to-packed
+transport currently still includes a read helper; removing unnecessary transport
+is tracked separately and is not claimed complete. Nested Vec/Bundle recursive
+port support and callback/register/pipeline integration are not yet qualified.
+
+`LightweightRecursiveTests` is the executable example: unsigned addition and
+subtraction use adjacent pairs, carry odd tails unchanged, and truncate each
+operation to the configured width. It uses ordinary `if`, `for`, `Vec(i)`, guarded
+`Vec(2*i+1)`, and `new LightweightRecursiveTree(...)`. Subtraction is tested against
+an adjacent-pair reference, not a flat or associative reduction.

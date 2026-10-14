@@ -226,35 +226,59 @@ private[spinal] object BoundedRecursiveModuleValidation {
       reference: BlackBox,
       bindings: Vector[(ParameterizedBlackBoxIntegerGeneric, ElaborationExactDomain[BigInt])]
   ): Unit = {
-    val ports = owner.getOrdredNodeIo.toVector.filterNot(_.isSuffix)
-    val referenced = reference.getOrdredNodeIo.toVector.filterNot(_.isSuffix)
-    def names(values: Vector[BaseType]): Vector[String] = values.map(_.getName())
-    if (
-      ports.isEmpty || names(ports).distinct.size != ports.size ||
-      names(referenced).distinct.size != referenced.size ||
-      names(ports).toSet != names(referenced).toSet
-    )
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-RECURSION-PORT-SCHEMA-MISMATCH",
-        "self-reference ports must match the complete owning module interface",
-        None
-      )
+    // Discover aggregate surfaces from exact retained Vec and leaf identities.
+    // Flattened native carrier counts are construction capacity, not interface
+    // geometry. Compare each symbolic dimension after formal substitution.
+    final case class Surface(name: String, leaf: BaseType,
+        geometry: Vector[ElaborationIntegerExpression], aggregate: Boolean)
+    def surfaces(component: Component): Vector[Surface] = {
+      val ports = component.getOrdredNodeIo.toVector.filterNot(_.isSuffix)
+      val vectors = ParameterizedVec.retainedVectorsOf(component).filter { vector =>
+        val leaves = vector.asInstanceOf[MultiData].flatten.toVector
+        leaves.nonEmpty && leaves.forall(leaf => ports.exists(_ eq leaf))
+      }
+      val roots = vectors.filterNot(vector => vectors.exists(parent =>
+        (parent ne vector) && ParameterizedVec.descendantVectorsOf(parent).exists(_ eq vector)))
+      val covered = scala.collection.mutable.ArrayBuffer.empty[BaseType]
+      val aggregates = roots.map { vector =>
+        val shape = ParameterizedVec.shapeOf(vector).get
+        val leaves = vector.asInstanceOf[MultiData].flatten.toVector
+        // Scalar-element vectors have one homogeneous direction and type.
+        // Mixed records require a field-wise surface and remain unsupported.
+        if (shape.elementFields.size != 1 || shape.elementFields.head.path.nonEmpty ||
+            shape.elementFields.head.dimensions.nonEmpty || leaves.exists(leaf =>
+              leaf.isInOut || leaf.getTypeObject != leaves.head.getTypeObject ||
+              leaf.getDirection != leaves.head.getDirection || covered.exists(_ eq leaf)))
+          fail("SPINAL-PARAMETERIZED-VERILOG-RECURSION-PORT-SCHEMA-MISMATCH",
+            "recursive Vec interface requires disjoint homogeneous scalar-element ports", shape.sourceLocation)
+        covered ++= leaves
+        Surface(vector.getName(), leaves.head,
+          Vector(shape.depth, shape.elementFields.head.width), aggregate = true)
+      }
+      aggregates ++ ports.filterNot(port => covered.exists(_ eq port)).map { port =>
+        Surface(port.getName(), port, Vector(ParameterizedWidth.expressionOf(port)
+          .getOrElse(ElabInt.literal(port.getBitsWidth).expression)), aggregate = false)
+      }
+    }
+    val ports = surfaces(owner)
+    val referenced = surfaces(reference)
+    if (ports.isEmpty || ports.map(_.name).distinct.size != ports.size ||
+        referenced.map(_.name).distinct.size != referenced.size ||
+        ports.map(_.name).toSet != referenced.map(_.name).toSet)
+      fail("SPINAL-PARAMETERIZED-VERILOG-RECURSION-PORT-SCHEMA-MISMATCH",
+        "self-reference ports must match the complete owning module interface", None)
     ports.foreach { port =>
-      val other = referenced.find(_.getName() == port.getName()).get
-      val width = ParameterizedWidth.expressionOf(port)
-        .getOrElse(ElabInt.literal(port.getBitsWidth).expression)
-      val otherWidth = ParameterizedWidth.expressionOf(other)
-        .getOrElse(ElabInt.literal(other.getBitsWidth).expression)
-      if (
-        port.isInOut || port.getTypeObject != other.getTypeObject ||
-        port.getDirection != other.getDirection ||
-        !substitutedWidthEqual(owner, reference, port, width, otherWidth, bindings)
-      )
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-RECURSION-PORT-SCHEMA-MISMATCH",
-          s"recursive port '${port.getName()}' must retain its direction, type and authenticated substituted width",
-          width.sourceLocation.orElse(otherWidth.sourceLocation)
-        )
+      val other = referenced.find(_.name == port.name).get
+      if (port.aggregate != other.aggregate || port.leaf.isInOut ||
+          port.leaf.getTypeObject != other.leaf.getTypeObject ||
+          port.leaf.getDirection != other.leaf.getDirection ||
+          port.geometry.size != other.geometry.size ||
+          !port.geometry.zip(other.geometry).forall { case (expected, actual) =>
+            substitutedWidthEqual(owner, reference, port.leaf, expected, actual, bindings)
+          })
+        fail("SPINAL-PARAMETERIZED-VERILOG-RECURSION-PORT-SCHEMA-MISMATCH",
+          s"recursive port '${port.name}' must retain its direction, type and authenticated substituted geometry",
+          port.geometry.flatMap(_.sourceLocation).headOption)
     }
   }
 

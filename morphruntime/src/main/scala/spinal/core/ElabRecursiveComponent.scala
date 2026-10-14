@@ -5,6 +5,30 @@ package spinal.core
   * Publication still proves every guarded edge and substituted port geometry.
   */
 object ElabRecursiveComponent {
+  def guardConstructor(owner: Component): Unit = {
+    require(owner != null && (owner eq Component.current), "direct recursive constructor lost its current owner")
+    var parent = owner.parent
+    while (parent != null) {
+      if (parent.getClass == owner.getClass)
+        ParameterizedVerilogException.fail("SPINAL-DIRECT-RECURSION-NONLOCAL",
+          "recursive construction through a helper or another component is unsupported; use a guarded direct self-construction", None)
+      parent = parent.parent
+    }
+  }
+
+  def inferred[P <: Data](bindings: Seq[(ElabInt, ElabInt)])(
+      interface: Vector[ElabInt] => P): Declaration[P] = {
+    val owner = Component.current
+    require(owner != null && bindings != null && bindings.nonEmpty,
+      "inferred recursion requires a current component and constructor bindings")
+    bindings.foreach { case (formal, actual) =>
+      require(RtlParam.authenticates(owner, formal, actual),
+        "inferred recursive parameter must retain its exact declaration and constructor actual")
+    }
+    if (owner.definitionName == null) owner.setDefinitionName(spinal.core.internals.classNameOf(owner))
+    apply(bindings.map(_._1))(interface)
+  }
+
   private object Key
   private final case class Edge(owner: Component, reference: BlackBox, name: String,
       formals: Vector[ElabInt], definitionPorts: Vector[BaseType], referencePorts: Vector[BaseType])
@@ -47,6 +71,12 @@ object ElabRecursiveComponent {
     }
     val ports: P = interface(actuals)
     ports.setName("")
+    def io: P = ports
+    /** Frontend-owned declaration spelling; never used as identity evidence. */
+    def authoredName(name: String): this.type = {
+      setName(name, Nameable.DATAMODEL_WEAK)
+      this
+    }
     require(parent eq owner, "recursive reference lost its declaring Component")
     userCache(Key) = Edge(owner, this, name, formals, definitionPorts, ports.flatten.toVector)
   }

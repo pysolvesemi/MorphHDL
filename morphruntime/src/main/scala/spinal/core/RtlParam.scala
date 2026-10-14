@@ -8,11 +8,23 @@ package spinal.core
   * Use an explicit ElabInt/ElabBool annotation for natural Scala control flow.
   */
 object RtlParam {
+  private object DeclarationKey
+  private type Declarations = scala.collection.mutable.ArrayBuffer[(ElabInt, ElabInt)]
+  private[core] def authenticates(owner: Component, formal: ElabInt, actual: ElabInt): Boolean =
+    owner.userCache.get(DeclarationKey).exists(_.asInstanceOf[Declarations].exists {
+      case (issued, supplied) => (issued eq formal) && (supplied eq actual)
+    })
+
   def int(name: String, default: Int, minimum: BigInt, maximum: BigInt): ElabInt =
     int(name, ElabInt.literal(default), minimum, maximum)
 
-  def int(name: String, actual: ElabInt, minimum: BigInt, maximum: BigInt): ElabInt =
-    ElabFormalParameter(actual, name, minimum, maximum)
+  def int(name: String, actual: ElabInt, minimum: BigInt, maximum: BigInt): ElabInt = {
+    val formal = ElabFormalParameter(actual, name, minimum, maximum)
+    val entries = Component.current.userCache.getOrElseUpdate(DeclarationKey,
+      scala.collection.mutable.ArrayBuffer.empty[(ElabInt, ElabInt)]).asInstanceOf[Declarations]
+    entries += ((formal, actual))
+    formal
+  }
 
   /** Boolean parameters are represented by a bounded 0/1 HDL integer. */
   def bool(name: String, default: Boolean): ElabBool =
