@@ -96,7 +96,7 @@
     },
     ".github/workflows/morphhdl-external-structural-process.yml": {
       "mode": "100644",
-      "sha256": "fda1e76c84c39ccbca2aabe7e2106f548a6bc50eeafcaf24f0b8bcd18e309c14"
+      "sha256": "607ab5a41e39acfe1ecd85fc067ac995734378730de3655707c86e4e112745d4"
     },
     ".github/workflows/morphhdl-external-symbolic-width.yml": {
       "mode": "100644",
@@ -137,6 +137,10 @@
       "mode": "100644",
       "sha256": "fe2f847ea2dcb4dd37895368f5467e4ce4ee5948a554acae3fadb7b02193f882"
     },
+    "core/src/main/scala/spinal/core/ElaborationProductDomain.scala": {
+      "mode": "100644",
+      "sha256": "4375814639da4b7bfbf9acb8a70247df99d0645179735bba9398c1766636339a"
+    },
     "core/src/main/scala/spinal/core/NativeLocalParameters.scala": {
       "mode": "100644",
       "sha256": "751b31fb907b3cdb632c7b6f46b3574e63167276fc6ac9f6a4e6bb900fd1e77d"
@@ -147,7 +151,7 @@
     },
     "core/src/main/scala/spinal/core/ParameterizedVec.scala": {
       "mode": "100644",
-      "sha256": "8918658dbfb1da84019a8d34031eefb09948da5a4092d0d7900c866286dec71d"
+      "sha256": "2dd794c898a527f633dddc56c260fc9ba06db62e7df27ed9fbb46ada4a9eea03"
     },
     "core/src/main/scala/spinal/core/RtlDocumentation.scala": {
       "mode": "100644",
@@ -297,6 +301,10 @@
     "docs/morphhdl/wa11-boolean-width-normalization.md": {
       "mode": "100644",
       "sha256": "d46cc3c648f7e3c0f5da465378fada8b4f371fb527c0f45a82fb751a7df19a19"
+    },
+    "docs/morphhdl/width-composition.md": {
+      "mode": "100644",
+      "sha256": "a05d9fc7d868ea948db5a15b0f33e96ad0fe72983b0ef69a44bb9a422d205696"
     },
     "frontend/src/main/scala/morphhdl/frontend/GenerateCaseBuilder.scala": {
       "mode": "100644",
@@ -626,7 +634,7 @@
     },
     "morphhdl/contracts/increment-55-native-change-review.json": {
       "mode": "100644",
-      "sha256": "3b3fb4720ec9474831cc9677d19e1120b90ca353cd664d3a016e6fdc60442b05"
+      "sha256": "21d6efb7f63d5b8787b85ff6465991c95492e7aff919a71a41e1af76ac6b8001"
     },
     "morphhdl/contracts/increment-58-retirement.contract": {
       "mode": "100644",
@@ -646,15 +654,15 @@
     },
     "morphhdl/contracts/increment-59i-regression-inventory.json": {
       "mode": "100644",
-      "sha256": "18eafd15db95d3de0ef68c790a669dd5539de08ce34da4ad5899db78a1ba74a0"
+      "sha256": "4802253acd7415c658af6e6ace4a3cd1d15179452d2555bed1c50f793837bcf3"
     },
     "morphhdl/contracts/native-source-preservation.json": {
       "mode": "100644",
-      "sha256": "95ba2342c1fe8cf9b92d832146ba529a29b742eee542f04d4a45847c10672cb4"
+      "sha256": "c8e2e9e415c2a8b95083691b75f204dc6f5e2f1caa22b57f52132a57a2724459"
     },
     "morphhdl/contracts/retained-parameterized-regressions.json": {
       "mode": "100644",
-      "sha256": "1d1c263f79c87ccfb967cc521e0e106b5d4725d3e9ff6a47011831e27bce1262"
+      "sha256": "aa3b54bc733dacf442e6d633e04add96fc9da8a8f2e6dfa7457cbe3996699c0a"
     },
     "morphhdl/examples/contracts/symbolic_data_shapes.v": {
       "mode": "100644",
@@ -726,7 +734,7 @@
     },
     "morphhdl/scripts/check-increment-59i-regression-inventory.py": {
       "mode": "100644",
-      "sha256": "5e3cb71b356a00109c084ec143c2daf1913edb6a052528f4bd14d0d87a732882"
+      "sha256": "dcfbfa17467bab59627c41062ffb209bbcf727df6e32b458d6beac34857562f1"
     },
     "morphhdl/scripts/check-native-streamfifocc-boundary.sh": {
       "mode": "100755",
@@ -742,7 +750,7 @@
     },
     "morphhdl/scripts/check-retained-parameterized-regressions.py": {
       "mode": "100644",
-      "sha256": "d821a519b2efc0ecdaba04b72061b6de6f1f7649feddfc76c2438a9c41818b13"
+      "sha256": "28a5b3ca98ae3afbc14a0e3b8337e1480ae9951530739f87808db42133f3bc91"
     },
     "morphhdl/scripts/check-symbolic-recursive-width.py": {
       "mode": "100644",
@@ -872,11 +880,11 @@
     },
     "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala": {
       "mode": "100644",
-      "sha256": "9c667cecb5bfd1af1b953551e48d0264b12b1892d4a4b0e5ce3a9200e75b9ba4"
+      "sha256": "fda9c47aa6a321ec3fdc1d102fcd3c5e9d3b0e4188e8ff11733e3f4a482fc0af"
     },
     "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala": {
       "mode": "100644",
-      "sha256": "c3108675d19f21451a38a484fde3b5df1d8c7e91d9755464babf0eeddc764312"
+      "sha256": "dabb93d7beac4bcf6c2a0585c281d4dc4cf700057f4ca09a92e532d7a6abb61a"
     },
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlCanonicalIrProducer.scala": {
       "mode": "100644",
@@ -969,7 +977,7 @@
     },
     "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogVecs.scala": {
       "mode": "100644",
-      "sha256": "64a44a088be8d0f70650917d972b95569d881e716785f04cddc0c002af1375f1"
+      "sha256": "93a30d05c2117e6d15d28628dc190510ec662151ef5ac2085d3b2c6aeb3f1339"
     },
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala": {
       "mode": "100644",
@@ -1239,6 +1247,10 @@
       "mode": "100644",
       "sha256": "9f0dd3ed4801f1f72c593ad550b3812e7587c0100734134fb5dd1fc99ccf80b5"
     },
+    "morphhdl/src/test/scala/morphhdl/WidthCompositionTests.scala": {
+      "mode": "100644",
+      "sha256": "d37abcb8b20ac339c0e32ea207b4b3c518a53d095e0712f22f1e1f9f663d2995"
+    },
     "morphhdl/src/test/scala/morphhdl/WireOptimizationDefaultOffTests.scala": null,
     "morphhdl/src/test/scala/morphhdl/examples/CdcPublicationCleanupFixtures.scala": null,
     "morphhdl/src/test/scala/morphhdl/examples/CdcWireCleanupArtifactWriter.scala": null,
@@ -1277,6 +1289,10 @@
       "mode": "100644",
       "sha256": "ae1559d306d40a3817839aad7c114ff631fe4e3d11adc27765e31cb06bdfe7d2"
     },
+    "morphhdl/src/test/scala/nativeapplication/NativeWidthCompositionTree.scala": {
+      "mode": "100644",
+      "sha256": "4143d60a107ed9b7fcac80f41f8de82324ffd08c58de4545d0aab610e647458d"
+    },
     "morphhdl/src/test/scala/nativeapplication/NativeWidthRecursiveTree.scala": {
       "mode": "100644",
       "sha256": "0c9f3831e4a6ccebc951babe947d268410920181c4e0b6c0b302e65fe689202d"
@@ -1290,6 +1306,10 @@
     "morphhdl/src/test/scala/spinal/core/AreaCollectionLineageTests.scala": {
       "mode": "100644",
       "sha256": "a469ae1493f7cf79f9837789e4ddc372955554a2addc7add1835bef9a85183e1"
+    },
+    "morphhdl/src/test/scala/spinal/core/ElaborationWidthAuthorityTests.scala": {
+      "mode": "100644",
+      "sha256": "335785d47b15b57f1b8f6fb4a51a8da03b985ea7cd498f64c4a305902bfb1fc3"
     },
     "morphhdl/src/test/scala/spinal/core/FiniteAffineVecReadTests.scala": {
       "mode": "100644",
@@ -1401,6 +1421,10 @@
       "mode": "100644",
       "sha256": "96041053f497c4005ac0c60cd27467a8bd1325d2c861cec1f8d6dc6425041592"
     },
+    "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionBridgeReplayTests.scala": {
+      "mode": "100644",
+      "sha256": "5e847eac7a6afaab1071fd8338fd515e9597a7dc73c8ae127629ac1b4d4f2748"
+    },
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicyTests.scala": {
       "mode": "100644",
       "sha256": "a96827a2ea67c42667a990a5623d6e1780c4899787b02aba7be38b709719c6b4"
@@ -1444,6 +1468,10 @@
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedOwnerTests.scala": {
       "mode": "100644",
       "sha256": "8d0faa895718d87fb3cfb33200455c27e9adcda0a7ed321968cfe6c38e85e26f"
+    },
+    "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedResultTests.scala": {
+      "mode": "100644",
+      "sha256": "1889e6502f9cec40ed9542e2bd4032d9e2bb35ecd0784dd637079c2acb2cf1e8"
     },
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionPublicationSafetyTests.scala": {
       "mode": "100644",
