@@ -96,7 +96,7 @@
     },
     ".github/workflows/morphhdl-external-structural-process.yml": {
       "mode": "100644",
-      "sha256": "607ab5a41e39acfe1ecd85fc067ac995734378730de3655707c86e4e112745d4"
+      "sha256": "a414ec798bd4bf7af5c65c30b638773904815f7fe2d07819a809425fb474908c"
     },
     ".github/workflows/morphhdl-external-symbolic-width.yml": {
       "mode": "100644",
@@ -269,6 +269,10 @@
     "docs/morphhdl/native-spinal-source-preservation-audit.md": {
       "mode": "100644",
       "sha256": "366630a668646ed026392e4b05c179fc3324e62a4c545000007e5570059833f2"
+    },
+    "docs/morphhdl/native-structural-indentation.md": {
+      "mode": "100644",
+      "sha256": "30c908fb689ab9e9b0c7abd13aa3dac81bf770f8bfe502da8b53e3be6120cbb2"
     },
     "docs/morphhdl/parameter-constant-vec-selection.md": {
       "mode": "100644",
@@ -640,6 +644,10 @@
       "mode": "100644",
       "sha256": "205f725870593f9a8ed80aa9d0e49afd4d2ccd006b6f7c1409653545699f2ee4"
     },
+    "morphhdl/contracts/increment-59i-publication-golden-indentation.json": {
+      "mode": "100644",
+      "sha256": "63af3290ed162cce206941cfad6c3e1611ee3a7336a03b9498e251254113c905"
+    },
     "morphhdl/contracts/increment-59i-publication-golden-scalar-defaults.json": {
       "mode": "100644",
       "sha256": "01540d3fba4b044ab201e74ad1445a491efbd5f7fc0258dd5bf882f3285d3fb2"
@@ -654,7 +662,7 @@
     },
     "morphhdl/contracts/increment-59i-regression-inventory.json": {
       "mode": "100644",
-      "sha256": "4802253acd7415c658af6e6ace4a3cd1d15179452d2555bed1c50f793837bcf3"
+      "sha256": "28e5704559b8de7e4621bd13b8faba82b3b07599b20b047ba5ff2db45be68a21"
     },
     "morphhdl/contracts/native-source-preservation.json": {
       "mode": "100644",
@@ -662,7 +670,7 @@
     },
     "morphhdl/contracts/retained-parameterized-regressions.json": {
       "mode": "100644",
-      "sha256": "aa3b54bc733dacf442e6d633e04add96fc9da8a8f2e6dfa7457cbe3996699c0a"
+      "sha256": "3f81833af926aaf699b5e8d8e8e1bbfa0f4ad033fc08ba8d098d945f56b5fab6"
     },
     "morphhdl/examples/contracts/symbolic_data_shapes.v": {
       "mode": "100644",
@@ -730,15 +738,15 @@
     },
     "morphhdl/scripts/check-increment-59i-publication-golden.py": {
       "mode": "100644",
-      "sha256": "55af375a1f7585fada1cb3aa28dfd4c6de20e893d7525151ebe2688a67e1ff91"
+      "sha256": "2859583f0556080aff08d6b6ea9b01f92865a109ccaa929d9dc15c92435384d3"
     },
     "morphhdl/scripts/check-increment-59i-regression-inventory.py": {
       "mode": "100644",
-      "sha256": "dcfbfa17467bab59627c41062ffb209bbcf727df6e32b458d6beac34857562f1"
+      "sha256": "8ea27f45714611f38bd097c802b6820db74d4c3b6976f2e324d8c28fbb344611"
     },
     "morphhdl/scripts/check-native-streamfifocc-boundary.sh": {
       "mode": "100755",
-      "sha256": "c93fedacadb096fc9c3aaee49c1a7d46629c3440fd9b6c27c57afe5633a45ecf"
+      "sha256": "e6011df8529a2963d524e2cc798c2820e099f5c5732b7a638e6adb34dc8aabfa"
     },
     "morphhdl/scripts/check-production-retirement.py": {
       "mode": "100755",
@@ -750,7 +758,7 @@
     },
     "morphhdl/scripts/check-retained-parameterized-regressions.py": {
       "mode": "100644",
-      "sha256": "28a5b3ca98ae3afbc14a0e3b8337e1480ae9951530739f87808db42133f3bc91"
+      "sha256": "b48c49825f6f7ff2f27b84ce199286bc5f8922ba8b40fd02c83e5b0eff406108"
     },
     "morphhdl/scripts/check-symbolic-recursive-width.py": {
       "mode": "100644",
@@ -822,7 +830,7 @@
     },
     "morphhdl/scripts/test-increment-59i-publication-golden.py": {
       "mode": "100644",
-      "sha256": "0285dde708445af4a717bb4a34c7d436acaaf650ef7a8f4c61dc6577d65c6f4c"
+      "sha256": "9c6d1043782be85217bd64337a7e2a50d6b6a65e1909dfb25b37fd7007620ec9"
     },
     "morphhdl/scripts/test-increment-60f-inherited-source-scope.py": {
       "mode": "100644",
@@ -900,7 +908,7 @@
     },
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala": {
       "mode": "100644",
-      "sha256": "10aefbc9f115a4f3ba47b5e1d3f042deb130eb425de64567449da7e8947b893d"
+      "sha256": "56e48ffd76632c050555c7604bddc32e62f77a142a52a7341afcae3cc93ec02d"
     },
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlRecursivePerComponentPublication.scala": {
       "mode": "100644",
@@ -945,6 +953,10 @@
     "morphhdl/src/main/scala/spinal/core/internals/NativeSharedModuleReference.scala": {
       "mode": "100644",
       "sha256": "b685519463b7555906843eee645119f0c626c7249d6bfdd705581d07d90e7d10"
+    },
+    "morphhdl/src/main/scala/spinal/core/internals/NativeStructuralIndentation.scala": {
+      "mode": "100644",
+      "sha256": "e6202487c4734b482156849f6cb57d39f68af725e5d20ec5419a74c5352c0e56"
     },
     "morphhdl/src/main/scala/spinal/core/internals/NativeWidthFormalSchema.scala": {
       "mode": "100644",
@@ -1405,6 +1417,10 @@
       "sha256": "02df02dc713bafb1336a7806e0611d8f864f6b7216da2c50f87fbfe02c39938d"
     },
     "morphhdl/src/test/scala/spinal/core/internals/LaneExpressionTraceWriter.scala": null,
+    "morphhdl/src/test/scala/spinal/core/internals/NativeStructuralIndentationTests.scala": {
+      "mode": "100644",
+      "sha256": "b77c0089830420d7b110475d5761b40a7349df6093229316001b17d2a50a515a"
+    },
     "morphhdl/src/test/scala/spinal/core/internals/ParameterizedVerilogFieldLayoutTests.scala": {
       "mode": "100644",
       "sha256": "6fa832b576222fcaa68e412072a5e248e5e800be1a7e519b94e15204dd8f0cb8"
