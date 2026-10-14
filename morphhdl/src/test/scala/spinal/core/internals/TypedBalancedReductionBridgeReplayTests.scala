@@ -208,6 +208,35 @@ class TypedBalancedReductionBridgeReplayTests extends AnyFunSuite {
     }
   }
 
+  test("async and soft reset reuse one authenticated initializer at two exact reset sites") {
+    val directory = Files.createTempDirectory("dual-reset-init-lineage-")
+    val width = HdlInt.param("WIDTH", 8, 1, 64)
+    val report = SpinalConfig(targetDirectory = directory.toString,
+      headerWithDate = false, headerWithRepoHash = false).generateVerilog(new Component {
+      setDefinitionName("DualResetInitializer")
+      val clk, reset, soft, enable = in Bool()
+      val data = in UInt(width bits)
+      val result = out UInt(width bits)
+      val logic = new ClockingArea(ClockDomain(clk, reset, softReset = soft, clockEnable = enable,
+        config = ClockDomainConfig(resetKind = ASYNC, resetActiveLevel = LOW))) {
+        val value = RegNext(data) init(0)
+        result := value
+      }
+    })
+    val rtl = new String(Files.readAllBytes(directory.resolve("DualResetInitializer.v")), StandardCharsets.UTF_8)
+    val rewritten = ExternalParameterizedVerilogNativeFallback.rewriteRetainedConstantInitializers(report.toplevel, rtl)
+    assert(rewritten.linesIterator.count(_.contains("logic_value <= {WIDTH{1'b0}};")) == 2, rewritten)
+    val edge = "logic_value <= 8'h0;"
+    assert(rtl.contains(edge), rtl)
+    val missing = rtl.replaceFirst(java.util.regex.Pattern.quote(edge), "logic_value <= 8'h1;")
+    for(broken <- Vector(missing, rtl + "\n  " + edge + "\n")) {
+      val failure = intercept[ParameterizedVerilogException] {
+        ExternalParameterizedVerilogNativeFallback.rewriteRetainedConstantInitializers(report.toplevel, broken)
+      }
+      assert(failure.code == "SPINAL-PARAMETERIZED-VERILOG-CONSTANT-INIT-EMITTED-LINEAGE-MISMATCH")
+    }
+  }
+
   test("Bits and Bool native enable graphs retain their own scalar type and initializer") {
     SpinalConfig(targetDirectory = Files.createTempDirectory("balanced-bridge-types-").toString,
       headerWithDate = false, headerWithRepoHash = false).generateVerilog(new Component {

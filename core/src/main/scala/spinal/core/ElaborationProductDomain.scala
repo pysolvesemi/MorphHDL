@@ -771,6 +771,29 @@ private[spinal] object ElaborationProductDomain {
       limits.minimum == 0 && limits.maximum == 0
     }
   }
+  /** Compare already authenticated width certificates without treating replay as
+    * a new use in the current elaboration scope. This supplies equality only:
+    * callers must still validate the exact native declaration/assignment owner.
+    * Both certificates must retain identical declaration and admitted domains.
+    */
+  private[core] def equivalentRetained(left: ElaborationIntegerExpression,
+                                      right: ElaborationIntegerExpression): Boolean = {
+    def retained(value: ElaborationIntegerExpression): TrustedExpressionEvidence = {
+      ElabInt.validateExpression(value, Role)
+      val proof = certificate(value).getOrElse(
+        fail(Missing, "retained width comparison lost its private certificate", value.sourceLocation))
+      if (value.generateIndex.nonEmpty)
+        fail(Missing, "retained width comparison includes a generate index", value.sourceLocation)
+      validateInventory(value.parameters, value.completedParameterRoots, proof, Role, value.sourceLocation)
+      proof
+    }
+    val l = retained(left); val r = retained(right)
+    if (!sameAxes(l.axes, r.axes)) false
+    else {
+      val limits = bounds(l.form - r.form, l.axes, left.sourceLocation.orElse(right.sourceLocation))
+      limits.minimum == 0 && limits.maximum == 0
+    }
+  }
   /** Fixed typed relations can use compositional proofs; an arbitrary Scala
     * callback must instead be evaluated exhaustively within the fallback cap.
     */

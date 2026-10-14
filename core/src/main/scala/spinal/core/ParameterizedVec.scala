@@ -2552,6 +2552,10 @@ object ParameterizedVec {
     if (legacyDirectWidth) None
     else {
       import ParameterizedVecElementLayout._
+      val hasGuardedWidth = expressions.exists(expression =>
+        ElaborationWidthAuthority.isRetained(expression) &&
+          !ElaborationProductDomain.isRetained(expression) && expression.exactDomain.isEmpty)
+      if (!hasGuardedWidth) {
       def typed(size: Size): ElabInt = size match {
         case Constant(value) => ElabInt.fromBigInt(value)
         case Value(value) => ElabInt.fromExpression(value)
@@ -2564,6 +2568,24 @@ object ParameterizedVec {
           (elementWidth * ElabInt.fromExpression(shape.depth)).expression,
           "logical packed Vec width")
       )
+      } else {
+      // Geometry may carry a consumer-specific guarded width certificate.
+      // Compose it through width authority, retaining exact roots and branch
+      // coverage instead of treating it as a general integer certificate.
+      def typed(size: Size): ElaborationIntegerExpression = size match {
+        case Constant(value) => ElabInt.fromBigInt(value).expression
+        case Value(value) => value
+        case Sum(values) => values.map(typed).reduceOption(ElaborationWidthAuthority.addNative)
+          .getOrElse(ElabInt.literal(0).expression)
+        case Product(left, right) => ElaborationWidthAuthority.multiply(typed(left), typed(right))
+      }
+      val elementWidth = typed(shape.elementLayout.root.size)
+      Some(
+        ElaborationWidthAuthority.project(
+          ElaborationWidthAuthority.multiply(elementWidth, shape.depth),
+          "logical packed Vec width")
+      )
+      }
     }
   }
 
@@ -2573,7 +2595,7 @@ object ParameterizedVec {
   ): Boolean =
     if (authored eq expected) true // Replaying the exact retained width is not a new scope use.
     else if (ElaborationProductDomain.isRetained(authored) && ElaborationProductDomain.isRetained(expected))
-      ElaborationProductDomain.equivalent(authored, expected)
+      ElaborationProductDomain.equivalentRetained(authored, expected)
     else ElabInt.equivalentExactFunction(authored, expected)
 
   private def equivalentShape(

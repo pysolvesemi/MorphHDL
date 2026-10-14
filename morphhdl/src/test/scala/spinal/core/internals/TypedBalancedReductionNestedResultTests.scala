@@ -61,6 +61,21 @@ class TypedBalancedReductionNestedResultTests extends AnyFunSuite {
     }
   }
 
+  test("batched packed support reference counts retain lexical exclusions and identifier boundaries") {
+    val lines = Vector(
+      "module a(input wire b);",
+      "wire a; wire a_long; wire b;",
+      "assign a = b; // a b",
+      "/* a", "b */ assign b = a;",
+      "(* note = \"a b\" *) wire c;",
+      "cell a (.a(b), . b (a));",
+      "always @(*) begin c = a; $display(\"a b\"); end",
+      "assign a_long = 8'hba;",
+      "endmodule")
+    assert(ParameterizedVerilogVecs.countReferenceIdentifiers(lines, Set("a", "b", "a_long", "absent")) ==
+      Map("a" -> 5, "b" -> 5, "a_long" -> 2))
+  }
+
   test("only an isolated native combinational process may be repacked") {
     def admitted(body: String, start: Int = 0, line: Int = 1, end: Int = 2): Boolean =
       ParameterizedVerilogVecs.isolatedRecursiveResultProcess(body.split("\n", -1).toVector, start, end, line)

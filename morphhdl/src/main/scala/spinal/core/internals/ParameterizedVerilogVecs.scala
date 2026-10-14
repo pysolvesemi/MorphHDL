@@ -3721,8 +3721,9 @@ private[internals] object ParameterizedVerilogVecs {
       process match {
         case None =>
           val assign = s"assign $targetSlice = $name;"
-          val body = if (condition.isEmpty) assign else
-            s"generate if ($condition) begin\n    $assign\n  end endgenerate"
+          val body = if (condition.isEmpty) assign
+            else if (scopedResult) s"if ($condition) begin\n    $assign\n  end"
+            else s"generate if ($condition) begin\n    $assign\n  end endgenerate"
           Vector(parsed.lineIndex -> (parsed.indentation + body))
         case Some(block) =>
           val assignmentLine = parsed.lineIndex -> s"${parsed.indentation}$targetSlice = $name;"
@@ -5829,8 +5830,12 @@ private[internals] object ParameterizedVerilogVecs {
     aliases.foreach { case (_, parsed) =>
       lines = lines.updated(parsed.lineIndex, "")
     }
+    // Count the exact support inventory in one lexical pass. Re-scanning the
+    // complete module for each native alias is quadratic for nested packed
+    // carriers. The counts include every declaration before any removal.
+    val referenceCounts = countReferenceIdentifiers(lines, aliases.map(_._1).toSet)
     aliases.foreach { case (name, _) =>
-      val references = countReferenceIdentifier(lines, name)
+      val references = referenceCounts.getOrElse(name, 0)
       if (references != 1) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-VEC-PACKED-READ-SUPPORT-RESIDUAL",
@@ -7793,6 +7798,26 @@ private[internals] object ParameterizedVerilogVecs {
       code
     }
     count
+  }
+
+  private[internals] def countReferenceIdentifiers(lines: Vector[String], names: Set[String]): Map[String, Int] = {
+    // Native portable identifiers can be tokenized together without constructing
+    // an alternation of names. Preserve the existing matcher for any exceptional
+    // spelling rather than assigning new lexical semantics to it.
+    val portable = "[A-Za-z_][A-Za-z0-9_$]*"
+    if (names.exists(name => !name.matches(portable)))
+      return names.map(name => name -> countReferenceIdentifier(lines, name)).toMap
+    val counts = mutable.HashMap.empty[String, Int]
+    val token = "(?<![A-Za-z0-9_$])[A-Za-z_][A-Za-z0-9_$]*".r
+    mapReferenceCode(lines) { code =>
+      token.findAllMatchIn(code).foreach { value =>
+        val name = value.matched
+        if (names(name) && isSignalReference(code, value.start, value.end))
+          counts.update(name, counts.getOrElse(name, 0) + 1)
+      }
+      code
+    }
+    counts.toMap
   }
 
   private def replaceReferencesInCode(

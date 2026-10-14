@@ -867,6 +867,17 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         )
       }
 
+    // The native clocked emitter reuses the exact initializer block at both
+    // reset sites when an asynchronous reset and a soft reset coexist. Count
+    // those uses from the register's authenticated clock domain, not RTL text.
+    def emittedMultiplicity(statement: AssignmentStatement): Int = statement match {
+      case init: InitAssignmentStatement =>
+        val cd = init.finalTarget.clockDomain
+        if (cd != null && cd.reset != null && cd.config.resetKind == ASYNC &&
+            cd.softReset != null) 2 else 1
+      case _ => 1
+    }
+
     var lines = verilog.split("\\n", -1).toVector
     initializers.sortBy(value => -value.name.length).foreach { initializer =>
       var authorizedEdges = 0
@@ -884,7 +895,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                     literal.getValue() == initializer.literal.getValue()
                 case _ => false
               }) =>
-          authorizedEdges += 1
+          authorizedEdges += emittedMultiplicity(statement)
         case _ =>
       }
       val pattern = (
@@ -914,7 +925,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           if (published.get(statement) != replacement)
             fail("SPINAL-PARAMETERIZED-VERILOG-CONSTANT-INIT-EMITTED-LINEAGE-MISMATCH",
               "native initializer publication changed its authenticated value or width", initializer.width.sourceLocation)
-          nativeEdges += 1
+          nativeEdges += emittedMultiplicity(statement)
         case _ =>
       }
       val nativePattern = ("^(\\s*" + Pattern.quote(initializer.name) +
@@ -2744,7 +2755,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                   !equivalentWidthExpression(targetWidth, sourceWidth) &&
                   !provenAutoResize && !provenModularUpdate &&
                   !provenCapturedDomainEquivalent &&
-                  !provenCompleteDomainEquivalent
+                  !provenCompleteDomainEquivalent &&
+                  !widthInference.provesOwnedPackedCopy(assignment, targetWidth, sourceWidth)
                 ) {
                   fail(
                     "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
@@ -3167,6 +3179,27 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         expressions.exists { case (l, r) =>
           ElaborationWidthAuthority.provesPositiveComparison(l, r, operator)
         }
+      }
+
+      /** Direct packed transport can have equivalent independently rooted
+        * widths with different algebraic spelling. Replay both private origins
+        * at their exact native owners; a witness, rendered name or current
+        * elaboration context cannot authorize this assignment.
+        */
+      def provesOwnedPackedCopy(assignment: DataAssignmentStatement,
+          targetWidth: WidthExpr, sourceWidth: WidthExpr): Boolean = assignment.source match {
+        case source: BitVector if (source.component eq component) &&
+            (assignment.target eq assignment.finalTarget) &&
+            (assignment.finalTarget.component eq component) =>
+          val widths = for {
+            left <- Option(retainedOrigins.get(targetWidth)).filter(ElaborationProductDomain.isRetained)
+            right <- Option(retainedOrigins.get(sourceWidth)).filter(ElaborationProductDomain.isRetained)
+          } yield left -> right
+          widths.exists { case (left, right) =>
+            NativePublicationWidth.equivalentAtOwners(left, assignment.finalTarget,
+              right, source, component)
+          }
+        case _ => false
       }
 
       private def retained(

@@ -84,6 +84,7 @@ jobs:
           /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
             morphhdl.RecursiveUnsignedSumTests \
             morphhdl.SymbolicArrayGeometryTests \
+            morphhdl.WidthCompositionTests \
             spinal.core.RecursivePartitionSafetyTests \
             morphhdl.BoundedRecursivePowerTests \
             morphhdl.BoundedRecursiveSafetyTests \

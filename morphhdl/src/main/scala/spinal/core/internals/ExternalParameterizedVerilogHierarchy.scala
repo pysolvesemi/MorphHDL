@@ -1138,8 +1138,21 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     val keys = axes.foldLeft(Vector(Vector.empty[BigInt])) { (prefixes, axis) =>
       prefixes.flatMap(prefix => axis._3.map(prefix :+ _))
     }
+    // A complete, authenticated substitution with no parent axes proves a
+    // concrete width independently of the construction witness. Only that proof
+    // may admit an otherwise untagged fixed internal parent leaf.
+    val fixedCompoundActual = if (axes.nonEmpty) None else {
+      val values = actuals.map(_.at(Vector.empty).getOrElse(conflict("lost a constant actual")))
+      val expected = definition.at(definition.roots.zip(values))
+      val actual = actualDefinition.at(slots.map(_.formal.declarationRoot).zip(values))
+      if (expected.isEmpty || expected != actual || expected.get <= 0 ||
+          expected.get != BigInt(actualPort.getBitsWidth))
+        conflict("has inconsistent concrete substituted geometry")
+      expected
+    }
     // Reuse all established direction, full-port and native connection guards.
-    val connections = connectionEvidence(parent, child, actualPort, assignments, role)
+    val connections = connectionEvidence(parent, child, actualPort, assignments, role,
+      provenCompoundActual = fixedCompoundActual)
     if (connections.isEmpty) conflict("has no direct parent connection validating its width")
     val connectedLeaves = if (actualPort.isInput) {
       assignments.filter(_.finalTarget eq actualPort).map(_.source)
@@ -2099,7 +2112,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       port: BaseType,
       assignments: Vector[DataAssignmentStatement],
       context: String,
-      allowConcreteInternal: Boolean = false
+      allowConcreteInternal: Boolean = false,
+      provenCompoundActual: Option[BigInt] = None
   ): Vector[BindingExpr] = {
     // Only an authenticated explicit native formal with a constant actual can
     // validate an otherwise untagged fixed internal parent wire. Keep this
@@ -2110,7 +2124,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         actual.parameters.isEmpty && actual.generateIndex.isEmpty &&
           actual.minimum > 0 && actual.minimum == actual.maximum &&
           actual.default == actual.minimum && actual.default == BigInt(port.getBitsWidth)
-      }.map(_.default)
+      }.map(_.default).orElse(provenCompoundActual)
     if (port.isInput) {
       assignments.flatMap { assignment =>
         val touches = references(assignment.target, port) || assignment.finalTarget == port
