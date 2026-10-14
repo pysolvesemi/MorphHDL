@@ -308,7 +308,7 @@ jobs:
                     'TypedBalancedReductionCompositeStaticRedirectTests': 7,
                     'ParameterizedVerilogStructuralLexicalTests': 8,
                     'TypedBalancedReductionDeclarationFilterTests': 6,
-                    'TypedBalancedReductionNestedResultTests': 8,
+                    'TypedBalancedReductionNestedResultTests': 9,
                     'TypedBalancedReductionCompositeCaptureTests': 12,
                     'TypedBalancedReductionNestedMechanismTests': 6,
                     'TypedBalancedReductionBridgeZeroTests': 13,

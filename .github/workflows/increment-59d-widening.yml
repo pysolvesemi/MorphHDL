@@ -214,7 +214,7 @@ jobs:
               import subprocess
               subprocess.run(['python3', 'morphhdl/scripts/run-parameterized-inherited-audit.py', str(bridge_review)], check=True)
               bridge_policy_count = 16
-          for name, count in [('TypedBalancedReductionWideningPublicationTests',6), ('NativeSymbolicWidthProvenanceTests',5), ('ElaborationWidthAuthorityTests',7), ('NativeWidthPublicationSafetyTests',6), ('NativePublicationWidthTests',1), ('TypedBalancedReductionWidthTransferTests',11), ('TypedBalancedReductionOperatorReplayTests',24), ('TypedBalancedReductionStageReplayTests',23), ('TypedBalancedReductionCallbackPolicyTests',bridge_policy_count), ('TypedBalancedReductionPublicationSafetyTests',8), ('TypedBalancedReductionClosedGraphTests',27), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8)]:
+          for name, count in [('TypedBalancedReductionWideningPublicationTests',6), ('NativeSymbolicWidthProvenanceTests',5), ('ElaborationWidthAuthorityTests',8), ('NativeWidthPublicationSafetyTests',6), ('NativePublicationWidthTests',1), ('TypedBalancedReductionWidthTransferTests',11), ('TypedBalancedReductionOperatorReplayTests',24), ('TypedBalancedReductionStageReplayTests',23), ('TypedBalancedReductionCallbackPolicyTests',bridge_policy_count), ('TypedBalancedReductionPublicationSafetyTests',8), ('TypedBalancedReductionClosedGraphTests',27), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8)]:
               files = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
               assert len(files) == 1, (name, files)
               suite = ET.parse(files[0]).getroot()

@@ -17,7 +17,7 @@ WORKFLOW = '.github/workflows/increment-59g-register-bridges.yml'
 PREDECESSOR = 'ddf61ef25f927d646027cebbcaca6d724ad8a5fa'
 HISTORICAL = '5a9294363c7b74ae584f1702160fe1f7e468f58a'
 EXPECTED = {'TypedBalancedReductionBridgePublicationTests': 3,
-            'TypedBalancedReductionBridgeReplayTests': 12,
+            'TypedBalancedReductionBridgeReplayTests': 13,
             'TypedBalancedReductionCallbackPolicyTests': 16,
             'TypedBalancedReductionStageReplayTests': 23,
             'TypedBalancedReductionClosedGraphTests': 27}
@@ -93,6 +93,10 @@ def restore_reviewed_workflow(text: str) -> str:
                      "'TypedBalancedReductionClosedGraphTests': 27"):
         if text.count(expected) != 1:
             raise AssertionError('Expected exactly one reviewed workflow edit: ' + expected)
+    bridge_count = "'TypedBalancedReductionBridgeReplayTests': 13"
+    if text.count(bridge_count) != 1:
+        raise AssertionError('Expected exactly one reviewed bridge inventory successor')
+    text = text.replace(bridge_count, "'TypedBalancedReductionBridgeReplayTests': 12")
     text = restore_integration_enrollment(text)
     return text.replace(ENROLLMENT, '').replace(REVIEWED_BUDGET, OLD_BUDGET).replace(
         "'TypedBalancedReductionClosedGraphTests': 27", "'TypedBalancedReductionClosedGraphTests': 20")
@@ -224,12 +228,14 @@ class ReportInventoryTests(unittest.TestCase):
         self.report('TypedBalancedReductionAdditionalTests', 1)
         self.run_gate()
 
-    def test_gate_ast_changes_only_the_reviewed_count(self):
+    def test_gate_ast_changes_only_the_reviewed_counts(self):
         normalized = self.code.replace("'TypedBalancedReductionClosedGraphTests': 27",
                                        "'TypedBalancedReductionClosedGraphTests': 20")
+        normalized = normalized.replace("'TypedBalancedReductionBridgeReplayTests': 13",
+                                        "'TypedBalancedReductionBridgeReplayTests': 12")
         self.assertEqual(ast.dump(ast.parse(normalized)), ast.dump(ast.parse(gate(self.old))))
 
-    def test_entire_workflow_is_preserved_except_three_reviewed_edits(self):
+    def test_entire_workflow_is_preserved_except_reviewed_edits(self):
         self.assertEqual(restore_reviewed_workflow(self.workflow), self.old)
 
     def test_unreviewed_budget_is_rejected(self):
