@@ -302,3 +302,23 @@ Explicit rejection remains preferable to a witness-only coverage assumption.
 The cross-version simulation covers symbolic widths 1/8/32/36/64, count overrides
 1/2/3/5/7/8/15/16/17, reset/stalls and X/Z data. Runtime X/Z control equivalence
 is not claimed by these tests. Remote qualification remains pending.
+
+
+## Inferred recursive clocks
+
+Compiler-inferred recursive boundaries now pull the enclosing component's exact
+current clock domain when its native registers require external clock inputs.
+Clock, reset, soft reset and enable use native pull identities and exact input
+assignment receipts; final publication rechecks both inventories and bindings.
+A copied or unrelated external domain is rejected by this first inference path.
+Explicit authored clock ports remain supported and unchanged for genuine CDC.
+No clock ports are added to purely combinational recursive definitions.
+
+Local tests compare the recursive pipeline with ordinary unrolled Scala RTL at
+counts 1/2/3/5/7/8, defaults 1/5, asynchronous/synchronous and active-high/low reset,
+soft reset, enable stalls, reset while disabled, one-hot/random and X/Z data.
+Changed input sources and cleared native pull caches are rejected. Both Scala
+versions pass 32 tests across four suites. This does not claim implicit multi-domain
+recursion or remote qualification. A register assigned separately in both arms
+of a scoped finite guard remains a tracked process-ownership composition gap;
+computing the guarded next value before `RegNext` passes these clock tests.

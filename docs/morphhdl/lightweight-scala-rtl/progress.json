@@ -5,7 +5,7 @@
   "working_directory": "/home/kartik/.local/state/morphhdl/worktrees/lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Affine write partitions locally validated on both Scala versions; formal and remaining compositions in progress",
+  "phase": "Implicit single-domain recursion locally validated; guarded register assignment composition next",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -41,7 +41,8 @@
     "Boolean recursive constructor formals retain exact declaration slots and named bindings without user integer conversions",
     "Mill uses content-addressed tracked artifacts for both compiler plugins, matching SBT invalidation semantics",
     "Exact guarded positive-stride whole-leaf Vec write partitions with complete domain coverage, non-overlap and competing-writer rejection",
-    "Scoped no-else statements preserve absent branch identity; finite loops inside native when/otherwise retain enclosing control and independent writes"
+    "Scoped no-else statements preserve absent branch identity; finite loops inside native when/otherwise retain enclosing control and independent writes",
+    "Compiler-inferred recursive interfaces forward exact current-domain clock/reset/soft-reset/enable ports with binding tamper checks"
   ],
   "local_logs": [
     "/tmp/lwr01-plugin-all.log",
@@ -242,5 +243,14 @@
     "tests_per_scala": 4,
     "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/nested-writes",
     "scope": "signed two-dimensional unit writes and inherited nested recursive tree; layout/geometry overrides, deterministic generation, simulation/lint/synthesis"
+  },
+  "local_validation_implicit_clocks": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "tests_per_scala": 32,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/implicit-clocks-final",
+    "scope": "11 clock tests plus existing recursion safety, optional parameters and BalancedTree registers/bridges; fresh simulation/lint/synthesis, local only"
   }
 }

@@ -1,5 +1,7 @@
 package spinal.core
 
+import spinal.core.internals._
+
 /** A typed direct-recursion boundary. The interface constructor is authored once;
   * recursive calls construct only that interface, never the Component body.
   * Publication still proves every guarded edge and substituted port geometry.
@@ -36,6 +38,7 @@ object ElabRecursiveComponent {
         case ((formal, _), false) => formal
       })
     }
+    owner.afterElaboration { inferClockPorts(owner) }
     new InferredDeclaration(native, slots.map(_._1), enabled)
   }
 
@@ -57,7 +60,52 @@ object ElabRecursiveComponent {
 
   private object Key
   private final case class Edge(owner: Component, reference: BlackBox, name: String,
-      formals: Vector[ElabInt], definitionPorts: Vector[BaseType], referencePorts: Vector[BaseType])
+      formals: Vector[ElabInt], definitionPorts: Vector[BaseType], referencePorts: Vector[BaseType]) {
+    var clocks = Vector.empty[ClockPort]
+  }
+  private final case class ClockPort(domain: ClockDomain, source: Bool, definition: Bool,
+      reference: Bool, assignment: DataAssignmentStatement)
+
+  /** Only compiler-inferred boundaries gain native single-domain clock ports.
+    * Explicit interface ports continue through the original exact inventory.
+    */
+  private def inferClockPorts(owner: Component): Unit = {
+    val edges = owner.children.toVector.flatMap(_.userCache.get(Key)).map(_.asInstanceOf[Edge])
+    if (edges.isEmpty) return
+    val domains = scala.collection.mutable.LinkedHashSet.empty[ClockDomain]
+    owner.dslBody.walkLeafStatements {
+      case value: BaseType if value.isReg => domains += value.clockDomain
+      case statement => statement.foreachClockDomain(domains += _)
+    }
+    val current = owner.clockDomain.get
+    val external = domains.toVector.filter(cd =>
+      Vector(cd.clock, cd.reset, cd.softReset, cd.clockEnable).exists(b => b != null && (b.component ne owner)))
+    if (external.isEmpty) return
+    if (external.size != 1 || (external.head ne current))
+      ParameterizedVerilogException.fail("SPINAL-DIRECT-RECURSION-CLOCK-DOMAIN-UNSUPPORTED",
+        "implicit recursive clocks require the component's single current clock domain; declare other domains explicitly", None)
+    val cd = external.head
+    val sources = Vector(cd.clock, cd.reset, cd.softReset, cd.clockEnable).filter(_ != null).distinct
+    val ports = owner.rework {
+      sources.map(source => source -> Data.doPull(source, owner, useCache = true, propagateName = true))
+    }
+    edges.foreach { edge =>
+      require(edge.clocks.isEmpty, "recursive clock ports may be inferred only once")
+      edge.clocks = ports.filterNot { case (_,port) => edge.definitionPorts.exists(_ eq port) }.map {
+        case (source, definition) =>
+          require(definition.component == owner && definition.isInput,
+            "implicit recursive clock must be an exact input boundary")
+          val reference = Data.doPull(definition, edge.reference, useCache = true, propagateName = true)
+          require(reference.component == edge.reference && reference.isInput && reference.hasOnlyOneStatement,
+            "implicit recursive clock lost its sole input binding")
+          val assignment = reference.head match {
+            case value: DataAssignmentStatement if (value.target eq reference) && (value.source eq definition) => value
+            case _ => throw new IllegalArgumentException("implicit recursive clock requires an exact direct binding")
+          }
+          ClockPort(cd, source, definition, reference, assignment)
+      }
+    }
+  }
 
   final class Declaration[P <: Data] private[ElabRecursiveComponent] (
       val owner: Component, formals: Vector[ElabInt], interface: Vector[ElabInt] => P) {
@@ -135,8 +183,20 @@ object ElabRecursiveComponent {
       require(retained.size == edge.formals.size && edge.formals.forall(f =>
         retained.exists(_ eq f.parameters.head)),
         "typed recursion lost its complete exact definition formal inventory")
-      require(edge.definitionPorts.toSet == edge.owner.getAllIo.toSet &&
-        edge.referencePorts.toSet == reference.getAllIo.toSet,
+      edge.clocks.foreach { clock =>
+        require((edge.owner.clockDomain.get eq clock.domain) &&
+          Vector(clock.domain.clock, clock.domain.reset, clock.domain.softReset, clock.domain.clockEnable)
+            .exists(_ eq clock.source) &&
+          edge.owner.pulledDataCache.get(clock.source).exists(_ eq clock.definition) &&
+          reference.pulledDataCache.get(clock.definition).exists(_ eq clock.reference) &&
+          clock.definition.isInput && clock.reference.isInput &&
+          (clock.definition.component eq edge.owner) && (clock.reference.component eq reference) &&
+          clock.reference.hasOnlyOneStatement && (clock.reference.head eq clock.assignment) &&
+          (clock.assignment.target eq clock.reference) && (clock.assignment.source eq clock.definition),
+          "typed recursive clock lost its exact domain, ports or binding")
+      }
+      require((edge.definitionPorts ++ edge.clocks.map(_.definition)).toSet == edge.owner.getAllIo.toSet &&
+        (edge.referencePorts ++ edge.clocks.map(_.reference)).toSet == reference.getAllIo.toSet,
         "typed recursion must retain the complete declared interface; declare clock/reset ports explicitly")
     }
 }
