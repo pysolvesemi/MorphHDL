@@ -444,4 +444,96 @@ class LightweightSyntaxBaselineTests extends AnyFunSuite {
     assert(positive.isEmpty,positive.mkString("\n"))
   }
 
+  test("this-qualified symbolic members retain template identity under local shadowing") {
+    val errors = compile(definitions + """
+      package thismembers {
+        import spinal.core._
+        class Probe(val count: ElabInt) {
+          def half(x: ElabInt) = (x + 1) / 2
+          def value = this.half(count)
+          def stage: Int = {
+            val count = 4
+            def half(x: Int) = x / 2
+            val value = 0
+            if(this.count > 1) {
+              if(this.half(this.count) > 1) 7 else 9
+            } else if(this.value > 1) 3 else 5
+          }
+        }
+      }
+    """, "ThisMembers.scala")
+    assert(errors.isEmpty, errors.mkString("\n"))
+  }
+
+  test("this-qualified ordinary members cannot borrow symbolic local identities") {
+    val errors = compile(definitions + """
+      package thisordinary {
+        import spinal.core._
+        object Probe {
+          val count = 4
+          def half(x: Int) = x / 2
+          def stage(count: ElabInt): Int = {
+            def half(x: ElabInt) = x + 1
+            if(this.count > 1 && this.half(4) == 2) 7 else 9
+          }
+        }
+      }
+    """, "ThisOrdinary.scala")
+    assert(errors.isEmpty, errors.mkString("\n"))
+  }
+
+  test("qualified outer this resolves its named template through nested shadowing") {
+    val errors = compile(definitions + """
+      package outerthis {
+        import spinal.core._
+        class Outer(val count: ElabInt) {
+          def half(x: ElabInt) = (x + 1) / 2
+          class Inner {
+            val count = 4
+            def half(x: Int) = x / 2
+            def stage: Int = {
+              val count = 0
+              if(Outer.this.count > 1) {
+                if(Outer.this.half(Outer.this.count) > 1) 7 else 9
+              } else if(this.count > 1) 3 else 5
+            }
+          }
+        }
+      }
+    """, "OuterThis.scala")
+    assert(errors.isEmpty, errors.mkString("\n"))
+  }
+
+  test("qualified outer this retains staged helper mutation rejection") {
+    val errors = compile(definitions + """
+      package outereffects {
+        import spinal.core._
+        class Outer(val count: ElabInt) {
+          var state = 0
+          def mutate(): Unit = { state += 1 }
+          class Inner {
+            def mutate(): Unit = ()
+            def stage: Unit = if(count > 1) Outer.this.mutate()
+          }
+        }
+      }
+    """, "OuterEffects.scala")
+    assert(errors.exists(_.message.contains("MORPHDL-STAGED-HOST-EFFECT-UNSUPPORTED")), errors.mkString("\n"))
+  }
+  test("anonymous template this does not replace an explicitly qualified outer owner") {
+    val errors = compile(definitions + """
+      package anonymousthis {
+        import spinal.core._
+        class Outer(val count: ElabInt) {
+          trait Member { def stage: Int }
+          val member = new Member {
+            val count = 3
+            def stage: Int =
+              if(Outer.this.count > 1) 7 else if(this.count > 1) 9 else 11
+          }
+        }
+      }
+    """, "AnonymousThis.scala")
+    assert(errors.isEmpty, errors.mkString("\n"))
+  }
 }

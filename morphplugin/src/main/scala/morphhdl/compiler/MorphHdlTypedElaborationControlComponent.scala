@@ -222,7 +222,18 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     }
 
     var scopes = List(new LexicalScope)
-    var templates = List.empty[LexicalScope]
+    var templates = List.empty[(TypeName, LexicalScope)]
+    var templateOwner = typeNames.EMPTY
+
+    def thisScope(owner: TypeName): Option[LexicalScope] =
+      if (owner == typeNames.EMPTY) templates.headOption.map(_._2)
+      else templates.collectFirst { case (`owner`, scope) => scope }
+
+    def withTemplateOwner[A](owner: TypeName)(body: => A): A = {
+      val previous = templateOwner
+      templateOwner = owner
+      try body finally templateOwner = previous
+    }
     var currentPackage = Vector.empty[String]
     val sourceWildcardProviders = currentRunWildcardProviders
     val sourceWildcardStableTerms = currentRunWildcardStableTerms
@@ -233,14 +244,14 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
         case scope if scope.terms.contains(name) => scope.terms(name)
       }
 
-    def callResult(method: Tree): BindingKind = {
-      val name = method match {
-        case Ident(n: TermName) => Some(n)
-        case _ => None
-      }
-      name.flatMap(n => scopes.collectFirst {
-        case scope if scope.terms.contains(n) => scope.callResults.getOrElse(n, OrdinaryBinding)
-      }).getOrElse(OrdinaryBinding)
+    def callResult(method: Tree): BindingKind = method match {
+      case Ident(name: TermName) => scopes.collectFirst {
+        case scope if scope.terms.contains(name) =>
+          scope.callResults.getOrElse(name, OrdinaryBinding)
+      }.getOrElse(OrdinaryBinding)
+      case Select(This(owner), name: TermName) =>
+        thisScope(owner).flatMap(_.callResults.get(name)).getOrElse(OrdinaryBinding)
+      case _ => OrdinaryBinding
     }
 
     def hasVisibleTerm(name: TermName): Boolean =
@@ -530,8 +541,8 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       */
     def expressionKind(current: Tree): BindingKind = current match {
       case Ident(name: TermName) => lookup(name).getOrElse(OrdinaryBinding)
-      case Select(This(_), name: TermName) =>
-        lookup(name).getOrElse(OrdinaryBinding)
+      case Select(This(owner), name: TermName) =>
+        thisScope(owner).flatMap(_.terms.get(name)).getOrElse(OrdinaryBinding)
       case Literal(Constant(_: Byte))  => ScalaIntegerBinding
       case Literal(Constant(_: Short)) => ScalaIntegerBinding
       case Literal(Constant(_: Char))  => ScalaIntegerBinding
@@ -682,7 +693,13 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
           }
           if(result != OrdinaryBinding && scopes.head.callResults.get(method.name) != Some(result)) {
             scopes.head.callResults(method.name) = result
-            if(method.vparamss.isEmpty) scopes.head.terms(method.name) = result
+            changed = true
+          }
+          // prepareScope resolves imports in two passes. Reinstall the value
+          // binding even when the independently retained call result is stable.
+          if(result != OrdinaryBinding && method.vparamss.isEmpty &&
+              scopes.head.terms.get(method.name) != Some(result)) {
+            scopes.head.terms(method.name) = result
             changed = true
           }
         }
@@ -841,17 +858,20 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
         case definition: ClassDef =>
           withScope {
             definition.tparams.foreach(parameter => bindTypeOrdinary(parameter.name))
-            traverse(definition.impl)
+            withTemplateOwner(definition.name) { traverse(definition.impl) }
           }
+
+        case definition: ModuleDef =>
+          withTemplateOwner(definition.name.toTypeName) { traverse(definition.impl) }
 
         case template: Template =>
           withScope {
             // Class/object members are visible throughout their template.
             // Recording every member also lets ordinary members shadow typed
             // constructor parameters or enclosing values deterministically.
-            prepareScope(template.body)
-            templates = scopes.head :: templates
+            templates = (templateOwner -> scopes.head) :: templates
             try {
+              prepareScope(template.body)
               template.parents.foreach(traverse)
               traverse(template.self)
               template.body.foreach(traverse)
@@ -962,14 +982,14 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
           super.traverse(original)
 
         case original @ Apply(Select(Select(This(owner), name: TermName), operator), _)
-            if owner == typeNames.EMPTY && decoded(operator).endsWith("=") &&
+            if decoded(operator).endsWith("=") &&
               !Set("==", "!=", "<=", ">=", ":=")(decoded(operator)) &&
-              templates.headOption.exists(_.mutableTerms(name)) =>
+              thisScope(owner).exists(_.mutableTerms(name)) =>
           mark(hostMutations, original)
           super.traverse(original)
 
-        case reference @ Select(This(owner), name: TermName) if owner == typeNames.EMPTY =>
-          templates.headOption.flatMap(_.methods.get(name))
+        case reference @ Select(This(owner), name: TermName) =>
+          thisScope(owner).flatMap(_.methods.get(name))
             .foreach(method => helperReferences.put(reference, method))
           super.traverse(reference)
 

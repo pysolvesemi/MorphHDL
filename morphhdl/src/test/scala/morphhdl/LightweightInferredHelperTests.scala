@@ -5,7 +5,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
 
 class LightweightInferredHelperTests extends AnyFunSuite {
-  for(defaultCount<-Seq(1,5)) test(s"inferred helper retains symbolic pair geometry default=$defaultCount") {
+  for(defaultCount<-Seq(1,5); qualified<-Seq(false,true)) test(s"inferred helper retains symbolic pair geometry default=$defaultCount qualified=$qualified") {
     def generate() = {
       val dir=Files.createTempDirectory("lightweight-inferred-helper-")
       MorphVerilog(MorphAggregateOptions(SpinalConfig(targetDirectory=dir.toString,headerWithDate=false),
@@ -13,14 +13,25 @@ class LightweightInferredHelperTests extends AnyFunSuite {
         new Component {
           setDefinitionName("InferredHelpers")
           val count: ElabInt=RtlParam.int("COUNT",defaultCount,1,17)
-          def pairs(value: ElabInt) = rounded(value)
+          def pairs(value: ElabInt) = this.rounded(value)
           def rounded(value: ElabInt) = (value+1)/2
           val size=pairs(count)
           val source=in(Vec(Bits(8 bits),count))
           val result=out(Vec(Bits(8 bits),size))
-          for(i<-0 until size) {
-            if(2*i+1<count) result(i) := source(2*i)^source(2*i+1)
-            else result(i) := source(2*i)
+          def connectQualified(): Unit = {
+            val count = 2
+            def pairs(value: Int): Int = value / 2
+            for(i<-0 until this.pairs(this.count)) {
+              if(2*i+1<this.count) result(i) := source(2*i)^source(2*i+1)
+              else result(i) := source(2*i)
+            }
+          }
+          if(qualified) connectQualified()
+          else {
+            for(i<-0 until size) {
+              if(2*i+1<count) result(i) := source(2*i)^source(2*i+1)
+              else result(i) := source(2*i)
+            }
           }
         }
       }

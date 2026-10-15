@@ -5,7 +5,7 @@
   "working_directory": "/home/kartik/.local/state/morphhdl/worktrees/lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Mixed-index writes pass hardened cross-version validation; integrating exact this-owner helper repair and broader affected regressions",
+  "phase": "Mixed writes and exact this-owner helper inference pass affected cross-version regressions; hardware Bool diagnostic and remaining roadmap work continue",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -346,5 +346,34 @@
     "scope": "8 original/normalized conditional/unconditional packed/unpacked cases; 36 geometry profiles per artifact; four-state simulation, lint, synthesis, 24 positive SAT proofs and 8 deliberately corrupted-reference rejections per Scala version; 12 compiler safety cases",
     "remote": "pending",
     "interrupted_run": "mixed-write-hardened-v2.log has no completion result and is not passing evidence"
+  },
+  "local_validation_this_owner": {
+    "base_commit": "3850396875c99708d7f5b5076584a7e0b331ef72",
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "plugin_tests_per_scala": 76,
+    "native_tests_per_scala": 4,
+    "before_log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/this-owner-before.log",
+    "plugin_log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/this-owner-after-v2.log",
+    "native_log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/this-owner-native.log",
+    "source_and_tools": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/this-owner-native",
+    "scope": "exact unqualified/named this owner, local/nested/anonymous shadowing, parameterless helpers, transitive effect rejection; pair-geometry native generation/defaults 1/5 and overrides 1/2/3/5/7/8/15/16/17, simulation/lint/synthesis",
+    "combined_regression": "104/104 tests pass on each Scala version on mixed-write repair plus current integration ancestry",
+    "remote": "pending"
+  },
+  "local_validation_mixed_helper_regression": {
+    "base_commit": "57217a972320ab4ac83aa6bacef321d9eb1b405c",
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "tests_per_scala": 104,
+    "suites": 7,
+    "log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/mixed-helper-regression.log",
+    "source_and_tools": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/mixed-helper-regression",
+    "scope": "structural identity adversarial tests, inferred helpers, mixed indices, nested writes, named-field nested writes, affine writes, guarded registers",
+    "remote": "pending"
   }
 }

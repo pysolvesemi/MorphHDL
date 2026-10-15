@@ -360,9 +360,11 @@ Unique unqualified lexical helpers retain exact definition identities. Known
 host effects propagate through their call graph, including forward calls and
 parameterless references; a staged reference to an effectful helper is rejected.
 Nearest lexical bindings determine identity, so a same-named pure local helper
-is not confused with an effectful outer method. Unqualified `this` references
-resolve against the exact enclosing template, independently of local shadowing.
-Concrete calls remain unchanged.
+is not confused with an effectful outer method. Unqualified `this` and named `Outer.this` references resolve against the exact
+enclosing template, independently of local shadowing and intervening anonymous
+templates. The same ownership resolution is used for helper result inference and
+effect checks. Parameterless helper results retain their value classification
+through import resolution. Concrete calls remain unchanged.
 
 This is not a proof of arbitrary helper or callback purity. Other qualified mutable
 receivers, overloaded/external helpers, collection mutation and I/O need
