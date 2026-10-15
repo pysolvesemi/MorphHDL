@@ -5,9 +5,9 @@
   "working_directory": "/home/kartik/.local/state/morphhdl/worktrees/lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Immutable block helper inference passes local cross-version checks; CI enrollment and cross-file callback checks awaiting integration",
+  "phase": "Preparing sealed exact-source targeted CI candidate for PR196; roadmap remains open",
   "completed_phases": [],
-  "remote_qualification": "not launched; no new candidate published",
+  "remote_qualification": "Draft PR196 and checkpoint b87e95c4dcdd4aed15ee5e72a6423a6e879672bd published; targeted/full CI not launched",
   "application_migration": "not started; requires qualified compiler",
   "implemented_pending_qualification": [
     "versioned semantics and read-only inventory of 86 requirements / 373 source files",
@@ -457,5 +457,35 @@
     "native_log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/block-helper-native.log",
     "source_and_tools": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/block-helper-native",
     "scope": "immutable parameter intermediates, nested lexical shadowing, helper/control/parameter/direct-recursion tests; freshly built pinned simulator; remote pending"
+  },
+  "pull_request": "https://github.com/pysolvesemi/MorphHDL/pull/196",
+  "target_branch": "parameterized-verilog",
+  "target_sha": "db54d01e5b21c7664f7a0de3795f061d77a3d259",
+  "monitoring": {
+    "state": "unavailable",
+    "id": null,
+    "reason": "No suitable general recurring task scheduler exposed; Pages/Sites-specific tools are not a repository continuation monitor."
+  },
+  "local_validation_callback_crossfile": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "plugin_tests_per_scala": 91,
+    "native_tests_per_scala": 13,
+    "native_suites": 3,
+    "log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/callback-crossunit-native.log",
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/callback-crossunit-native",
+    "before_log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/callback-crossunit-before.log",
+    "scope": "resolved source definitions indexed once per compilation Run; precise effect source in another file and pure helper control; native composites, width/ownership rejection and helper RTL; opaque external callback proof remains open"
+  },
+  "qualification_inventory": {
+    "suites": 311,
+    "registered_cases": 3363,
+    "source_hashes": 427,
+    "new_suites": 42,
+    "removed_suites": 0,
+    "note": "Registration inventory, not execution evidence. One affine-write negative case renamed to describe retained input/coverage rejection after valid affine writes became supported.",
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/retained-inventory"
   }
 }

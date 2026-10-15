@@ -1,7 +1,7 @@
 # Lightweight RTL toolchain development evidence
 
 Remote qualification is pending. The simulator revision below is an isolated
-local validation dependency; it has not yet been enrolled in CI. The compiler
+local validation dependency. The structural/process workflow now enrolls its authenticated build in the new lightweight lanes; those lanes have not yet run. The compiler
 and application dependency pins are unaffected.
 
 The mixed hardware-row/scoped-column fixture exposed an Icarus 12.0 runtime
@@ -40,3 +40,20 @@ affected workflows, run the same complete profile set on the final compiler
 commit/tree, and retain fresh tool/source/evidence hashes. A local replay on a
 development tree does not qualify a later candidate. Questa is unavailable in
 this development environment and no Questa result is claimed.
+
+
+The clean installer is `morphhdl/scripts/lightweight-scala-rtl/install-iverilog.py`.
+It requires autoconf, gperf, bison, flex, make and a C++ compiler, builds into a
+fresh isolated prefix, and records source commit/tree plus every installed file.
+Its verification mode rejects missing/changed/extra files, modes and escaping
+symlinks. A fresh local build and retained four-state array replay passed; logs
+are `iverilog-installer-validation-v2.log` and `iverilog-installer-replay/` in the
+durable evidence directory. The first failed attempt lacking gperf is retained.
+
+The closed `suites.json` inventory and `run-contracts.py` enroll both Scala
+versions under SBT and Mill. The runner requires a clean candidate, records
+commit/tree and tool versions/hashes, and validates real XML reports for every
+requested suite, rejecting missing, empty, skipped, failed and duplicate cases.
+Report-parser tests and retained SBT/Mill XML replays pass; remote execution and
+current-head source sealing remain required. These gates add coverage; they do
+not replace inherited structural/process jobs or the full qualification.

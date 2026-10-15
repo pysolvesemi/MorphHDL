@@ -73,4 +73,21 @@ package example {
     assert(good.isEmpty, good.mkString("\n"))
   }
 
+  test("callback helper effects retain exact identities across source files") {
+    val helper = """package example
+      object SeparateHelper {
+        var state = 0
+        def update(value: Int): Int = { state = value; value }
+        def pure(value: Int): Int = value + 1
+      }
+    """
+    for ((method, reject) <- Seq("update" -> true, "pure" -> false)) {
+      val found = compile(prefix + s"object Example { val value = Api.hardware(x => SeparateHelper.$method(x)) } }",
+        "Callback.scala", List("SeparateHelper.scala" -> helper))
+      if (reject) assert(found.exists(d => d.message.contains("MORPHDL-HARDWARE-CALLBACK-HOST-EFFECT") &&
+        d.source == "SeparateHelper.scala"), found.mkString("\n"))
+      else assert(found.isEmpty, found.mkString("\n"))
+    }
+  }
+
 }

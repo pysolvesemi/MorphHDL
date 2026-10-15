@@ -471,7 +471,7 @@ parameters with `rtlHardwareCallback`. This library contract causes a typed
 compiler check; it is not an assertion supplied by the callback author and does
 not bypass native ownership or width validation. Direct host writes, qualified
 field setters, mutable locals, early return and throw are rejected. The checker
-follows exact helper and stored-closure symbols in the same compilation unit,
+follows exact helper and stored-closure symbols across the source units of one compilation,
 including forward references and overload resolution. An immutable captured
 value's already evaluated initializer is not replayed as part of the callback.
 Ordinary Scala callbacks outside marked API boundaries are unchanged.

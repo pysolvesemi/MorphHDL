@@ -18,8 +18,11 @@ final class MorphHdlCallbackEffectComponent(val global: Global) extends PluginCo
     symbol.annotations.exists(_.atp.typeSymbol.fullName == "spinal.core.rtlHardwareCallback")
 
   override def newPhase(previous: Phase): Phase = new StdPhase(previous) {
-    override def apply(unit: CompilationUnit): Unit = {
-      val definitions = mutable.Map.empty[Symbol, Tree]
+    private var indexedRun: global.Run = null
+    private val definitions = mutable.Map.empty[Symbol, Tree]
+    private def indexCurrentRun(): Unit = {
+      if (indexedRun eq global.currentRun) return
+      definitions.clear()
       object Index extends Traverser {
         override def traverse(tree: Tree): Unit = {
           tree match {
@@ -40,13 +43,20 @@ final class MorphHdlCallbackEffectComponent(val global: Global) extends PluginCo
           super.traverse(tree)
         }
       }
-      Index.traverse(unit.body)
-      val reported = mutable.Set.empty[(Int, String)]
+      // typer has completed every source unit before this phase starts. Build
+      // the identity table once per Run, not once per callback or source file.
+      global.currentRun.units.foreach(unit => Index.traverse(unit.body))
+      indexedRun = global.currentRun
+    }
+    override def apply(unit: CompilationUnit): Unit = {
+      indexCurrentRun()
+      val reported = mutable.Set.empty[(String, Int, String)]
       def inspect(body: Tree, call: Tree): Unit = {
         val visiting = mutable.Set.empty[Symbol]
         def reject(tree: Tree, reason: String): Unit = {
           val position = if (tree.pos.isDefined) tree.pos else call.pos
-          val key = (if (position.isDefined) position.point else -1) -> reason
+          val key = (if (position.isDefined) position.source.file.path else "",
+            if (position.isDefined) position.point else -1, reason)
           if (reported.add(key)) reporter.error(position,
             "MORPHDL-HARDWARE-CALLBACK-HOST-EFFECT: " + reason +
               " in a hardware callback; use immutable elaboration values and hardware assignments")
