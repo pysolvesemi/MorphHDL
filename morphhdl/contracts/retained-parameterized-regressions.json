@@ -756,6 +756,15 @@
       "morphhdl.CounterSingleAuthorityParityTests": [
         "typed Counter specializations match independent concrete policy matrices"
       ],
+      "morphhdl.DescendingPriorityProcessTests": [
+        "ordered priority retains coherent array and packed outputs descending=false unpacked=false",
+        "ordered priority retains coherent array and packed outputs descending=false unpacked=true",
+        "ordered priority retains coherent array and packed outputs descending=true unpacked=false",
+        "ordered priority retains coherent array and packed outputs descending=true unpacked=true",
+        "priority API rejects invalid source geometry and ownership foreign",
+        "priority API rejects invalid source geometry and ownership short",
+        "priority API rejects invalid source geometry and ownership zero"
+      ],
       "morphhdl.ElabVecSelectionTests": [
         "constant selection rejects unproven bounds mode=negative",
         "constant selection rejects unproven bounds mode=partial-domain",
@@ -1024,10 +1033,11 @@
         "literal 3-lane reduction connects to a larger generic definition prefix=true",
         "literal 5-lane reduction connects to a larger generic definition prefix=false",
         "literal 5-lane reduction connects to a larger generic definition prefix=true",
-        "public reduction adapter retains actual count mode=symbolic",
-        "public reduction adapter retains actual count mode=sequence",
+        "public reduction adapter retains actual count mode=nestedPrefix",
         "public reduction adapter retains actual count mode=prefix",
-        "public reduction adapter retains actual count mode=prefixWidth"
+        "public reduction adapter retains actual count mode=prefixWidth",
+        "public reduction adapter retains actual count mode=sequence",
+        "public reduction adapter retains actual count mode=symbolic"
       ],
       "morphhdl.LightweightBalancedCompositeTests": [
         "generic recursive payload and callback kind=bits default=1",
@@ -1115,6 +1125,9 @@
         "ordinary Scala Boolean control remains ordinary"
       ],
       "morphhdl.LightweightHierarchyCapacityTests": [
+        "a child port width query retains the exact parent actual through sibling forwarding direct=false",
+        "a child port width query retains the exact parent actual through sibling forwarding direct=true",
+        "direct sibling ports do not equate independent actual widths with equal defaults",
         "mixed literal child counts share their definition reverse=false",
         "mixed literal child counts share their definition reverse=true",
         "smaller parent capacity retains exact child actual symbolic=false unpacked=false",
@@ -4145,6 +4158,7 @@
     "morphhdl/src/test/scala/morphhdl/ConstantAggregateTests.scala": "3857dfc8a220a698f16a8e96da68503c945786599e1c15c75d7d5516e02b2818",
     "morphhdl/src/test/scala/morphhdl/CorrelatedVecPublicationTests.scala": "bf05989f87340b3adf5736aaa616f381f62ec1520eb3fce7b3593fd28edf4b91",
     "morphhdl/src/test/scala/morphhdl/DerivedWidthContractFixture.scala": "76d8cecf59436f684baac6dea2c09b6c5add58b721dc48daf37162fe882140d9",
+    "morphhdl/src/test/scala/morphhdl/DescendingPriorityProcessTests.scala": "55610b85ccadb4ebf82e40d0784c69b61b70aa8b4fe863963e8d953dc9be7e83",
     "morphhdl/src/test/scala/morphhdl/ElabVecSelectionTests.scala": "a264d270078bfa6d5f6ccc8cc29304406382ef3a588ce6c0f33496c1afabc9c4",
     "morphhdl/src/test/scala/morphhdl/EnumDebugOptionsTests.scala": "fe18bb058019725382ad0c9a5458fb0fc2ea4b181ec76ed496606c2df25245d5",
     "morphhdl/src/test/scala/morphhdl/ExternalHierarchyBoolLiteralBindingTests.scala": "6aa420f847781a5b979cc4c1b4bf8948461f9575aac3ebb9810524f61ada7d9b",
@@ -4169,7 +4183,7 @@
     "morphhdl/src/test/scala/morphhdl/LibraryDefinitionReuseTests.scala": "84784c0718615ba7e20cd831e89719a98d47e16b437abbf26ddc6c0141a1b09e",
     "morphhdl/src/test/scala/morphhdl/LightweightAffineTests.scala": "878f0b3e18b7b68d6238d6c0b0069ec3d698d98b30235bc34b6010f94fbb4e76",
     "morphhdl/src/test/scala/morphhdl/LightweightAffineWriteTests.scala": "45a5a32adbd961d5c56092740f5a1b175f3e39b71b190d97da2328483ffacf52",
-    "morphhdl/src/test/scala/morphhdl/LightweightBalancedAdapterTests.scala": "e7e1a83fc105920240e878fd7dc3b80063c951f1a58f3e73350850b377e91fc8",
+    "morphhdl/src/test/scala/morphhdl/LightweightBalancedAdapterTests.scala": "24a7d368e1c03c7215c3fa31e65742777262d804dfdc1100d3b91052b0342280",
     "morphhdl/src/test/scala/morphhdl/LightweightBalancedCompositeTests.scala": "a9e9ccb338695781c48820ada3422c77f8b52d317ffe1fc6caa8fe9aa8c850d6",
     "morphhdl/src/test/scala/morphhdl/LightweightBalancedFormalTests.scala": "3de8eec19ae344da272e5949ff61224c1e9bc7b660a824945dd27c482b923302",
     "morphhdl/src/test/scala/morphhdl/LightweightBalancedSafetyTests.scala": "0f1f3061a6f71d5d05fe56416bd6b0f89f0cb10fac4171108588b44239d930eb",
@@ -4181,7 +4195,7 @@
     "morphhdl/src/test/scala/morphhdl/LightweightFormalTests.scala": "dc77f0a5511ba8cbd40416a06a24fa8979b5ef075631d1c382120a7a72906913",
     "morphhdl/src/test/scala/morphhdl/LightweightGuardedRegisterTests.scala": "40404c6c933f46235eab25f6db5a9a11b486f935b16050baca8332ec15288546",
     "morphhdl/src/test/scala/morphhdl/LightweightHardwareConditionTests.scala": "33302e6d3e37e3e2a95ad7ced2e4951cb467784f353631d0bc899220083bafc4",
-    "morphhdl/src/test/scala/morphhdl/LightweightHierarchyCapacityTests.scala": "283543dd4afdc10e414cad1b15e3fa3f6bef715c827a3c9c8137d64b00f289d9",
+    "morphhdl/src/test/scala/morphhdl/LightweightHierarchyCapacityTests.scala": "1b29bed703bd3beefba7d4cd366d61d267a55a3ecd87727cd88f3d4f51fcc78d",
     "morphhdl/src/test/scala/morphhdl/LightweightImplicitClockTests.scala": "90dac45fa157cdc4c1396c7bc8503277bfba6095fc7a89c05be8a911c7a7dfee",
     "morphhdl/src/test/scala/morphhdl/LightweightInferredHelperTests.scala": "3692b6974878076f1c9d45ea2a60db040c898094d875db52766611ae49c1fd99",
     "morphhdl/src/test/scala/morphhdl/LightweightLocalNamesTests.scala": "3a4673f8b9c3d513a3213d4eeb316444db02cb8ee473393d58c83d01607ce086",

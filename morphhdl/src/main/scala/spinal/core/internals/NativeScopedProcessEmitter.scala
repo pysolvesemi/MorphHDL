@@ -150,6 +150,9 @@ private[internals] object NativeScopedProcessEmitter {
       }
       def emitLoop(loop: Loop, actions: Vector[Action], tab: String): Unit = {
         val index = allocate(loop)
+        if (loop.descending)
+          output ++= s"${tab}for ($index = ${geometry(printer.component,loop.count)} - 1; $index >= 0; $index = $index - 1) begin\n"
+        else
         output ++= s"${tab}for ($index = 0; $index < ${geometry(printer.component,loop.count)}; $index = $index + 1) begin\n"
         emit(actions,tab + "  ")
         output ++= s"${tab}end\n"

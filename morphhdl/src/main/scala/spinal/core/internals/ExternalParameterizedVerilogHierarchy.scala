@@ -2193,6 +2193,15 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
             )
           )
         } else if (
+          (assignment.source eq port) && (assignment.target eq assignment.finalTarget) &&
+          (assignment.finalTarget.component ne child) &&
+          (assignment.finalTarget.component.parent eq parent) && assignment.finalTarget.isInput &&
+          NativeWidthFormalSchema.portBinding(assignment.finalTarget).nonEmpty
+        ) {
+          // A direct sibling edge belongs to the common parent. Its sink's
+          // authenticated formal actual is the width evidence, not its witness.
+          Vector(ExpressionBinding(NativeWidthFormalSchema.portBinding(assignment.finalTarget).get.binding.actual))
+        } else if (
           allowConcreteInternal &&
           assignment.target == assignment.finalTarget &&
           assignment.finalTarget.component == parent &&
@@ -2240,6 +2249,9 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       LiteralBinding(1)
     case _: BoolLiteral => LiteralBinding(1)
     case value: Bool => LiteralBinding(1)
+    case value: BitVector if value.isOutput && (value.component.parent eq parent) &&
+        NativeWidthFormalSchema.portBinding(value).nonEmpty =>
+      ExpressionBinding(NativeWidthFormalSchema.portBinding(value).get.binding.actual)
     case value: BitVector if value.component == parent =>
       ExternalParameterizedHierarchyResizeWidth.expressionOf(parent, value) match {
         case Some(expression) => ExpressionBinding(expression)

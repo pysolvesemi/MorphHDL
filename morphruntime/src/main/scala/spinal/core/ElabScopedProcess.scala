@@ -8,7 +8,7 @@ import spinal.core.internals._
   */
 object ElabScopedProcess {
   private object Key
-  private[core] final class Loop(val count: ElabInt, val ordinal: Int)
+  private[core] final class Loop(val count: ElabInt, val ordinal: Int, val descending: Boolean = false)
   private[core] case class Position(terms: Vector[(Loop, ElabInt)], offset: Int) {
     def limit: ElabInt = terms.foldLeft(ElabInt.literal(offset + 1)) { case (n, (loop, scale)) => n + (loop.count - 1) * scale }
     def witness(indices: Map[Loop, Int]): Int = terms.foldLeft(BigInt(offset)) { case (n,(loop,scale)) => n + indices(loop) * scale.witness }.toInt
@@ -128,9 +128,9 @@ object ElabScopedProcess {
     def ||(other: Predicate): Predicate = combine("||", other)
   }
 
-  final class Builder private[ElabScopedProcess] (private[core] val count: ElabInt, private[core] val resultWidth: ElabInt, private[core] val outputs: Vector[Output]) {
+  final class Builder private[ElabScopedProcess] (private[core] val count: ElabInt, private[core] val resultWidth: ElabInt, private[core] val outputs: Vector[Output], descending: Boolean = false) {
     private[core] val component = Component.current
-    private[core] val rootLoop = new Loop(count, 0)
+    private[core] val rootLoop = new Loop(count, 0, descending)
     private var loopSerial = 0
     private var activeLoops = Vector(rootLoop)
     private var open = true
@@ -285,13 +285,13 @@ object ElabScopedProcess {
     component.userCache.get(Key).toVector.flatMap(_.asInstanceOf[ArrayBuffer[Operation]])
 
   private[core] def build[T <: BitVector](count: ElabInt, resultWidth: ElabInt, result: => T,
-      fields: Vector[Output] = Vector.empty)(body: Builder => Unit): T = {
+      fields: Vector[Output] = Vector.empty, descending: Boolean = false)(body: Builder => Unit): T = {
     positive(count, "loop count", minimum = 0); positive(resultWidth, "result width")
     if (Component.current == null || DslScopeStack.get != Component.current.dslBody)
       fail("scoped processes must be authored at component scope")
     val outputs = if (fields.isEmpty) Vector(Output(resultWidth)) else fields
     outputs.foreach(validateDefault)
-    val builder = new Builder(count, resultWidth, outputs)
+    val builder = new Builder(count, resultWidth, outputs, descending)
     val before = builder.component.dslBody.statementIterable.toVector
     val children = builder.component.children.toVector
     val program = try { body(builder); builder.finish() } finally builder.close()
@@ -350,7 +350,7 @@ object ElabScopedProcess {
     if (!ParameterizedStructure.captureEnabled) {
       default.removeStatement()
       var values = outputs.map(s => s.initial.map(_.asBits).getOrElse(B(s.default & ((BigInt(1) << s.width.witness)-1), s.width.witness bits)))
-      for (i <- 0 until count.witness) values = evaluate(program, values, Map(builder.rootLoop -> i))
+      for (i <- (if(descending) (0 until count.witness).reverse else 0 until count.witness)) values = evaluate(program, values, Map(builder.rootLoop -> i))
       output.assignFromBits(values.reverse.reduce(_ ## _))
     } else {
       val dependencies = builder.inputs.map { case v: Bool => v; case v: BitVector => v.orR }.reduce(_ | _)
@@ -374,11 +374,11 @@ object ElabScopedProcess {
     }
     output
   }
-  private[core] def buildOutputs(count: ElabInt, fields: Vector[Output])(body: Builder => Unit): Vector[Bits] = {
+  private[core] def buildOutputs(count: ElabInt, fields: Vector[Output], descending: Boolean = false)(body: Builder => Unit): Vector[Bits] = {
     if (fields.isEmpty) fail("process needs at least one output")
     fields.foreach(validateDefault)
     val total = fields.map(_.width).reduce(_ + _)
-    val packed = build(count, total, Bits(total bits), fields)(body)
+    val packed = build(count, total, Bits(total bits), fields, descending)(body)
     val op = operations(Component.current).find(_.result eq packed)
     var offset = 0
     fields.zipWithIndex.map { case (field, number) =>

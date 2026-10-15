@@ -19,9 +19,30 @@ object ElabProcess {
   /** Multiple logical results/defaults, nested loops and explicit ordered accumulators.
     * Outputs share one owning packed combinational process; field zero is least significant.
     */
-  def outputsLoop(count: ElabInt, outputs: Seq[ElabScopedProcess.Output])
+  def outputsLoop(count: ElabInt, outputs: Seq[ElabScopedProcess.Output], descending: Boolean = false)
       (body: ElabScopedProcess.Builder => Unit): Vector[Bits] =
-    ElabScopedProcess.buildOutputs(count, outputs.toVector)(body)
+    ElabScopedProcess.buildOutputs(count, outputs.toVector, descending)(body)
+
+  /** Select coherent packed fields from the last matching iteration. A match is
+    * a nonzero predicate word after masking; X/Z uses native Verilog if semantics.
+    * Ascending traversal selects the highest matching index, descending the lowest.
+    * Fields are (packed words, word width); every output defaults to zero.
+    */
+  def prioritySelect(count: ElabInt, predicateWords: Bits, predicateMask: Bits,
+      fields: Seq[(Bits, ElabInt)], descending: Boolean = false): Vector[Bits] = {
+    bounded(count, "priority count")
+    val predicateWidth = widthOfExpr(predicateMask)
+    checkSource(predicateWords, count * predicateWidth)
+    fields.foreach { case (words, width) => checkSource(words, count * width) }
+    outputsLoop(count, fields.map { case (_, width) => ElabScopedProcess.Output(width) }, descending) { p =>
+      p.when((p.slice(predicateWords, p.index, predicateWidth) & p.bits(predicateMask)) =/=
+          p.literal(0, predicateWidth)) {
+        fields.zipWithIndex.foreach { case ((words, width), number) =>
+          p.output(number).assign(p.slice(words, p.index, width))
+        }
+      }
+    }
+  }
 
   private object Key
   private[core] final class Operation(
@@ -54,7 +75,8 @@ object ElabProcess {
       fail("bounded operations require an owner-local source in component scope")
     val actual = NativeWidthProvenance.widthOf(source).getOrElse(
       fail("source needs authenticated packed-width provenance"))
-    if (!ElabFiniteRange.equivalentLogicalCount(ElabInt.projectExpression(actual, "process source"),
+    if (!ElaborationWidthAuthority.equivalent(actual, width.expression) &&
+        !ElabFiniteRange.equivalentLogicalCount(ElabInt.projectExpression(actual, "process source"),
         ElabInt.projectExpression(width.expression, "process source geometry")))
       fail("source width must equal the operation's geometry over the complete parameter domain")
   }

@@ -35,7 +35,7 @@ for(k=0;k<64;k=k+1) begin source={$$random,$$random}; #3; end $$finish; end endm
       val(status,log)=Increment66ToolEvidence.run(directory,command);assert(status==0,log)
     }
   }
-  for (mode <- Seq("symbolic", "sequence", "prefix", "prefixWidth")) test(s"public reduction adapter retains actual count mode=$mode") {
+  for (mode <- Seq("symbolic", "sequence", "prefix", "prefixWidth", "nestedPrefix")) test(s"public reduction adapter retains actual count mode=$mode") {
     val sequence = mode != "symbolic"
     val directory=Files.createTempDirectory("lightweight-tree-adapter-")
     MorphVerilog(MorphAggregateOptions(SpinalConfig(targetDirectory=directory.toString,
@@ -45,9 +45,10 @@ for(k=0;k<64;k=k+1) begin source={$$random,$$random}; #3; end $$finish; end endm
         setDefinitionName("AdapterTop")
         noIoPrefix()
         val count: ElabInt=RtlParam.int("COUNT",5,1,8)
-        val terms = if(sequence) in(Vec(UInt(8 bits),8)) else in(Vec(UInt(8 bits),count))
+        val nested = if(mode == "nestedPrefix") in(Vec(Vec(UInt(8 bits),ElabInt.literal(8)),ElabInt.literal(2))) else null
+        val terms = if(nested != null) nested(1) else if(sequence) in(Vec(UInt(8 bits),8)) else in(Vec(UInt(8 bits),count))
         val result=out UInt(8 bits)
-        if(mode == "prefixWidth") result := BalancedTree.defineWidth((w:ElabInt)=>UInt(w bits),8,8,"AdapterTree")(
+        if(mode == "prefixWidth" || mode == "nestedPrefix") result := BalancedTree.defineWidth((w:ElabInt)=>UInt(w bits),8,8,"AdapterTree")(
           (a:UInt,b:UInt)=>a-b).reduceBalancedTree(terms,count,null)
         else if(mode == "prefix") result := BalancedTree.define(HardType(UInt(8 bits)),8,"AdapterTree")(
           (a:UInt,b:UInt)=>a-b).reduceBalancedTree(terms,count,null)
@@ -58,10 +59,11 @@ for(k=0;k<64;k=k+1) begin source={$$random,$$random}; #3; end $$finish; end endm
     }
     val files=directory.toFile.listFiles().filter(_.getName.endsWith(".v")).map(_.getName).toSeq
     val profiles=Seq(1,2,3,5,8).map(n=>s"Check #(.N($n)) c$n(data);").mkString("\n")
+    val termsConnection = if(mode == "nestedPrefix") ".nested({data,64'hdeadbeef01234567})" else ".terms(data[" + (if(sequence) "64" else "N*8") + "-1:0])"
     val inputWidth=if(sequence) "64" else "N*8"
     Files.write(directory.resolve("tb.v"),s"""module Check #(parameter N=1)(input [63:0] data);
 wire [7:0] result; reg [7:0] words[0:7]; integer i,n;
-AdapterTop #(.COUNT(N)) dut(.clk(1'b0),.reset(1'b0),.terms(data[$inputWidth-1:0]),.result(result));
+AdapterTop #(.COUNT(N)) dut(.clk(1'b0),.reset(1'b0),$termsConnection,.result(result));
 always @(data) begin #1;
 for(i=0;i<N;i=i+1) words[i]=data[i*8+:8]; n=N;
 while(n>1) begin for(i=0;i<(n+1)/2;i=i+1) begin

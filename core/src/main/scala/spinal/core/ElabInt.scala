@@ -1463,7 +1463,7 @@ object ElabInt {
       .map { leaf =>
         ParameterizedWidth
           .expressionOf(leaf)
-          .map(fromExpression)
+          .map(expression => fromExpression(NativeFormalWidthProjection.inCurrentScope(leaf, expression)))
           .getOrElse(literal(leaf.getBitsWidth))
       }
       .reduceOption(_ + _)

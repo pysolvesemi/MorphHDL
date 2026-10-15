@@ -14,7 +14,10 @@ object ElabFormalParameter {
       require(!sealedInventory,"formal inventory was already sealed")
       sealedInventory=true
       ExternalFormalParameterRegistry.retainDeclaredTypedParameters(owner,entries.toVector)
-      entries.foreach { case (formal,actual,_) => ParameterizedVec.retainComponentFormal(owner,formal,actual) }
+      entries.foreach { case (formal,actual,_) =>
+        ParameterizedVec.retainComponentFormal(owner,formal,actual)
+        NativeFormalWidthProjection.retain(owner,formal,actual)
+      }
     })
   }
   def apply(actual: ElabInt, name: String, minimum: BigInt = 1,

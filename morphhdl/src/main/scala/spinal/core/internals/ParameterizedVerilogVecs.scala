@@ -1796,6 +1796,7 @@ private[internals] object ParameterizedVerilogVecs {
     // must not silently make a legacy unsigned SInt alias signed.
     val nativeReadSignedness = new IdentityHashMap[BaseType, java.lang.Boolean]()
     val layoutWiring = ArrayBuffer.empty[String]
+    val layoutDeclarations = ArrayBuffer.empty[String]
     val packedReadBridges = new IdentityHashMap[Vec[_], java.lang.Boolean]()
     val publishedLayoutNames = plans.flatMap(plan =>
       Vector(plan.name) ++ plan.layout.toVector.flatMap(_.fields.map(_.name))
@@ -1918,13 +1919,13 @@ private[internals] object ParameterizedVerilogVecs {
           }
           val assignmentSource = plan.layout match {
             case Some(layout) if layout.aggregate != plan.name =>
-              val emittedCode = (lines ++ layoutWiring).mkString("\n")
+              val emittedCode = (lines ++ layoutDeclarations ++ layoutWiring).mkString("\n")
               val allocated = ParameterizedVerilogFieldLayout.allocateBridge(
                 plan.shape, plan.name + "_unpacked", render _,
                 candidate => publishedLayoutNames(candidate) || containsIdentifier(emittedCode, candidate)
               )
               val bridge = allocated.layout
-              layoutWiring ++= bridge.fields.map(field => s"  wire ${field.range} ${field.name};")
+              layoutDeclarations ++= bridge.fields.map(field => s"  wire ${field.range} ${field.name};")
               layoutWiring ++= bridge.packedBridge(sourceName, toPacked = false, labelPrefix = allocated.labelPrefix)
               bridge.aggregate
             case _ => sourceName
@@ -2031,10 +2032,10 @@ private[internals] object ParameterizedVerilogVecs {
         case value: ParameterizedVecPackedRead =>
           if (plan.projection.nonEmpty || plan.layout.exists(_.aggregate != plan.name)) {
             if (!packedReadBridges.containsKey(plan.vector)) {
-              layoutWiring += s"  wire ${plan.range} ${plan.name};"
+              layoutDeclarations += s"  wire ${plan.range} ${plan.name};"
               if (plan.layout.isEmpty) layoutWiring += s"  assign ${plan.name} = ${plan.aggregate};"
               else {
-                val emittedCode = (lines ++ layoutWiring).mkString("\n")
+                val emittedCode = (lines ++ layoutDeclarations ++ layoutWiring).mkString("\n")
                 val label = plan.geometry.allocatePackingLabel(plan.name + "_packed_layout",
                   candidate => publishedLayoutNames(candidate) || containsIdentifier(emittedCode, candidate))
                 layoutWiring ++= plan.geometry.packedBridge(plan.name, toPacked = true,
@@ -2349,6 +2350,15 @@ private[internals] object ParameterizedVerilogVecs {
       if (end < 0) fail("SPINAL-PARAMETERIZED-VERILOG-VEC-MODULE-BOUNDARY-MISSING",
         "named field conversion requires one native module boundary")
       lines = lines.patch(end, layoutWiring.toVector, 0)
+    }
+    // These declarations belong to authenticated module-level layout bridges.
+    // Emit them before any generate scope that consumes a bridge; Verilog tools
+    // need not resolve a later module declaration from an earlier nested scope.
+    if (layoutDeclarations.nonEmpty) {
+      val headerEnd = lines.indexWhere(_.trim == ");")
+      if (headerEnd < 0) fail("SPINAL-PARAMETERIZED-VERILOG-VEC-MODULE-BOUNDARY-MISSING",
+        "named field declarations require one native module header")
+      lines = lines.patch(headerEnd + 1, layoutDeclarations.toVector, 0)
     }
     // Dynamic publication consumes the native mux's exact carrier-select
     // bridge. Remove that retained support only when nothing else reads it;
