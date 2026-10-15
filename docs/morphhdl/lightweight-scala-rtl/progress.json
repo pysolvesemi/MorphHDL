@@ -5,9 +5,9 @@
   "working_directory": "/home/kartik/.local/state/morphhdl/worktrees/lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Preparing sealed exact-source targeted CI candidate for PR196; roadmap remains open",
+  "phase": "Local complete enrolled lightweight validation; remote publication blocked on workflow-write permission",
   "completed_phases": [],
-  "remote_qualification": "Draft PR196 and checkpoint b87e95c4dcdd4aed15ee5e72a6423a6e879672bd published; targeted/full CI not launched",
+  "remote_qualification": "PR196 remains b87e95c4; push of sealed 2ca9590685538425c1297798bc5806899ba4db10 rejected for missing workflow scope; no dispatch or monitor",
   "application_migration": "not started; requires qualified compiler",
   "implemented_pending_qualification": [
     "versioned semantics and read-only inventory of 86 requirements / 373 source files",
@@ -487,5 +487,14 @@
     "removed_suites": 0,
     "note": "Registration inventory, not execution evidence. One affine-write negative case renamed to describe retained input/coverage rejection after valid affine writes became supported.",
     "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/retained-inventory"
+  },
+  "local_validation_callback_host_apis": {
+    "plugin_tests_per_scala": 97,
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/callback-host-api-after.log",
+    "scope": "Known host API effects by typed symbol identity; opaque purity remains open"
   }
 }

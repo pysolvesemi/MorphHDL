@@ -2,6 +2,7 @@
 """Run the closed lightweight suite set and reject missing/empty/skipped reports."""
 import argparse
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import subprocess
@@ -36,6 +37,8 @@ def reports(paths, expected):
             identities = [case.attrib['name'] for case in cases]
             if len(set(identities)) != len(identities):
                 raise RuntimeError('duplicate test case: ' + name)
+            if sorted(identities) != sorted(expected[name]):
+                raise RuntimeError('test case inventory differs: ' + name)
             found[name] = identities
     if set(found) != set(expected):
         raise RuntimeError('missing suites: ' + repr(sorted(set(expected) - set(found))))
@@ -51,6 +54,11 @@ def main():
     args = parser.parse_args()
     if subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT):
         raise RuntimeError('qualification requires a clean committed candidate')
+    guard_path = ROOT / 'morphhdl/scripts/check-retained-parameterized-regressions.py'
+    spec = importlib.util.spec_from_file_location('retained_catalog', guard_path)
+    guard = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(guard)
+    catalog = guard.catalog(ROOT)
     manifest = json.loads(MANIFEST.read_text())
     sources = [entry['source'] for entry in manifest['entries']]
     if len(set(sources)) != len(sources) or not all((ROOT / path).is_file() for path in sources):
@@ -63,6 +71,7 @@ def main():
     receipt = {'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                'tree': subprocess.check_output(['git', 'rev-parse', 'HEAD^{tree}'], cwd=ROOT, text=True).strip(),
                'manifest_sha256': hashlib.sha256(MANIFEST.read_bytes()).hexdigest(),
+               'catalog_sha256': guard.CONTRACT_SHA256,
                'build': args.build, 'scala': args.scala, 'modules': {}}
     receipt['tools'] = {}
     for name, flag in (('java', '-version'), ('iverilog', '-V'), ('vvp', '-V'),
@@ -94,11 +103,17 @@ def main():
             result = subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT, timeout=3300)
         if result.returncode:
             raise RuntimeError('test command failed; inspect ' + str(log))
-        found = reports(paths, suites)
+        project = 'morphhdl' if module == 'morph' else module
+        expected = {suite: catalog['projects'][project][suite] for suite in suites}
+        found = reports(paths, expected)
         receipt['modules'][module] = {'command': command, 'suites': found,
                                      'log_sha256': hashlib.sha256(log.read_bytes()).hexdigest()}
         for index, path in enumerate(paths):
             (args.output / (module + '-' + str(index) + '.xml')).write_bytes(path.read_bytes())
+    if subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT) or any(
+            subprocess.check_output(['git', 'rev-parse', ref], cwd=ROOT, text=True).strip() != receipt[key]
+            for key, ref in (('commit', 'HEAD'), ('tree', 'HEAD^{tree}'))):
+        raise RuntimeError('candidate changed during qualification')
     (args.output / 'results.json').write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
     print('All enrolled suites ran without missing, empty or skipped cases')
 

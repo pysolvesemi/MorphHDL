@@ -69,6 +69,28 @@ final class MorphHdlCallbackEffectComponent(val global: Global) extends PluginCo
               visiting -= symbol
             }
         }
+        // Resolve the selected typed method's owner, not the receiver spelling.
+        // This deliberately covers known host mutation/I/O APIs only; it does
+        // not certify arbitrary opaque methods as pure.
+        def knownHostEffect(symbol: Symbol): Boolean = {
+          if (symbol == null || symbol == NoSymbol) return false
+          val owner = symbol.owner.fullName
+          val method = symbol.name.decodedName.toString
+          val mutableCollection = owner.startsWith("scala.collection.mutable.") ||
+            Set("scala.collection.generic.Growable", "scala.collection.generic.Shrinkable")(owner)
+          val mutations = Set("+=", "++=", "-=", "--=", "update", "clear", "addOne", "addAll",
+            "subtractOne", "subtractAll", "append", "appendAll", "prepend", "prependAll",
+            "insert", "insertAll", "remove", "retain", "filterInPlace", "mapInPlace",
+            "flatMapInPlace", "sortInPlace", "sortInPlaceBy", "sortInPlaceWith",
+            "transform", "put", "putAll", "getOrElseUpdate", "updateWith", "push", "pop",
+            "enqueue", "dequeue", "dequeueAll", "dequeueFirst", "trimStart", "trimEnd")
+          (mutableCollection && mutations(method)) ||
+            (owner == "scala.Array" && method == "update") ||
+            (Set("scala.Predef", "scala.Console")(owner) &&
+              Set("print", "println", "printf", "readLine", "readInt", "readBoolean")(method)) ||
+            owner.startsWith("java.io.") || owner.startsWith("java.nio.file.") ||
+            owner.startsWith("scala.io.")
+        }
         object Effects extends Traverser {
           override def traverse(tree: Tree): Unit = tree match {
             case _: DefDef | _: ClassDef | _: ModuleDef => // only follow invoked definitions
@@ -81,6 +103,8 @@ final class MorphHdlCallbackEffectComponent(val global: Global) extends PluginCo
               // used compound assignment through a qualified receiver.
               if (application.fun.symbol != null && application.fun.symbol != NoSymbol &&
                   application.fun.symbol.isSetter) reject(application, "host field assignment")
+              else if (knownHostEffect(application.fun.symbol))
+                reject(application, "host mutation or I/O through " + application.fun.symbol.fullName)
               else follow(application.fun.symbol)
               super.traverse(tree)
             case reference: Ident => follow(reference.symbol)

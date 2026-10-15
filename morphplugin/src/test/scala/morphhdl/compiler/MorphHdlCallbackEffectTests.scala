@@ -90,4 +90,24 @@ package example {
     }
   }
 
+  for ((name, body) <- Seq(
+    "buffer append" -> "val values = scala.collection.mutable.ArrayBuffer.empty[Int]; val value = Api.hardware(x => { values += x; x })",
+    "map update" -> "val values = scala.collection.mutable.Map.empty[Int, Int]; val value = Api.hardware(x => { values.update(x, x); x })",
+    "array update" -> "val values = Array(0); val value = Api.hardware(x => { values(0) = x; x })",
+    "console" -> "val value = Api.hardware(x => { println(x); x })",
+    "stream" -> "val value = Api.hardware(x => { System.out.println(x); x })"
+  )) test("known host APIs reject " + name) {
+    val found = errors("object Example { " + body + " }")
+    assert(found.exists(_.message.contains("MORPHDL-HARDWARE-CALLBACK-HOST-EFFECT")), found.mkString("\n"))
+  }
+
+  test("immutable collection operations and same-named authored methods remain supported") {
+    val found = errors("""object Example {
+      class Pure { def update(x: Int): Int = x + 1; def println(x: Int): Int = x }
+      val pure = new Pure
+      val value = Api.hardware(x => List(x, 1).map(pure.update).sum + pure.println(x))
+    }""")
+    assert(found.isEmpty, found.mkString("\n"))
+  }
+
 }

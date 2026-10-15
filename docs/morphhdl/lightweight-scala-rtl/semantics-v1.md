@@ -476,7 +476,10 @@ including forward references and overload resolution. An immutable captured
 value's already evaluated initializer is not replayed as part of the callback.
 Ordinary Scala callbacks outside marked API boundaries are unchanged.
 
-Opaque external helper/closure implementations and arbitrary collection/I/O
+Known Scala mutable-collection mutators, array writes, console calls and JVM
+stream/file I/O reject by resolved method-owner identity. Unrelated authored
+methods with the same names and immutable collection operations retain their
+semantics. Opaque external helper/closure implementations and arbitrary host
 effects are not proven pure by this check. The broader callback-effect roadmap
 requirement remains open. Native checks still reject captured foreign hardware,
 changed payload widths and illegal recursive ownership. The existing native

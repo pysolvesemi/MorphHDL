@@ -10,16 +10,22 @@ spec.loader.exec_module(contracts)
 
 
 class Reports(unittest.TestCase):
-    def check(self, xml, expected=('example.Suite',)):
+    def check(self, xml, expected=None):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'report.xml'
             path.write_text(xml)
-            return contracts.reports([path], expected)
+            return contracts.reports([path], expected if expected is not None else {'example.Suite': ['case']})
 
     def test_success_single_and_mill_wrapper(self):
         body = '<testsuite name="example.Suite" tests="1"><testcase classname="example.Suite" name="case"/></testsuite>'
         for xml in (body, '<testsuites>' + body + '</testsuites>'):
             self.assertEqual(self.check(xml), {'example.Suite': ['case']})
+
+    def test_partial_case_inventory_and_unreviewed_case_reject(self):
+        body = '<testsuite name="example.Suite" tests="1"><testcase classname="example.Suite" name="case"/></testsuite>'
+        for cases in (['case', 'missing'], ['different']):
+            with self.assertRaises(RuntimeError):
+                self.check(body, {'example.Suite': cases})
 
     def test_missing_empty_failed_skipped_duplicate_and_wrong_suite(self):
         bodies = [
