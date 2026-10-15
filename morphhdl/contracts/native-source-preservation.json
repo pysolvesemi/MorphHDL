@@ -27,7 +27,7 @@
     {
       "path": "lib/src/main",
       "baseline_tree": "76cd20a58e83ff73404632aec84bb03f2dd4dea9",
-      "approved_tree": "b454d6c95afa3ecf1050a04c6c45a39ff0edf959"
+      "approved_tree": "d402ec0826510567d565b6436f829cc20f03979d"
     },
     {
       "path": "scalaplugin/src/main",
@@ -5740,8 +5740,8 @@
       "approved": {
         "path": "lib/src/main/scala/spinal/lib/BalancedTree.scala",
         "mode": "100644",
-        "blob": "83637ca846995882edb926ab3f9384d7f86da50f",
-        "sha256": "7c7f40566367963b616e5a3d1cf3efa939eff1a382c903b3f95965891133f4b9"
+        "blob": "cc48f2222ceb08cba661acf128e1c0ec8f8e62c6",
+        "sha256": "87afb5fecfb27ce63d969f40bc8adec33e8e001f9d73c0758dc3b91eaa004f7d"
       },
       "edits": []
     },
