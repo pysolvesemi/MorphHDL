@@ -5,7 +5,7 @@
   "working_directory": "/home/kartik/.local/state/morphhdl/worktrees/lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Simple inferred parameter helpers locally validated; reconstructing exact hierarchy capacity adaptation",
+  "phase": "Hierarchy capacity adaptation locally validated; remaining roadmap capabilities in development",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -36,7 +36,8 @@
     "statement-valued symbolic else-if chains without terminal else retain ordered capture and reject Scala-only effects",
     "typed Vec direction factories preserve input/output directions across braces, short and fill syntaxes",
     "public reduction adapters forward authenticated native scalar Vec payload widths and optional pipeline masks",
-    "single-expression local parameter helpers infer symbolic types through forward lexical calls with ordinary shadowing preserved"
+    "single-expression local parameter helpers infer symbolic types through forward lexical calls with ordinary shadowing preserved",
+    "direct parent-child scalar Vec boundaries adapt authenticated literal/narrow-domain capacities with exact driver receipts and formal identity mapping"
   ],
   "local_logs": [
     "/tmp/lwr01-plugin-all.log",
@@ -62,8 +63,6 @@
   ],
   "validation_note": "Earlier logs establish development evidence only. Re-run exact final source after all changes before publishing qualification claims.",
   "next": [
-    "Implement inferred simple parameter helpers; reconstruct and revalidate lost hierarchy-capacity repair",
-    "Repair direct literal-depth Vec hierarchy connection with authenticated carrier adaptation; see open-compositions.md",
     "Extend aggregate recursive interfaces, ordinary packed-word access, helper inference, and callback/pipeline integration",
     "Complete parameter/helper propagation, array/word/hierarchy and pipeline requirements with negative controls",
     "Update source review manifests and test inventories; publish clean candidate and targeted CI before full CI",
@@ -178,5 +177,14 @@
       "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/inferred-helpers.log",
       "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/inferred-helpers-cross.log"
     ]
+  },
+  "local_validation_hierarchy_capacity": {
+    "tests_per_scala": 194,
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/hierarchy-recovery-final",
+    "scope": "11 suites: positive hierarchy and sharing, tamper rejection, adapters, packed words, guarded publication and inherited hierarchy regressions"
   }
 }

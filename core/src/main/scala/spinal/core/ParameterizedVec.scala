@@ -1988,22 +1988,12 @@ object ParameterizedVec {
   }
 
   private[spinal] def recordWholeAssignment(
-      target: Vec[_],
-      source: Vec[_],
-      assignments: Vector[DataAssignmentStatement],
-      kind: AnyRef
-  ): Unit =
-    shapeOf(target).foreach { shape =>
-      append(
-        target,
-        ParameterizedVecWholeAssignment(
-          source,
-          assignments,
-          kindName(kind),
-          shape.sourceLocation
-        )
-      )
-    }
+      target: Vec[_], source: Vec[_], assignments: Vector[DataAssignmentStatement], kind: AnyRef
+  ): Option[ParameterizedVecWholeAssignment] = shapeOf(target).map { shape =>
+    val operation=ParameterizedVecWholeAssignment(source,assignments,kindName(kind),shape.sourceLocation)
+    append(target,operation)
+    operation
+  }
 
   /** Follow only the native nodes used by MultiData.asBits.  Intermediate
     * type-node copies are admitted through one exact assignment identity;
@@ -2629,7 +2619,8 @@ object ParameterizedVec {
       canonicalFormal: ElaborationIntegerParameter,
       canonicalActual: ElaborationIntegerExpression,
       actualFormal: ElaborationIntegerParameter,
-      actualActual: ElaborationIntegerExpression
+      actualActual: ElaborationIntegerExpression,
+      formalMap: Vector[(ElaborationIntegerParameter,ElaborationIntegerParameter)] = Vector.empty
   ): Option[ElaborationIntegerExpression] = {
     if (
       canonicalVector == null || actualVector == null ||
@@ -2639,9 +2630,17 @@ object ParameterizedVec {
       return None
     val canonical = shapeOf(canonicalVector).getOrElse(return None)
     val actual = shapeOf(actualVector).getOrElse(return None)
-    if (canonicalFormal != actualFormal) return None
+    val canonicalBindings=formalBindingsOf(canonicalVector)
+    val actualBindings=formalBindingsOf(actualVector)
+    val mapped=formalMap.exists { case(c,a)=>(c eq canonicalFormal) && (a eq actualFormal) }
+    if(formalMap.exists { case(c,a)=>
+      c == null || a == null || c.name != a.name || c.minimum != a.minimum || c.maximum != a.maximum ||
+        canonicalBindings.count(_.formal eq c)!=1 || actualBindings.count(_.formal eq a)!=1 ||
+        formalMap.count(pair=>pair._1 eq c)!=1 || formalMap.count(pair=>pair._2 eq a)!=1
+    }) return None
+    if (!mapped && canonicalFormal != actualFormal) return None
     if (
-      canonical.witnessDepth != actual.witnessDepth ||
+      (!mapped && canonical.witnessDepth != actual.witnessDepth) ||
       canonical.carrierCapacity != actual.carrierCapacity ||
       !equivalentFieldLayout(canonical.elementFields, actual.elementFields) ||
       canonical.elementLeaves.size != actual.elementLeaves.size ||
@@ -2669,12 +2668,8 @@ object ParameterizedVec {
     if (
       !dimensions.forall { case (definition, instance) =>
         ElabInt.equivalentExactFunction(definition, instance) ||
-        equivalentDeclaredFormalFunction(
-          definition,
-          canonicalFormal,
-          instance,
-          actualFormal
-        )
+        equivalentDeclaredFormalFunction(definition,canonicalFormal,instance,actualFormal) ||
+        formalMap.exists { case(c,a)=>equivalentDeclaredFormalFunction(definition,c,instance,a) }
       }
     ) return None
 
@@ -2806,11 +2801,18 @@ object ParameterizedVec {
     * sufficient: the child expression must carry the formal declaration root
     * and the peer must carry that binding's exact actual expression.
     */
+  private[spinal] def logicalHierarchyCompatible(left: Vec[_],right: Vec[_]): Boolean =
+    (shapeOf(left),shapeOf(right)) match {
+      case (Some(a),Some(b)) => equivalentDirectHierarchyShape(left,a,right,b,allowCapacityDifference=true)
+      case _ => false
+    }
+
   private def equivalentDirectHierarchyShape(
       leftVector: Vec[_],
       left: ParameterizedVecShape,
       rightVector: Vec[_],
-      right: ParameterizedVecShape
+      right: ParameterizedVecShape,
+      allowCapacityDifference: Boolean = false
   ): Boolean = {
     val leftComponent = leftVector.component
     val rightComponent = rightVector.component
@@ -2828,7 +2830,10 @@ object ParameterizedVec {
         if (child eq leftComponent) leftVector else rightVector
       )
       childShape.witnessDepth == parentShape.witnessDepth &&
-      childShape.carrierCapacity == parentShape.carrierCapacity &&
+      (childShape.carrierCapacity == parentShape.carrierCapacity ||
+        (allowCapacityDifference && parentShape.depth.minimum >= 1 &&
+          parentShape.depth.maximum <= parentShape.carrierCapacity &&
+          parentShape.carrierCapacity < childShape.carrierCapacity)) &&
       equivalentBoundaryExpression(
         childShape.depth,
         parentShape.depth,

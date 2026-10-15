@@ -541,6 +541,7 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
 
   protected override def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)(implicit loc: Location): Unit = {
     that match {
+      case that: Vec[T] if ParameterizedVecHierarchy.assign(this,that,kind) => ()
       case that: Vec[T] =>
         val parameterized = ParameterizedVec.requireCompatible(this, that)
         if (that.vec.size != this.vec.size) throw new Exception("Can't assign Vec with a different size")

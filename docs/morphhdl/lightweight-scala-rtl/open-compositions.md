@@ -5,30 +5,18 @@ No application source or compiler pin has changed.
 
 ## Literal-depth parent Vec to generic child Vec (LWR-08)
 
-A generic child with `COUNT` domain 1..8 and literal actual 3 rejects a direct
-assignment from a three-element parent Vec. The source reports
-`SPINAL-ELAB-VEC-ASSIGNMENT-SHAPE-MISMATCH` for COUNT versus 3. The symbolic parent
-Vec path already has passing library-adapter tests.
+The literal-depth connection is now repaired in development. An opaque native
+receipt authenticates the exact direct parent/child pair, formal substitution,
+logical geometry, audit-only padding and every driver consumed at publication.
+The 11-suite hierarchy regression passes 194 tests on each supported Scala
+version; evidence is recorded in `progress.json`. Remote qualification is pending.
 
-The first observed source was a negative ownership fixture; it failed at this
-connection before reaching the intended ownership check:
-
-```scala
-val tree = operation.component(ElabInt.literal(3))
-tree.io.terms := Vec.fill(3)(U(0, 8 bits))
-```
-
-Evidence: `/tmp/lwr-library-boundaries-212-v2.log`. The ownership test now uses a
-supported symbolic parent Vec so it can independently check foreign capture.
-This does not resolve the literal-depth connection.
-
-`ParameterizedVec.equivalentDirectHierarchyShape` currently requires matching
-physical carrier capacities, and `Vec.assignFromImpl` requires equal native
-vector sizes. The child retains capacity 8 while the parent owns 3 leaves. A fix
-must authenticate literal actual substitution and adapt native audit geometry
-without inventing width evidence, losing lanes, or relaxing writer/ownership
-checks. Merely removing the capacity checks is not sufficient. Add separate
-positive and negative boundary regressions before closure.
+The supported adaptation covers root-scope, scalar-element Vec boundaries with
+pure input or output directions. Differing nested physical capacities,
+mixed-direction records and branch-local adaptation are not claimed. Equal
+capacity paths keep their existing behavior. Negative tests revoke authorization
+for changed padding values/widths, poison, missing/competing writes and consumed
+extra output lanes.
 
 ## Remaining acceptance work
 

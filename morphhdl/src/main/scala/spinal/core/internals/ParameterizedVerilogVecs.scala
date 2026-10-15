@@ -3232,6 +3232,85 @@ private[internals] object ParameterizedVerilogVecs {
     }
   }
 
+  private def rewriteAdaptedChildConnection(
+      original: Vector[String], child: Component, vector: Vec[_],
+      shape: ParameterizedVecShape, parent: VecPlan,
+      evidence: ParameterizedVecHierarchy.Evidence,
+      claimed: IdentityHashMap[DataAssignmentStatement, java.lang.Boolean],
+      live: IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]
+  ): Vector[String] = {
+    val source=shape.sourceLocation
+    def reject(detail: String): Nothing = fail(
+      "SPINAL-PARAMETERIZED-VERILOG-VEC-HIERARCHY-ADAPTATION-MISMATCH",detail,source)
+    if(!ParameterizedVecHierarchy.between(vector,parent.vector).exists(_ eq evidence))
+      reject("native Vec adaptation lost its exact live assignment receipt")
+    claimAssignmentEvidence(evidence.operation.assignments,live,claimed,"adapting child Vec boundary",source)
+    val formal=requiredVecName(vector,source)
+    val childLeaves=vectorLeaves(vector)
+    val block=instanceBlock(original,child,source)
+    val connections=childLeaves.map(leaf=>parsePortConnection(original,block,
+      requiredBaseName(leaf,"adapted child Vec port",source),source))
+    val removed=mutable.HashSet.empty[Int]
+    val bridges=ArrayBuffer.empty[String]
+    childLeaves.zip(connections).zipWithIndex.foreach { case((leaf,connection),index)=>
+      if(evidence.input) {
+        if(index<parent.leaves.size) {
+          val expected=parent.leaves(index)
+          if(!directConnectionName(connection._2,expected.shape.width).contains(expected.name))
+            reject(s"adapted input '$formal' lost its exact parent carrier connection")
+        } else {
+          val zero="(?i)([0-9]+)'s?[hbd]0+".r
+          connection._2.trim match {
+            case zero(width) if BigInt(width)==leaf.getBitsWidth =>
+            case _ => reject(s"audit input of '$formal' does not emit its authenticated sized zero")
+          }
+        }
+      } else if(connection._2.trim.nonEmpty) {
+        val width=shape.elementLeaves(index % shape.elementLeaves.size).width
+        val bridge=directConnectionName(connection._2,width).getOrElse(
+          reject(s"adapted output '$formal' has a non-direct native connection"))
+        if(index<parent.leaves.size) {
+          val target=parent.leaves(index)
+          val assignment=findAssignment(original,target.name,Some(bridge),"adapted child Vec output",source)
+          if(!assignment.continuous || assignment.operator != "=" ||
+              !directConnectionName(assignment.rhs,target.shape.width).contains(bridge))
+            reject("adapted output requires the exact continuous native bridge")
+          removed += assignment.lineIndex
+        }
+        val declaration=parseDeclaration(original,bridge,source)
+        if(declaration.direction.nonEmpty) reject("adapted output bridge unexpectedly became a parent port")
+        removed += declaration.lineIndex
+        bridges += bridge
+      } else if(index<parent.leaves.size) reject("a live adapted output connection disappeared")
+    }
+    val indexes=connections.map(_._1)
+    val insertion=indexes.max
+    val comma=connections.find(_._1==insertion).get._3
+    val indentation=original(insertion).takeWhile(_.isWhitespace)
+    val fields=parent.layout match {
+      case Some(actualLayout)=>
+        val formalLayout=namedFieldLayout(vector,shape,formal).getOrElse(
+          reject("adapted child lost its retained named-field layout"))
+        if(formalLayout.fields.map(_.path)!=actualLayout.fields.map(_.path))
+          reject("adapted child changed field paths")
+        formalLayout.fields.zip(actualLayout.fields).map { case(f,a)=>f.name -> parent.fieldAggregate(a) }
+      case None=>Vector(formal -> parent.aggregate)
+    }
+    val replacement=fields.zipWithIndex.map { case((name,actual),index)=>
+      s"$indentation.$name ($actual)${if(index<fields.size-1 || comma) "," else ""}"
+    }
+    val result=original.zipWithIndex.flatMap { case(line,index)=>
+      if(index==insertion) replacement
+      else if(indexes.contains(index) || removed(index)) Vector.empty
+      else Vector(line)
+    }
+    bridges.foreach { name=>
+      if(containsReferenceIdentifier(result.mkString("\n"),name))
+        reject(s"adapted output bridge '$name' retained an unaccounted native consumer")
+    }
+    result
+  }
+
   private def rewriteChildConnections(
       component: Component,
       original: Vector[String],
@@ -3269,6 +3348,13 @@ private[internals] object ParameterizedVerilogVecs {
         val connections = formalLeaves.map { name =>
           parsePortConnection(lines, block, name, shape.sourceLocation)
         }
+        val adapted=parentPlans.flatMap(plan=>ParameterizedVecHierarchy.between(vector,plan.vector).map(plan -> _))
+        if(adapted.size>1) fail("SPINAL-PARAMETERIZED-VERILOG-VEC-HIERARCHY-ADAPTATION-AMBIGUOUS",
+          "child Vec has multiple native adaptation receipts",shape.sourceLocation)
+        if(adapted.nonEmpty) {
+          val (plan,evidence)=adapted.head
+          lines=rewriteAdaptedChildConnection(lines,child,vector,shape,plan,evidence,claimed,live)
+        } else {
         val connectionNames = connections.zip(childLeafWidths).map { case (connection, leafWidth) =>
           directConnectionName(connection._2, leafWidth).getOrElse {
             fail(
@@ -3639,6 +3725,7 @@ private[internals] object ParameterizedVerilogVecs {
           if (end < 0) fail("SPINAL-PARAMETERIZED-VERILOG-VEC-MODULE-BOUNDARY-MISSING",
             "a child Vec register bridge requires one native module boundary", shape.sourceLocation)
           lines = lines.patch(end, bridgeDeclarations.toVector, 0)
+        }
         }
       }
     }
@@ -7464,7 +7551,8 @@ private[internals] object ParameterizedVerilogVecs {
     // The core Vec algorithm is authoritative for direct hierarchy
     // compatibility.  It admits distinct definition/actual roots only when
     // the exact child component carries an explicit typed formal binding.
-    ParameterizedVec.requireCompatible(local.vector, peer)
+    if(ParameterizedVecHierarchy.between(local.vector,peer).isEmpty)
+      ParameterizedVec.requireCompatible(local.vector, peer)
   }
 
   private def requireCompatibleShapes(
@@ -7554,6 +7642,8 @@ private[internals] object ParameterizedVerilogVecs {
   ): Boolean = {
     if (component == null || local == null || peer == null || assignments == null ||
         assignments.isEmpty || component.parent == null || (local.component ne component)) return false
+    if(ParameterizedVecHierarchy.between(local,peer).exists(e => e.input && (e.child eq local)) &&
+        ParameterizedVecHierarchy.matches(local,peer,assignments)) return true
     val parent = component.parent
     val localLeaves = vectorLeaves(local)
     val peerLeaves = vectorLeaves(peer)
@@ -7646,6 +7736,10 @@ private[internals] object ParameterizedVerilogVecs {
       assignments == null || assignments.isEmpty || claimed == null ||
       (local.component ne component)
     ) return false
+
+    if(ParameterizedVecHierarchy.between(local,peer).exists(e => !e.input && (e.parent eq local)) &&
+        ParameterizedVecHierarchy.matches(local,peer,assignments) &&
+        assignments.forall(claimed.containsKey)) return true
 
     val localLeaves = vectorLeaves(local)
     val peerLeaves = vectorLeaves(peer)
