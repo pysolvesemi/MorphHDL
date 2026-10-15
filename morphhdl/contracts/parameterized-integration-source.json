@@ -42,7 +42,7 @@
     },
     ".github/workflows/increment-59a-recursive-verilog-module.yml": {
       "mode": "100644",
-      "sha256": "5632301d4fff030a3286cfe7d324840aa07dbf32be793baa6156d6e0832894c8"
+      "sha256": "b3ead2eb78a81ecaf440ee562619f9314df067075eb41646ae5f9013e594fec6"
     },
     ".github/workflows/increment-59b-publication.yml": {
       "mode": "100644",
@@ -58,7 +58,7 @@
     },
     ".github/workflows/increment-59f-callback-graphs.yml": {
       "mode": "100644",
-      "sha256": "f37f6b44097ccad2337c038e82eb621344e7453c1354858f85008a9ce176d04f"
+      "sha256": "f3af2fe52cdf4e0e3253f5a6e48d57804a2e1b527104147f0a1035ad98138c97"
     },
     ".github/workflows/increment-59g-register-bridges.yml": {
       "mode": "100644",
@@ -66,7 +66,7 @@
     },
     ".github/workflows/increment-59h-nested-owners.yml": {
       "mode": "100644",
-      "sha256": "a66f928cd8b2c1989d0616213d02cdca23dfefb524eb9b942f5fde48f06a6670"
+      "sha256": "344c0cf8706891dd54ed1c780cee2be9152df13c959c69388fbfa81c244e723c"
     },
     ".github/workflows/increment-59i-combined-closure.yml": {
       "mode": "100644",
@@ -120,7 +120,7 @@
     },
     ".github/workflows/morphhdl-native-source-guard.yml": {
       "mode": "100644",
-      "sha256": "f4c437482d3aa970d86b3a64f000bdd934771eec539ac0dd8fcfb94e80d85fc0"
+      "sha256": "e4b10316ce64908d826ec7c779a84b37b7eb43fe33c6db214be4697f0200a8ae"
     },
     ".github/workflows/morphhdl-passes.yml": null,
     ".github/workflows/sequential-source-review-targeted.yml": null,
@@ -320,7 +320,7 @@
     },
     "docs/morphhdl/lightweight-scala-rtl/qualification.md": {
       "mode": "100644",
-      "sha256": "e8c665653ad057dc39f91f28ee80f6693e85b098881c9ec0ad0b708c048f1e5a"
+      "sha256": "ae5431af465ee81f6c76b2395b43a7bfa7c44c26d85341b7cfc70c9385257d11"
     },
     "docs/morphhdl/lightweight-scala-rtl/semantics-v1.md": {
       "mode": "100644",
@@ -875,6 +875,10 @@
     "morphhdl/scripts/lightweight-scala-rtl/Inventory.java": {
       "mode": "100644",
       "sha256": "032152ee06bfd9ce3fe6b3326ed86e888e4ef9f163ca78659ec88f698802b773"
+    },
+    "morphhdl/scripts/lightweight-scala-rtl/check-workflows.sh": {
+      "mode": "100644",
+      "sha256": "755b082de602297d9952506d9191956f8d523df2248c5d0641bf598d0cf77bc3"
     },
     "morphhdl/scripts/lightweight-scala-rtl/install-iverilog.py": {
       "mode": "100644",
