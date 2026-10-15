@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: increment-56-native-typed-surface-${{ github.workflow }}-${{ github.ref }}
@@ -90,6 +91,13 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
+      - name: Consume exact current-candidate provenance for dispatched qualification
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 morphhdl/scripts/candidate_provenance_ci.py
+
       - name: Validate typed surface and inherited negative boundaries
         shell: bash
         run: |
@@ -131,6 +139,15 @@ jobs:
           BASE_COMMIT: ${{ needs.route.outputs.base }}
         run: |
           set -euo pipefail
+          # Historical increment-only file lists remain frozen. Dispatched
+          # successor qualification consumes the current exact-tree certificate.
+          if [[ "${{ github.event_name }}" == workflow_dispatch ]]; then
+            python3 morphhdl/scripts/candidate_provenance_ci.py --consume
+            python3 morphhdl/scripts/check-parameterized-integration-source.py
+            git diff --exit-code bfed00f992281d83dde20dfabf319d8f1ea0bc57 HEAD -- \
+              morphhdl/contracts/increment-56-source-scope.txt
+            exit 0
+          fi
           scope=morphhdl/contracts/increment-56-source-scope.txt
           sentinel='# INCREMENT-56-SOURCE-SCOPE-UNSEALED'
           todo=docs/morphhdl/parameterized-verilog-todo.md

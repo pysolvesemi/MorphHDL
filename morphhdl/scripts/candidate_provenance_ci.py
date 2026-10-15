@@ -125,9 +125,14 @@ def consume(root):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--produce', action='store_true')
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--produce', action='store_true')
+    mode.add_argument('--consume', action='store_true', help='verify the already authenticated local receipt')
     args = parser.parse_args()
     P.require(os.environ.get('GITHUB_REPOSITORY') == REPOSITORY, 'unexpected CI repository')
+    if args.consume:
+        consume(P.ROOT)
+        return
     env = os.environ.get('GITHUB_ENV')
     P.require(env, 'missing CI environment output')
     sha = P.produce(P.ROOT, P.ROOT / OUTPUT) if args.produce else fetch(P.ROOT)

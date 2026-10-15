@@ -118,3 +118,32 @@ successfully published the reviewed workflow bytes with automatic CI suppressed;
 normal merges preserve that publication ancestry. No changed successor is
 qualified by the local results above. Dispatch and receipts must identify the
 final published candidate explicitly. Hourly scheduling remains unavailable.
+
+### Targeted CI source-contract repairs (15 October 2026)
+
+Candidate `f0ee2a168c0dc35140e7197d6639ffd78264dd2b` passed the native-source
+producer, typed-value workflow and symbolic-width workflow. Layering run
+38725475612 and named-field run 38725542339 failed before behavioral tests at
+an obsolete `recordWholeAssignment` source assertion. The repaired guard checks
+`captureWholeAssignment` and its exact native assignment/forwarding capture.
+These results qualify only that historical candidate, not a successor.
+
+Dispatcher 38725395750 stopped with HTTP 422 because Increment 59a lacked
+`workflow_dispatch`. Increments 55 and 56 also lacked it. Their successor routing
+now admits explicit dispatch while retaining original push/PR routing and every
+behavioral job, matrix and timeout. Dispatch consumes the same-head provenance
+producer and current integration seal, and verifies the frozen increment scope
+against the authenticated integration basis. It does not compare the successor's
+complete delta against an obsolete increment-only file list or replay historical
+programs. Original increment routing retains its original scope check.
+
+Local preflight also repaired the Stream structural-legality hook assertion and
+59a's stale zero-only recursion/unfinished-59b assertions. The current recursion
+contract checks every recursive child, the legal lower and upper bounds, and
+strict decrease. Mutation controls remove each safety boundary and must fail.
+The provenance consumer CLI revalidates its existing receipt without refetching
+or producing one; missing/stale receipt rejection remains mandatory.
+
+Fresh successor remote qualification remains required. Full CI, application
+migration and all roadmap completion boxes remain pending. No hourly monitor is
+active because a suitable scheduling capability is unavailable.

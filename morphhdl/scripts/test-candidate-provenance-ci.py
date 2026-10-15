@@ -9,6 +9,19 @@ import candidate_provenance_ci as C
 
 
 class ProvenanceTransportTests(unittest.TestCase):
+    def test_consume_cli_revalidates_without_fetch_or_production(self):
+        with patch.dict(C.os.environ, {'GITHUB_REPOSITORY': C.REPOSITORY}, clear=True), \
+             patch('sys.argv', ['candidate_provenance_ci.py', '--consume']), \
+             patch.object(C, 'consume') as consume, patch.object(C, 'fetch') as fetch, \
+             patch.object(C.P, 'produce') as produce:
+            C.main()
+            consume.assert_called_once_with(C.P.ROOT)
+            fetch.assert_not_called()
+            produce.assert_not_called()
+            consume.side_effect = RuntimeError('stale or missing receipt')
+            with self.assertRaisesRegex(RuntimeError, 'stale or missing'):
+                C.main()
+
     def setUp(self):
         self.head = 'a' * 40
         self.run = {'id': 7, 'run_attempt': 1, 'workflow_id': C.WORKFLOW, 'head_sha': self.head, 'head_branch': 'candidate', 'status': 'completed',
