@@ -106,9 +106,9 @@ object TypedProjectionOwnershipFixture {
     val aboveOne = depth > 1
 
     var escaped: ParameterizedBitCount = null
-    if (aboveOne) {
+    ElabControl.selectSymbolic(aboveOne, "TypedProjectionOwnershipTests.scala", 109) {
       marker(din)
-    } else {
+    } {
       marker(din)
       escaped = depth.bits
     }

@@ -32,6 +32,8 @@ import scala.collection.Seq
   */
 trait VecFactory {
 
+  protected def postVecFactory[T <: Data](vector: Vec[T]): Vec[T] = vector
+
   def Vec[T <: Data](elements: TraversableOnce[T], dataType : HardType[T] = null): Vec[T] = {
     val vector = elements.toVector
 
@@ -88,7 +90,7 @@ trait VecFactory {
       * branch retains the exact symbolic size.
       */
     def fill[T <: Data](size: ElabInt)(dataType: => T): Vec[T] = {
-      ParameterizedVec.create(size, "typed Vec size")(dataType)
+      postVecFactory(ParameterizedVec.create(size, "typed Vec size")(dataType))
     }
     def fill[T <: Data](n1: Int, n2: Int)(elem: => T): Vec[Vec[T]] =
       tabulate(n1)(_ => fill(n2)(elem))
@@ -335,7 +337,10 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
   private[core] def vecTransposed: ArrayBuffer[ArrayBuffer[BaseType]] = {
     if (vecTransposedCache == null) {
       vecTransposedCache = new ArrayBuffer[ArrayBuffer[BaseType]]()
-      val size = dataType().flatten.size
+      // Transpose the exact existing native carriers. Constructing another
+      // dataType merely to count leaves allocates unused nested Vec declarations
+      // with retained formal identities when the element itself is an aggregate.
+      val size = vec.head.flatten.size
 
       for (i <- 0 until size)
         vecTransposedCache += ArrayBuffer[BaseType]()
@@ -363,6 +368,9 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
 
   /** Access an element of the vector by an `UInt` index */
   def apply(address: UInt): T = access(address)
+
+  /** Generate-time access with the index's authenticated lexical ownership. */
+  def apply(index: ElabScopedIndex): T = index.select(this)
 
   private def readEmu(address : UInt): T = {
     if(elements.size == 0){
@@ -536,6 +544,7 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
 
   protected override def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)(implicit loc: Location): Unit = {
     that match {
+      case that: Vec[T] if ParameterizedVecHierarchy.assign(this,that,kind) => ()
       case that: Vec[T] =>
         val parameterized = ParameterizedVec.requireCompatible(this, that)
         if (that.vec.size != this.vec.size) throw new Exception("Can't assign Vec with a different size")
@@ -545,14 +554,7 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
           }
         }
         if (parameterized) {
-          val (_, assignments) =
-            ParameterizedVec.captureAssignments(this)(assignNative())
-          ParameterizedVec.recordWholeAssignment(
-            this,
-            that,
-            assignments,
-            kind
-          )
+          ParameterizedVec.captureWholeAssignment(this, that, kind)(assignNative())
         } else {
           assignNative()
         }

@@ -170,7 +170,7 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
     val exactLog2Width = """clog2\(\(*DEPTH\)*,0\)""".r
     assert(
       declarations.exists(line => exactLog2Width.findFirstIn(line).nonEmpty),
-      s"missing exact symbolic storage pop-index declaration:\n${declarations.mkString("\n")}"
+      s"missing exact symbolic storage pop-index declaration:\n${declarations.mkString("\n")}\n$verilog"
     )
   }
 

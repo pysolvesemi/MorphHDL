@@ -90,6 +90,10 @@ package object core extends BaseTypeFactory with BaseTypeCast {
     */
   class IntBuilder(val i: Int) extends AnyVal {
 
+    /** Keep literal-left affine arithmetic in the scoped index domain. */
+    def *(index: ElabScopedIndex): ElabScopedIndex = index * i
+    def +(index: ElabScopedIndex): ElabScopedIndex = index + i
+
     def downto(start: Int): Range.Inclusive = Range.inclusive(i, start, -1)
 
     /** SpinalHDL "marker" to transform an [[Int]] into a [[BitCount]] */

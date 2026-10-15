@@ -95,6 +95,7 @@ private[core] final class ElabFiniteGuardedAffineRead(
     if(guard.rows != first.rows) Set.empty[(BigInt, BigInt)] else rows intersect guard.allowed(positive)
   }
   private val domain = depth.exactDomain
+  private[core] def permittedRows: Set[(BigInt, BigInt)] = permitted
   val bounded: Boolean = permitted.nonEmpty && domain.exists(d =>
     first.count.exactDomain.exists(c => c.root eq d.root) &&
       permitted.forall { case (value, i) => d.evaluate(value).exists(n => coefficient*i+offset < n) })

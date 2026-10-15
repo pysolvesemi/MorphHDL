@@ -39,6 +39,25 @@ final class MorphHdlFrontendSymbolicEqualitySafetyComponent(val global: Global)
     }
   }
 
+  private val nativeCarriers = Set("spinal.core.ElabInt", "spinal.core.ElabBool",
+    "spinal.core.ElabScopedIndex", "spinal.core.ElabScopedCondition")
+  private val numericOrBoolean = Set("scala.Byte", "scala.Short", "scala.Int", "scala.Long",
+    "scala.Float", "scala.Double", "scala.Char", "scala.Boolean", "scala.math.BigInt", "scala.math.BigDecimal")
+  private def hasBase(tree: Tree, names: Set[String]): Boolean =
+    tree.tpe != null && tree.tpe != NoType && tree.tpe.dealias.widen.baseClasses.exists(s =>
+      s != null && s != NoSymbol && names(s.fullName))
+
+  private def rejectUnstagedNativeEquality(tree: Apply): Unit = tree.fun match {
+    case Select(receiver, method) if Set("==", "!=")(method.decodedName.toString) && tree.args.size == 1 =>
+      val other = tree.args.head
+      if ((hasBase(receiver,nativeCarriers) && hasBase(other,nativeCarriers ++ numericOrBoolean)) ||
+          (hasBase(other,nativeCarriers) && hasBase(receiver,numericOrBoolean)))
+        global.globalError(tree.pos,
+          "[MORPHDL-NATIVE-SYMBOLIC-EQUALITY-UNSTAGED] symbolic equality was not staged; " +
+          "bind helper results to an explicit ElabInt/ElabBool or use a supported parameter predicate")
+    case _ =>
+  }
+
   private def rejectReverseMorphFrontendEquality(tree: Apply): Unit = {
     val call = tree.fun match {
       case Select(receiver, method)               => Some((receiver, method))
@@ -65,7 +84,15 @@ final class MorphHdlFrontendSymbolicEqualitySafetyComponent(val global: Global)
       object SafetyChecker extends Traverser {
         override def traverse(tree: Tree): Unit = {
           tree match {
-            case application: Apply => rejectReverseMorphFrontendEquality(application)
+            // Case-class equals and other compiler-owned methods compare
+            // metadata values. They are not authored hardware predicates.
+            case method: DefDef if method.mods.hasFlag(Flag.SYNTHETIC) => return
+            case _ =>
+          }
+          tree match {
+            case application: Apply =>
+              rejectReverseMorphFrontendEquality(application)
+              rejectUnstagedNativeEquality(application)
             case _                  =>
           }
           super.traverse(tree)

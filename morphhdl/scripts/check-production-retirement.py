@@ -64,6 +64,8 @@ EXPECTED_RULES_SHA256 = (
     "0e16f1be25d033a0e90c36fc7f43544de89ac13a568c4f99b0e0abe0935cbe4b"
 )
 EXPECTED_PLUGIN_COMPONENTS = (
+    "MorphHdlCallbackEffectComponent",
+    "MorphHdlDirectRecursiveComponent",
     "MorphHdlAreaCollectionComponent",
     "MorphHdlTypedElaborationControlComponent",
     "MorphHdlNaturalSymbolicConditionalComponent",
@@ -276,7 +278,7 @@ def compile_contract(manifest: Mapping[str, Any]) -> Dict[str, Any]:
 
     components = manifest.get("expected_plugin_components")
     if components != list(EXPECTED_PLUGIN_COMPONENTS):
-        raise RetirementError("expected_plugin_components must be the three ordered typed phases")
+        raise RetirementError("expected_plugin_components must be the six ordered reviewed components")
     descriptor = clean_path(manifest.get("plugin_descriptor"), "plugin_descriptor")
 
     jar_prefixes = string_list(
@@ -405,8 +407,7 @@ def validate_sources(root: Path, contract: Mapping[str, Any]) -> int:
     actual_components = plugin_components(descriptor_source)
     if actual_components != list(EXPECTED_PLUGIN_COMPONENTS):
         raise RetirementError(
-            "default plugin phases must be exactly Area-collection, typed-control, natural-symbolic, "
-            "then frontend symbolic-equality safety; "
+            "registered Morph plugin components must match the reviewed lightweight and typed component inventory; "
             f"found {actual_components}"
         )
     return len(files)

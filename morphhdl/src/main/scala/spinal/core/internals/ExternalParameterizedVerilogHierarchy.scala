@@ -114,7 +114,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
   private final case class AggregateBindingEvidence(
       present: Boolean,
       bindings: Vector[BindingExpr],
-      canonicalPorts: Vector[BaseType]
+      canonicalPorts: Vector[BaseType],
+      witnessParameters: Vector[ElaborationIntegerParameter]
   )
 
   private final case class FormalBindingEvidence(
@@ -730,7 +731,12 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
             )
           }
           val expression = expressions.head
-          validateParameterBinding(expression, parameter, instanceName, pc)
+          val witnesses=aggregate.witnessParameters.foldLeft(Vector.empty[ElaborationIntegerParameter]) {
+            case(values,value)=>if(values.exists(_ eq value)) values else values :+ value
+          }
+          if(witnesses.size!=1) fail("SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-AGGREGATE-FORMAL-IDENTITY-CONFLICT",
+            "aggregate actual lost its unique instance formal witness")
+          validateParameterBinding(expression, witnesses.head, instanceName, pc)
           parameter.name -> expression
         } else if (parameterPorts.isEmpty) {
           val expression = inheritedCompoundBinding(
@@ -1010,7 +1016,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
             }
             })
         }
-        if (expression.isSymbolic) {
+        if (expression.isSymbolic && !ParameterizedVecHierarchy.isAuditPort(parent,child,actualByName(name))) {
           val actualPort = actualByName(name)
           val direct = assignments.collect {
             case assignment if actualPort.isInput && (assignment.target eq actualPort) &&
@@ -1369,6 +1375,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     val bindings = ArrayBuffer.empty[BindingExpr]
     val covered = ArrayBuffer.empty[BaseType]
     var present = false
+    val witnesses=ArrayBuffer.empty[ElaborationIntegerParameter]
 
     def vectorLeaves(vector: Vec[_]): Vector[BaseType] =
       vector.vec.flatMap(element => element.asInstanceOf[Data].flatten).toVector
@@ -1392,7 +1399,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       if (typed.nonEmpty) {
         val selected = typed.filter { value =>
           if (role == "canonical") value.binding.formal eq parameter
-          else value.binding.formal == parameter
+          else ExternalFormalParameterRegistry.completeTypedBindingsOf(canonical)
+            .filter(_.binding.formal eq parameter).exists(NativeWidthFormalSchema.compatible(_,value))
         }
         if (selected.size > 1) {
           fail(
@@ -1521,6 +1529,22 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
                   .headOption
               )
           }
+          val canonicalRetained=ParameterizedVec.formalBindingsOf(canonicalVector)
+          val actualRetained=ParameterizedVec.formalBindingsOf(actualVector)
+          val formalMap=ExternalFormalParameterRegistry.completeTypedBindingsOf(canonical)
+            .filter(entry=>canonicalRetained.exists(_.formal eq entry.binding.formal)).map { entry=>
+              val candidates=ExternalFormalParameterRegistry.completeTypedBindingsOf(child).filter(value=>
+                NativeWidthFormalSchema.compatible(entry,value) &&
+                  actualRetained.exists(_.formal eq value.binding.formal))
+              if(candidates.size!=1) fail("SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-AGGREGATE-FORMAL-IDENTITY-CONFLICT",
+                "aggregate geometry requires one authenticated actual for each retained declaration",canonicalShape.sourceLocation)
+              val actual=candidates.head
+              validateMappedFormalIdentity(
+                Vector(FormalBindingEvidence(entry.binding,Some(entry.declarationToken))),
+                Vector(FormalBindingEvidence(actual.binding,Some(actual.declarationToken))),
+                entry.binding.formal,instanceName)
+              entry.binding.formal -> actual.binding.formal
+            }
           val reads = ParameterizedVec.operationsOf(actualVector).collect {
             case read: ParameterizedVecPackedRead
                 if assignments.exists(assignment =>
@@ -1548,6 +1572,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
               case value: ParameterizedVecAutoConnect if value.peer eq actualVector => value.assignments
             }
             (childOwned ++ parentOwned).filter { evidence =>
+              ParameterizedVecHierarchy.matches(actualVector,parentVector,evidence) || (
               evidence.size == actualLeaves.size && parentLeaves.size == actualLeaves.size &&
               evidence.forall(statement => assignments.exists(_ eq statement) &&
                 (statement.parentScope eq evidence.head.parentScope) &&
@@ -1566,8 +1591,10 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
                   })
                 } == 1
               }
+              )
             }.map { evidence =>
-              ParameterizedVec.requireCompatible(actualVector, parentVector)
+              if(ParameterizedVecHierarchy.between(actualVector,parentVector).isEmpty)
+                ParameterizedVec.requireCompatible(actualVector, parentVector)
               evidence
             }
           }
@@ -1581,7 +1608,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
                   canonicalBinding.formal,
                   canonicalBinding.actual,
                   actualBinding.formal,
-                  actualBinding.actual
+                  actualBinding.actual,
+                  formalMap
                 )
               }
               .orElse {
@@ -1615,6 +1643,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
                 )
               }
             }
+            witnesses += formalPair.map(_._2.formal).getOrElse(parameter)
             bindings += ExpressionBinding(actual)
             canonicalLeaves.foreach { leaf =>
               if (!covered.exists(_ eq leaf)) covered += leaf
@@ -1623,7 +1652,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         }
       }
     }
-    AggregateBindingEvidence(present, bindings.toVector, covered.toVector)
+    AggregateBindingEvidence(present, bindings.toVector, covered.toVector, witnesses.toVector)
   }
 
   /** Passing the same typed declarations through a component constructor is
@@ -2128,7 +2157,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     if (port.isInput) {
       assignments.flatMap { assignment =>
         val touches = references(assignment.target, port) || assignment.finalTarget == port
-        if (!touches) Vector.empty
+        if (!touches || ParameterizedVecHierarchy.isPadding(parent,child,port,assignment)) Vector.empty
         else if (assignment.target == port && assignment.finalTarget == port) {
           Vector(
             bindingOf(

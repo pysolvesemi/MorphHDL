@@ -36,7 +36,10 @@ final class RtlDocTag(text: String, val origin: String, val location: String,
 
 /** Identity shared by the statements created in a documented region. */
 trait RtlDocumentationAnchor {
-  private[spinal] var rtlDocumentation: Vector[RtlDocumentation.RegionNote] = RtlDocumentation.activeRegions
+  RtlDocumentation.setRegions(this, RtlDocumentation.activeRegions)
+  private[spinal] def rtlDocumentation: Vector[RtlDocumentation.RegionNote] = RtlDocumentation.regionsOf(this)
+  private[spinal] def rtlDocumentation_=(notes: Vector[RtlDocumentation.RegionNote]): Unit =
+    RtlDocumentation.setRegions(this, notes)
 }
 
 object rtlDoc {
@@ -44,6 +47,20 @@ object rtlDoc {
 }
 
 object RtlDocumentation {
+  // Elaboration-owned identity storage keeps documentation off the JVM trait
+  // interface: existing compiled Statement implementations require no new fields.
+  private object AnchorRegions
+  private def anchorRegions = GlobalData.get.userDatabase.getOrElseUpdate(AnchorRegions,
+    new java.util.IdentityHashMap[RtlDocumentationAnchor, Vector[RegionNote]]()).asInstanceOf[
+      java.util.IdentityHashMap[RtlDocumentationAnchor, Vector[RegionNote]]]
+  private[spinal] def regionsOf(host: RtlDocumentationAnchor): Vector[RegionNote] =
+    if (GlobalData.get == null) Vector.empty else Option(anchorRegions.get(host)).getOrElse(Vector.empty)
+  private[spinal] def setRegions(host: RtlDocumentationAnchor, notes: Vector[RegionNote]): Unit = {
+    if (GlobalData.get != null) {
+      if (notes.nonEmpty) anchorRegions.put(host, notes) else anchorRegions.remove(host)
+    } else require(notes.isEmpty, "RTL region documentation requires an elaboration context")
+  }
+
   final class RegionNote(val content: String) {
     private[spinal] val component = Component.current
     private[spinal] var valid = false

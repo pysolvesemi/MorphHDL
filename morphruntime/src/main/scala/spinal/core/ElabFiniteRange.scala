@@ -99,7 +99,16 @@ final class ElabFiniteIndex private[core] (
     private[core] val expression: ElaborationIntegerExpression,
     private[core] val count: ElaborationIntegerExpression,
     private[core] val token: ElabFiniteIndexToken
-) {
+) extends ElabScopedIndex {
+  private[core] def selectPacked(source: Bits, width: BitCount): Bits = packed(source, 1, width)
+  def *(width: ElabInt): ElabScopedWordOffset = new ElabFiniteWordOffset(this, width)
+  private[core] override def select[T <: Data](vector: Vec[T]): T = apply(vector)
+  def +(offset: Int): ElabScopedIndex = new ElabFiniteAffineIndex(this, 1, offset)
+  def *(coefficient: Int): ElabScopedIndex = new ElabFiniteAffineIndex(this, coefficient, 0)
+  def elabEq(value: Int): ElabScopedCondition = new ElabFiniteAffineIndex(this, 1, 0).elabEq(value)
+  def <(bound: ElabInt): ElabScopedCondition = new ElabFiniteAffineIndex(this, 1, 0) < bound
+
+
   /** Capture a structural alternative for this exact, lexically active index.
     * Both callbacks describe hardware; this does not create a runtime mux.
     */
@@ -112,12 +121,13 @@ final class ElabFiniteIndex private[core] (
   /** Generate-time affine comparison, with correlated parameter/iteration proof.
     * Both alternatives are structural hardware, not runtime mux branches.
     */
-  def whenAffineLessThan(coefficient: Int, offset: Int, bound: ElabInt, role: String)
+  def whenAffineLessThan(coefficient: Int, offset: Int, bound: ElabInt, role: String,
+      emptyTrue: Boolean = false, emptyFalse: Boolean = false)
       (ifTrue: => Unit)(ifFalse: => Unit): Unit = {
     require(coefficient > 0 && offset >= 0 && bound != null)
     if (!ParameterizedStructure.captureEnabled || expression.generateIndex.isEmpty) {
       if (BigInt(coefficient)*witness+offset < bound.witness) ifTrue else ifFalse
-    } else ParameterizedStructure.captureFiniteAffineIf(this,coefficient,offset,bound,role)(ifTrue)(ifFalse)
+    } else ParameterizedStructure.captureFiniteAffineIf(this,coefficient,offset,bound,role,emptyTrue,emptyFalse)(ifTrue)(ifFalse)
   }
 
   def onlyEqual(value: Int, role: String)(body: => Unit): Unit = {

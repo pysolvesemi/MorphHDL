@@ -1,0 +1,321 @@
+{
+  "schema": 1,
+  "entries": [
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightAffineTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightAffineTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightAffineWriteTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightAffineWriteTests",
+        "morphhdl.LightweightAffineWriteFormalTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightBalancedAdapterTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightBalancedAdapterTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightBalancedCompositeTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightBalancedCompositeTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightBalancedFormalTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightBalancedFormalTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightBalancedSafetyTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightBalancedSafetyTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightBalancedSymbolicAdapterTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightBalancedSymbolicAdapterTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightBalancedTreeTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightBalancedTreeTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightBalancedWidthTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightBalancedWidthTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightBooleanRecursiveTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightBooleanRecursiveTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightCompositeRecursiveTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightCompositeRecursiveTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightFormalTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightFormalTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightGuardedRegisterTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightGuardedRegisterTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightHardwareConditionTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightHardwareConditionTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightHierarchyCapacityTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightHierarchyCapacityTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightImplicitClockTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightImplicitClockTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightInferredHelperTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightInferredHelperTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightLocalNamesTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightLocalNamesTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightMixedIndexTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightMixedIndexTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightMixedWriteTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightMixedWriteTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightNestedCapacityTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightNestedCapacityTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightNestedCapacityTypeTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightNestedCapacityTypeTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightNestedRecursiveTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightNestedRecursiveTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightNestedWriteTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightNestedWriteTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightOptionalRecursiveTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightOptionalRecursiveTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightParameterTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightParameterTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightPortFactoryTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightPortFactoryTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightRecordCapacityTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightRecordCapacityTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightRecursiveSafetyTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightRecursiveSafetyTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightRecursiveTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightRecursiveTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightStatementChainTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightStatementChainTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightSymbolicAdapterSafetyTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightSymbolicAdapterSafetyTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightWordSliceTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightWordSliceTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/spinal/core/LightweightHierarchyCapacitySafetyTests.scala",
+      "module": "morph",
+      "suites": [
+        "spinal.core.LightweightHierarchyCapacitySafetyTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/spinal/core/LightweightMixedWriteSafetyTests.scala",
+      "module": "morph",
+      "suites": [
+        "spinal.core.LightweightMixedWriteSafetyTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/spinal/core/LightweightNestedCapacitySafetyTests.scala",
+      "module": "morph",
+      "suites": [
+        "spinal.core.LightweightNestedCapacitySafetyTests"
+      ]
+    },
+    {
+      "source": "morphplugin/src/test/scala/morphhdl/compiler/DirectRecursiveSyntaxTests.scala",
+      "module": "morphplugin",
+      "suites": [
+        "morphhdl.compiler.DirectRecursiveSyntaxTests"
+      ]
+    },
+    {
+      "source": "morphplugin/src/test/scala/morphhdl/compiler/LightweightSyntaxBaselineTests.scala",
+      "module": "morphplugin",
+      "suites": [
+        "morphhdl.compiler.LightweightSyntaxBaselineTests"
+      ]
+    },
+    {
+      "source": "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlAreaCollectionComponentTests.scala",
+      "module": "morphplugin",
+      "suites": [
+        "morphhdl.compiler.MorphHdlAreaCollectionComponentTests"
+      ]
+    },
+    {
+      "source": "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlCallbackEffectTests.scala",
+      "module": "morphplugin",
+      "suites": [
+        "morphhdl.compiler.MorphHdlCallbackEffectTests"
+      ]
+    },
+    {
+      "source": "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlFrontendSymbolicEqualitySafetyComponentTests.scala",
+      "module": "morphplugin",
+      "suites": [
+        "morphhdl.compiler.MorphHdlFrontendSymbolicEqualitySafetyComponentTests"
+      ]
+    },
+    {
+      "source": "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponentTests.scala",
+      "module": "morphplugin",
+      "suites": [
+        "morphhdl.compiler.MorphHdlTypedElaborationControlComponentTests"
+      ]
+    },
+    {
+      "source": "morphplugin/src/test/scala/morphhdl/compiler/NativeSymbolicEqualitySafetyTests.scala",
+      "module": "morphplugin",
+      "suites": [
+        "morphhdl.compiler.NativeSymbolicEqualitySafetyTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/spinal/core/WholeRowForwardingSafetyTests.scala",
+      "module": "morph",
+      "suites": [
+        "spinal.core.WholeRowForwardingSafetyTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/spinal/core/StructuralIdentityAdversarialTests.scala",
+      "module": "morph",
+      "suites": [
+        "spinal.core.StructuralIdentityAdversarialTests"
+      ]
+    }
+  ]
+}

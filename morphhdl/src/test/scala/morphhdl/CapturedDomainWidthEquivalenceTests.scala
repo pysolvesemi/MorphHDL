@@ -160,11 +160,11 @@ object CapturedDomainWidthEquivalenceSmoke {
     val observed = out UInt (1 bits)
 
     var escaped: UInt = null
-    if (width == 1) {
+    ElabControl.selectSymbolic(width.elabEq(1), "CapturedDomainWidthEquivalenceTests.scala", 163) {
       val branchMarker = new TypedResizeChild
       branchMarker.incoming := source
       escaped = source.resize(width)
-    } else {
+    } {
       val branchMarker = new TypedResizeChild
       branchMarker.incoming := source
     }

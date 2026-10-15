@@ -427,6 +427,8 @@
     }
   ],
   "expected_plugin_components": [
+    "MorphHdlCallbackEffectComponent",
+    "MorphHdlDirectRecursiveComponent",
     "MorphHdlAreaCollectionComponent",
     "MorphHdlTypedElaborationControlComponent",
     "MorphHdlNaturalSymbolicConditionalComponent",

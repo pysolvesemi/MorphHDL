@@ -26,6 +26,13 @@ import spinal.idslplugin.Location
 
 /** `Bool` factory used for instance by the IODirection to create a in/out Bool() */
 trait BoolFactory {
+  /** A diagnostic-only adaptation: scalac must reject every use. Hardware
+    * conditions cannot select a Scala branch or become elaboration witnesses. */
+  @scala.annotation.compileTimeOnly(
+    "SPINAL-HARDWARE-BOOL-AS-SCALA-BOOLEAN: hardware Bool cannot control Scala elaboration; use when for hardware control and typed parameters for generate decisions")
+  implicit def rejectHardwareBooleanAsScalaBoolean(value: Bool): Boolean =
+    throw new IllegalArgumentException("hardware Bool cannot become a Scala Boolean")
+
   /** Deprecated, use [[Bool()]] (with braces) instead */
   @deprecated("Use `Bool()` (with braces) instead")  
   def Bool: Bool = Bool()
