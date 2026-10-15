@@ -26,8 +26,8 @@ class DocumentationPluginTests extends AnyFunSuite {
     settings.usejavacp.value = true
     settings.classpath.value = System.getProperty("java.class.path") + java.io.File.pathSeparator + extra
     settings.outputDirs.setSingleOutput(directory.toString)
-    val version = scala.util.Properties.versionNumberString.split('.').take(2).mkString(".")
-    val jar = Paths.get("idslplugin", "target", "scala-" + version, s"spinalhdl-idsl-plugin_$version-dev.jar").toAbsolutePath
+    val jar = Paths.get(sys.props.getOrElse("morphhdl.idslplugin.jar",
+      fail("The build must provide the packaged IDSL plugin via morphhdl.idslplugin.jar"))).toAbsolutePath
     assert(Files.isRegularFile(jar), jar.toString)
     settings.plugin.value = List(jar.toString)
     assert(settings.processArgumentString("-Xplugin-require:idsl-plugin")._1)

@@ -112,6 +112,11 @@ lazy val idslplugin = (project in file("idslplugin"))
     defaultSettings,
     name := "SpinalHDL-idsl-plugin",
     exportJars := true,
+    Test / testGrouping := {
+      val pluginJar = (Compile / packageBin).value.getAbsolutePath
+      val options = ForkOptions().withRunJVMOptions(Vector(s"-Dmorphhdl.idslplugin.jar=$pluginJar"))
+      (Test / testGrouping).value.map(group => Group(group.name, group.tests, SubProcess(options)))
+    },
     libraryDependencies ++= Seq(
       "org.scala-lang" % "scala-compiler" % scalaVersion.value
     )

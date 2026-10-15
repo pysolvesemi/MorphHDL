@@ -20,9 +20,11 @@ trait SpinalModule extends SbtModule with CrossSbtModule { outer =>
   )
 
   def testModuleDeps: Seq[JavaModule] = Seq.empty
+  def testForkArgs = Task { Seq.empty[String] }
 
   object test extends CrossSbtTests with TestModule.ScalaTest {
     override def moduleDeps = super.moduleDeps ++ outer.testModuleDeps
+    override def forkArgs = super.forkArgs() ++ outer.testForkArgs()
     def mvnDeps = Seq(mvn"org.scalatest::scalatest::${scalatestVersion}")
   }
   def testOnly(args: String*) = test.testOnly(args*)
@@ -78,6 +80,7 @@ trait IdslPlugin extends SpinalModule with SpinalPublishModule {
   def moduleDeps = Seq(moduleRefs("idslpayload"))
   def mvnDeps = super.mvnDeps() ++ Seq(mvn"org.scala-lang:scala-compiler:${scalaVersion}")
   def pluginOptions = Task { Seq(s"-Xplugin:${assembly().path}") }
+  override def testForkArgs = Task { Seq(s"-Dmorphhdl.idslplugin.jar=${jar().path}") }
 }
 
 object sim extends Cross[Sim](SpinalVersion.compilers){
