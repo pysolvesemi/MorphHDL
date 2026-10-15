@@ -61,3 +61,14 @@ monitor ID or active background monitoring is claimed. This limitation remains
 explicit when dispatch begins. Questa is unavailable locally; local simulation
 uses the pinned Icarus build, with separate Verilator/Yosys checks. Required
 application/Questa and broader migration obligations are not marked complete.
+
+### Native-source review refresh
+
+The current native policy now enrolls the roadmap's scoped-index API, Bool
+condition diagnostic, Vec port factories/forwarding, nested hierarchy adaptation,
+recursive/callback annotations and opt-in BalancedTree component. Review retains
+unchanged historical edit metadata and authenticates each revised native span;
+no frozen certificate is rewritten. The generated native manifest covers 77
+paths and 318 edits across seven roots. Local preservation, eight mutation
+rejections, typed overlay, retirement, layering and both StreamFifoCC boundary
+checks pass. These are preparation results, not remote qualification.
