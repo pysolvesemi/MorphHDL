@@ -18,11 +18,11 @@
     },
     ".github/workflows/increment-55-concrete-compatibility-audit.yml": {
       "mode": "100644",
-      "sha256": "183702154283928cafd7d8e7f8c28a616f6971fd06b7ed57e187d486bb156e81"
+      "sha256": "6fa652033e37cd8cfcc2c48243ca1ad2da79debc0e01adc1ebc87ad74f9afebb"
     },
     ".github/workflows/increment-56-native-typed-library-surface.yml": {
       "mode": "100644",
-      "sha256": "c32dbfdab869ec628da6d2a68694f1c6d44fa77516ed8643378d9d240fdd9f83"
+      "sha256": "453e21d90a9ba246d8a14b3c172386986fd4476f5d882f70e6328c07f489b1b9"
     },
     ".github/workflows/increment-57-broad-native-library-migration.yml": {
       "mode": "100644",
@@ -42,7 +42,7 @@
     },
     ".github/workflows/increment-59a-recursive-verilog-module.yml": {
       "mode": "100644",
-      "sha256": "5810889478e6dff65bf27f247fd2ee61c365f0d80251193c8883260523301a59"
+      "sha256": "a65bc9ec58e4a73edb8a4028dbb891a5c77c8228e1e2e278b692872c673bb3b0"
     },
     ".github/workflows/increment-59b-publication.yml": {
       "mode": "100644",
@@ -851,6 +851,10 @@
     "morphhdl/scripts/check-typed-recursive-component.py": {
       "mode": "100644",
       "sha256": "b8e04475f2c5e760ca4292373835feba1ae1ccd1e1001793dc840b277c7fd4f3"
+    },
+    "morphhdl/scripts/check-typed-vec-boundary.sh": {
+      "mode": "100755",
+      "sha256": "45809df5e42b136f333e7295d420cc6bab9479fe4cc4765ed94b6607a95b9d0a"
     },
     "morphhdl/scripts/check-wa11-boolean-width.py": {
       "mode": "100644",
