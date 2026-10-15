@@ -60,6 +60,9 @@ class RtlDocumentationTests extends AnyFunSuite {
     }
   }
   test("fluent scalar documentation preserves all non-comment tokens") {
+    val methods = classOf[spinal.core.internals.Statement].getMethods.filter(_.getName.contains("rtlDocumentation"))
+    assert(methods.nonEmpty)
+    assert(methods.forall(m => !java.lang.reflect.Modifier.isAbstract(m.getModifiers)), methods.mkString("\n"))
     val plain = emit()(new Scalar(false))
     val documented = emit()(new Scalar(true))
     assert(tokens(plain) == tokens(documented))
@@ -92,6 +95,11 @@ class RtlDocumentationTests extends AnyFunSuite {
     }
   }
   test("documentation options copy flags and text validation is explicit") {
+    val previous = GlobalData.get
+    try {
+      GlobalData.set(null)
+      new spinal.core.internals.ScopeStatement(null)
+    } finally GlobalData.set(previous)
     val base = SpinalConfig()
     val enabled = RtlDocumentationOptions(base, true, false)
     assert(!RtlDocumentationOptions.of(base).captureScalaComments)

@@ -146,9 +146,10 @@
         "Increment 53d: typed StreamWidthAdapter architecture",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 55: audit concrete compatibility",
-        "Increment 59i: combined recursive widening, captures and native saturation geometry"
+        "Increment 59i: combined recursive widening, captures and native saturation geometry",
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
       ],
-      "reason": "Retain typed width construction and resize overloads, and mechanically propagate the exact source width through the unchanged native asBits assignment; ordinary concrete arithmetic and width inference remain authoritative.",
+      "reason": "Retain typed width construction and resize overloads, and mechanically propagate the exact source width through the unchanged native asBits assignment; ordinary concrete arithmetic and width inference remain authoritative. Lightweight roadmap: Delegate scoped packed slices to authenticated index and stride interfaces without extracting witnesses.",
       "baseline_path": "core/src/main/scala/spinal/core/Bits.scala",
       "edits": [
         {
@@ -178,14 +179,27 @@
           ]
         },
         {
-          "id": "bits-typed-width-02",
+          "id": "lightweight-bits-2",
           "kind": "overload",
-          "owner": "spinal.core.Bits.resize(ElabInt)",
-          "reason": "Add the typed Bits resize overload while routing literal widths through the inherited Int implementation.",
+          "owner": "native Bits authoring boundary",
+          "reason": "Delegate scoped packed slices to authenticated index and stride interfaces without extracting witnesses.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "ParameterizedWidth.validatedResizeWitness",
+              "text": "  /** Resize while retaining the exact typed target width. */\n  override def resize(width: ElabInt): Bits = {\n    val witness = ParameterizedWidth.validatedResizeWitness(width)\n    if (width.isConcrete) resize(witness)\n    else ParameterizedWidth.attachResize(resize(witness), width)\n  }\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-bits-3",
+          "kind": "overload",
+          "owner": "native Bits authoring boundary",
+          "reason": "Delegate scoped packed slices to authenticated index and stride interfaces without extracting witnesses.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "\n  def apply(offset: ElabScopedIndex, bitCount: BitCount): Bits = offset.selectPacked(this, bitCount)\n  def apply(offset: ElabScopedWordOffset, bitCount: ParameterizedBitCount): Bits = offset.selectPacked(this, bitCount)\n",
               "count": 1
             }
           ]
@@ -222,6 +236,31 @@
               "side": "approved",
               "text": "ParameterizedBlackBoxGenericRegistry.retain(this, name, value)",
               "count": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/Bool.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/Bool.scala",
+      "change": "modified",
+      "classification": "typed-overload",
+      "introduced_by": [
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
+      ],
+      "reason": "Reject hardware Bool as Scala Boolean at compile time with an actionable diagnostic; no runtime adaptation is permitted. Lightweight roadmap: Reject hardware Bool as Scala Boolean at compile time with an actionable diagnostic; no runtime adaptation is permitted.",
+      "edits": [
+        {
+          "id": "lightweight-bool-0",
+          "kind": "overload",
+          "owner": "native Bool authoring boundary",
+          "reason": "Reject hardware Bool as Scala Boolean at compile time with an actionable diagnostic; no runtime adaptation is permitted.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  /** A diagnostic-only adaptation: scalac must reject every use. Hardware\n    * conditions cannot select a Scala branch or become elaboration witnesses. */\n  @scala.annotation.compileTimeOnly(\n    \"SPINAL-HARDWARE-BOOL-AS-SCALA-BOOLEAN: hardware Bool cannot control Scala elaboration; use when for hardware control and typed parameters for generate decisions\")\n  implicit def rejectHardwareBooleanAsScalaBoolean(value: Bool): Boolean =\n    throw new IllegalArgumentException(\"hardware Bool cannot become a Scala Boolean\")\n\n",
+              "count": 1
             }
           ]
         }
@@ -375,6 +414,17 @@
       "edits": []
     },
     {
+      "path": "core/src/main/scala/spinal/core/ElabScopedIndex.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
+      ],
+      "reason": "Dependency-neutral scoped index, predicate and word-offset interfaces retain lexical authority and typed stride geometry. Lightweight roadmap: Dependency-neutral scoped index, predicate and word-offset interfaces retain lexical authority and typed stride geometry.",
+      "edits": []
+    },
+    {
       "path": "core/src/main/scala/spinal/core/ElabValue.scala",
       "change": "added",
       "classification": "typed-support-file",
@@ -484,6 +534,96 @@
       "reason": "Define the narrow structural-predicate permit used by parameter-sensitive native branches.",
       "baseline_path": null,
       "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/IODirection.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/IODirection.scala",
+      "change": "modified",
+      "classification": "typed-overload",
+      "introduced_by": [
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
+      ],
+      "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+      "edits": [
+        {
+          "id": "lightweight-iodirection-abi-0",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "\n  override protected def postVecFactory[T <: Data](vector: Vec[T]): Vec[T] = port(vector)\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-iodirection-abi-1",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.\n  override val Vec = new VecBuilder\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-iodirection-abi-2",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.\n  override val Vec = new VecBuilder\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-iodirection-abi-3",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.\n  override val Vec = new VecBuilder\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-iodirection-abi-4",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.\n  override val Vec = new VecBuilder\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-iodirection-abi-5",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.\n  override val Vec = new VecBuilder\n",
+              "count": 1
+            }
+          ]
+        }
+      ]
     },
     {
       "path": "core/src/main/scala/spinal/core/Literal.scala",
@@ -961,9 +1101,10 @@
         "CA-039\u2013CA-041 targeted CI repair: packed expression owner projection",
         "CA-039\u2013CA-041 current-head qualification repair: legacy Vec compatibility and exact packed-read owner receipts",
         "CA-048: independently parameterized Vec element width and depth",
-        "CA-051\u2013CA-053 composition repair and targeted nested-regression closure, 14 October 2026"
+        "CA-051\u2013CA-053 composition repair and targeted nested-regression closure, 14 October 2026",
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
       ],
-      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged. Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence. CDC-WIRE-01 qualification exposes a read-only identity inventory from retained Vec operation and completed-write journals. Visit only the closed compiler-owned record families and their exact native expressions with identity-based cycle suppression, so optional late wrapper planning preserves the publisher's witness slices, carriers and assignment evidence. No native Vec algorithm, journal contents, parameter domain or public layout is changed. Packed-assignment support tracing follows only exact fixed slices, reviewed Bits casts, and same-component directionless combinational intermediates with one root-scope assignment; it stops at the recorded carrier or source identities. Supporting-driver traversal is read-only and cannot relax the publisher's existing proof obligations. The October 2 request adds explicitly opted-in constant geometry retention and exact literal-depth metadata for constant typed-loop Vec operands; no symbolic root or witness domain is fabricated. Static writes preserve anonymous literal identity without pinning its width; exact native literal-clone receipts retain normalization lineage. Capture complete static scope paths and enclosing When identities across native switches. Retain lazy, exact original bit-view extraction identities on the Vec object, validate before consuming once, and retain constant loop operand shape without changing native read/write semantics. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged. With constant Vec preservation enabled, native tabulation records exact returned element/flattened leaf identities before later publication. Construction aliases require distinct component-owned nodes and are revalidated; unrelated raw carrier references, foreign owners and changed identities remain rejected. No native operator, assignment, pruning or disabled-option algorithm is changed. Retained static writes and packed reads assign an unnamed exact Vec owner a weak fallback name so existing protected owner-relative leaves survive pruning. Explicit and reflected names remain authoritative; static writes do not add vitality or change native assignment, geometry, or pruning algorithms. Capture the exact logical packed-width expression while its authoring owner is active. Single-root symbolic packing and unpacking keep an exact audit wrapper even at an equal-width witness, so native definition identity is independent of actual defaults. Revalidate the original assignment, carrier, widths and normalized equal-width alias before publication. Unretained native Vec operations and independently rooted factorized geometry keep their existing paths. Certify the logical packed-width expression with its exact active projection during construction, including full-domain Bool packing; publication does not fabricate missing provenance. Preserve legacy direct leaf-width metadata without inventing typed arithmetic authority. For typed packed reads, retain an identity-keyed construction-owner width projection, use its exact logical witness, and validate publication against the retained projection and final native owner while preserving carrier, layout and read-lineage checks. CA-048 composes exact typed element-width and depth expressions through the existing product-domain authority, retaining legacy direct-width rejection. Packed-width equivalence compares exact expression identity or authenticated product functions and root domains; no witness-derived geometry is introduced. CA-051 and nested-regression repair: compare exact retained packed width certificates after branch capture and compose consumer-specific guarded widths through their width authority rather than treating them as general integer certificates.",
+      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged. Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence. CDC-WIRE-01 qualification exposes a read-only identity inventory from retained Vec operation and completed-write journals. Visit only the closed compiler-owned record families and their exact native expressions with identity-based cycle suppression, so optional late wrapper planning preserves the publisher's witness slices, carriers and assignment evidence. No native Vec algorithm, journal contents, parameter domain or public layout is changed. Packed-assignment support tracing follows only exact fixed slices, reviewed Bits casts, and same-component directionless combinational intermediates with one root-scope assignment; it stops at the recorded carrier or source identities. Supporting-driver traversal is read-only and cannot relax the publisher's existing proof obligations. The October 2 request adds explicitly opted-in constant geometry retention and exact literal-depth metadata for constant typed-loop Vec operands; no symbolic root or witness domain is fabricated. Static writes preserve anonymous literal identity without pinning its width; exact native literal-clone receipts retain normalization lineage. Capture complete static scope paths and enclosing When identities across native switches. Retain lazy, exact original bit-view extraction identities on the Vec object, validate before consuming once, and retain constant loop operand shape without changing native read/write semantics. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged. With constant Vec preservation enabled, native tabulation records exact returned element/flattened leaf identities before later publication. Construction aliases require distinct component-owned nodes and are revalidated; unrelated raw carrier references, foreign owners and changed identities remain rejected. No native operator, assignment, pruning or disabled-option algorithm is changed. Retained static writes and packed reads assign an unnamed exact Vec owner a weak fallback name so existing protected owner-relative leaves survive pruning. Explicit and reflected names remain authoritative; static writes do not add vitality or change native assignment, geometry, or pruning algorithms. Capture the exact logical packed-width expression while its authoring owner is active. Single-root symbolic packing and unpacking keep an exact audit wrapper even at an equal-width witness, so native definition identity is independent of actual defaults. Revalidate the original assignment, carrier, widths and normalized equal-width alias before publication. Unretained native Vec operations and independently rooted factorized geometry keep their existing paths. Certify the logical packed-width expression with its exact active projection during construction, including full-domain Bool packing; publication does not fabricate missing provenance. Preserve legacy direct leaf-width metadata without inventing typed arithmetic authority. For typed packed reads, retain an identity-keyed construction-owner width projection, use its exact logical witness, and validate publication against the retained projection and final native owner while preserving carrier, layout and read-lineage checks. CA-048 composes exact typed element-width and depth expressions through the existing product-domain authority, retaining legacy direct-width rejection. Packed-width equivalence compares exact expression identity or authenticated product functions and root domains; no witness-derived geometry is introduced. CA-051 and nested-regression repair: compare exact retained packed width certificates after branch capture and compose consumer-specific guarded widths through their width authority rather than treating them as general integer certificates. Lightweight roadmap: Retain whole-row forwarding invocation identities, protect exact packed-write carriers, and prove nested hierarchy geometry with exact formal substitution rather than witness counts.",
       "baseline_path": null,
       "edits": []
     },
@@ -977,6 +1118,17 @@
       ],
       "reason": "Retain authoritative recursive Bundle/Vec geometry and exact finite packing. Pure certified leaf-width substitution preserves scalar kinds, field paths, independent dimension identities and capacities, rejects missing or unequal finite copies, and computes logical nested offsets without treating carrier maxima as active depths.",
       "baseline_path": null,
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ParameterizedVecHierarchy.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
+      ],
+      "reason": "Pair nested carriers by coordinates at direct child boundaries; retain exact audit padding and revalidate type, width, direction, ownership and every live driver before publication. Lightweight roadmap: Pair nested carriers by coordinates at direct child boundaries; retain exact audit padding and revalidate type, width, direction, ownership and every live driver before publication.",
       "edits": []
     },
     {
@@ -1013,7 +1165,7 @@
       "introduced_by": [
         "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
       ],
-      "reason": "Define optional typed documentation metadata, configuration, identity-preserving APIs, exception-safe regions, declaration publication and exact relocation envelopes. Decode optional source coordinates in the metadata owner while preserving valid and malformed location behavior; the canonical producer consumes typed coordinates without parsing source text.",
+      "reason": "Define optional typed documentation metadata, configuration, identity-preserving APIs, exception-safe regions, declaration publication and exact relocation envelopes. Decode optional source coordinates in the metadata owner while preserving valid and malformed location behavior; the canonical producer consumes typed coordinates without parsing source text. Store region notes in elaboration-owned identity metadata with concrete default accessors, preserving binary compatibility of existing Statement implementations and empty scope construction outside elaboration.",
       "baseline_path": null,
       "edits": []
     },
@@ -1259,9 +1411,10 @@
         "October 2 user request: opt-in constant aggregates and typed loops",
         "CA-018: user-requested neutral generated helper names",
         "CA-029\u2013CA-031: authenticated whole-word Vec publication and construction aliases",
-        "CA-039\u2013CA-041: scoped logical Vec packing and witness-invariant audit wrappers"
+        "CA-039\u2013CA-041: scoped logical Vec packing and witness-invariant audit wrappers",
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
       ],
-      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Extend read-only wrapper identity evidence to already-audited recursive Data; native assignment and source-hook behavior remains byte-identical. The October 2 opt-in flag additionally retains exact constant tabulation geometry; disabled native behavior is unchanged. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged. With constant Vec preservation enabled, native tabulation records exact returned element/flattened leaf identities before later publication. Construction aliases require distinct component-owned nodes and are revalidated; unrelated raw carrier references, foreign owners and changed identities remain rejected. No native operator, assignment, pruning or disabled-option algorithm is changed. Capture the exact logical packed-width expression while its authoring owner is active. Single-root symbolic packing and unpacking keep an exact audit wrapper even at an equal-width witness, so native definition identity is independent of actual defaults. Revalidate the original assignment, carrier, widths and normalized equal-width alias before publication. Unretained native Vec operations and independently rooted factorized geometry keep their existing paths.",
+      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Extend read-only wrapper identity evidence to already-audited recursive Data; native assignment and source-hook behavior remains byte-identical. The October 2 opt-in flag additionally retains exact constant tabulation geometry; disabled native behavior is unchanged. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged. With constant Vec preservation enabled, native tabulation records exact returned element/flattened leaf identities before later publication. Construction aliases require distinct component-owned nodes and are revalidated; unrelated raw carrier references, foreign owners and changed identities remain rejected. No native operator, assignment, pruning or disabled-option algorithm is changed. Capture the exact logical packed-width expression while its authoring owner is active. Single-root symbolic packing and unpacking keep an exact audit wrapper even at an equal-width witness, so native definition identity is independent of actual defaults. Revalidate the original assignment, carrier, widths and normalized equal-width alias before publication. Unretained native Vec operations and independently rooted factorized geometry keep their existing paths. Lightweight roadmap: Delegate scoped indexing and whole assignment capture, apply symbolic factory port hooks, and transpose existing leaves without allocating unauthored nested declarations.",
       "baseline_path": "core/src/main/scala/spinal/core/Vec.scala",
       "edits": [
         {
@@ -1278,6 +1431,19 @@
             {
               "side": "approved",
               "text": "WhenStatement",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-vec-1",
+          "kind": "overload",
+          "owner": "native Vec authoring boundary",
+          "reason": "Delegate scoped indexing and whole assignment capture, apply symbolic factory port hooks, and transpose existing leaves without allocating unauthored nested declarations.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "\n  protected def postVecFactory[T <: Data](vector: Vec[T]): Vec[T] = vector\n",
               "count": 1
             }
           ]
@@ -1332,14 +1498,14 @@
           ]
         },
         {
-          "id": "vec-typed-geometry-03",
+          "id": "lightweight-vec-5",
           "kind": "overload",
-          "owner": "spinal.core Vec typed factories",
-          "reason": "Add typed-size Vec factories and share one native carrier construction path.",
+          "owner": "native Vec authoring boundary",
+          "reason": "Delegate scoped indexing and whole assignment capture, apply symbolic factory port hooks, and transpose existing leaves without allocating unauthored nested declarations.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "ParameterizedVec.attachConcreteDepthIfSymbolicElement",
+              "text": "val vector = fillCarrier(size)(dataType)\n      ParameterizedVec.attachConcreteDepthIfSymbolicElement(vector, size)\n    }\n\n    /** Typed counterpart used by native algorithms whose enclosing structural\n      * branch retains the exact symbolic size.\n      */\n    def fill[T <: Data](size: ElabInt)(dataType: => T): Vec[T] = {\n      postVecFactory(ParameterizedVec.create(size, \"typed Vec size\")(dataType)",
               "count": 1
             }
           ]
@@ -1514,6 +1680,19 @@
           ]
         },
         {
+          "id": "lightweight-vec-14",
+          "kind": "overload",
+          "owner": "native Vec authoring boundary",
+          "reason": "Delegate scoped indexing and whole assignment capture, apply symbolic factory port hooks, and transpose existing leaves without allocating unauthored nested declarations.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "// Transpose the exact existing native carriers. Constructing another\n      // dataType merely to count leaves allocates unused nested Vec declarations\n      // with retained formal identities when the element itself is an aggregate.\n      val size = vec.head",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "vec-typed-geometry-09",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec indexed access",
@@ -1535,6 +1714,19 @@
             {
               "side": "approved",
               "text": "ParameterizedVec.rejectUnsupported",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-vec-17",
+          "kind": "overload",
+          "owner": "native Vec authoring boundary",
+          "reason": "Delegate scoped indexing and whole assignment capture, apply symbolic factory port hooks, and transpose existing leaves without allocating unauthored nested declarations.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "\n  /** Generate-time access with the index's authenticated lexical ownership. */\n  def apply(index: ElabScopedIndex): T = index.select(this)\n",
               "count": 1
             }
           ]
@@ -1670,6 +1862,19 @@
           ]
         },
         {
+          "id": "lightweight-vec-28",
+          "kind": "overload",
+          "owner": "native Vec authoring boundary",
+          "reason": "Delegate scoped indexing and whole assignment capture, apply symbolic factory port hooks, and transpose existing leaves without allocating unauthored nested declarations.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "      case that: Vec[T] if ParameterizedVecHierarchy.assign(this,that,kind) => ()\n",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "vec-typed-geometry-21",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec assignment and cloning",
@@ -1696,14 +1901,14 @@
           ]
         },
         {
-          "id": "vec-typed-geometry-23",
-          "kind": "mechanical-propagation",
-          "owner": "spinal.core.Vec assignment and cloning",
-          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations.",
+          "id": "lightweight-vec-31",
+          "kind": "overload",
+          "owner": "native Vec authoring boundary",
+          "reason": "Delegate scoped indexing and whole assignment capture, apply symbolic factory port hooks, and transpose existing leaves without allocating unauthored nested declarations.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "ParameterizedVec.recordWholeAssignment",
+              "text": "          }\n        }\n        if (parameterized) {\n          ParameterizedVec.captureWholeAssignment(this, that, kind)(assignNative())\n        } else {\n          assignNative()\n",
               "count": 1
             }
           ]
@@ -1809,25 +2014,34 @@
       "classification": "typed-overload",
       "introduced_by": [
         "Increment 53d: typed StreamWidthAdapter architecture",
-        "CA-021: ordinary-import parameter-constant Vec indexing"
+        "CA-021: ordinary-import parameter-constant Vec indexing",
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
       ],
-      "reason": "Expose parameter-preserving widthOf and scalar Vec indexing while preserving native and frontend structural overload resolution.",
+      "reason": "Expose parameter-preserving widthOf and scalar Vec indexing while preserving native and frontend structural overload resolution. Lightweight roadmap: Keep literal-left affine operations in the authenticated scoped-index domain.",
       "baseline_path": "core/src/main/scala/spinal/core/core.scala",
       "edits": [
         {
-          "id": "widthofexpr-01",
+          "id": "lightweight-core-0",
           "kind": "overload",
-          "owner": "spinal.core.widthOfExpr and spinal.core.ElabVecOps",
-          "reason": "Add typed width and Vec selection extensions without changing existing native members; delegate selection to its single authenticated implementation.",
+          "owner": "native core authoring boundary",
+          "reason": "Keep literal-left affine operations in the authenticated scoped-index domain.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "ElabInt.packedWidthOf",
+              "text": "  /** Parameter-preserving counterpart of [[widthOf]] for typed native APIs. */\n  def widthOfExpr[T <: Data](that: T): ElabInt = ElabInt.packedWidthOf(that)\n\n  /** Parameter-constant scalar Vec reads, available with spinal.core._.\n    * Keep this an extension: a native member would take precedence over the\n    * frontend's structural index extension after its HdlInt-to-ElabInt conversion.\n    */\n  implicit final class ElabVecOps[T <: BaseType](private val vector: Vec[T]) {\n    def apply(index: ElabInt): T = TypedVecStaticSelect(vector, index)\n  }\n\n\n",
               "count": 1
-            },
+            }
+          ]
+        },
+        {
+          "id": "lightweight-core-1",
+          "kind": "overload",
+          "owner": "native core authoring boundary",
+          "reason": "Keep literal-left affine operations in the authenticated scoped-index domain.",
+          "required_exact_text": [
             {
               "side": "approved",
-              "text": "TypedVecStaticSelect(vector, index)",
+              "text": "\n    /** Keep literal-left affine arithmetic in the scoped index domain. */\n    def *(index: ElabScopedIndex): ElabScopedIndex = index * i\n    def +(index: ElabScopedIndex): ElabScopedIndex = index + i\n",
               "count": 1
             }
           ]
@@ -3002,6 +3216,28 @@
       ]
     },
     {
+      "path": "core/src/main/scala/spinal/core/rtlHardwareCallback.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
+      ],
+      "reason": "Mark library hardware callback parameters for exact typed source-visible effect checks; opaque callback purity remains explicitly unsupported. Lightweight roadmap: Mark library hardware callback parameters for exact typed source-visible effect checks; opaque callback purity remains explicitly unsupported.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/rtlRecursive.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
+      ],
+      "reason": "Opt in to compiler-owned direct recursive component construction while retaining independent native recursive-edge proofs. Lightweight roadmap: Opt in to compiler-owned direct recursive component construction while retaining independent native recursive-edge proofs.",
+      "edits": []
+    },
+    {
       "path": "core/src/main/scala/spinal/core/when.scala",
       "change": "modified",
       "classification": "typed-overload",
@@ -3143,6 +3379,17 @@
           ]
         }
       ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/BalancedTree.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
+      ],
+      "reason": "Provide an explicit opt-in adjacent-pair recursive library component with odd-tail, level bridge, symbolic payload and selected-register contracts; do not replace existing Vec.reduceBalancedTree. Lightweight roadmap: Provide an explicit opt-in adjacent-pair recursive library component with odd-tail, level bridge, symbolic payload and selected-register contracts; do not replace existing Vec.reduceBalancedTree.",
+      "edits": []
     },
     {
       "path": "lib/src/main/scala/spinal/lib/Counter.scala",

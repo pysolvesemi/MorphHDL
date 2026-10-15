@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "00b08ca1e3902c05786f0094a22175e4909e1314"
+      "approved_tree": "afeabd02eb099ba348bf69b94cfcd415e3bfc43c"
     },
     {
       "path": "idslpayload/src/main",
@@ -27,7 +27,7 @@
     {
       "path": "lib/src/main",
       "baseline_tree": "76cd20a58e83ff73404632aec84bb03f2dd4dea9",
-      "approved_tree": "80bc5d5edd8b1db17cce267fd5d4a1f022f9670f"
+      "approved_tree": "b454d6c95afa3ecf1050a04c6c45a39ff0edf959"
     },
     {
       "path": "scalaplugin/src/main",
@@ -299,9 +299,10 @@
         "Increment 53d: typed StreamWidthAdapter architecture",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 55: audit concrete compatibility",
-        "Increment 59i: combined recursive widening, captures and native saturation geometry"
+        "Increment 59i: combined recursive widening, captures and native saturation geometry",
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
       ],
-      "reason": "Retain typed width construction and resize overloads, and mechanically propagate the exact source width through the unchanged native asBits assignment; ordinary concrete arithmetic and width inference remain authoritative.",
+      "reason": "Retain typed width construction and resize overloads, and mechanically propagate the exact source width through the unchanged native asBits assignment; ordinary concrete arithmetic and width inference remain authoritative. Lightweight roadmap: Delegate scoped packed slices to authenticated index and stride interfaces without extracting witnesses.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/Bits.scala",
         "mode": "100644",
@@ -311,8 +312,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/Bits.scala",
         "mode": "100644",
-        "blob": "a4c503d86e86170b2c9abd71dd3256409dc669bb",
-        "sha256": "9c17e0ec277d7b013a74477f676bdeabcb2a6bcc2398df1951c2529b299d8b9e"
+        "blob": "06af8dc069d65274b5967b6c660054e00ab6adf4",
+        "sha256": "5715bfa15af61ddb9461490991f30eeee22e817f038d66608488b49dc49e9197"
       },
       "edits": [
         {
@@ -362,24 +363,47 @@
           ]
         },
         {
-          "id": "bits-typed-width-02",
+          "id": "lightweight-bits-2",
           "kind": "overload",
-          "owner": "spinal.core.Bits.resize(ElabInt)",
-          "reason": "Add the typed Bits resize overload while routing literal widths through the inherited Int implementation.",
+          "owner": "native Bits authoring boundary",
+          "reason": "Delegate scoped packed slices to authenticated index and stride interfaces without extracting witnesses.",
           "baseline_span": {
-            "start": 8469,
-            "end": 8469,
+            "start": 8470,
+            "end": 8470,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 8736,
-            "end": 9025,
-            "sha256": "8f646e525b04302036b216389ae9df5e1bb87d95fd3ac106328fe716f9d54b1c"
+            "start": 8737,
+            "end": 9026,
+            "sha256": "9a68e4e29b7ccc035275c123498ec34d34be9fc8d94ed011c033eea8831d8d25"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "ParameterizedWidth.validatedResizeWitness",
+              "text": "  /** Resize while retaining the exact typed target width. */\n  override def resize(width: ElabInt): Bits = {\n    val witness = ParameterizedWidth.validatedResizeWitness(width)\n    if (width.isConcrete) resize(witness)\n    else ParameterizedWidth.attachResize(resize(witness), width)\n  }\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-bits-3",
+          "kind": "overload",
+          "owner": "native Bits authoring boundary",
+          "reason": "Delegate scoped packed slices to authenticated index and stride interfaces without extracting witnesses.",
+          "baseline_span": {
+            "start": 9059,
+            "end": 9059,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 9615,
+            "end": 9836,
+            "sha256": "ffd72483f8b3e1ac95b992460f4959a7ab3406f33822cda33c09c569fb581fad"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "\n  def apply(offset: ElabScopedIndex, bitCount: BitCount): Bits = offset.selectPacked(this, bitCount)\n  def apply(offset: ElabScopedWordOffset, bitCount: ParameterizedBitCount): Bits = offset.selectPacked(this, bitCount)\n",
               "count": 1
             }
           ]
@@ -437,6 +461,52 @@
               "side": "approved",
               "text": "ParameterizedBlackBoxGenericRegistry.retain(this, name, value)",
               "count": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/Bool.scala",
+      "change": "modified",
+      "classification": "typed-overload",
+      "introduced_by": [
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
+      ],
+      "reason": "Reject hardware Bool as Scala Boolean at compile time with an actionable diagnostic; no runtime adaptation is permitted. Lightweight roadmap: Reject hardware Bool as Scala Boolean at compile time with an actionable diagnostic; no runtime adaptation is permitted.",
+      "baseline": {
+        "path": "core/src/main/scala/spinal/core/Bool.scala",
+        "mode": "100644",
+        "blob": "0815284579619c3c5dc4c86696cdb953f0284dd4",
+        "sha256": "2631f2518c959de192e2218653706b70bac445a968365ebc441bdb4813e3c62d"
+      },
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/Bool.scala",
+        "mode": "100644",
+        "blob": "b43c9d6b2a22432102c80db1f7d6fd5e5ac0d655",
+        "sha256": "385f295c45af74b6644d132ff8c29e693656b393f4a3cfcd516aef97f19fa910"
+      },
+      "edits": [
+        {
+          "id": "lightweight-bool-0",
+          "kind": "overload",
+          "owner": "native Bool authoring boundary",
+          "reason": "Reject hardware Bool as Scala Boolean at compile time with an actionable diagnostic; no runtime adaptation is permitted.",
+          "baseline_span": {
+            "start": 1837,
+            "end": 1837,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 1837,
+            "end": 2361,
+            "sha256": "d74a4bbcee237f5b1cfc10d288db61502adf9fb71ca5917625162f8cbe0e2633"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  /** A diagnostic-only adaptation: scalac must reject every use. Hardware\n    * conditions cannot select a Scala branch or become elaboration witnesses. */\n  @scala.annotation.compileTimeOnly(\n    \"SPINAL-HARDWARE-BOOL-AS-SCALA-BOOLEAN: hardware Bool cannot control Scala elaboration; use when for hardware control and typed parameters for generate decisions\")\n  implicit def rejectHardwareBooleanAsScalaBoolean(value: Bool): Boolean =\n    throw new IllegalArgumentException(\"hardware Bool cannot become a Scala Boolean\")\n\n",
+              "count": 1
             }
           ]
         }
@@ -695,6 +765,23 @@
       "edits": []
     },
     {
+      "path": "core/src/main/scala/spinal/core/ElabScopedIndex.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
+      ],
+      "reason": "Dependency-neutral scoped index, predicate and word-offset interfaces retain lexical authority and typed stride geometry. Lightweight roadmap: Dependency-neutral scoped index, predicate and word-offset interfaces retain lexical authority and typed stride geometry.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/ElabScopedIndex.scala",
+        "mode": "100644",
+        "blob": "0b78061ebeb0cf9940c34edb60d266583bbf1d97",
+        "sha256": "cf64429a32e01366361017c566e46adbfce5ccdbb00b65df1d1a7bfb87eefe37"
+      },
+      "edits": []
+    },
+    {
       "path": "core/src/main/scala/spinal/core/ElabValue.scala",
       "change": "added",
       "classification": "typed-support-file",
@@ -858,6 +945,167 @@
         "sha256": "77971adc2eccc122759e654c53d39837efe46d664ff04515bd5b53be5d57f0bd"
       },
       "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/IODirection.scala",
+      "change": "modified",
+      "classification": "typed-overload",
+      "introduced_by": [
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
+      ],
+      "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+      "baseline": {
+        "path": "core/src/main/scala/spinal/core/IODirection.scala",
+        "mode": "100644",
+        "blob": "6b132c56cfde14c7b47301422031183e21e488dc",
+        "sha256": "b2a7672f21524b7b14db203e4ef6d97eefe558f423998000fc94af29e59f586b"
+      },
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/IODirection.scala",
+        "mode": "100644",
+        "blob": "8bbf098ff3fc4d79c5065c2619a0d3156636aa61",
+        "sha256": "0070be0391ddc0dbca51fe0825533bd6665ba8d82e7069695fefb37d785b24e3"
+      },
+      "edits": [
+        {
+          "id": "lightweight-iodirection-abi-0",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "baseline_span": {
+            "start": 977,
+            "end": 977,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 977,
+            "end": 1069,
+            "sha256": "0619e98c6d33a4e44ed7f7caf3b55c3f51ac1cf0d2428e8d7c42368b39e9a517"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "\n  override protected def postVecFactory[T <: Data](vector: Vec[T]): Vec[T] = port(vector)\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-iodirection-abi-1",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "baseline_span": {
+            "start": 3214,
+            "end": 3214,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 3306,
+            "end": 3427,
+            "sha256": "4a73da550b10f29b7f1e4ea4552ecd1d113bb1afa717b3addd4b65f28690d687"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.\n  override val Vec = new VecBuilder\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-iodirection-abi-2",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "baseline_span": {
+            "start": 3390,
+            "end": 3390,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 3603,
+            "end": 3724,
+            "sha256": "4a73da550b10f29b7f1e4ea4552ecd1d113bb1afa717b3addd4b65f28690d687"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.\n  override val Vec = new VecBuilder\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-iodirection-abi-3",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "baseline_span": {
+            "start": 3568,
+            "end": 3568,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 3902,
+            "end": 4023,
+            "sha256": "4a73da550b10f29b7f1e4ea4552ecd1d113bb1afa717b3addd4b65f28690d687"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.\n  override val Vec = new VecBuilder\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-iodirection-abi-4",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "baseline_span": {
+            "start": 3773,
+            "end": 3773,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 4228,
+            "end": 4349,
+            "sha256": "4a73da550b10f29b7f1e4ea4552ecd1d113bb1afa717b3addd4b65f28690d687"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.\n  override val Vec = new VecBuilder\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-iodirection-abi-5",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "baseline_span": {
+            "start": 4009,
+            "end": 4009,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 4585,
+            "end": 4706,
+            "sha256": "4a73da550b10f29b7f1e4ea4552ecd1d113bb1afa717b3addd4b65f28690d687"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.\n  override val Vec = new VecBuilder\n",
+              "count": 1
+            }
+          ]
+        }
+      ]
     },
     {
       "path": "core/src/main/scala/spinal/core/Literal.scala",
@@ -1654,15 +1902,16 @@
         "CA-039\u2013CA-041 targeted CI repair: packed expression owner projection",
         "CA-039\u2013CA-041 current-head qualification repair: legacy Vec compatibility and exact packed-read owner receipts",
         "CA-048: independently parameterized Vec element width and depth",
-        "CA-051\u2013CA-053 composition repair and targeted nested-regression closure, 14 October 2026"
+        "CA-051\u2013CA-053 composition repair and targeted nested-regression closure, 14 October 2026",
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
       ],
-      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged. Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence. CDC-WIRE-01 qualification exposes a read-only identity inventory from retained Vec operation and completed-write journals. Visit only the closed compiler-owned record families and their exact native expressions with identity-based cycle suppression, so optional late wrapper planning preserves the publisher's witness slices, carriers and assignment evidence. No native Vec algorithm, journal contents, parameter domain or public layout is changed. Packed-assignment support tracing follows only exact fixed slices, reviewed Bits casts, and same-component directionless combinational intermediates with one root-scope assignment; it stops at the recorded carrier or source identities. Supporting-driver traversal is read-only and cannot relax the publisher's existing proof obligations. The October 2 request adds explicitly opted-in constant geometry retention and exact literal-depth metadata for constant typed-loop Vec operands; no symbolic root or witness domain is fabricated. Static writes preserve anonymous literal identity without pinning its width; exact native literal-clone receipts retain normalization lineage. Capture complete static scope paths and enclosing When identities across native switches. Retain lazy, exact original bit-view extraction identities on the Vec object, validate before consuming once, and retain constant loop operand shape without changing native read/write semantics. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged. With constant Vec preservation enabled, native tabulation records exact returned element/flattened leaf identities before later publication. Construction aliases require distinct component-owned nodes and are revalidated; unrelated raw carrier references, foreign owners and changed identities remain rejected. No native operator, assignment, pruning or disabled-option algorithm is changed. Retained static writes and packed reads assign an unnamed exact Vec owner a weak fallback name so existing protected owner-relative leaves survive pruning. Explicit and reflected names remain authoritative; static writes do not add vitality or change native assignment, geometry, or pruning algorithms. Capture the exact logical packed-width expression while its authoring owner is active. Single-root symbolic packing and unpacking keep an exact audit wrapper even at an equal-width witness, so native definition identity is independent of actual defaults. Revalidate the original assignment, carrier, widths and normalized equal-width alias before publication. Unretained native Vec operations and independently rooted factorized geometry keep their existing paths. Certify the logical packed-width expression with its exact active projection during construction, including full-domain Bool packing; publication does not fabricate missing provenance. Preserve legacy direct leaf-width metadata without inventing typed arithmetic authority. For typed packed reads, retain an identity-keyed construction-owner width projection, use its exact logical witness, and validate publication against the retained projection and final native owner while preserving carrier, layout and read-lineage checks. CA-048 composes exact typed element-width and depth expressions through the existing product-domain authority, retaining legacy direct-width rejection. Packed-width equivalence compares exact expression identity or authenticated product functions and root domains; no witness-derived geometry is introduced. CA-051 and nested-regression repair: compare exact retained packed width certificates after branch capture and compose consumer-specific guarded widths through their width authority rather than treating them as general integer certificates.",
+      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged. Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence. CDC-WIRE-01 qualification exposes a read-only identity inventory from retained Vec operation and completed-write journals. Visit only the closed compiler-owned record families and their exact native expressions with identity-based cycle suppression, so optional late wrapper planning preserves the publisher's witness slices, carriers and assignment evidence. No native Vec algorithm, journal contents, parameter domain or public layout is changed. Packed-assignment support tracing follows only exact fixed slices, reviewed Bits casts, and same-component directionless combinational intermediates with one root-scope assignment; it stops at the recorded carrier or source identities. Supporting-driver traversal is read-only and cannot relax the publisher's existing proof obligations. The October 2 request adds explicitly opted-in constant geometry retention and exact literal-depth metadata for constant typed-loop Vec operands; no symbolic root or witness domain is fabricated. Static writes preserve anonymous literal identity without pinning its width; exact native literal-clone receipts retain normalization lineage. Capture complete static scope paths and enclosing When identities across native switches. Retain lazy, exact original bit-view extraction identities on the Vec object, validate before consuming once, and retain constant loop operand shape without changing native read/write semantics. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged. With constant Vec preservation enabled, native tabulation records exact returned element/flattened leaf identities before later publication. Construction aliases require distinct component-owned nodes and are revalidated; unrelated raw carrier references, foreign owners and changed identities remain rejected. No native operator, assignment, pruning or disabled-option algorithm is changed. Retained static writes and packed reads assign an unnamed exact Vec owner a weak fallback name so existing protected owner-relative leaves survive pruning. Explicit and reflected names remain authoritative; static writes do not add vitality or change native assignment, geometry, or pruning algorithms. Capture the exact logical packed-width expression while its authoring owner is active. Single-root symbolic packing and unpacking keep an exact audit wrapper even at an equal-width witness, so native definition identity is independent of actual defaults. Revalidate the original assignment, carrier, widths and normalized equal-width alias before publication. Unretained native Vec operations and independently rooted factorized geometry keep their existing paths. Certify the logical packed-width expression with its exact active projection during construction, including full-domain Bool packing; publication does not fabricate missing provenance. Preserve legacy direct leaf-width metadata without inventing typed arithmetic authority. For typed packed reads, retain an identity-keyed construction-owner width projection, use its exact logical witness, and validate publication against the retained projection and final native owner while preserving carrier, layout and read-lineage checks. CA-048 composes exact typed element-width and depth expressions through the existing product-domain authority, retaining legacy direct-width rejection. Packed-width equivalence compares exact expression identity or authenticated product functions and root domains; no witness-derived geometry is introduced. CA-051 and nested-regression repair: compare exact retained packed width certificates after branch capture and compose consumer-specific guarded widths through their width authority rather than treating them as general integer certificates. Lightweight roadmap: Retain whole-row forwarding invocation identities, protect exact packed-write carriers, and prove nested hierarchy geometry with exact formal substitution rather than witness counts.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedVec.scala",
         "mode": "100644",
-        "blob": "8785420b59601a31e50cfe36ecd87cad45bb6b6a",
-        "sha256": "2dd794c898a527f633dddc56c260fc9ba06db62e7df27ed9fbb46ada4a9eea03"
+        "blob": "b43bb82b06d6d69fcf0b65fcffca6d93a9e4c864",
+        "sha256": "5845cd8e6c3bdcfcc4422e085f3a5423dce4cd44bc6f007459f5dd62307a8633"
       },
       "edits": []
     },
@@ -1681,6 +1930,23 @@
         "mode": "100644",
         "blob": "465c82dad0a7dcd967ce21b1958095b7a95b5bca",
         "sha256": "3e38be6ef70d3d53814108e20ed231eacf95dda2e6df55dc3a70e2da74d22eee"
+      },
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ParameterizedVecHierarchy.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
+      ],
+      "reason": "Pair nested carriers by coordinates at direct child boundaries; retain exact audit padding and revalidate type, width, direction, ownership and every live driver before publication. Lightweight roadmap: Pair nested carriers by coordinates at direct child boundaries; retain exact audit padding and revalidate type, width, direction, ownership and every live driver before publication.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/ParameterizedVecHierarchy.scala",
+        "mode": "100644",
+        "blob": "d3d3475b4b47a502784f78014e3f1f30919cc553",
+        "sha256": "395c7571fbe96ebb8152ba1e4aaa89ee1f9abe61d528f22cf1257026bbc1b977"
       },
       "edits": []
     },
@@ -1724,13 +1990,13 @@
       "introduced_by": [
         "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
       ],
-      "reason": "Define optional typed documentation metadata, configuration, identity-preserving APIs, exception-safe regions, declaration publication and exact relocation envelopes. Decode optional source coordinates in the metadata owner while preserving valid and malformed location behavior; the canonical producer consumes typed coordinates without parsing source text.",
+      "reason": "Define optional typed documentation metadata, configuration, identity-preserving APIs, exception-safe regions, declaration publication and exact relocation envelopes. Decode optional source coordinates in the metadata owner while preserving valid and malformed location behavior; the canonical producer consumes typed coordinates without parsing source text. Store region notes in elaboration-owned identity metadata with concrete default accessors, preserving binary compatibility of existing Statement implementations and empty scope construction outside elaboration.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/RtlDocumentation.scala",
         "mode": "100644",
-        "blob": "cbe159bf1bcd131eba17f4b7ff605150b05d397f",
-        "sha256": "1155dd13e807bd2729cea78a99472b3223e8de5133fb6272068296c42a933ef6"
+        "blob": "88c62cb99c5fa1b02165d5f61eaf01b3abee9c6c",
+        "sha256": "a39be301d7f09b3f3d86db526e902b3652edd83d76beab3baf999e804353bbc3"
       },
       "edits": []
     },
@@ -2141,9 +2407,10 @@
         "October 2 user request: opt-in constant aggregates and typed loops",
         "CA-018: user-requested neutral generated helper names",
         "CA-029\u2013CA-031: authenticated whole-word Vec publication and construction aliases",
-        "CA-039\u2013CA-041: scoped logical Vec packing and witness-invariant audit wrappers"
+        "CA-039\u2013CA-041: scoped logical Vec packing and witness-invariant audit wrappers",
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
       ],
-      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Extend read-only wrapper identity evidence to already-audited recursive Data; native assignment and source-hook behavior remains byte-identical. The October 2 opt-in flag additionally retains exact constant tabulation geometry; disabled native behavior is unchanged. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged. With constant Vec preservation enabled, native tabulation records exact returned element/flattened leaf identities before later publication. Construction aliases require distinct component-owned nodes and are revalidated; unrelated raw carrier references, foreign owners and changed identities remain rejected. No native operator, assignment, pruning or disabled-option algorithm is changed. Capture the exact logical packed-width expression while its authoring owner is active. Single-root symbolic packing and unpacking keep an exact audit wrapper even at an equal-width witness, so native definition identity is independent of actual defaults. Revalidate the original assignment, carrier, widths and normalized equal-width alias before publication. Unretained native Vec operations and independently rooted factorized geometry keep their existing paths.",
+      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Extend read-only wrapper identity evidence to already-audited recursive Data; native assignment and source-hook behavior remains byte-identical. The October 2 opt-in flag additionally retains exact constant tabulation geometry; disabled native behavior is unchanged. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged. With constant Vec preservation enabled, native tabulation records exact returned element/flattened leaf identities before later publication. Construction aliases require distinct component-owned nodes and are revalidated; unrelated raw carrier references, foreign owners and changed identities remain rejected. No native operator, assignment, pruning or disabled-option algorithm is changed. Capture the exact logical packed-width expression while its authoring owner is active. Single-root symbolic packing and unpacking keep an exact audit wrapper even at an equal-width witness, so native definition identity is independent of actual defaults. Revalidate the original assignment, carrier, widths and normalized equal-width alias before publication. Unretained native Vec operations and independently rooted factorized geometry keep their existing paths. Lightweight roadmap: Delegate scoped indexing and whole assignment capture, apply symbolic factory port hooks, and transpose existing leaves without allocating unauthored nested declarations.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/Vec.scala",
         "mode": "100644",
@@ -2153,8 +2420,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/Vec.scala",
         "mode": "100644",
-        "blob": "a11f1559df7b5c826a83ea23dbb35ec754f5bdb4",
-        "sha256": "996f43b15d7df3f16ee07b0385871144aa6815d28d03597a5fb5364d996e089c"
+        "blob": "9237259dd47e3ccbb93e3fe7a539b6fab72f2dca",
+        "sha256": "3cf11eb2ed9004918f1aecc28f32bad703d13cbaae371d2327add142041df190"
       },
       "edits": [
         {
@@ -2186,6 +2453,29 @@
           ]
         },
         {
+          "id": "lightweight-vec-1",
+          "kind": "overload",
+          "owner": "native Vec authoring boundary",
+          "reason": "Delegate scoped indexing and whole assignment capture, apply symbolic factory port hooks, and transpose existing leaves without allocating unauthored nested declarations.",
+          "baseline_span": {
+            "start": 1958,
+            "end": 1958,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 1985,
+            "end": 2061,
+            "sha256": "f55336f7fa09116c60d5f066a244053113a6d421a975aac2bb7e59f628ee01db"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "\n  protected def postVecFactory[T <: Data](vector: Vec[T]): Vec[T] = vector\n",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "vec-typed-geometry-01",
           "kind": "overload",
           "owner": "spinal.core Vec typed factories",
@@ -2196,8 +2486,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 2398,
-            "end": 2561,
+            "start": 2474,
+            "end": 2637,
             "sha256": "32c8bb47d1d594772565a739242b255790ccfa2f2ffd85f50af6f0ca65bdd267"
           },
           "required_exact_text": [
@@ -2219,8 +2509,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 2698,
-            "end": 3163,
+            "start": 2774,
+            "end": 3239,
             "sha256": "e37cdcfa737fb89d1bf03d7cbcd87b19e9a324caf8363e2f866b7595275595d7"
           },
           "required_exact_text": [
@@ -2242,8 +2532,8 @@
             "sha256": "d47514c488a2865448488dc30c42ef413b180fa3ca85b4f0851d4277e09188a4"
           },
           "approved_span": {
-            "start": 3237,
-            "end": 3524,
+            "start": 3313,
+            "end": 3600,
             "sha256": "bcdb9c0d81683fdd16618ada43e09179afba8e221670c0aaf4fd502e4acdbe6d"
           },
           "required_exact_text": [
@@ -2265,24 +2555,24 @@
           ]
         },
         {
-          "id": "vec-typed-geometry-03",
+          "id": "lightweight-vec-5",
           "kind": "overload",
-          "owner": "spinal.core Vec typed factories",
-          "reason": "Add typed-size Vec factories and share one native carrier construction path.",
+          "owner": "native Vec authoring boundary",
+          "reason": "Delegate scoped indexing and whole assignment capture, apply symbolic factory port hooks, and transpose existing leaves without allocating unauthored nested declarations.",
           "baseline_span": {
             "start": 3383,
             "end": 3461,
             "sha256": "ece0743c89bce37432d38747d38862ab984537cb047faffb7669ae534e73552d"
           },
           "approved_span": {
-            "start": 4273,
-            "end": 4660,
-            "sha256": "26c459523ed96a9a027cdd5f4ffd4a202715a25df25dd44a847e1c7a2e0f6b57"
+            "start": 4349,
+            "end": 4752,
+            "sha256": "dde1b01faa9afd44b6a79b956d0fc2ca41ba8fb4245c6b836716c5d7402d2875"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "ParameterizedVec.attachConcreteDepthIfSymbolicElement",
+              "text": "val vector = fillCarrier(size)(dataType)\n      ParameterizedVec.attachConcreteDepthIfSymbolicElement(vector, size)\n    }\n\n    /** Typed counterpart used by native algorithms whose enclosing structural\n      * branch retains the exact symbolic size.\n      */\n    def fill[T <: Data](size: ElabInt)(dataType: => T): Vec[T] = {\n      postVecFactory(ParameterizedVec.create(size, \"typed Vec size\")(dataType)",
               "count": 1
             }
           ]
@@ -2298,8 +2588,8 @@
             "sha256": "fe10aef05329c0d6e7af4c11dae74cc1a49434a768965f4fa910694b5f745259"
           },
           "approved_span": {
-            "start": 5337,
-            "end": 5899,
+            "start": 5429,
+            "end": 5991,
             "sha256": "abb814801b1cd2bbd48e54723da4bd0256227528238c668e7cdff28193452c37"
           },
           "required_exact_text": [
@@ -2321,8 +2611,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 6009,
-            "end": 6197,
+            "start": 6101,
+            "end": 6289,
             "sha256": "2c6ea7c61fe7b78a4e59053c14153ed7a47d7d07bdac3769bf609608d57d4e77"
           },
           "required_exact_text": [
@@ -2344,8 +2634,8 @@
             "sha256": "bb91347a540fff9ac6f47a969ee7ae97506b927e46b447f79cb7368bbd7e753d"
           },
           "approved_span": {
-            "start": 6276,
-            "end": 6508,
+            "start": 6368,
+            "end": 6600,
             "sha256": "8109a2ab16ceb5d47616bd2263f89de3c5ee019b8524b64aa6e710e96190aff7"
           },
           "required_exact_text": [
@@ -2372,8 +2662,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 6530,
-            "end": 6793,
+            "start": 6622,
+            "end": 6885,
             "sha256": "9d68d25fcda9ba6089eb8892919d85b63ff66436b3d16ba1a2074c6a361569e0"
           },
           "required_exact_text": [
@@ -2405,8 +2695,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 6801,
-            "end": 7736,
+            "start": 6893,
+            "end": 7828,
             "sha256": "1a37af4728ba3869ee0f6bdeec83a14a8d14be4175c60f370b559f29b7bacab9"
           },
           "required_exact_text": [
@@ -2433,8 +2723,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 7795,
-            "end": 11740,
+            "start": 7887,
+            "end": 11832,
             "sha256": "56cd54991cdd2b343b811564a8e58909a2ce4f5753b43bf8790b963ca5d2bf20"
           },
           "required_exact_text": [
@@ -2501,8 +2791,8 @@
             "sha256": "021059a6d0119b1b0c082a45dd571ff20c2db8fab0ca7ab87d665bc8a97dc1e6"
           },
           "approved_span": {
-            "start": 12755,
-            "end": 13117,
+            "start": 12847,
+            "end": 13209,
             "sha256": "2290091f1635c0d64f54cb4cab23c22ddd37412a4d914967118b3cc2bae44815"
           },
           "required_exact_text": [
@@ -2524,14 +2814,37 @@
             "sha256": "731e09325c9fd614c16641a47e98687719f95e3fb7974485b07d2ea70b3ddb79"
           },
           "approved_span": {
-            "start": 13121,
-            "end": 13594,
+            "start": 13213,
+            "end": 13686,
             "sha256": "4944687b87a1b4a6753ff91e26130682497ec238ea8345a87016f0b3d06cdfc7"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "logicalBitsWidthOf",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-vec-14",
+          "kind": "overload",
+          "owner": "native Vec authoring boundary",
+          "reason": "Delegate scoped indexing and whole assignment capture, apply symbolic factory port hooks, and transpose existing leaves without allocating unauthored nested declarations.",
+          "baseline_span": {
+            "start": 6472,
+            "end": 6493,
+            "sha256": "1e38b0fb06d85a114eedee0dbcb955f178b5c92013fb33aaeb577a9f74e6cb52"
+          },
+          "approved_span": {
+            "start": 14301,
+            "end": 14560,
+            "sha256": "c27181292c060045faf04b66f13219656c23a9ef9372695a0a7af58a64224cce"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "// Transpose the exact existing native carriers. Constructing another\n      // dataType merely to count leaves allocates unused nested Vec declarations\n      // with retained formal identities when the element itself is an aggregate.\n      val size = vec.head",
               "count": 1
             }
           ]
@@ -2547,8 +2860,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 14606,
-            "end": 14658,
+            "start": 14936,
+            "end": 14988,
             "sha256": "c8574823978973b4218a0c837c9900d02f3bc7199d9660561e39854718ec402e"
           },
           "required_exact_text": [
@@ -2570,14 +2883,37 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 14842,
-            "end": 14910,
+            "start": 15172,
+            "end": 15240,
             "sha256": "f5c6f5a7672828e8de7badf73afe931c06281d23e57aec00c6469e0b8f0a2fdf"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "ParameterizedVec.rejectUnsupported",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-vec-17",
+          "kind": "overload",
+          "owner": "native Vec authoring boundary",
+          "reason": "Delegate scoped indexing and whole assignment capture, apply symbolic factory port hooks, and transpose existing leaves without allocating unauthored nested declarations.",
+          "baseline_span": {
+            "start": 7193,
+            "end": 7193,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 15380,
+            "end": 15521,
+            "sha256": "dd083e032a1aae9440e8b569429a6f96422d2bec1835aa193d0813892272c39e"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "\n  /** Generate-time access with the index's authenticated lexical ownership. */\n  def apply(index: ElabScopedIndex): T = index.select(this)\n",
               "count": 1
             }
           ]
@@ -2593,8 +2929,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 15425,
-            "end": 16005,
+            "start": 15896,
+            "end": 16476,
             "sha256": "3c90f6f3debf71c7b372700823df2bf138691296965d204973a4b53f66c937a8"
           },
           "required_exact_text": [
@@ -2616,8 +2952,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 16338,
-            "end": 16352,
+            "start": 16809,
+            "end": 16823,
             "sha256": "21ae17512215b0defc78a4a521717861d0d05736fc66414e117f1924c7c64c98"
           },
           "required_exact_text": [
@@ -2639,8 +2975,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 17218,
-            "end": 17357,
+            "start": 17689,
+            "end": 17828,
             "sha256": "2ba7d0b8ba92065f33fe20598af0256b52d1375acfdf24b92903fc59d1165f93"
           },
           "required_exact_text": [
@@ -2662,8 +2998,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 17641,
-            "end": 17647,
+            "start": 18112,
+            "end": 18118,
             "sha256": "4893f40e3781eb896c82d046a08067a11e35cdf2f1dfaf26fea90b8db6676413"
           },
           "required_exact_text": [
@@ -2685,8 +3021,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 17856,
-            "end": 17939,
+            "start": 18327,
+            "end": 18410,
             "sha256": "8ebe7ef227b0b3338ec745400d40b24dddd2c8f2f767b6923c823d9d7acd7b0f"
           },
           "required_exact_text": [
@@ -2708,8 +3044,8 @@
             "sha256": "46d25627884c64a8cc43f82941586929bb03d85b15090df268cfccc1af43ba84"
           },
           "approved_span": {
-            "start": 18204,
-            "end": 18853,
+            "start": 18675,
+            "end": 19324,
             "sha256": "2305044c31b0ffcd999d5474d3a5d16b260109b2a6cd76806957a8af5f693920"
           },
           "required_exact_text": [
@@ -2731,8 +3067,8 @@
             "sha256": "bc4873241c58715304245f013482dc5bd6ab2bb4cc1cf0ad6f249db6f7d7236f"
           },
           "approved_span": {
-            "start": 18864,
-            "end": 19141,
+            "start": 19335,
+            "end": 19612,
             "sha256": "8814fece3090adf450ba97bfd95e07d8b2f55f7202e537704670d52aeef96ff1"
           },
           "required_exact_text": [
@@ -2754,8 +3090,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 19149,
-            "end": 19232,
+            "start": 19620,
+            "end": 19703,
             "sha256": "58b63cc71b5462bb4fefd3a412676211a042123892a20ccb6961db644d9676f4"
           },
           "required_exact_text": [
@@ -2777,8 +3113,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 19276,
-            "end": 19435,
+            "start": 19747,
+            "end": 19906,
             "sha256": "8bf740e649e967a9ad1f41e31a551909511832bca19abafb8ce9006168b7b193"
           },
           "required_exact_text": [
@@ -2800,14 +3136,37 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 19612,
-            "end": 19680,
+            "start": 20083,
+            "end": 20151,
             "sha256": "afc0517bccf2cd0434746447e3fb077cd3417b280d4989ed8cf999beff7ff96b"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "ParameterizedVec.rejectUnsupported",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-vec-28",
+          "kind": "overload",
+          "owner": "native Vec authoring boundary",
+          "reason": "Delegate scoped indexing and whole assignment capture, apply symbolic factory port hooks, and transpose existing leaves without allocating unauthored nested declarations.",
+          "baseline_span": {
+            "start": 10827,
+            "end": 10827,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 21046,
+            "end": 21128,
+            "sha256": "1953db601ccdb9bb1ee6b24adaa6f21f92aea37b7726190b97309799ce67bf36"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "      case that: Vec[T] if ParameterizedVecHierarchy.assign(this,that,kind) => ()\n",
               "count": 1
             }
           ]
@@ -2823,8 +3182,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 20602,
-            "end": 20677,
+            "start": 21155,
+            "end": 21230,
             "sha256": "cec2541514ccd4475458f40f08b4705066e4cc02d9e1d5c0b9a31f3d4650a79c"
           },
           "required_exact_text": [
@@ -2846,8 +3205,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 20791,
-            "end": 20830,
+            "start": 21344,
+            "end": 21383,
             "sha256": "6d707af76727ddb4f4182cd4a67d87b0ac5b7dd1875e80f897060fec2b74740a"
           },
           "required_exact_text": [
@@ -2859,24 +3218,24 @@
           ]
         },
         {
-          "id": "vec-typed-geometry-23",
-          "kind": "mechanical-propagation",
-          "owner": "spinal.core.Vec assignment and cloning",
-          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations.",
+          "id": "lightweight-vec-31",
+          "kind": "overload",
+          "owner": "native Vec authoring boundary",
+          "reason": "Delegate scoped indexing and whole assignment capture, apply symbolic factory port hooks, and transpose existing leaves without allocating unauthored nested declarations.",
           "baseline_span": {
             "start": 11066,
             "end": 11066,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 20928,
-            "end": 21264,
-            "sha256": "98d4dfa6ac6a2bde86b96216d91e99946f2dab7799fea733dc92282a5f3ff101"
+            "start": 21481,
+            "end": 21658,
+            "sha256": "5535a79cda857d2932b1b5e7273d1a6c0533bf6e3798fec19cf798a3847e5d5f"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "ParameterizedVec.recordWholeAssignment",
+              "text": "          }\n        }\n        if (parameterized) {\n          ParameterizedVec.captureWholeAssignment(this, that, kind)(assignNative())\n        } else {\n          assignNative()\n",
               "count": 1
             }
           ]
@@ -2892,8 +3251,8 @@
             "sha256": "68cb46f564ca3eaabbff243723b9faa9e7e6f85836bb646c824ca643375537de"
           },
           "approved_span": {
-            "start": 21693,
-            "end": 22027,
+            "start": 22087,
+            "end": 22421,
             "sha256": "a35d65f983b126b4df6066b4f76235bb213e1b397175b7d0f610aee3d9b8ebe1"
           },
           "required_exact_text": [
@@ -2915,8 +3274,8 @@
             "sha256": "a86a14d83ec0d98f5e0d49e34725e09e92fb8b2395b44973e41a65ede5afc454"
           },
           "approved_span": {
-            "start": 22044,
-            "end": 24940,
+            "start": 22438,
+            "end": 25334,
             "sha256": "aad55c79f431f04ee9197c15d7fcc86d589d09365d569f84f4c99a9043a3b0ab"
           },
           "required_exact_text": [
@@ -2968,8 +3327,8 @@
             "sha256": "b9adcd4480b5932f33ea586ba0c095798ae2ffc8e81e0003a7502ba16bbc4883"
           },
           "approved_span": {
-            "start": 25270,
-            "end": 25372,
+            "start": 25664,
+            "end": 25766,
             "sha256": "bd11cdb8d1494d4bb60070d160a1d78d0c0bca39eff6dbeba41c503ec925087e"
           },
           "required_exact_text": [
@@ -2991,8 +3350,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 25440,
-            "end": 25583,
+            "start": 25834,
+            "end": 25977,
             "sha256": "1ea1892f1cc19acbe4d66278ced35290af6f69a9c5f9f09ec65d288634f54219"
           },
           "required_exact_text": [
@@ -3028,9 +3387,10 @@
       "classification": "typed-overload",
       "introduced_by": [
         "Increment 53d: typed StreamWidthAdapter architecture",
-        "CA-021: ordinary-import parameter-constant Vec indexing"
+        "CA-021: ordinary-import parameter-constant Vec indexing",
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
       ],
-      "reason": "Expose parameter-preserving widthOf and scalar Vec indexing while preserving native and frontend structural overload resolution.",
+      "reason": "Expose parameter-preserving widthOf and scalar Vec indexing while preserving native and frontend structural overload resolution. Lightweight roadmap: Keep literal-left affine operations in the authenticated scoped-index domain.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/core.scala",
         "mode": "100644",
@@ -3040,34 +3400,52 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/core.scala",
         "mode": "100644",
-        "blob": "93b8ace37efd9b3c80939c02545704661f356233",
-        "sha256": "017a48da17ae28eaf85853fddc505145aca9dcd0d021a5e4485dc7db13ce77a4"
+        "blob": "b336c071d6f4d97ff11d537ccd7e7c957da89423",
+        "sha256": "536cf16c6753946be65f4f9d1d67d131bdd0761c20d398b2c8f3ad893e504b41"
       },
       "edits": [
         {
-          "id": "widthofexpr-01",
+          "id": "lightweight-core-0",
           "kind": "overload",
-          "owner": "spinal.core.widthOfExpr and spinal.core.ElabVecOps",
-          "reason": "Add typed width and Vec selection extensions without changing existing native members; delegate selection to its single authenticated implementation.",
+          "owner": "native core authoring boundary",
+          "reason": "Keep literal-left affine operations in the authenticated scoped-index domain.",
           "baseline_span": {
-            "start": 2139,
-            "end": 2139,
+            "start": 2140,
+            "end": 2140,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 2139,
-            "end": 2694,
-            "sha256": "f0294babe1cbdef4020a0c52639834cc6feec468482cdb6044fbcc4fe1ca6b88"
+            "start": 2140,
+            "end": 2695,
+            "sha256": "874fae954bcbbcf0e47ba6c778918a1dc5b99c89134c38fb54182eb79c48e171"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "ElabInt.packedWidthOf",
+              "text": "  /** Parameter-preserving counterpart of [[widthOf]] for typed native APIs. */\n  def widthOfExpr[T <: Data](that: T): ElabInt = ElabInt.packedWidthOf(that)\n\n  /** Parameter-constant scalar Vec reads, available with spinal.core._.\n    * Keep this an extension: a native member would take precedence over the\n    * frontend's structural index extension after its HdlInt-to-ElabInt conversion.\n    */\n  implicit final class ElabVecOps[T <: BaseType](private val vector: Vec[T]) {\n    def apply(index: ElabInt): T = TypedVecStaticSelect(vector, index)\n  }\n\n\n",
               "count": 1
-            },
+            }
+          ]
+        },
+        {
+          "id": "lightweight-core-1",
+          "kind": "overload",
+          "owner": "native core authoring boundary",
+          "reason": "Keep literal-left affine operations in the authenticated scoped-index domain.",
+          "baseline_span": {
+            "start": 3944,
+            "end": 3944,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 4499,
+            "end": 4701,
+            "sha256": "72d2bd7a254d46429749ca6aca54c53a98307cda7d3584e8012d95a8fed6a361"
+          },
+          "required_exact_text": [
             {
               "side": "approved",
-              "text": "TypedVecStaticSelect(vector, index)",
+              "text": "\n    /** Keep literal-left affine arithmetic in the scoped index domain. */\n    def *(index: ElabScopedIndex): ElabScopedIndex = index * i\n    def +(index: ElabScopedIndex): ElabScopedIndex = index + i\n",
               "count": 1
             }
           ]
@@ -5071,6 +5449,40 @@
       ]
     },
     {
+      "path": "core/src/main/scala/spinal/core/rtlHardwareCallback.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
+      ],
+      "reason": "Mark library hardware callback parameters for exact typed source-visible effect checks; opaque callback purity remains explicitly unsupported. Lightweight roadmap: Mark library hardware callback parameters for exact typed source-visible effect checks; opaque callback purity remains explicitly unsupported.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/rtlHardwareCallback.scala",
+        "mode": "100644",
+        "blob": "dc0d833400820a51a7df053550a3239df05c1478",
+        "sha256": "80e4646abde8cbb401103c92d338a8b6d478fd18dfaad91a631e38ddf27d8e80"
+      },
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/rtlRecursive.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
+      ],
+      "reason": "Opt in to compiler-owned direct recursive component construction while retaining independent native recursive-edge proofs. Lightweight roadmap: Opt in to compiler-owned direct recursive component construction while retaining independent native recursive-edge proofs.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/rtlRecursive.scala",
+        "mode": "100644",
+        "blob": "cc9f394f11a9748ea22bc5bfd537a8c577a87bac",
+        "sha256": "2a57c77593a6e1c61b6e5d42a8591c80d5dff455dab1e30c27ac3b700e63d27e"
+      },
+      "edits": []
+    },
+    {
       "path": "core/src/main/scala/spinal/core/when.scala",
       "change": "modified",
       "classification": "typed-overload",
@@ -5315,6 +5727,23 @@
           ]
         }
       ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/BalancedTree.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
+      ],
+      "reason": "Provide an explicit opt-in adjacent-pair recursive library component with odd-tail, level bridge, symbolic payload and selected-register contracts; do not replace existing Vec.reduceBalancedTree. Lightweight roadmap: Provide an explicit opt-in adjacent-pair recursive library component with odd-tail, level bridge, symbolic payload and selected-register contracts; do not replace existing Vec.reduceBalancedTree.",
+      "baseline": null,
+      "approved": {
+        "path": "lib/src/main/scala/spinal/lib/BalancedTree.scala",
+        "mode": "100644",
+        "blob": "83637ca846995882edb926ab3f9384d7f86da50f",
+        "sha256": "7c7f40566367963b616e5a3d1cf3efa939eff1a382c903b3f95965891133f4b9"
+      },
+      "edits": []
     },
     {
       "path": "lib/src/main/scala/spinal/lib/Counter.scala",

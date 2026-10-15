@@ -9,7 +9,7 @@ private[core] object TypedLoopVecBridges {
     "SPINAL-TYPED-LOOP-VEC-WRITER-MISMATCH", "typed Vec carrier lost its sole exact loop writer", None)
   def retain(component: Component, loop: ParameterizedStructure.StructuralFor): Unit = {
     loop.body.vecIndices.foreach { selection =>
-      selection.unitRange.filter(range => range.offset > 0 && range.coversTail).foreach { range =>
+      selection.unitRange.filter(range => (range.offset > 0 || selection.dynamicRowNormalization.nonEmpty) && range.coversTail).foreach { range =>
         selection.result.flatten.zipWithIndex.foreach { case (alias, ordinal) =>
           val writes = loop.body.assignments.filter(_.finalTarget eq alias)
           if (writes.nonEmpty && selection.registerStorage.isEmpty && !selection.vector.vec.exists(_.asInstanceOf[Data].flatten.exists(_.isIo))) {

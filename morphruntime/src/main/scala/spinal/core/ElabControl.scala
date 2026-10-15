@@ -10,6 +10,40 @@ import scala.collection.mutable
   * both ordinary SpinalHDL alternatives for later Verilog generate lowering.
   */
 object ElabControl {
+  /** Compiler-supplied lexical spelling for local hardware declarations.
+    * Native naming priorities preserve explicit user names. Names never grant
+    * ownership, width or structural access authority. Explicit weak names also
+    * precede this compiler-supplied fallback; unlike a source field callback,
+    * the fallback must not replace an existing authored local naming request.
+    */
+  def localValue[T](value: T, name: String): T = {
+    val owner = Component.current
+    if (owner != null && name != null && name.nonEmpty && !name.contains("$")) {
+      value match {
+        case data: Data if (data.component eq owner) && data.namePriority != Nameable.USER_WEAK =>
+          owner.valCallback(data, name)
+        case child: Component if (child.parent eq owner) && child.namePriority != Nameable.USER_WEAK =>
+          owner.valCallback(child, name)
+        case _ =>
+      }
+    }
+    value
+  }
+
+  /** Scoped finite guards currently join statement-valued branches only. */
+  def selectScoped[T](condition: ElabScopedCondition, sourceFile: String, sourceLine: Int)
+      (ifTrue: => T)(ifFalse: => T)(implicit unit: T =:= Unit): Unit = {
+    require(condition != null, "scoped condition must not be null")
+    condition.capture("guard_l" + sourceLine)(unit(ifTrue))(unit(ifFalse))
+  }
+
+  /** A missing source else is an authenticated empty alternative. The authored
+    * branch still goes through native capture and its side-effect checks. */
+  def generateScoped(condition: ElabScopedCondition, sourceFile: String, sourceLine: Int)(body: => Unit): Unit = {
+    require(condition != null, "scoped condition must not be null")
+    condition.capture("guard_l" + sourceLine, emptyFalse = true)(body)(())
+  }
+
   private val ElseIfMarkerPrefix = "else_if_"
   private object GeneratedIfOrdinalStorageKey
 
@@ -67,6 +101,23 @@ object ElabControl {
       otherwise: () => T,
       otherwiseFile: String,
       otherwiseLine: Int
+  ): T = selectChain(alternatives, otherwise, otherwiseFile, otherwiseLine, false)
+
+  /** Statement chain with an absent final else. Only the terminal alternative
+    * is a one-sided generate; earlier alternatives retain ordered exclusion.
+    */
+  def generateSymbolicChain(
+      alternatives: Seq[(ElabBool, () => Unit, String, Int)],
+      sourceFile: String,
+      sourceLine: Int
+  ): Unit = selectChain(alternatives, () => (), sourceFile, sourceLine, true)
+
+  private def selectChain[T](
+      alternatives: Seq[(ElabBool, () => T, String, Int)],
+      otherwise: () => T,
+      otherwiseFile: String,
+      otherwiseLine: Int,
+      absentElse: Boolean
   ): T = {
     val ordered = Option(alternatives).getOrElse(Seq.empty).toVector
     if (ordered.isEmpty) {
@@ -101,7 +152,9 @@ object ElabControl {
             if (continuation) ordered(index + 1)._3 else otherwiseFile
           val falseLine =
             if (continuation) ordered(index + 1)._4 else otherwiseLine
-          captureOne(
+          if (absentElse && !continuation)
+            captureGenerate(condition, file, line, body)
+          else captureOne(
             condition,
             file,
             line,

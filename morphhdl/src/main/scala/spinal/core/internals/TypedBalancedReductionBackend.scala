@@ -867,6 +867,54 @@ object TypedBalancedReductionBackend {
     }
   }
 
+  /** Place only this authenticated reduction's declarations ahead of the
+    * native consumers redirected to its stage nets. Branch-owned reductions
+    * remain in rewriteScoped and never pass through this module insertion.
+    * Scan the emitted header structurally: comments and string-valued parameter
+    * defaults may contain semicolons or parentheses.
+    */
+  private def publishModuleBody(text: String, declarations: Vector[String],
+      body: Vector[String]): String = {
+    var index = 0
+    var depth = 0
+    var lineComment = false
+    var blockComment = false
+    var string = false
+    var escaped = false
+    var headerEnd = -1
+    while (index < text.length && headerEnd < 0) {
+      val current = text.charAt(index)
+      val next = if (index + 1 < text.length) text.charAt(index + 1) else 0.toChar
+      if (lineComment) {
+        if (current == '\n') lineComment = false
+      } else if (blockComment) {
+        if (current == '*' && next == '/') { blockComment = false; index += 1 }
+      } else if (string) {
+        if (escaped) escaped = false
+        else if (current == '\\') escaped = true
+        else if (current == '"') string = false
+      } else if (current == '/' && next == '/') {
+        lineComment = true; index += 1
+      } else if (current == '/' && next == '*') {
+        blockComment = true; index += 1
+      } else if (current == '"') string = true
+      else current match {
+        case '(' => depth += 1
+        case ')' =>
+          depth -= 1
+          if (depth < 0) fail("MODULE", "native module header is unbalanced")
+        case ';' if depth == 0 => headerEnd = index + 1
+        case _ =>
+      }
+      index += 1
+    }
+    val end = text.lastIndexOf("endmodule")
+    if (headerEnd < 0 || end < headerEnd)
+      fail("MODULE", "native module header or terminator missing")
+    text.substring(0, headerEnd) + "\n" + declarations.mkString("\n") + "\n" +
+      text.substring(headerEnd, end) + body.mkString("\n") + "\n" + text.substring(end)
+  }
+
   private def rewriteScalar(component: Component, current: String, record: Record,
       pc: PhaseContext, canonicalOf: Component => Component, nested: Boolean): String = {
     val stages = record.stages.map {
@@ -894,7 +942,7 @@ object TypedBalancedReductionBackend {
     val lines = ArrayBuffer.empty[String]
     val scopedDeclarations = ArrayBuffer.empty[String]
     def declare(line: String): Unit =
-      if (nested) scopedDeclarations += line else lines += line
+      scopedDeclarations += line
     val first = prefix + "_stage_0"
     declare(s"  wire [(${stages.head.inputPackedWidth.verilog})-1:0] $first;")
     lines += s"  assign $first = ${record.input.getName()};"
@@ -962,9 +1010,7 @@ object TypedBalancedReductionBackend {
     val updated = replaceDriver(remaining, record.output,
       slice(last, "0", stages.last.outputFullWidth, finalWidth))
     if (nested) return scopedDeclarations.mkString("\n") + "\n" + updated + "\n" + lines.mkString("\n")
-    val end = updated.lastIndexOf("endmodule")
-    if (end < 0) fail("MODULE", "native module terminator missing")
-    updated.substring(0, end) + lines.mkString("\n") + "\n" + updated.substring(end)
+    publishModuleBody(updated, scopedDeclarations.toVector, lines.toVector)
   }
 
 
@@ -1064,7 +1110,7 @@ object TypedBalancedReductionBackend {
     }
     val lines = ArrayBuffer.empty[String]
     val scopedDeclarations = ArrayBuffer.empty[String]
-    def declare(line: String): Unit = if (nested) scopedDeclarations += line else lines += line
+    def declare(line: String): Unit = scopedDeclarations += line
     val first = prefix + "_stage_0"
     val initialWidth = if (record.shape.elementLayout.hasNestedVectors)
       packedWidth(stages.head.geometry.inputCount.expression, stages.head.inputFullWidths, stages.head.inputTailWidths)
@@ -1142,9 +1188,7 @@ object TypedBalancedReductionBackend {
       stages.last.outputFullWidths, stages.last.outputTailWidths, moduleScope = !nested)
     if (nested)
       return scopedDeclarations.mkString("\n") + "\n" + updated + "\n" + lines.mkString("\n")
-    val end = updated.lastIndexOf("endmodule")
-    if (end < 0) fail("MODULE", "native module terminator missing")
-    updated.substring(0, end) + lines.mkString("\n") + "\n" + updated.substring(end)
+    publishModuleBody(updated, scopedDeclarations.toVector, lines.toVector)
   }
 
   private def rewriteComposite(component: Component, current: String, record: Record,
@@ -1230,7 +1274,7 @@ object TypedBalancedReductionBackend {
     val lines = ArrayBuffer.empty[String]
     val scopedDeclarations = ArrayBuffer.empty[String]
     def declare(line: String): Unit =
-      if (nested) scopedDeclarations += line else lines += line
+      scopedDeclarations += line
     val first = prefix + "_stage_0"
     declare(s"  wire [(($width) * (${record.plan.count.expression.verilog}))-1:0] $first;")
     lines += s"  assign $first = ${record.input.getName()};"
@@ -1265,9 +1309,7 @@ object TypedBalancedReductionBackend {
     val last = prefix + "_stage_" + stages.size
     val updated = connect(remaining, record.output, last, "0", moduleScope = !nested)
     if (nested) return scopedDeclarations.mkString("\n") + "\n" + updated + "\n" + lines.mkString("\n")
-    val end = updated.lastIndexOf("endmodule")
-    if (end < 0) fail("MODULE", "native module terminator missing")
-    updated.substring(0, end) + lines.mkString("\n") + "\n" + updated.substring(end)
+    publishModuleBody(updated, scopedDeclarations.toVector, lines.toVector)
   }
 
 }

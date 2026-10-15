@@ -242,6 +242,9 @@ class Bits extends BitVector with DataPrimitives[Bits] with BaseTypePrimitives[B
     }
   }
 
+  def apply(offset: ElabScopedIndex, bitCount: BitCount): Bits = offset.selectPacked(this, bitCount)
+  def apply(offset: ElabScopedWordOffset, bitCount: ParameterizedBitCount): Bits = offset.selectPacked(this, bitCount)
+
   override def apply(bitId: Int): Bool  = newExtract(bitId, new BitsBitAccessFixed)
   override def apply(bitId: UInt): Bool = newExtract(bitId, new BitsBitAccessFloating)
   override def apply(offset: Int, bitCount: BitCount): this.type  = newExtract(offset+bitCount.value-1,offset, new BitsRangedAccessFixed).setWidth(bitCount.value)

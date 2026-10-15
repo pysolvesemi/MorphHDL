@@ -3,9 +3,23 @@
 package build
 
 import mill._, mill.api._, scalalib._, publish._
-import build.project.SpinalVersion
+import build.project.{CompilerPluginCache, SpinalVersion}
 
-trait SpinalModule extends SbtModule with CrossSbtModule { outer =>
+/** Mill 1.1 caches its derived fork PATH without tracking the caller's PATH.
+  * Model tool selection as an input so a newly installed/pinned simulator also
+  * reaches already-cached test modules. Preserve Mill's selected JDK first.
+  */
+trait NativeToolEnvironment extends JavaModule {
+  def nativeToolPath = Task.Input {
+    Task.env.find(_._1.equalsIgnoreCase("PATH")).map(_._2)
+  }
+  override def javaHomePathForkEnv: T[Map[String, String]] = Task {
+    val javaBin = (javaHome().fold(os.Path(sys.props("java.home")))(_.path) / "bin").toString
+    Map("PATH" -> (Seq(javaBin) ++ nativeToolPath().toSeq).mkString(java.io.File.pathSeparator))
+  }
+}
+
+trait SpinalModule extends SbtModule with CrossSbtModule with NativeToolEnvironment { outer =>
   def scalatestVersion = "3.2.14"
   def scalacOptions = super.scalacOptions() ++ Seq("-unchecked", "-Yrangepos", "-target:jvm-1.8")
   def javacOptions = super.javacOptions() ++ Seq("-source", "1.8", "-target", "1.8")
@@ -21,11 +35,13 @@ trait SpinalModule extends SbtModule with CrossSbtModule { outer =>
 
   def testModuleDeps: Seq[JavaModule] = Seq.empty
   def testForkArgs = Task { Seq.empty[String] }
+  def testScalaCompiler: Boolean = false
 
-  object test extends CrossSbtTests with TestModule.ScalaTest {
+  object test extends CrossSbtTests with TestModule.ScalaTest with NativeToolEnvironment {
     override def moduleDeps = super.moduleDeps ++ outer.testModuleDeps
     override def forkArgs = super.forkArgs() ++ outer.testForkArgs()
-    def mvnDeps = Seq(mvn"org.scalatest::scalatest::${scalatestVersion}")
+    def mvnDeps = Seq(mvn"org.scalatest::scalatest::${scalatestVersion}") ++
+      (if (outer.testScalaCompiler) Seq(mvn"org.scala-lang:scala-compiler:${scalaVersion}") else Seq.empty)
   }
   def testOnly(args: String*) = test.testOnly(args*)
 
@@ -79,8 +95,12 @@ trait IdslPlugin extends SpinalModule with SpinalPublishModule {
   override def artifactName = "spinalhdl-idsl-plugin"
   def moduleDeps = Seq(moduleRefs("idslpayload"))
   def mvnDeps = super.mvnDeps() ++ Seq(mvn"org.scala-lang:scala-compiler:${scalaVersion}")
-  def pluginOptions = Task { Seq(s"-Xplugin:${assembly().path}") }
   override def testForkArgs = Task { Seq(s"-Dmorphhdl.idslplugin.jar=${jar().path}") }
+  def compilerPlugin = Task {
+    val option = CompilerPluginCache.option(assembly().path.toIO, Task.dest.toIO)
+    PathRef(os.Path(option.stripPrefix("-Xplugin:")))
+  }
+  def pluginOptions = Task { Seq(s"-Xplugin:${compilerPlugin().path}") }
 }
 
 object sim extends Cross[Sim](SpinalVersion.compilers){
@@ -120,7 +140,11 @@ trait MorphPlugin extends SpinalModule {
   override def mvnDeps = super.mvnDeps() ++ Seq(
     mvn"org.scala-lang:scala-compiler:${scalaVersion}"
   )
-  def pluginOptions = Task { Seq(s"-Xplugin:${assembly().path}") }
+  def compilerPlugin = Task {
+    val option = CompilerPluginCache.option(assembly().path.toIO, Task.dest.toIO)
+    PathRef(os.Path(option.stripPrefix("-Xplugin:")))
+  }
+  def pluginOptions = Task { Seq(s"-Xplugin:${compilerPlugin().path}") }
 }
 
 object morphruntime extends Cross[MorphRuntime](SpinalVersion.compilers) {
@@ -164,6 +188,7 @@ trait Morph extends SpinalModule {
     verilogBackend(crossScalaVersion)
   )
   override def testModuleDeps = Seq(lib(crossScalaVersion))
+  override def testScalaCompiler = true
   override def scalacOptions =
     super.scalacOptions() ++ modulePluginOptions() ++ morphplugin(crossScalaVersion).pluginOptions()
   def mvnDeps = super.mvnDeps() ++ Seq(mvn"com.lihaoyi::sourcecode:0.3.0", mvn"org.ow2.asm:asm-tree:9.2")
@@ -226,4 +251,22 @@ trait Tester extends SpinalModule with SpinalPublishModule {
   def scalacOptions = super.scalacOptions() ++ modulePluginOptions()
   def mvnDeps = super.mvnDeps() ++ Seq(mvn"org.scalatest::scalatest:${scalatestVersion}")
   def publishVersion = SpinalVersion.tester
+}
+
+def checkCompilerPluginCache = Task {
+  val artifact = Task.dest / "plugin.jar"
+  os.write.over(artifact, "first plugin")
+  val first = CompilerPluginCache.option(artifact.toIO, (Task.dest / "cache").toIO)
+  assert(CompilerPluginCache.option(artifact.toIO, (Task.dest / "cache").toIO) == first)
+  os.write.over(artifact, "second plugin")
+  val second = CompilerPluginCache.option(artifact.toIO, (Task.dest / "cache").toIO)
+  assert(first != second)
+  val prior = os.Path(first.stripPrefix("-Xplugin:"))
+  val current = os.Path(second.stripPrefix("-Xplugin:"))
+  assert(os.read(prior) == "first plugin")
+  os.write.over(current, "tampered plugin")
+  var rejected = false
+  try CompilerPluginCache.option(artifact.toIO, (Task.dest / "cache").toIO) catch { case _: IllegalArgumentException => rejected = true }
+  assert(rejected)
+  "stable, changed-artifact and tamper controls passed"
 }

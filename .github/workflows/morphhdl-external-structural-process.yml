@@ -37,6 +37,85 @@ jobs:
         shell: bash
         run: bash morphhdl/scripts/check-external-structural-process-boundary.sh
 
+  lightweight-contracts:
+    name: Lightweight RTL ${{ matrix.build }} Scala ${{ matrix.scala_version }}
+    needs: source-boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+        build: [sbt, mill]
+    env:
+      SBT_TEST_PARALLEL: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Authenticate current source and report checks
+        run: |
+          python3 morphhdl/scripts/check-parameterized-integration-source.py
+          python3 morphhdl/scripts/lightweight-scala-rtl/test-run-contracts.py
+          python3 morphhdl/scripts/lightweight-scala-rtl/test-installer.py
+      - name: Build pinned simulator without altering compiler or RTL
+        shell: bash
+        run: |
+          set -euo pipefail
+          apt-get update
+          apt-get install -y autoconf gperf bison flex make g++
+          python3 morphhdl/scripts/lightweight-scala-rtl/install-iverilog.py "${{ runner.temp }}/iverilog"
+          echo "${{ runner.temp }}/iverilog/bin" >> "$GITHUB_PATH"
+      - name: Install Mill launcher
+        if: matrix.build == 'mill'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+          # Python execve does not provide the interactive shell's ENOEXEC fallback.
+          # Exercise the same direct process launch used by run-contracts.py.
+          python3 - <<'PYTHON'
+          import subprocess
+          version = subprocess.check_output(['/tmp/morphhdl-mill', '--version'], text=True)
+          assert 'Mill Build Tool version 1.1.0' in version, version
+          print(version)
+          PYTHON
+      - name: Verify tool-path changes reach cached Mill forks
+        if: matrix.build == 'mill'
+        shell: bash
+        run: |
+          python3 morphhdl/scripts/lightweight-scala-rtl/test-mill-tool-path.py \
+            --mill /tmp/morphhdl-mill --scala '${{ matrix.scala_version }}' \
+            --output "${{ runner.temp }}/lightweight-path-check"
+      - name: Run every enrolled current-source suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          for tool in iverilog vvp verilator yosys; do command -v "$tool"; done
+          python3 morphhdl/scripts/lightweight-scala-rtl/install-iverilog.py "${{ runner.temp }}/iverilog" --verify
+          export MORPHDL_INCREMENT66_EVIDENCE="$RUNNER_TEMP/lightweight-tools"
+          runner=sbt
+          if [ '${{ matrix.build }}' = mill ]; then runner=/tmp/morphhdl-mill; fi
+          python3 morphhdl/scripts/lightweight-scala-rtl/run-contracts.py \
+            --build '${{ matrix.build }}' --scala '${{ matrix.scala_version }}' \
+            --executable "$runner" --output "${{ runner.temp }}/lightweight-results"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lightweight-${{ matrix.build }}-${{ matrix.scala_version }}-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/lightweight-results
+            ${{ runner.temp }}/lightweight-path-check
+            ${{ runner.temp }}/lightweight-tools
+            ${{ runner.temp }}/iverilog/build-receipt.json
+          if-no-files-found: error
+
   contracts:
     name: External structural/process proof Scala ${{ matrix.scala_version }}
     needs: source-boundary

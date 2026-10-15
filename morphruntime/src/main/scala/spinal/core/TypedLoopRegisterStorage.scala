@@ -13,7 +13,7 @@ private[core] object TypedLoopRegisterStorage {
       initialization: InitAssignmentStatement, reset: Expression, lanes: Vector[Lane])
   private object StorageKey
   private final case class Owner(loop: ParameterizedStructure.StructuralFor,
-      selection: ParameterizedStructure.StructuralVecIndex, template: Template)
+      block: ParameterizedStructuralBlock, selection: ParameterizedStructure.StructuralVecIndex, template: Template)
   private def inventory(component: Component) = component.userCache.getOrElseUpdate(StorageKey,
     scala.collection.mutable.ArrayBuffer.empty[Owner])
     .asInstanceOf[scala.collection.mutable.ArrayBuffer[Owner]]
@@ -49,19 +49,23 @@ private[core] object TypedLoopRegisterStorage {
   def retain(component: Component, loop: ParameterizedStructure.StructuralFor): Unit = {
     val body = loop.body
     // Validate the entire operation before mutating any register or reset edge.
-    val candidates = body.vecIndices.flatMap { selection =>
+    def blocks(value: ParameterizedStructuralBlock): Vector[ParameterizedStructuralBlock] =
+      Vector(value) ++ value.regions.collect { case b: ParameterizedStructure.StructuralIf => b }.flatMap(_.blocks).flatMap(blocks)
+    val candidates = blocks(body).flatMap { body => body.vecIndices.flatMap { selection =>
       selection.result.flatten.toVector.zipWithIndex.flatMap { case (alias, leafIndex) =>
         val writes = body.assignments.filter(_.finalTarget eq alias)
         val allLeaves = selection.vector.vec.toVector.map(_.asInstanceOf[Data].flatten(leafIndex))
         val lower = selection.index.minimum
         val upper = selection.index.maximum
         val coversTail = selection.unitRange.exists(_.coversTail)
-        val leaves = if (coversTail) allLeaves.drop(lower.toInt) else allLeaves
+        val affine = selection.affineWrite.filter(_.matches)
+        val leaves = affine.map(_.laneIndices.toVector.sorted.map(allLeaves)).getOrElse(
+          if (coversTail) allLeaves.drop(lower.toInt) else allLeaves)
         if (writes.isEmpty || !leaves.exists(_.isReg)) Vector.empty
         else {
           if (!writes.forall(_.target eq alias) || !leaves.forall(_.isReg) ||
-              (!coversTail && (lower != 0 || upper != allLeaves.size - 1)) ||
-              upper != allLeaves.size - 1 ||
+              (affine.isEmpty && !coversTail && (lower != 0 || upper != allLeaves.size - 1)) ||
+              (affine.isEmpty && upper != allLeaves.size - 1) ||
               !selection.index.generateIndex.contains(loop.indexName) ||
               allLeaves.exists(value => value.isIo || (value.parentScope ne component.dslBody)))
             fail("register relocation requires a complete whole-leaf Vec write in its declaring component")
@@ -87,16 +91,16 @@ private[core] object TypedLoopRegisterStorage {
             fail("register relocation requires exact literal reset values")))
           if (!resets.forall(sameLiteral(_, resets.head)))
             fail("register relocation requires the same reset value in every generated lane")
-          Vector((selection, alias, leaves, initializations, clock, resets.head))
+          Vector((body, selection, alias, leaves, initializations, clock, resets.head))
         }
       }
-    }
+    }}
     val claimed = new java.util.IdentityHashMap[BaseType, java.lang.Boolean]()
-    candidates.foreach { case (_, _, leaves, _, _, _) => leaves.foreach { value =>
+    candidates.foreach { case (_, _, _, leaves, _, _, _) => leaves.foreach { value =>
       if (claimed.put(value, java.lang.Boolean.TRUE) != null)
         fail("two captured aliases cannot independently own the same register storage")
     }}
-    candidates.foreach { case (selection, alias, leaves, initializations, clock, reset) =>
+    candidates.foreach { case (body, selection, alias, leaves, initializations, clock, reset) =>
       alias.setAsReg()
       alias.clockDomain = clock
       alias.removeTag(allowFloating)
@@ -121,7 +125,7 @@ private[core] object TypedLoopRegisterStorage {
       body.assignments ++= lanes.map(_.bridge)
       val template = Template(alias, clock, initialization, reset, lanes)
       selection.registerStorage :+= template
-      inventory(component) += Owner(loop, selection, template)
+      inventory(component) += Owner(loop, body, selection, template)
     }
   }
 
@@ -134,13 +138,16 @@ private[core] object TypedLoopRegisterStorage {
     val owners = inventory(component).toVector
     owners.foreach { owner =>
       if (!all.exists(_ eq owner.loop) ||
-          !owner.loop.body.vecIndices.exists(_ eq owner.selection) ||
+          !blocks.exists(_ eq owner.block) || !owner.block.vecIndices.exists(_ eq owner.selection) ||
           owner.selection.registerStorage.count(_ eq owner.template) != 1)
         fail("register storage lost its exact registered loop, selection or template")
       blocks.foreach { body => body.vecIndices.foreach { selection =>
         selection.result.flatten.zipWithIndex.foreach { case (alias, ordinal) =>
           if ((alias ne owner.template.alias) && body.assignments.exists(_.finalTarget eq alias) &&
-              selection.vector.vec.slice(selection.index.minimum.toInt, selection.index.maximum.toInt + 1).exists(element => element.asInstanceOf[Data].flatten.lift(ordinal)
+              selection.vector.vec.zipWithIndex.filter { case (_, index) =>
+                selection.affineWrite.map(_.laneIndices.contains(index)).getOrElse(
+                  index >= selection.index.minimum && index <= selection.index.maximum)
+              }.map(_._1).exists(element => element.asInstanceOf[Data].flatten.lift(ordinal)
                 .exists(leaf => owner.template.lanes.exists(_.value eq leaf))))
             fail("another structural alias also writes relocated register storage")
         }

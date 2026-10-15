@@ -525,7 +525,8 @@ private[internals] object ParameterizedVerilogVecs {
       finiteIndexToken: Option[ElabFiniteIndexToken] = None,
       readOnly: Boolean = false,
       unitRange: Option[TypedLoopVecRange] = None,
-      staticIndex: Option[ElabInt] = None
+      staticIndex: Option[ElabInt] = None,
+      affineWrite: Option[TypedLoopAffineWrites.Evidence] = None
   ): String = {
     if (vector == null || selector == null) {
       fail(
@@ -552,7 +553,7 @@ private[internals] object ParameterizedVerilogVecs {
     val exactStatic = readOnly && staticIndex.exists(index =>
       (index.expression eq selector) && selector.generateIndex.isEmpty &&
         TypedVecStaticSelect.authorizes(vector, index))
-    val exactSelector = exactStatic || unitRange.exists(e => e.matches && (e.selection.vector eq vector) && (e.selection.index eq selector)) || (affineRead match {
+    val exactSelector = exactStatic || affineWrite.exists(_.authorizes(vector, selector)) || unitRange.exists(e => e.matches && (e.selection.vector eq vector) && (e.selection.index eq selector)) || (affineRead match {
       case Some(evidence) => readOnly && finiteIndexToken.exists(token => evidence.matches(vector, selector, token))
       case None =>
         selector.verilog == indexName && selector.parameters.isEmpty &&
@@ -603,7 +604,7 @@ private[internals] object ParameterizedVerilogVecs {
     }
     val selectorText = staticIndex.flatMap(_ => NativeLocalParameters.reference(vector.component, selector))
       .getOrElse(selector.verilog)
-    structuralNestedSlice(vector, selector, leafIndex, sourceLocation).foreach { slice =>
+    structuralNestedSlice(vector, selector, leafIndex, sourceLocation, readOnly).foreach { slice =>
       return if (readOnly && isSignedLeaf(shape.elementLeaves(leafIndex))) s"$$signed($slice)" else slice
     }
     val name = requiredVecName(vector, sourceLocation.orElse(shape.sourceLocation))
@@ -634,7 +635,7 @@ private[internals] object ParameterizedVerilogVecs {
     */
   private def structuralNestedSlice(
       vector: Vec[_], selector: ElaborationIntegerExpression, leafIndex: Int,
-      sourceLocation: Option[String]
+      sourceLocation: Option[String], readOnly: Boolean
   ): Option[String] = {
     val selections = structuralVecSelectionsOf(vector.component)
     def ownerOf(value: Vec[_]): Option[ParameterizedStructure.StructuralVecIndex] = {
@@ -651,7 +652,8 @@ private[internals] object ParameterizedVerilogVecs {
     if (ownerOf(vector).isEmpty) return None
     case class Projection(root: Vec[_], leaf: Int, coordinates: Vector[String], axis: Int)
     def project(value: Vec[_], index: ElaborationIntegerExpression, ordinal: Int,
-                visited: Vector[Vec[_]]): Projection = {
+                visited: Vector[Vec[_]],
+                receipt: Option[ParameterizedStructure.StructuralVecIndex] = None): Projection = {
       if (visited.exists(_ eq value))
         fail("SPINAL-PARAMETERIZED-VERILOG-VEC-NESTED-ALIAS-CYCLE",
           "nested structural selections contain an identity cycle", sourceLocation)
@@ -659,12 +661,19 @@ private[internals] object ParameterizedVerilogVecs {
         fail("SPINAL-PARAMETERIZED-VERILOG-VEC-STRUCTURAL-SHAPE-MISSING",
           "nested structural selection lost its retained shape", sourceLocation)
       }
-      if (index.generateIndex.isEmpty || index.verilog != index.generateIndex.get ||
-          index.parameters.nonEmpty || index.default != 0 || index.minimum != 0 ||
-          index.maximum != shape.depth.maximum - 1 ||
-          shape.depth.maximum != BigInt(shape.carrierCapacity))
+      val fullRange = index.generateIndex.nonEmpty && index.verilog == index.generateIndex.get &&
+        index.parameters.isEmpty && index.default == 0 && index.minimum == 0 &&
+        index.maximum == shape.depth.maximum - 1
+      // A parent affine selection remains read-only and retains its exact
+      // issued selector, vector and loop token. Its guarded owner is checked
+      // by structural validation; composing a child coordinate cannot widen it.
+      val affine = readOnly && receipt.exists(parent =>
+        (parent.vector eq value) && (parent.index eq index) &&
+          parent.affineRead.exists(evidence => parent.finiteIndexToken.exists(token =>
+            evidence.matches(value, index, token))))
+      if ((!fullRange && !affine) || shape.depth.maximum != BigInt(shape.carrierCapacity))
         fail("SPINAL-PARAMETERIZED-VERILOG-VEC-STRUCTURAL-DOMAIN-MISMATCH",
-          "nested structural selection requires the exact full finite Vec domain", sourceLocation)
+          "nested structural selection requires an exact finite domain or authenticated read-only affine parent", sourceLocation)
       ownerOf(value) match {
         case None =>
           val layout = ParameterizedVerilogFieldLayout.fromShape(shape,
@@ -678,7 +687,7 @@ private[internals] object ParameterizedVerilogVecs {
             if (parentOrdinal < 0)
               fail("SPINAL-PARAMETERIZED-VERILOG-VEC-NESTED-ALIAS-OWNER-MISMATCH",
                 "nested element lost its exact enclosing alias leaf", sourceLocation)
-            project(parent.vector, parent.index, parentOrdinal, visited :+ value)
+            project(parent.vector, parent.index, parentOrdinal, visited :+ value, Some(parent))
           }
           val first = projections.head
           val rootShape = ParameterizedVec.shapeOf(first.root).get
@@ -1515,6 +1524,15 @@ private[internals] object ParameterizedVerilogVecs {
     // forwarding record must never turn its inner decoder into a user gate and
     // silently freeze that symbolic axis at the finite carrier geometry.
     retained.foreach { vector =>
+      val wholeForwards = ParameterizedVec.operationsOf(vector).collect {
+        case value: ParameterizedVecWholeAssignment if value.forwardedWrites.nonEmpty => value
+      }
+      val completedWhole = ParameterizedVec.wholeForwardInvocationsOf(vector)
+      if (wholeForwards.size != completedWhole.size || completedWhole.exists(value =>
+          wholeForwards.count(_ eq value) != 1) || wholeForwards.exists(value => completedWhole.count(_ eq value) != 1))
+        fail("SPINAL-PARAMETERIZED-VERILOG-VEC-WHOLE-FORWARDING-MISMATCH",
+          "forwarded whole-row operations do not match completed native invocations",
+          ParameterizedVec.shapeOf(vector).flatMap(_.sourceLocation))
       val indexed = ParameterizedVec.operationsOf(vector).filter(isIndexedWrite)
       val invocations = ParameterizedVec.writeInvocationsOf(vector)
       val indexedIdentities = new IdentityHashMap[ParameterizedVecOperation, java.lang.Boolean]()
@@ -1803,6 +1821,10 @@ private[internals] object ParameterizedVerilogVecs {
         new IdentityHashMap[ParameterizedVecDynamicWrite, java.lang.Boolean]()
 
       operations.foreach {
+        case value: ParameterizedVecWholeAssignment if value.forwardedWrites.nonEmpty =>
+          if (!forwardedWholeRows(plans).exists(row => row.operation eq value))
+            fail("SPINAL-PARAMETERIZED-VERILOG-VEC-WHOLE-FORWARDING-MISMATCH",
+              "whole-row assignment lost its native forwarding receipt", value.sourceLocation)
         case value: ParameterizedVecWholeAssignment =>
           Option(byIdentity.get(value.source)) match {
             case Some(source) =>
@@ -2227,7 +2249,8 @@ private[internals] object ParameterizedVerilogVecs {
         if (found != 0 && !authorizedStaticLeaves.containsKey(leaf.value)) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-VEC-RESIDUAL-CARRIER-REFERENCE",
-            s"Vec '${plan.name}' retains $found references to carrier '${leaf.name}' without one exact live constant Vec access identity",
+            s"Vec '${plan.name}' retains $found references to carrier '${leaf.name}' without one exact live constant Vec access identity; emitted references: " +
+              lines.filter(line => countReferenceIdentifier(Vector(line), leaf.name) != 0).take(3).mkString(" | "),
             plan.sourceLocation
           )
         }
@@ -2281,8 +2304,13 @@ private[internals] object ParameterizedVerilogVecs {
             val (storagePlan, elementIndex, fieldIndex) = storage(plan, leaf.elementIndex, leaf.leafIndex)
             val storageName = storagePlan.layout.map(_.fieldForLeaf(fieldIndex).name).getOrElse(storagePlan.name)
             val storageDeclaration = parseDeclaration(lines, storageName, plan.sourceLocation)
-            val insertion = if (storageDeclaration.direction.nonEmpty) lines.indexWhere(_.trim == "endmodule")
-              else storageDeclaration.lineIndex + 1
+            // Port-backed aliases belong immediately inside the module, before
+            // any generate scope can consume them. In particular, signed
+            // constant reads must not depend on forward declaration lookup.
+            val insertion = if (storageDeclaration.direction.nonEmpty) {
+              (storageDeclaration.lineIndex + 1 until lines.size)
+                .find(index => lines(index).trim == ");").map(_ + 1).getOrElse(-1)
+            } else storageDeclaration.lineIndex + 1
             if (insertion < 0) fail("SPINAL-PARAMETERIZED-VERILOG-VEC-MODULE-BOUNDARY-MISSING",
               "signed leaf reconstruction requires its exact aggregate owner", plan.sourceLocation)
             val width = render(leaf.shape.width)
@@ -3224,6 +3252,90 @@ private[internals] object ParameterizedVerilogVecs {
     }
   }
 
+  private def rewriteAdaptedChildConnection(
+      original: Vector[String], child: Component, vector: Vec[_],
+      shape: ParameterizedVecShape, parent: VecPlan,
+      evidence: ParameterizedVecHierarchy.Evidence,
+      claimed: IdentityHashMap[DataAssignmentStatement, java.lang.Boolean],
+      live: IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]
+  ): Vector[String] = {
+    val source=shape.sourceLocation
+    def reject(detail: String): Nothing = fail(
+      "SPINAL-PARAMETERIZED-VERILOG-VEC-HIERARCHY-ADAPTATION-MISMATCH",detail,source)
+    if(!ParameterizedVecHierarchy.between(vector,parent.vector).exists(_ eq evidence))
+      reject("native Vec adaptation lost its exact live assignment receipt")
+    claimAssignmentEvidence(evidence.operation.assignments,live,claimed,"adapting child Vec boundary",source)
+    val formal=requiredVecName(vector,source)
+    val childLeaves=vectorLeaves(vector)
+    val block=instanceBlock(original,child,source)
+    val connections=childLeaves.map(leaf=>parsePortConnection(original,block,
+      requiredBaseName(leaf,"adapted child Vec port",source),source))
+    val removed=mutable.HashSet.empty[Int]
+    val bridges=ArrayBuffer.empty[String]
+    childLeaves.zip(connections).zipWithIndex.foreach { case((leaf,connection),index)=>
+      val pairedParent=evidence.paired.collectFirst {
+        case (to,from) if (if(evidence.input) to else from) eq leaf =>
+          if(evidence.input) from else to
+      }.map(value => parent.leaves.find(_.value eq value).getOrElse(
+        reject("adapted child coordinate lost its exact parent carrier")))
+      if(evidence.input) {
+        if(pairedParent.nonEmpty) {
+          val expected=pairedParent.get
+          if(!directConnectionName(connection._2,expected.shape.width).contains(expected.name))
+            reject(s"adapted input '$formal' lost its exact parent carrier connection")
+        } else {
+          val zero="(?i)([0-9]+)'s?[hbd]0+".r
+          connection._2.trim match {
+            case zero(width) if BigInt(width)==leaf.getBitsWidth =>
+            case _ => reject(s"audit input of '$formal' does not emit its authenticated sized zero")
+          }
+        }
+      } else if(connection._2.trim.nonEmpty) {
+        val width=shape.elementLeaves(index % shape.elementLeaves.size).width
+        val bridge=directConnectionName(connection._2,width).getOrElse(
+          reject(s"adapted output '$formal' has a non-direct native connection"))
+        if(pairedParent.nonEmpty) {
+          val target=pairedParent.get
+          val assignment=findAssignment(original,target.name,Some(bridge),"adapted child Vec output",source)
+          if(!assignment.continuous || assignment.operator != "=" ||
+              !directConnectionName(assignment.rhs,target.shape.width).contains(bridge))
+            reject("adapted output requires the exact continuous native bridge")
+          removed += assignment.lineIndex
+        }
+        val declaration=parseDeclaration(original,bridge,source)
+        if(declaration.direction.nonEmpty) reject("adapted output bridge unexpectedly became a parent port")
+        removed += declaration.lineIndex
+        bridges += bridge
+      } else if(pairedParent.nonEmpty) reject("a live adapted output connection disappeared")
+    }
+    val indexes=connections.map(_._1)
+    val insertion=indexes.max
+    val comma=connections.find(_._1==insertion).get._3
+    val indentation=original(insertion).takeWhile(_.isWhitespace)
+    val fields=parent.layout match {
+      case Some(actualLayout)=>
+        val formalLayout=namedFieldLayout(vector,shape,formal).getOrElse(
+          reject("adapted child lost its retained named-field layout"))
+        if(formalLayout.fields.map(_.path)!=actualLayout.fields.map(_.path))
+          reject("adapted child changed field paths")
+        formalLayout.fields.zip(actualLayout.fields).map { case(f,a)=>f.name -> parent.fieldAggregate(a) }
+      case None=>Vector(formal -> parent.aggregate)
+    }
+    val replacement=fields.zipWithIndex.map { case((name,actual),index)=>
+      s"$indentation.$name ($actual)${if(index<fields.size-1 || comma) "," else ""}"
+    }
+    val result=original.zipWithIndex.flatMap { case(line,index)=>
+      if(index==insertion) replacement
+      else if(indexes.contains(index) || removed(index)) Vector.empty
+      else Vector(line)
+    }
+    bridges.foreach { name=>
+      if(containsReferenceIdentifier(result.mkString("\n"),name))
+        reject(s"adapted output bridge '$name' retained an unaccounted native consumer")
+    }
+    result
+  }
+
   private def rewriteChildConnections(
       component: Component,
       original: Vector[String],
@@ -3261,6 +3373,13 @@ private[internals] object ParameterizedVerilogVecs {
         val connections = formalLeaves.map { name =>
           parsePortConnection(lines, block, name, shape.sourceLocation)
         }
+        val adapted=parentPlans.flatMap(plan=>ParameterizedVecHierarchy.between(vector,plan.vector).map(plan -> _))
+        if(adapted.size>1) fail("SPINAL-PARAMETERIZED-VERILOG-VEC-HIERARCHY-ADAPTATION-AMBIGUOUS",
+          "child Vec has multiple native adaptation receipts",shape.sourceLocation)
+        if(adapted.nonEmpty) {
+          val (plan,evidence)=adapted.head
+          lines=rewriteAdaptedChildConnection(lines,child,vector,shape,plan,evidence,claimed,live)
+        } else {
         val connectionNames = connections.zip(childLeafWidths).map { case (connection, leafWidth) =>
           directConnectionName(connection._2, leafWidth).getOrElse {
             fail(
@@ -3631,6 +3750,7 @@ private[internals] object ParameterizedVerilogVecs {
           if (end < 0) fail("SPINAL-PARAMETERIZED-VERILOG-VEC-MODULE-BOUNDARY-MISSING",
             "a child Vec register bridge requires one native module boundary", shape.sourceLocation)
           lines = lines.patch(end, bridgeDeclarations.toVector, 0)
+        }
         }
       }
     }
@@ -4145,10 +4265,32 @@ private[internals] object ParameterizedVerilogVecs {
       Event(ordinal(operation.assignments), operation.assignments, Vector.fill(operation.assignments.size)(Vector.empty),
         root.aggregate, Vector.empty, Vector.empty, Some(source.aggregate))
     }
-    val events = (defaults ++ composed.map { case (_, value) =>
+    val rows = forwardedWholeRows(plans).filter(_.root.vector eq root.vector)
+    val rowWrites = rows.flatMap(_.writes)
+    if (rowWrites.distinct.size != rowWrites.size) invalid("claims a whole-row write more than once")
+    val rowEvents = rows.map { row =>
+      val values = row.writes.map { write =>
+        val matching = composed.filter(_._1.operation eq write)
+        if (matching.size != 1) invalid("lost one whole-row decoded operation")
+        matching.head._2
+      }
+      val first = values.head
+      val ordinals = values.map(value => ordinal(value.assignments)).sorted
+      if (ordinals.last - ordinals.head + 1 != ordinals.size)
+        invalid("changed the contiguous order of a whole-row invocation")
+      if (!values.zipWithIndex.forall { case (value, index) =>
+          (value.field eq first.field) && value.coordinates == Vector(first.coordinates.head, index.toString) &&
+            sameWriteConditions(value.conditions, first.conditions) && value.bounds == first.bounds
+        }) invalid("changed the coordinates or conditions of a whole-row invocation")
+      Event(ordinals.head, values.flatMap(_.assignments), values.flatMap(_.paths),
+        root.fieldBlock(first.field, Vector(first.coordinates.head, "0"), row.source.geometry.totalWidth),
+        first.conditions, first.bounds, Some(row.source.aggregate))
+    }
+    val scalarEvents = composed.collect { case (item, value) if !rowWrites.exists(_ eq item.operation) =>
       Event(ordinal(value.assignments), value.assignments, value.paths,
         root.fieldSlice(value.field, value.coordinates), value.conditions, value.bounds, None)
-    }).sortBy(_.ordinal)
+    }
+    val events = (defaults ++ scalarEvents ++ rowEvents).sortBy(_.ordinal)
     val allAssignments = events.flatMap(_.native)
     requireLiveAssignmentEvidence(allAssignments, live, "complete nested Vec process", location)
     // Exact snapshots from duplicate static wrappers are still checked; they
@@ -4310,6 +4452,59 @@ private[internals] object ParameterizedVerilogVecs {
     }
     normalized.zipWithIndex.flatMap { case (line, index) =>
       if (index == first.start) replacement else if (removed(index)) Vector.empty else Vector(line)
+    }
+  }
+
+  private final case class ForwardedWholeRow(target: VecPlan, source: VecPlan,
+      root: VecPlan, operation: ParameterizedVecWholeAssignment,
+      access: ParameterizedVecDynamicAccess, writes: Vector[ParameterizedVecDynamicWrite])
+
+  /** A native whole Vec assignment may be forwarded by the exact hooks on a
+    * hardware-selected row. The view is read-only storage; the captured write
+    * invocations identify the owning array and each source/target lane. */
+  private def forwardedWholeRows(plans: Vector[VecPlan]): Vector[ForwardedWholeRow] = {
+    plans.flatMap { target =>
+      ParameterizedVec.operationsOf(target.vector).collect {
+        case whole: ParameterizedVecWholeAssignment if whole.forwardedWrites.nonEmpty =>
+          def invalid(message: String): Nothing = fail(
+            "SPINAL-PARAMETERIZED-VERILOG-VEC-WHOLE-FORWARDING-MISMATCH", message, whole.sourceLocation)
+          if (whole.assignments.nonEmpty) invalid("forwarded whole assignment also owns direct view drivers")
+          val source = plans.find(_.vector eq whole.source).getOrElse(invalid("forwarded source lost its exact Vec"))
+          requireCompatible(target, source, whole.sourceLocation)
+          if (target.shape.elementLeaves.size != 1 || target.hasNestedDimensions ||
+              target.projection.nonEmpty || source.projection.nonEmpty)
+            invalid("forwarded whole-row publication currently requires scalar-element row vectors")
+          val owners = plans.flatMap { root => ParameterizedVec.operationsOf(root.vector).collect {
+            case access: ParameterizedVecDynamicAccess if access.writable && (access.result eq target.vector) => root -> access
+          }}
+          if (owners.size != 1) invalid("forwarded row lost its unique native dynamic access owner")
+          val (root, access) = owners.head
+          if (root.projection.nonEmpty || root.geometry.fields.size != 1 ||
+              root.geometry.fields.head.dimensions.size != 2)
+            invalid("forwarded row requires one exact two-dimensional scalar array")
+          if (whole.forwardedWrites.size != target.leaves.size)
+            invalid("forwarded row does not cover every exact carrier once")
+          val writes = whole.forwardedWrites.zip(target.leaves).map { case (invocation, leaf) =>
+            if ((invocation.vector ne root.vector) || (invocation.selected ne leaf.value) ||
+                !ParameterizedVec.operationsOf(root.vector).exists(_ eq invocation.operation) ||
+                !ParameterizedVec.writeInvocationsOf(root.vector).exists(value =>
+                  (value.selected eq invocation.selected) && (value.operation eq invocation.operation)))
+              invalid("forwarded whole row lost an exact completed write invocation")
+            invocation.operation match {
+              case write: ParameterizedVecDynamicWrite if (write.address eq access.address) &&
+                  write.elementLeafIndex == leaf.elementIndex && write.assignmentKind == whole.assignmentKind =>
+                val expected = source.leaf(leaf.elementIndex, leaf.leafIndex).value
+                if (write.assignments.size != root.shape.carrierCapacity ||
+                    write.assignments.exists(assignment => (assignment.source ne expected) ||
+                      (assignment.target ne assignment.finalTarget)))
+                  invalid("forwarded row changed one of its whole-leaf source edges")
+                write
+              case _ => invalid("forwarded whole row lacks direct native decoded writes")
+            }
+          }
+          if (writes.distinct.size != writes.size) invalid("forwarded row repeats a write identity")
+          ForwardedWholeRow(target, source, root, whole, access, writes)
+      }
     }
   }
 
@@ -7187,10 +7382,37 @@ private[internals] object ParameterizedVerilogVecs {
   ): Vector[String] = {
     val relocatedRegisters = structuralVecSelectionsOf(plan.vector.component)
       .flatMap(_.registerStorage).flatMap(_.lanes.map(_.value))
+    val proceduralSelections = structuralVecSelectionsOf(plan.vector.component)
+      .filter(selection => (selection.vector eq plan.vector) && selection.proceduralAliases.nonEmpty && selection.registerStorage.isEmpty)
+    val proceduralLeaves = proceduralSelections.flatMap { selection =>
+      if (!selection.unitRange.exists(range => range.offset == 0 && range.coversTail))
+        fail("SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-STORAGE-MISMATCH",
+          "procedural aggregate storage requires an exact complete retained loop", selection.sourceLocation)
+      selection.proceduralAliases.flatMap { case (alias, writes) =>
+        val ordinal = selection.result.flatten.indexWhere(_ eq alias)
+        val live = ArrayBuffer.empty[DataAssignmentStatement]
+        alias.foreachStatements { case assignment: DataAssignmentStatement => live += assignment; case _ => }
+        if (ordinal < 0 || writes.isEmpty || writes.exists(assignment => assignment.target ne alias) ||
+            live.size != writes.size || !live.forall(assignment => writes.exists(_ eq assignment)))
+          fail("SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-STORAGE-MISMATCH",
+            "procedural alias changed its captured whole-leaf writes", selection.sourceLocation)
+        val carriers = selection.vector.vec.map(_.asInstanceOf[Data].flatten(ordinal))
+        carriers.foreach { carrier =>
+          carrier.foreachStatements {
+            case assignment: DataAssignmentStatement if !selection.coverageBridges.exists(edge =>
+                (edge.value eq carrier) && (edge.assignment eq assignment)) =>
+              fail("SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-STORAGE-MISMATCH",
+                "procedural aggregate carrier has a competing native driver", selection.sourceLocation)
+            case _ =>
+          }
+        }
+        carriers
+      }
+    }
     val declarations: Vector[ParsedDeclaration] = plan.leaves.map { leaf =>
       val declaration = parseDeclaration(original, leaf.name, plan.sourceLocation)
       nativeReadSignedness.put(leaf.value, java.lang.Boolean.valueOf(declaration.signed))
-      if (relocatedRegisters.exists(_ eq leaf.value)) declaration.copy(net = "reg") else declaration
+      if (relocatedRegisters.exists(_ eq leaf.value) || proceduralLeaves.exists(_ eq leaf.value)) declaration.copy(net = "reg") else declaration
     }
     val indexes = declarations.map(_.lineIndex)
     if (indexes.distinct.size != indexes.size) {
@@ -7456,7 +7678,8 @@ private[internals] object ParameterizedVerilogVecs {
     // The core Vec algorithm is authoritative for direct hierarchy
     // compatibility.  It admits distinct definition/actual roots only when
     // the exact child component carries an explicit typed formal binding.
-    ParameterizedVec.requireCompatible(local.vector, peer)
+    if(ParameterizedVecHierarchy.between(local.vector,peer).isEmpty)
+      ParameterizedVec.requireCompatible(local.vector, peer)
   }
 
   private def requireCompatibleShapes(
@@ -7546,6 +7769,8 @@ private[internals] object ParameterizedVerilogVecs {
   ): Boolean = {
     if (component == null || local == null || peer == null || assignments == null ||
         assignments.isEmpty || component.parent == null || (local.component ne component)) return false
+    if(ParameterizedVecHierarchy.between(local,peer).exists(e => e.input && (e.child eq local)) &&
+        ParameterizedVecHierarchy.matches(local,peer,assignments)) return true
     val parent = component.parent
     val localLeaves = vectorLeaves(local)
     val peerLeaves = vectorLeaves(peer)
@@ -7638,6 +7863,10 @@ private[internals] object ParameterizedVerilogVecs {
       assignments == null || assignments.isEmpty || claimed == null ||
       (local.component ne component)
     ) return false
+
+    if(ParameterizedVecHierarchy.between(local,peer).exists(e => !e.input && (e.parent eq local)) &&
+        ParameterizedVecHierarchy.matches(local,peer,assignments) &&
+        assignments.forall(claimed.containsKey)) return true
 
     val localLeaves = vectorLeaves(local)
     val peerLeaves = vectorLeaves(peer)

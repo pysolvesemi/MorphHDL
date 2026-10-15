@@ -354,7 +354,8 @@ private[spinal] final case class ParameterizedVecWholeAssignment(
     source: Vec[_],
     assignments: Vector[DataAssignmentStatement],
     assignmentKind: String,
-    sourceLocation: Option[String]
+    sourceLocation: Option[String],
+    forwardedWrites: Vector[ParameterizedVecWriteInvocation] = Vector.empty
 ) extends ParameterizedVecOperation
 
 private[spinal] final case class ParameterizedVecPackedRead(
@@ -548,6 +549,7 @@ object ParameterizedVec {
     // The owning Vec is the registry's weak key. Do not retain that key again
     // through the journal value; recover it only while returning a snapshot.
     val completedWriteInvocations = ArrayBuffer.empty[(BaseType, ParameterizedVecOperation)]
+    val completedWholeForwards = ArrayBuffer.empty[ParameterizedVecWholeAssignment]
     val formalBindings = ArrayBuffer.empty[ParameterizedVecFormalBinding]
   }
 
@@ -1202,6 +1204,7 @@ object ParameterizedVec {
     retainedVectorsOf(component).foreach { vector =>
       operationsOf(vector).foreach(collect)
       writeInvocationsOf(vector).foreach(collect)
+      wholeForwardInvocationsOf(vector).foreach(collect)
     }
     expressions.toVector
   }
@@ -1222,6 +1225,12 @@ object ParameterizedVec {
         })
         .getOrElse(Vector.empty)
     }
+  }
+
+  private[spinal] def wholeForwardInvocationsOf(vector: Vec[_]): Vector[ParameterizedVecWholeAssignment] = synchronized {
+    reap()
+    retained.get(new ParameterizedVecIdentityRef(vector, null))
+      .map(_.completedWholeForwards.toVector).getOrElse(Vector.empty)
   }
 
   private[spinal] def vectorsOf(component: Component): Vector[Vec[_]] = synchronized {
@@ -1436,7 +1445,7 @@ object ParameterizedVec {
             if (before.map(_.shape).size != expected.size ||
                 before.zip(expected).exists { case (entry, shape) =>
                   !equivalentShape(entry.shape, shape) || entry.operations.nonEmpty ||
-                    entry.completedWriteInvocations.nonEmpty || entry.formalBindings.nonEmpty
+                    entry.completedWriteInvocations.nonEmpty || entry.completedWholeForwards.nonEmpty || entry.formalBindings.nonEmpty
                 }) invalid("fresh clone must retain its original unused Vec depth, roots and capacity")
             vectors += ((cloned, before, expected))
           case (_: Vec[_], _) | (_, _: Vec[_]) => invalid("fresh clone changed a Vec container")
@@ -1987,23 +1996,33 @@ object ParameterizedVec {
     }
   }
 
-  private[spinal] def recordWholeAssignment(
-      target: Vec[_],
-      source: Vec[_],
-      assignments: Vector[DataAssignmentStatement],
-      kind: AnyRef
-  ): Unit =
-    shapeOf(target).foreach { shape =>
-      append(
-        target,
-        ParameterizedVecWholeAssignment(
-          source,
-          assignments,
-          kindName(kind),
-          shape.sourceLocation
-        )
-      )
+  /** Preserve the native forwarding invocation tree even when a whole-row
+    * assignment reaches storage through the selected view's scalar hooks. */
+  private[core] def captureWholeAssignment(target: Vec[_], source: Vec[_], kind: AnyRef)
+      (body: => Unit): Unit = {
+    val parent = writeInvocations.get()
+    val ((_, assignments), writes) = captureWriteInvocations {
+      captureAssignments(target)(body)
     }
+    if (parent != null) parent ++= writes
+    shapeOf(target).foreach { shape =>
+      val forwarded = if (assignments.isEmpty) writes else Vector.empty
+      val operation = ParameterizedVecWholeAssignment(source, assignments, kindName(kind),
+        shape.sourceLocation, forwarded)
+      append(target, operation)
+      if (forwarded.nonEmpty) synchronized {
+        retained.get(new ParameterizedVecIdentityRef(target, null)).get.completedWholeForwards += operation
+      }
+    }
+  }
+
+  private[spinal] def recordWholeAssignment(
+      target: Vec[_], source: Vec[_], assignments: Vector[DataAssignmentStatement], kind: AnyRef
+  ): Option[ParameterizedVecWholeAssignment] = shapeOf(target).map { shape =>
+    val operation=ParameterizedVecWholeAssignment(source,assignments,kindName(kind),shape.sourceLocation)
+    append(target,operation)
+    operation
+  }
 
   /** Follow only the native nodes used by MultiData.asBits.  Intermediate
     * type-node copies are admitted through one exact assignment identity;
@@ -2441,6 +2460,13 @@ object ParameterizedVec {
         assignments,
         shape
       )
+      // Packed assignment publication consumes every exact native leaf edge.
+      // Ordinary helper-local Vecs have no reflected declaration name; protect
+      // the authenticated target inventory just as packed reads protect theirs.
+      if (!vector.isNamed) vector.setName("typed_vec", weak = true)
+      vector.vec.foreach(element =>
+        element.asInstanceOf[Data].flatten.foreach(_.dontSimplifyIt().setAsVital())
+      )
       val sourceAliases = exactPackedSource(source).map(_._2).getOrElse(Vector.empty)
       sourceAliases.foreach { alias =>
         alias.target.dontSimplifyIt()
@@ -2622,7 +2648,8 @@ object ParameterizedVec {
       canonicalFormal: ElaborationIntegerParameter,
       canonicalActual: ElaborationIntegerExpression,
       actualFormal: ElaborationIntegerParameter,
-      actualActual: ElaborationIntegerExpression
+      actualActual: ElaborationIntegerExpression,
+      formalMap: Vector[(ElaborationIntegerParameter,ElaborationIntegerParameter)] = Vector.empty
   ): Option[ElaborationIntegerExpression] = {
     if (
       canonicalVector == null || actualVector == null ||
@@ -2632,9 +2659,17 @@ object ParameterizedVec {
       return None
     val canonical = shapeOf(canonicalVector).getOrElse(return None)
     val actual = shapeOf(actualVector).getOrElse(return None)
-    if (canonicalFormal != actualFormal) return None
+    val canonicalBindings=formalBindingsOf(canonicalVector)
+    val actualBindings=formalBindingsOf(actualVector)
+    val mapped=formalMap.exists { case(c,a)=>(c eq canonicalFormal) && (a eq actualFormal) }
+    if(formalMap.exists { case(c,a)=>
+      c == null || a == null || c.name != a.name || c.minimum != a.minimum || c.maximum != a.maximum ||
+        canonicalBindings.count(_.formal eq c)!=1 || actualBindings.count(_.formal eq a)!=1 ||
+        formalMap.count(pair=>pair._1 eq c)!=1 || formalMap.count(pair=>pair._2 eq a)!=1
+    }) return None
+    if (!mapped && canonicalFormal != actualFormal) return None
     if (
-      canonical.witnessDepth != actual.witnessDepth ||
+      (!mapped && canonical.witnessDepth != actual.witnessDepth) ||
       canonical.carrierCapacity != actual.carrierCapacity ||
       !equivalentFieldLayout(canonical.elementFields, actual.elementFields) ||
       canonical.elementLeaves.size != actual.elementLeaves.size ||
@@ -2662,12 +2697,8 @@ object ParameterizedVec {
     if (
       !dimensions.forall { case (definition, instance) =>
         ElabInt.equivalentExactFunction(definition, instance) ||
-        equivalentDeclaredFormalFunction(
-          definition,
-          canonicalFormal,
-          instance,
-          actualFormal
-        )
+        equivalentDeclaredFormalFunction(definition,canonicalFormal,instance,actualFormal) ||
+        formalMap.exists { case(c,a)=>equivalentDeclaredFormalFunction(definition,c,instance,a) }
       }
     ) return None
 
@@ -2799,11 +2830,18 @@ object ParameterizedVec {
     * sufficient: the child expression must carry the formal declaration root
     * and the peer must carry that binding's exact actual expression.
     */
+  private[spinal] def logicalHierarchyCompatible(left: Vec[_],right: Vec[_]): Boolean =
+    (shapeOf(left),shapeOf(right)) match {
+      case (Some(a),Some(b)) => equivalentDirectHierarchyShape(left,a,right,b,allowCapacityDifference=true)
+      case _ => false
+    }
+
   private def equivalentDirectHierarchyShape(
       leftVector: Vec[_],
       left: ParameterizedVecShape,
       rightVector: Vec[_],
-      right: ParameterizedVecShape
+      right: ParameterizedVecShape,
+      allowCapacityDifference: Boolean = false
   ): Boolean = {
     val leftComponent = leftVector.component
     val rightComponent = rightVector.component
@@ -2820,8 +2858,47 @@ object ParameterizedVec {
       val bindings = formalBindingsOf(
         if (child eq leftComponent) leftVector else rightVector
       )
-      childShape.witnessDepth == parentShape.witnessDepth &&
-      childShape.carrierCapacity == parentShape.carrierCapacity &&
+      def dimensionCompatible(cd: ElaborationIntegerExpression, cc: Int,
+          pd: ElaborationIntegerExpression, pc: Int): Boolean =
+        cd.default == pd.default && pd.minimum >= 1 && pd.maximum <= pc &&
+          cd.maximum <= cc && pc <= cc && equivalentBoundaryExpression(cd, pd, bindings)
+      def layoutCompatible(c: ParameterizedVecElementLayout.Node,
+          p: ParameterizedVecElementLayout.Node): Boolean = {
+        import ParameterizedVecElementLayout._
+        (c, p) match {
+          case (Scalar(ck, cw), Scalar(pk, pw)) =>
+            (ck eq pk) && equivalentBoundaryExpression(cw, pw, bindings)
+          case (Fields(ck, cf), Fields(pk, pf)) =>
+            ck == pk && cf.size == pf.size && cf.zip(pf).forall {
+              case ((cn, cv), (pn, pv)) => cn == pn && layoutCompatible(cv, pv)
+            }
+          case (Dimension(cd, cc, ce), Dimension(pd, pc, pe)) =>
+            dimensionCompatible(cd, cc, pd, pc) && layoutCompatible(ce, pe)
+          case _ => false
+        }
+      }
+      // Carrier counts may differ at each dimension, but logical geometry must
+      // still be proven by the exact child formal/actual binding at every node.
+      if (allowCapacityDifference) {
+        childShape.witnessDepth == parentShape.witnessDepth &&
+          dimensionCompatible(childShape.depth, childShape.carrierCapacity,
+            parentShape.depth, parentShape.carrierCapacity) &&
+          layoutCompatible(childShape.elementLayout.root, parentShape.elementLayout.root) &&
+          childShape.elementFields.size == parentShape.elementFields.size &&
+          childShape.elementFields.zip(parentShape.elementFields).forall { case (cf,pf) =>
+            cf.path == pf.path && (cf.typeObject eq pf.typeObject) &&
+              equivalentBoundaryExpression(cf.width,pf.width,bindings) &&
+              cf.dimensions.size == pf.dimensions.size &&
+              cf.dimensions.zip(pf.dimensions).forall { case (cd,pd) =>
+                cd.witnessDepth == pd.witnessDepth && dimensionCompatible(
+                  cd.depth,cd.carrierCapacity,pd.depth,pd.carrierCapacity)
+              }
+          }
+      } else childShape.witnessDepth == parentShape.witnessDepth &&
+      (childShape.carrierCapacity == parentShape.carrierCapacity ||
+        (allowCapacityDifference && parentShape.depth.minimum >= 1 &&
+          parentShape.depth.maximum <= parentShape.carrierCapacity &&
+          parentShape.carrierCapacity < childShape.carrierCapacity)) &&
       equivalentBoundaryExpression(
         childShape.depth,
         parentShape.depth,

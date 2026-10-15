@@ -14,7 +14,8 @@ private[compiler] object MorphHdlCompilerTestSupport {
 
   def compile(
       source: String,
-      sourceName: String = "MorphHdlCompilerFixture.scala"
+      sourceName: String = "MorphHdlCompilerFixture.scala",
+      additionalSources: List[(String, String)] = Nil
   ): Vector[Diagnostic] = {
     val output = Files.createTempDirectory("morphhdl-compiler-plugin-test")
     val settings = new Settings
@@ -58,7 +59,8 @@ private[compiler] object MorphHdlCompilerTestSupport {
     )
     val run = new compiler.Run
     try {
-      run.compileSources(List(new BatchSourceFile(sourceName, source)))
+      run.compileSources(new BatchSourceFile(sourceName, source) ::
+        additionalSources.map { case (name, text) => new BatchSourceFile(name, text) })
       reporter.infos.toVector
         .filter(_.severity == reporter.ERROR)
         .map { diagnostic =>
