@@ -58,3 +58,24 @@ The progress record lists the checks actually run. Generic callback capture,
 all geometry/pipeline combinations, application migration, cleaned RTL and remote
 qualification remain separate acceptance obligations; this document does not
 claim them complete.
+
+## Symbolic scalar adapters
+
+The convenient adapter now retains the exact native Vec payload-width expression
+for UInt, SInt and Bits, forwarding it to DATA_WIDTH and constructing the parent
+result at that width. It uses an authenticated typed Vec; a plain Scala sequence
+of symbolic-width values is rejected instead of borrowing its first element's
+witness geometry. Concrete sequence support is unchanged. Scalar subclasses and
+symbolic composite factories are not inferred by this adapter.
+
+`Operation.component(..., payloadWidth = width)` forwards an explicit typed
+actual for an operation created with `defineWidth`. Existing calls retain their
+default width. An authored factory that ignores DATA_WIDTH remains rejected.
+
+Local cross-version evidence combines source COUNT defaults 1 and 5, count
+overrides 1/2/3/5/7/8/15/16/17, widths 1/8/32/36/64, omitted masks and mask overrides
+0/1/7/31. An independent adjacent-pair reference checks unsigned/signed subtraction
+and bitwise XOR, asynchronous reset, soft reset, enable stalls and X/Z inputs.
+Lint and complete recursive synthesis pass, with the existing safety and reduction
+formal regressions retained. Remote qualification and application migration remain
+pending; see progress.json for exact evidence locations.

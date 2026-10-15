@@ -104,10 +104,14 @@ object BalancedTree {
       capacity: Int, moduleName: String, operation: (T,T) => T,
       levelBridge: (T,Int) => T, widthFactory: ElabInt => T) {
     def component(count: ElabInt, pipelineMask: ElabInt = null,
-        clockConfig: ClockDomainConfig = ClockDomainConfig()): BalancedTree[T] = {
+        clockConfig: ClockDomainConfig = ClockDomainConfig(),
+        payloadWidth: ElabInt = null): BalancedTree[T] = {
+      require(payloadWidth == null || widthFactory != null,
+        "an explicit payload width requires defineWidth")
       val needsLevel = pipelineMask != null || !(levelBridge eq identityBridge[T])
       new BalancedTree[T](elementType,capacity,count,if(needsLevel) count else null,
-        pipelineMask,if(widthFactory==null) null else ElabInt.literal(elementType().getBitsWidth),
+        pipelineMask,if(widthFactory==null) null else if(payloadWidth != null) payloadWidth
+        else ElabInt.literal(elementType().getBitsWidth),
         moduleName,clockConfig,operation,levelBridge,widthFactory)
     }
 
@@ -118,17 +122,25 @@ object BalancedTree {
       val supplied = inputCount(inputs)
       require(supplied.minimum>=1 && supplied.maximum<=capacity, "input count must be in 1..capacity")
       require(count.minimum>=1 && count.maximum<=supplied.maximum, "live count must fit supplied inputs")
-      val expected=elementType()
       val representative = inputs match {
         case vector: Vec[_] => Seq(vector(0).asInstanceOf[T])
         case _ => inputs
       }
+      val symbolicWidth = inputs match {
+        case vector: Vec[_] if widthFactory != null && ParameterizedVec.shapeOf(vector).nonEmpty => vector(0) match {
+          case value: BitVector => ParameterizedWidth.expressionOf(value).map(ElabInt.fromExpression)
+          case _ => None
+        }
+        case _ => None
+      }
+      val expected=if(symbolicWidth.isDefined) widthFactory(symbolicWidth.get) else elementType()
       require(representative.forall(input => sameGeometry(input,expected)), "payload types and widths must match")
       require(representative.flatMap(_.flatten).forall(value =>
-        ParameterizedWidth.expressionOf(value).forall(_.parameters.isEmpty)),
-        "sequence adapters require concrete payload geometry")
+        ParameterizedWidth.expressionOf(value).forall(expression => expression.parameters.isEmpty ||
+          symbolicWidth.exists(width => ElabInt.fromExpression(expression).elabEq(width).isAlwaysTrue))),
+        "symbolic payload geometry requires an authenticated native Vec and width factory")
       val clock=ClockDomain.current
-      val tree=component(count,pipelineMask,clock.config)
+      val tree=component(count,pipelineMask,clock.config,symbolicWidth.orNull)
       tree.io.clk := clock.readClockWire
       tree.io.reset := clock.readResetWire
       tree.io.softReset := clock.readSoftResetWire
@@ -140,7 +152,7 @@ object BalancedTree {
           terms.assignFromBits(Vec(inputs).asBits.resize(count*expected.getBitsWidth))
           tree.io.terms := terms
       }
-      val result=elementType()
+      val result=if(symbolicWidth.isDefined) widthFactory(symbolicWidth.get) else elementType()
       result := tree.io.result
       result
     }
@@ -173,8 +185,19 @@ object BalancedTree {
       levelBridge: (T,Int) => T = identityBridge[T]): T = {
     val count = inputCount(inputs)
     require(count.minimum>=1 && count.maximum<=64,"input count must be in 1..64")
-    define(HardType(cloneOf(inputs(0))),scala.math.max(2,count.maximum.toInt),moduleName)(operation,levelBridge)
-      .reduceBalancedTree(inputs,pipelineMask)
+    val first=inputs(0)
+    // Exact native scalar classes have a known symbolic type factory. Subclasses
+    // and composites retain their authored type-factory contract.
+    val factory: ElabInt => T = first match {
+      case value: BitVector if ParameterizedWidth.expressionOf(value).exists(_.parameters.nonEmpty) =>
+        if(value.getClass == classOf[UInt]) (w: ElabInt) => UInt(w bits).asInstanceOf[T]
+        else if(value.getClass == classOf[SInt]) (w: ElabInt) => SInt(w bits).asInstanceOf[T]
+        else if(value.getClass == classOf[Bits]) (w: ElabInt) => Bits(w bits).asInstanceOf[T]
+        else null
+      case _ => null
+    }
+    new Operation(HardType(cloneOf(first)),scala.math.max(2,count.maximum.toInt),moduleName,
+      operation,levelBridge,factory).reduceBalancedTree(inputs,pipelineMask)
   }
 
 }

@@ -5,7 +5,7 @@
   "working_directory": "/home/kartik/.local/state/morphhdl/worktrees/lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Typed Vec direction factories restored and locally cross-version validated; reconstructing pending hierarchy work and extending symbolic reduction adapters",
+  "phase": "Symbolic scalar reduction adapters locally validated; inferred parameter helpers next; lost hierarchy-capacity repair remains pending",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -33,7 +33,9 @@
     "actual lightweight adjacent-pair BalancedTree library with generic typed operations, level bridges, optional mask registers, width parameters and direct recursive construction",
     "native packed assignment retains exact authenticated Vec carriers",
     "symbolic geometry helpers and concrete bridge-level loops retain staging; unstaged native equality fails explicitly",
-    "statement-valued symbolic else-if chains without terminal else retain ordered capture and reject Scala-only effects"
+    "statement-valued symbolic else-if chains without terminal else retain ordered capture and reject Scala-only effects",
+    "typed Vec direction factories preserve input/output directions across braces, short and fill syntaxes",
+    "public reduction adapters forward authenticated native scalar Vec payload widths and optional pipeline masks"
   ],
   "local_logs": [
     "/tmp/lwr01-plugin-all.log",
@@ -59,7 +61,7 @@
   ],
   "validation_note": "Earlier logs establish development evidence only. Re-run exact final source after all changes before publishing qualification claims.",
   "next": [
-    "Finish native BalancedTree pipeline/bridge tests, then public adapters, symbolic widths and both Scala versions",
+    "Implement inferred simple parameter helpers; reconstruct and revalidate lost hierarchy-capacity repair",
     "Repair direct literal-depth Vec hierarchy connection with authenticated carrier adaptation; see open-compositions.md",
     "Extend aggregate recursive interfaces, ordinary packed-word access, helper inference, and callback/pipeline integration",
     "Complete parameter/helper propagation, array/word/hierarchy and pipeline requirements with negative controls",
@@ -152,5 +154,15 @@
     "log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/port-factory-recovery.log",
     "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/port-factory-recovery",
     "remote": "pending"
+  },
+  "local_validation_symbolic_adapters": {
+    "tests_per_scala": 21,
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/symbolic-adapter-final",
+    "log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/symbolic-adapter-final.log",
+    "scope": "UInt/SInt/Bits, counts through 17, widths 1/8/32/36/64, defaults 1/5, masks omitted/0/1/7/31, simulation/lint/synthesis/negative controls and inherited formal"
   }
 }
