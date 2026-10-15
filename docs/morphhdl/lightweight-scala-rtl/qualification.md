@@ -213,3 +213,15 @@ workflow bytes against the unchanged migration manifest. The manifest now record
 the exact artifact-name substitutions and added validation step; its reversal
 still reproduces the frozen baseline. All six migration tests, including
 missing/duplicate/modified-hunk rejection, pass. Historical evidence is unchanged.
+
+The `7eccc0d74e3247915a4efa350a35c952c450389e` targeted runs exposed JVM ABI
+regressions on both supported Scala versions. Documentation storage on the
+statement trait hierarchy introduced abstract getters/setters, and the direction
+factory's builder override introduced an abstract trait setter. These failures
+are compiler defects, not qualification timeouts. The repair keeps region notes
+in elaboration-owned identity metadata and builder storage on concrete direction
+objects. Existing trait method descriptors, source overloads and compatibility
+checks remain intact. Focused documentation/port regressions include checks for
+the new abstract requirements; the complete binary baseline comparison remains
+mandatory. Local and remote successor results must be recorded before treating
+this repair as qualified. Historical partial/interrupted logs are not passes.

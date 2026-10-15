@@ -38,8 +38,6 @@ package spinal.core
 sealed trait IODirection extends BaseTypeFactory {
 
   override protected def postVecFactory[T <: Data](vector: Vec[T]): Vec[T] = port(vector)
-  // Keep the builder and overloaded methods on the same owner for Scala 2.12.
-  override val Vec = new VecBuilder
 
 
   // This function should be protected, not public
@@ -114,6 +112,8 @@ sealed trait IODirection extends BaseTypeFactory {
   * See [[IODirection]] for syntax help.
   */
 object in extends IODirection {
+  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.
+  override val Vec = new VecBuilder
   override def applyIt[T <: Data](data: T): T = data.asInput()
 }
 
@@ -122,6 +122,8 @@ object in extends IODirection {
   * See [[IODirection]] for syntax help.
   */
 object out extends IODirection {
+  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.
+  override val Vec = new VecBuilder
   override def applyIt[T <: Data](data: T): T = data.asOutput()
 }
 
@@ -130,15 +132,21 @@ object out extends IODirection {
   * See [[IODirection]] for syntax help.
   */
 object inout extends IODirection {
+  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.
+  override val Vec = new VecBuilder
   override def applyIt[T <: Data](data: T): T = data.asInOut()
 }
 
 @deprecated("Use apply or port instead: 'val b = in(maybeNull)' or 'val rgb = in port maybeNull'")
 object inWithNull extends IODirection {
+  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.
+  override val Vec = new VecBuilder
   override def applyIt[T <: Data](data: T): T = if (data != null) data.asInput() else data
 }
 
 @deprecated("Use apply or port instead: 'val b = out(maybeNull)' or 'val rgb = out port maybeNull'")
 object outWithNull extends IODirection {
+  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.
+  override val Vec = new VecBuilder
   override def applyIt[T <: Data](data: T): T = if (data != null) data.asOutput() else data
 }

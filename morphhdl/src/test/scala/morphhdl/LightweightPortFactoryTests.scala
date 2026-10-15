@@ -7,6 +7,8 @@ import spinal.core._
 class LightweightPortFactoryTests extends AnyFunSuite {
   for(hardType <- Seq(false,true); syntax <- Seq("braces","short","fill"))
     test(s"typed Vec direction factories agree hardType=$hardType syntax=$syntax") {
+      val setters = classOf[IODirection].getMethods.filter(m => m.getName.contains("IODirection$_setter_$Vec"))
+      assert(setters.forall(m => !java.lang.reflect.Modifier.isAbstract(m.getModifiers)), setters.mkString("\n"))
       val dir=Files.createTempDirectory("lightweight-port-factory-")
       MorphVerilog(MorphAggregateOptions(SpinalConfig(targetDirectory=dir.toString),
         preserveConstantVecs=true,preserveConstantLoops=true,

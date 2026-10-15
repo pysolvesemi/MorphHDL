@@ -5,9 +5,9 @@
   "working_directory": "/home/kartik/.local/state/morphhdl/worktrees/lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Publishing complete reviewed candidate for targeted CI; local enrolled set passed both Scala versions",
+  "phase": "Targeted CI repair: JVM trait compatibility",
   "completed_phases": [],
-  "remote_qualification": "Connected GitHub app published workflow checkpoint5050a05b70cf747248a31bd57fb18b2c616096bf; complete candidate merge/publication pending; no targeted/full run yet",
+  "remote_qualification": "Current candidate 7eccc0d74e3247915a4efa350a35c952c450389e has source and several behavioral gates passing; binary parity gates found new abstract trait storage requirements. Repair and successor qualification pending; no full CI or phase closure.",
   "application_migration": "not started; requires qualified compiler",
   "implemented_pending_qualification": [
     "versioned semantics and read-only inventory of 86 requirements / 373 source files",
