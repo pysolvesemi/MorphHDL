@@ -2159,7 +2159,11 @@
     "repro/remaining-wires/project/build.properties": null,
     "repro/remaining-wires/src/main/scala/RemainingWireMatrix.scala": null,
     "repro/remaining-wires/src/main/scala/RemainingWireRepro.scala": null,
-    "repro/remaining-wires/src/main/scala/RemainingWireTrace.scala": null
+    "repro/remaining-wires/src/main/scala/RemainingWireTrace.scala": null,
+    "tester/src/test/scala/spinal/lib/bus/tilelink/CacheTester.scala": {
+      "mode": "100644",
+      "sha256": "ca72b00b291c293840a9dc1adc910f7c8397ec18058665dd6b0fbd7c693486cf"
+    }
   },
   "parents": [
     "23dc9248a09157c25030f6603fbdbd0d01f7ab6d",
