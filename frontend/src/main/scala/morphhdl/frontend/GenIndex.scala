@@ -34,6 +34,19 @@ final class GenIndex private[frontend] (
     )
   }
 
+  /** Preserve a procedural index comparison without converting this scoped
+    * value to a Scala Int or an unsized hardware integer.
+    */
+  def whenSelected(selector: spinal.core.UInt)(body: => Unit): Unit = {
+    FrontendSession.requireActiveScope(token, "conditional hardware selection", origin)
+    if (spinal.core.ParameterizedProcess.captureActive)
+      spinal.core.ParameterizedProcess.whenSelected(token.indexName, selector)(body)
+    else {
+      import spinal.core._
+      when(selector === U(witness, selector.getWidth bits))(body)
+    }
+  }
+
   override def equals(that: Any): Boolean = {
     FrontendSession.requireActiveScope(token, "symbolic comparison", origin)
     FrontendException.failAt(

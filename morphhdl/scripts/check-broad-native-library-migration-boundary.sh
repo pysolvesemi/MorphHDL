@@ -123,7 +123,7 @@ require(
 )
 require(
     r"val\s+legal\s*=\s*!\(halfRate\s*&&\s*\(m2s\s*\|\|\s*s2m\)\)"
-    r"\s*ElabControl\.requireCondition\s*\(\s*legal",
+    r"\s*ElabControl\.requireStructuralCondition\s*\(\s*legal",
     stream,
     "STREAM-LEGALITY-GUARD-MISSING",
     "typed Stream pipeline must prove the half-rate legality predicate",
@@ -451,7 +451,7 @@ case "${1:-}" in
     MORPHDL_BROAD_NATIVE_STREAM_SOURCE="$temporary/good-stream.scala" \
       "$0" --check >/dev/null
 
-    sed '0,/ElabControl.requireCondition(/s//ElabControl.acceptCondition(/' \
+    sed '0,/ElabControl.requireStructuralCondition(/s//ElabControl.acceptCondition(/' \
       "$stream_source" > "$temporary/missing-legality.scala"
     if MORPHDL_BROAD_NATIVE_STREAM_SOURCE="$temporary/missing-legality.scala" \
       "$0" --check >"$temporary/legality.stdout" 2>"$temporary/legality.stderr"; then

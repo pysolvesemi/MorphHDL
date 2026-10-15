@@ -1,0 +1,8 @@
+spinal.core.ParameterizedStructuralLexicalOwnerTests
+spinal.core.internals.ParameterizedVerilogVecDeclarationTests
+morphhdl.TypedParameterizedVecTests
+morphhdl.TypedElaborationControlTests
+spinal.core.TypedExactDomainSafetyTests
+spinal.core.TypedExactDomainControlTests
+spinal.core.TypedProjectionOwnershipTests
+spinal.core.TypedPrimitiveClosureTests

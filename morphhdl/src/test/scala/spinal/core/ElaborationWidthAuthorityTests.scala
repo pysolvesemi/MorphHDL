@@ -92,6 +92,27 @@ class ElaborationWidthAuthorityTests extends AnyFunSuite {
     assert(sum.bits.value == 7)
   }
 
+  test("retained packed width equality replays exact branch certificates without authorizing escape") {
+    val width = parameter("WIDTH", 4, 1, 8)
+    val count = parameter("COUNT", 3, 1, 7)
+    val full = (width * count).expression
+    var first: ElaborationIntegerExpression = null
+    var second: ElaborationIntegerExpression = null
+    ElaborationDomainContext.withAdmitted(root(count), Set(BigInt(3), BigInt(4)), None) {
+      first = (width * count).expression
+      second = (count * width).expression
+    }
+    assert(ElaborationProductDomain.equivalentRetained(first, second))
+    assert(!ElaborationProductDomain.equivalentRetained(first, full))
+    intercept[ParameterizedVerilogException] {
+      ElaborationProductDomain.equivalentRetained(first.copy(), second)
+    }
+    intercept[ParameterizedVerilogException](ElabInt.fromExpression(first).bits)
+    intercept[ParameterizedVerilogException] {
+      ElaborationProductDomain.owner(first, "escaped packed owner", None)((_, values) => values)
+    }
+  }
+
   test("exact domination removes irrelevant roots only after validating identities") {
     val width = parameter("WIDTH", 4, 1, 8)
     val count = parameter("COUNT", 3, 1, 7)

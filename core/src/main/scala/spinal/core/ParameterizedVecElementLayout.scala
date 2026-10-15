@@ -70,6 +70,41 @@ private[spinal] object ParameterizedVecElementLayout {
     def expressions: Vector[ElaborationIntegerExpression] = root.size.expressions
     def hasNestedVectors: Boolean = root.hasVectors
     def schema: String = root.schema
+    /** Substitute certified scalar widths without changing recursive packing.
+      * Every finite carrier copy of a Vec element must still describe the same
+      * logical element. Depth and capacity are preserved from this layout;
+      * neither the active witness nor flattened names establish geometry.
+      */
+    def withLeafWidths(widths: Vector[ElaborationIntegerExpression]): Layout = {
+      def invalid(detail: String): Nothing =
+        ParameterizedVerilogException.fail("SPINAL-ELAB-VEC-LAYOUT-WIDTH-SUBSTITUTION", detail)
+      if (widths == null || widths.size != leaves.size || widths.exists(_ == null))
+        invalid("substitution must retain the complete recursive scalar inventory")
+      widths.foreach(width => ElaborationWidthAuthority.requireAuthoritative(width,
+        "recursive layout width substitution", "SPINAL-ELAB-VEC-LAYOUT-WIDTH-SUBSTITUTION"))
+      var ordinal = 0
+      def visit(node: Node): Node = node match {
+        case Scalar(kind, _) =>
+          val width = widths(ordinal)
+          ordinal += 1
+          if (width.minimum < 1 ||
+              ((kind eq spinal.core.internals.TypeBool) && (width.minimum != 1 || width.maximum != 1)))
+            invalid("substitution requires positive scalar widths and a one-bit Bool")
+          Scalar(kind, width)
+        case Fields(kind, values) => Fields(kind, values.map { case (name, child) => name -> visit(child) })
+        case Dimension(depth, capacity, element) =>
+          if (capacity < 1) invalid("a nested carrier must retain positive capacity")
+          val first = visit(element)
+          (1 until capacity).foreach { _ =>
+            if (!equivalent(first, visit(element)))
+              invalid("substitution changed width functions between copies of one nested Vec element")
+          }
+          Dimension(depth, capacity, first)
+      }
+      val result = Layout(visit(root))
+      if (ordinal != widths.size) invalid("substitution lost recursive scalar coverage")
+      result
+    }
     def schemaUsing(expression: ElaborationIntegerExpression => String): String = {
       def visit(node: Node): String = node match {
         case Scalar(kind, width) => s"leaf:${kind.getClass.getName}:${expression(width)}"

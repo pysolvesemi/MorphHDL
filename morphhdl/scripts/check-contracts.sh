@@ -567,93 +567,117 @@ import re
 import sys
 
 source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
-symbolic_ports = {
-    "bits_in", "bundle_in_bits", "bundle_in_sint", "bundle_in_uint",
-    "flow_in_payload_bits", "flow_in_payload_sint", "flow_in_payload_uint",
-    "sint_in", "stream_in_payload_bits", "stream_in_payload_sint",
-    "stream_in_payload_uint", "uint_in",
-    "bits_out", "bundle_out_bits", "bundle_out_sint", "bundle_out_uint",
-    "flow_out_payload_bits", "flow_out_payload_sint", "flow_out_payload_uint",
-    "register_out_bits", "register_out_sint", "register_out_uint", "sint_out",
-    "stream_out_payload_bits", "stream_out_payload_sint",
-    "stream_out_payload_uint", "uint_out",
-}
-vec_ports = {"vec_in", "vec_out"}
-bool_ports = {
-    "clk", "flow_in_valid", "stream_in_valid", "stream_out_ready",
-    "flow_out_valid", "stream_in_ready", "stream_out_valid",
-}
-# This is a fixture contract, not production type inference. Retain every
-# historical width/wiring/control assertion and require the reviewed 60g types.
-signed_ports = {
-    "bundle_in_sint", "bundle_out_sint", "flow_in_payload_sint",
-    "flow_out_payload_sint", "sint_in", "sint_out", "stream_in_payload_sint",
-    "stream_out_payload_sint", "register_out_sint",
-}
-port_pattern = re.compile(
-    r"^  (input|output)\s+wire\s+(?:(signed)\s+)?(?:(\[[^\]]+\])\s+)?([A-Za-z0-9_]+),?$",
-    re.MULTILINE,
-)
-entries = port_pattern.findall(source)
-ports = {name: (direction, packed) for direction, signed, packed, name in entries}
-if len(entries) != len(ports):
-    raise SystemExit("duplicate native symbolic-data-shape port")
-if {name for _, signed, _, name in entries if signed} != signed_ports:
-    raise SystemExit("signed scalar leaves or unsigned aggregate/control types changed")
-if set(ports) != symbolic_ports | vec_ports | bool_ports:
-    raise SystemExit("native symbolic-data-shape port inventory changed")
-if any(ports[name][1] != "[WIDTH-1:0]" for name in symbolic_ports):
-    raise SystemExit("a symbolic data-shape port lost WIDTH")
-if any(ports[name][1] for name in bool_ports):
-    raise SystemExit("a concrete Bool control gained a packed symbolic range")
-if ports["vec_in"][0] != "input" or ports["vec_out"][0] != "output":
-    raise SystemExit("packed Vec port directions changed")
-if ports["vec_in"][1] != ports["vec_out"][1]:
-    raise SystemExit("packed Vec input and output ranges differ")
-vec_range = ports["vec_in"][1]
-if vec_range is None:
-    raise SystemExit("Vec ports lost their packed range")
-compact_vec_range = re.sub(r"\s+", "", vec_range)
-if (
-    "WIDTH" not in compact_vec_range
-    or "*" not in compact_vec_range
-    or not re.fullmatch(r"\[[()WIDTH+*0-9-]+:0\]", compact_vec_range)
-):
-    raise SystemExit("Vec packed range lost its typed width/depth factors")
-for width in range(1, 65):
-    high = compact_vec_range[1:-3].replace("WIDTH", str(width))
-    if eval(high, {"__builtins__": {}}, {}) != 6 * width - 1:
-        raise SystemExit("Vec packed range is not six WIDTH bits")
-if re.search(r"\bvec_(in|out)_[0-9]+", source):
-    raise SystemExit("Vec escaped as exploded element ports")
-if source.count("[WIDTH-1:0]") != 30:
-    raise SystemExit("expected exactly 27 ordinary symbolic ports and three symbolic registers")
-if len(re.findall(r"\bparameter\s+integer\s+WIDTH\s*=\s*8\b", source)) != 1:
-    raise SystemExit("expected exactly one WIDTH public parameter")
-for kind, prefix in (("reg", "payload_register_"),):
-    declarations = re.findall(
-        r"^  " + kind + r"\s+(?:(signed)\s+)?\[WIDTH-1:0\]\s+" + prefix + r"(bits|uint|sint);$",
-        source, re.MULTILINE,
+def check_shape(source):
+    symbolic_ports = {
+        "bits_in", "bundle_in_bits", "bundle_in_sint", "bundle_in_uint",
+        "flow_in_payload_bits", "flow_in_payload_sint", "flow_in_payload_uint",
+        "sint_in", "stream_in_payload_bits", "stream_in_payload_sint",
+        "stream_in_payload_uint", "uint_in",
+        "bits_out", "bundle_out_bits", "bundle_out_sint", "bundle_out_uint",
+        "flow_out_payload_bits", "flow_out_payload_sint", "flow_out_payload_uint",
+        "register_out_bits", "register_out_sint", "register_out_uint", "sint_out",
+        "stream_out_payload_bits", "stream_out_payload_sint",
+        "stream_out_payload_uint", "uint_out",
+    }
+    vec_ports = {"vec_in", "vec_out"}
+    bool_ports = {
+        "clk", "flow_in_valid", "stream_in_valid", "stream_out_ready",
+        "flow_out_valid", "stream_in_ready", "stream_out_valid",
+    }
+    # This is a fixture contract, not production type inference. Retain every
+    # historical width/wiring/control assertion and require the reviewed 60g types.
+    signed_ports = {
+        "bundle_in_sint", "bundle_out_sint", "flow_in_payload_sint",
+        "flow_out_payload_sint", "sint_in", "sint_out", "stream_in_payload_sint",
+        "stream_out_payload_sint", "register_out_sint",
+    }
+    port_pattern = re.compile(
+        r"^  (input|output)\s+wire\s+(?:(signed)\s+)?(?:(\[[^\]]+\])\s+)?([A-Za-z0-9_]+),?$",
+        re.MULTILINE,
     )
-    if len(declarations) != 3 or {leaf for _, leaf in declarations} != {"bits", "uint", "sint"}:
-        raise SystemExit("expected three exact symbolic " + prefix + " Bundle leaves")
-    if {leaf for signed, leaf in declarations if signed} != {"sint"}:
-        raise SystemExit("wrong scalar signedness for " + prefix)
-if re.search(r"\binternal_payload_(bits|uint|sint)\b", source):
-    raise SystemExit("a removable direct Bundle input alias survived")
-for leaf in ("bits", "uint", "sint"):
-    if re.findall(r"^  assign bundle_out_" + leaf + r" = ([^;]+);$", source, re.MULTILINE) != ["bundle_in_" + leaf]:
-        raise SystemExit("Bundle output lost its unique same-type direct input driver")
-if len(re.findall(r"^  assign\s+", source, re.MULTILINE)) != 19:
-    raise SystemExit("expected the exact direct equal-shape assignment inventory")
-if source.count("  assign vec_out = vec_in;") != 1:
-    raise SystemExit("packed Vec is not one direct structural assignment")
-if len(re.findall(r"^  always @\(posedge clk\) begin$", source, re.MULTILINE)) != 1:
-    raise SystemExit("expected one bounded unconditional register process")
-if len(re.findall(r"^    payload_register_(bits|uint|sint) <= bundle_in_\1;$", source, re.MULTILINE)) != 3:
-    raise SystemExit("register leaves do not capture their same-type Bundle inputs")
-if re.search(r"\b(localparam|function|generate|genvar)\b|\$signed", source):
-    raise SystemExit("symbolic shape fixture contains a deferred construct")
+    entries = port_pattern.findall(source)
+    ports = {name: (direction, packed) for direction, signed, packed, name in entries}
+    if len(entries) != len(ports):
+        raise SystemExit("duplicate native symbolic-data-shape port")
+    if {name for _, signed, _, name in entries if signed} != signed_ports:
+        raise SystemExit("signed scalar leaves or unsigned aggregate/control types changed")
+    if set(ports) != symbolic_ports | vec_ports | bool_ports:
+        raise SystemExit("native symbolic-data-shape port inventory changed")
+    if any(ports[name][1] != "[WIDTH-1:0]" for name in symbolic_ports):
+        raise SystemExit("a symbolic data-shape port lost WIDTH")
+    if any(ports[name][1] for name in bool_ports):
+        raise SystemExit("a concrete Bool control gained a packed symbolic range")
+    if ports["vec_in"][0] != "input" or ports["vec_out"][0] != "output":
+        raise SystemExit("packed Vec port directions changed")
+    if ports["vec_in"][1] != ports["vec_out"][1]:
+        raise SystemExit("packed Vec input and output ranges differ")
+    vec_range = ports["vec_in"][1]
+    if vec_range is None:
+        raise SystemExit("Vec ports lost their packed range")
+    compact_vec_range = re.sub(r"\s+", "", vec_range)
+    if (
+        "WIDTH" not in compact_vec_range
+        or "*" not in compact_vec_range
+        or not re.fullmatch(r"\[[()WIDTH+*0-9-]+:0\]", compact_vec_range)
+    ):
+        raise SystemExit("Vec packed range lost its typed width/depth factors")
+    for width in range(1, 65):
+        high = compact_vec_range[1:-3].replace("WIDTH", str(width))
+        if eval(high, {"__builtins__": {}}, {}) != 6 * width - 1:
+            raise SystemExit("Vec packed range is not six WIDTH bits")
+    if re.search(r"\bvec_(in|out)_[0-9]+", source):
+        raise SystemExit("Vec escaped as exploded element ports")
+    if source.count("[WIDTH-1:0]") != 33:
+        raise SystemExit("expected exactly 27 symbolic ports, three native aliases and three registers")
+    if len(re.findall(r"\bparameter\s+integer\s+WIDTH\s*=\s*8\b", source)) != 1:
+        raise SystemExit("expected exactly one WIDTH public parameter")
+    for kind, prefix in (("wire", "internal_payload_"), ("reg", "payload_register_")):
+        declarations = re.findall(
+            r"^  " + kind + r"\s+(?:(signed)\s+)?\[WIDTH-1:0\]\s+" + prefix + r"(bits|uint|sint);$",
+            source, re.MULTILINE,
+        )
+        if len(declarations) != 3 or {leaf for _, leaf in declarations} != {"bits", "uint", "sint"}:
+            raise SystemExit("expected three exact symbolic " + prefix + " Bundle leaves")
+        if {leaf for signed, leaf in declarations if signed} != {"sint"}:
+            raise SystemExit("wrong scalar signedness for " + prefix)
+    # Wire-pass retirement retains these native carriers. Require their exact types
+    # and two-link wiring rather than reviving the retired alias-removal contract.
+    for leaf in ("bits", "uint", "sint"):
+        if re.findall(r"^  assign internal_payload_" + leaf + r" = ([^;]+);$", source, re.MULTILINE) != ["bundle_in_" + leaf]:
+            raise SystemExit("native Bundle alias lost its unique same-type input driver")
+        if re.findall(r"^  assign bundle_out_" + leaf + r" = ([^;]+);$", source, re.MULTILINE) != ["internal_payload_" + leaf]:
+            raise SystemExit("Bundle output lost its unique same-type native alias driver")
+    if len(re.findall(r"^  assign\s+", source, re.MULTILINE)) != 22:
+        raise SystemExit("expected the exact native equal-shape assignment inventory")
+    if source.count("  assign vec_out = vec_in;") != 1:
+        raise SystemExit("packed Vec is not one direct structural assignment")
+    if len(re.findall(r"^  always @\(posedge clk\) begin$", source, re.MULTILINE)) != 1:
+        raise SystemExit("expected one bounded unconditional register process")
+    if len(re.findall(r"^    payload_register_(bits|uint|sint) <= bundle_in_\1;$", source, re.MULTILINE)) != 3:
+        raise SystemExit("register leaves do not capture their same-type Bundle inputs")
+    if re.search(r"\b(localparam|function|generate|genvar)\b|\$signed", source):
+        raise SystemExit("symbolic shape fixture contains a deferred construct")
+
+check_shape(source)
+# Exercise the repaired source contract as well as the downstream netlist controls.
+mutations = (
+    ("wire       signed [WIDTH-1:0] internal_payload_sint;", "wire       [WIDTH-1:0] internal_payload_sint;"),
+    ("wire       [WIDTH-1:0] internal_payload_bits;", "wire       [7:0] internal_payload_bits;"),
+    ("assign internal_payload_bits = bundle_in_bits;", "assign internal_payload_bits = bundle_in_uint;"),
+    ("assign bundle_out_sint = internal_payload_sint;", "assign bundle_out_sint = bundle_in_sint;"),
+    ("assign internal_payload_uint = bundle_in_uint;", "assign internal_payload_uint = bundle_in_uint;\n  assign internal_payload_uint = bundle_in_bits;"),
+    ("payload_register_bits <= bundle_in_bits;", "payload_register_bits <= bundle_in_uint;"),
+)
+for before, after in mutations:
+    if source.count(before) != 1:
+        raise SystemExit("source-contract mutation anchor changed: " + before)
+    try:
+        check_shape(source.replace(before, after))
+    except SystemExit:
+        pass
+    else:
+        raise SystemExit("source contract accepted forbidden mutation: " + before)
+
 PY
 then
   echo "SymbolicDataShapes does not retain the bounded native shape contract" >&2
@@ -2109,6 +2133,36 @@ PY
 }
 
 yosys_symbolic_data_shapes_extra_cell_mutation_must_fail
+
+# Native carriers must retain signedness and exact bit identity after proc.
+python3 - "$tmp_dir/SymbolicDataShapes-default-process.json" "$tmp_dir" <<'PYMUT'
+import copy
+import json
+import pathlib
+import sys
+original = json.loads(pathlib.Path(sys.argv[1]).read_text())
+for mutation in ("alias-missing", "alias-signedness", "alias-driver", "alias-width"):
+    netlist = copy.deepcopy(original)
+    module = netlist["modules"]["SymbolicDataShapes"]
+    aliases = module["netnames"]
+    if mutation == "alias-missing":
+        del aliases["internal_payload_bits"]
+    elif mutation == "alias-signedness":
+        aliases["internal_payload_sint"]["signed"] = 0
+    elif mutation == "alias-driver":
+        aliases["internal_payload_bits"]["bits"] = module["ports"]["bundle_in_uint"]["bits"]
+    else:
+        aliases["internal_payload_bits"]["bits"] = aliases["internal_payload_bits"]["bits"][:-1]
+    (pathlib.Path(sys.argv[2]) / (mutation + ".json")).write_text(json.dumps(netlist))
+PYMUT
+for mutation in alias-missing alias-signedness alias-driver alias-width; do
+  if python3 "$repo_root/morphhdl/scripts/check-yosys-symbolic-data-shapes-contract.py" \
+      "$tmp_dir/$mutation.json" --width 8; then
+    echo "SymbolicDataShapes checker accepted forbidden mutation: $mutation" >&2
+    exit 1
+  fi
+  echo "Yosys SymbolicDataShapes checker rejected forbidden mutation: $mutation"
+done
 
 yosys_synthesize_and_check \
   "$yosys_derived_width_file" DerivedWidth default 37 ""

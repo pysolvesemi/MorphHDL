@@ -18,25 +18,32 @@ private[internals] object ExternalParameterizedHierarchyResizeWidth {
     // Native pull/rework can publish a port after the child was constructed.
     // The exact definition root still selects its opaque component capability;
     // neither an absent leaf token nor an equal printed name grants authority.
-    token <- ExternalFormalParameterRegistry.typedBindingsOf(port.component).filter { retained =>
+    binding <- (ExternalFormalParameterRegistry.typedBindingsOf(port.component).filter { retained =>
       definition.completedParameterRoots.size == 1 &&
         (definition.completedParameterRoots.head eq retained.binding.formal.declarationRoot)
     } match {
       case Vector(value) => Some(value)
       case _ => None
-    }
-    if ExternalFormalParameterRegistry.typedBindingOf(port).forall { retained =>
+    }).filter { token => ExternalFormalParameterRegistry.typedBindingOf(port).forall { retained =>
       (retained.declarationToken eq token.declarationToken) &&
         (retained.binding eq token.binding)
-    }
-    if definition.parameters.size == 1 &&
+    } && definition.parameters.size == 1 &&
       (definition.parameters.head eq token.binding.formal) &&
       definition.completedParameterRoots.size == 1 &&
       (definition.completedParameterRoots.head eq token.binding.formal.declarationRoot)
-    bound <- instantiate(definition, token.binding, port)
+    }.map(_.binding).orElse {
+      // Frontend formals have their own issued declaration root, distinct from
+      // the schema's legacy root. Match the exact retained instance declaration.
+      if (ExternalFormalParameterRegistry.typedBindingsOf(port.component).isEmpty && definition.exactDomain.nonEmpty)
+        ExternalFormalParameterRegistry.derivedFrontendBinding(port.component, definition).filter { binding =>
+          binding.actual.parameters.isEmpty || binding.actual.exactDomain.nonEmpty
+        }
+      else None
+    }
+    bound <- instantiate(definition, binding, port)
   } yield bound
 
-  private def instantiate(
+  private[internals] def instantiate(
       definition: ElaborationIntegerExpression,
       binding: ExternalFormalParameterBinding,
       port: BaseType

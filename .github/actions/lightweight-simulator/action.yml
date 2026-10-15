@@ -1,0 +1,24 @@
+name: Authenticated lightweight simulator
+description: Build and verify the pinned simulator required by singleton unpacked array aliases.
+inputs:
+  receipt-name:
+    description: Unique artifact name for this job and matrix lane.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Build pinned unmodified simulator
+      shell: bash
+      run: |
+        set -euo pipefail
+        apt-get update
+        apt-get install -y autoconf gperf bison flex make g++
+        python3 morphhdl/scripts/lightweight-scala-rtl/install-iverilog.py "$RUNNER_TEMP/lightweight-iverilog"
+        python3 morphhdl/scripts/lightweight-scala-rtl/install-iverilog.py "$RUNNER_TEMP/lightweight-iverilog" --verify
+        echo "$RUNNER_TEMP/lightweight-iverilog/bin" >> "$GITHUB_PATH"
+    - name: Retain simulator source and binary identity
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.receipt-name }}
+        path: ${{ runner.temp }}/lightweight-iverilog/build-receipt.json
+        if-no-files-found: error

@@ -1,0 +1,565 @@
+{
+  "schema_version": 1,
+  "common_base": "64e8fddc432e859b6b532540bee96c5608d46efa",
+  "feature_parent": "ee2e7f2613e54f23158ce1eacae6028409a91ed6",
+  "target_parent": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6",
+  "combined_base": "71efa81bf56e8483f7837519b2e44cdeba908439",
+  "combined_production": [
+    "core/src/main/scala/spinal/core/Vec.scala",
+    "core/src/main/scala/spinal/core/internals/Phase.scala",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/pipeline/WireAliasPassPipeline.scala",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/BooleanTernarySimplificationPass.scala",
+    "morphhdl/src/main/scala/morphhdl/MorphSignedCasts.scala",
+    "morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala",
+    "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogVecs.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicy.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeLeafReplay.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeWidthSchedule.scala"
+  ],
+  "files": [
+    {
+      "path": "core/src/main/scala/spinal/core/Vec.scala",
+      "combined_sha256": "f66926276a79652795d91f54af3095c9938f4688a04079c4f19b1f851ff943f4",
+      "feature_sha256": "f66926276a79652795d91f54af3095c9938f4688a04079c4f19b1f851ff943f4",
+      "target_sha256": "189a5966d923761b21af5b23cf8eb84529c3b2dfb45cbfba3bd4391f2d6b371c"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
+      "combined_sha256": "07f1edef284e5fad1a701d00bd813b2e85cdaac2262d84660b4273581bfb6200",
+      "feature_sha256": "a71c08a9ad865a07b0e6f21cb2d6252e84886d51d4bd31cc70525f6641213239",
+      "target_sha256": "07f1edef284e5fad1a701d00bd813b2e85cdaac2262d84660b4273581bfb6200"
+    },
+    {
+      "path": "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala",
+      "combined_sha256": "4caad5ad946df553b0c6a9649e0a3329abd230783145ece7991b73dabcd0ea8a",
+      "feature_sha256": "1946882af38c058829564faa5d0f7967209e8efd1ab8cfe3d26060ec206a2cda",
+      "target_sha256": "4caad5ad946df553b0c6a9649e0a3329abd230783145ece7991b73dabcd0ea8a"
+    },
+    {
+      "path": "morphhdl-passes/src/main/scala/morphhdl/passes/pipeline/WireAliasPassPipeline.scala",
+      "combined_sha256": "9658543584ac619ff1fb652c2921ddc388e28688effc3fb4f185a5e6e89c5f8a",
+      "feature_sha256": "e8ae9bdd4ae8bfb9ffd168a62a7a77578ae54b14cee3291b199d90899d1a4f1e",
+      "target_sha256": "9658543584ac619ff1fb652c2921ddc388e28688effc3fb4f185a5e6e89c5f8a"
+    },
+    {
+      "path": "morphhdl-passes/src/main/scala/morphhdl/passes/transform/BooleanTernarySimplificationPass.scala",
+      "combined_sha256": "e8b53ace5e8ad06d897af541744ca15a8c0fdef12b95968d45ebe777c5fc5e6a",
+      "feature_sha256": null,
+      "target_sha256": "e8b53ace5e8ad06d897af541744ca15a8c0fdef12b95968d45ebe777c5fc5e6a"
+    },
+    {
+      "path": "morphhdl-passes/src/test/scala/morphhdl/passes/api/AllPassConfigurationSpec.scala",
+      "combined_sha256": "6c03ec57a44049abc5314144d7efc5583ef247ece30caceddecc80e4cd7167fa",
+      "feature_sha256": "0edbab2e046de569704b3a9f1a75f06f141355bbb05c707d33c798e45630047b",
+      "target_sha256": "6c03ec57a44049abc5314144d7efc5583ef247ece30caceddecc80e4cd7167fa"
+    },
+    {
+      "path": "morphhdl-passes/src/test/scala/morphhdl/passes/api/NativeRunnerSourceClosureSpec.scala",
+      "combined_sha256": "4d8bd34a70d51e6124f1d9264c66f8b906cef2f3a38a9999b77d51f058f4609e",
+      "feature_sha256": null,
+      "target_sha256": "4d8bd34a70d51e6124f1d9264c66f8b906cef2f3a38a9999b77d51f058f4609e"
+    },
+    {
+      "path": "morphhdl-passes/src/test/scala/morphhdl/passes/pipeline/WireAssignmentAllPassPipelineSpec.scala",
+      "combined_sha256": "f2d89807c433bba891c4420b0ed7414553f72629859f1cd7cf75d32b892ad590",
+      "feature_sha256": "3df37c00ddb4051d741cca2d6074f01928b30a28e241850e8f9e41bb06990a66",
+      "target_sha256": "f2d89807c433bba891c4420b0ed7414553f72629859f1cd7cf75d32b892ad590"
+    },
+    {
+      "path": "morphhdl-passes/src/test/scala/morphhdl/passes/transform/BooleanTernaryFourStateSpec.scala",
+      "combined_sha256": "e1565e0cd9523b7b406fbe523803af1257ca957a0cb5caa52e2cbef29f1cf793",
+      "feature_sha256": null,
+      "target_sha256": "e1565e0cd9523b7b406fbe523803af1257ca957a0cb5caa52e2cbef29f1cf793"
+    },
+    {
+      "path": "morphhdl-passes/src/test/scala/morphhdl/passes/transform/BooleanTernarySimplificationPassSpec.scala",
+      "combined_sha256": "e866bfcea56c7d53fa51b4632949b206198bfbfe4456fad4ba62ceeadd146502",
+      "feature_sha256": null,
+      "target_sha256": "e866bfcea56c7d53fa51b4632949b206198bfbfe4456fad4ba62ceeadd146502"
+    },
+    {
+      "path": "morphhdl/contracts/increment-55-native-change-review.json",
+      "combined_sha256": "38ceaf7124ff48c3aa7c4a3331df433477c58a59cd56b629ecd9caeae6c0fa91",
+      "feature_sha256": "f70a4beeefc56d975b5be582c9d9093ca980eb325160a9dedac7250487ab300d",
+      "target_sha256": "98209f1dac84b7577a469399b0efadb3c9e986c6b1a7d96e8b794a43d44d88ae"
+    },
+    {
+      "path": "morphhdl/contracts/increment-59i-capture-review.json",
+      "combined_sha256": "dc0b3c53221d5d36061870e31c5a63c57ac2ed747ae98a256a209f2cfd898537",
+      "feature_sha256": "dc0b3c53221d5d36061870e31c5a63c57ac2ed747ae98a256a209f2cfd898537",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/contracts/increment-59i-integration-review.json",
+      "combined_sha256": "c8cb1e66d3abec2b160f9272dada5893191cb5555d773624fc6636caaa5fa3e7",
+      "feature_sha256": "c8cb1e66d3abec2b160f9272dada5893191cb5555d773624fc6636caaa5fa3e7",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/contracts/increment-59i-source-review.json",
+      "combined_sha256": "af633343f73d1e9d54cf68c05ff5e21a8d79c9738fc45af4ddd07f2086aab600",
+      "feature_sha256": "af633343f73d1e9d54cf68c05ff5e21a8d79c9738fc45af4ddd07f2086aab600",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/contracts/increment-59i-widening-review.json",
+      "combined_sha256": "f85db8c98de37f8fd306e320455e564cecc05aa2b079ca9041bac26ba46f03e0",
+      "feature_sha256": "f85db8c98de37f8fd306e320455e564cecc05aa2b079ca9041bac26ba46f03e0",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/contracts/increment-60g-publication-edits.json",
+      "combined_sha256": "2d7678a1c11d55bfa9f51a2559dce54f9ab9a8e71bd209139b9b30a21be22386",
+      "feature_sha256": null,
+      "target_sha256": "2d7678a1c11d55bfa9f51a2559dce54f9ab9a8e71bd209139b9b30a21be22386"
+    },
+    {
+      "path": "morphhdl/contracts/native-source-preservation.json",
+      "combined_sha256": "c532186f8f24e8326acae711ece80d4c16ee3b51ea917c1d850bf3601a0e26e9",
+      "feature_sha256": "f13c1d596e45bbb032182c9228c659a3b54d98e71a8f21871c0d48fc0247b190",
+      "target_sha256": "d4f3a0d62bfaaab2cc32e6e95baa194926f5e5b869324b429fb26b79562923b0"
+    },
+    {
+      "path": "morphhdl/repair-59i-composite-local-enable/promote-reviewed-ci.py",
+      "combined_sha256": "80e3edbcf673b80a3cdff64e0fdfa319c277e80032f502bed88df50db29867cc",
+      "feature_sha256": "a21c0f89a240f5ee6d081123f7f7bdc3d4ed9a34c704183d496d5ac76daf0344",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/repair-59i-composite-local-enable/promote-reviewed.py",
+      "combined_sha256": "81205ec86b135c5d5ae7d2614e38cdcc22471bd9b90eae90f03e53f34a27cbde",
+      "feature_sha256": "1542df859c42b88b651eeeb66d9c8be7058dac4de2e6c600a3e53116e48d8b03",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/scripts/check-contracts.sh",
+      "combined_sha256": "d6cc35faf59acbbcaa81dd3779589bfcabc95602fdcb6efc65499074bb937ec6",
+      "feature_sha256": "4e48fd0ccfa161c12d1390d46451219c5bc29444afee375de9304c45a7c9234f",
+      "target_sha256": "d6cc35faf59acbbcaa81dd3779589bfcabc95602fdcb6efc65499074bb937ec6"
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-59c-source-review.py",
+      "combined_sha256": "5018edce250822e9657b898911691af6d86665e02b2ad2237bbf09e78b4ba75f",
+      "feature_sha256": "b1723908a3f9274bdb42a4f6acd1746bf3b9cf816cc8db0530e3b839ed2bec9d",
+      "target_sha256": "d4d396ff6b20d68659048abe891a1440e502e543b0c9058266937cdb525a2aa2"
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-59f-source-scope.py",
+      "combined_sha256": "51bfed61b2c116d5ff023500ef885fc5c4e57e417adf90af751e57020e285f57",
+      "feature_sha256": "68ffb515a97eaa3a11cd72222d5c9e1224a49598e724b53476b83ee21df16cb6",
+      "target_sha256": "51bfed61b2c116d5ff023500ef885fc5c4e57e417adf90af751e57020e285f57"
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-59g-source-review.py",
+      "combined_sha256": "3249f6b4d7f514cd8215f16cabba19e8ecbad494f981abdef1ffe2bc2a732355",
+      "feature_sha256": "651607ecaa28bdd461dfe8d417bb35a2e8151e81df8ed9e0985fb45b7949ec09",
+      "target_sha256": "a27f4a25c506914f30b4f4eb51f57064dfcb5784942f91985c6dd6a114803d93"
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-59h-source-review.py",
+      "combined_sha256": "b18709745cd816314c7cc1a9d3bcf0129941331ab117c434fb25981e4ab592c7",
+      "feature_sha256": "186218b70ce82d5a3b5ce6176b649bbe56560c99aaac42cca7b3df94d9cc4175",
+      "target_sha256": "828d8cbe5fa4aa29cbf82fcb006325d1078c9c1181413e4ca06ba5a4206b39cc"
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-59i-combined.py",
+      "combined_sha256": "83519e7b9bd800e3900cd23ae9418c3a2f308afbad98bed920fa712ed825dd4b",
+      "feature_sha256": "83519e7b9bd800e3900cd23ae9418c3a2f308afbad98bed920fa712ed825dd4b",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-59i-composite-captures.py",
+      "combined_sha256": "fc7dac59009f3f2593509898de9d22be6f6231f845abec3a99dfdd6fdbf9f4fe",
+      "feature_sha256": "fc7dac59009f3f2593509898de9d22be6f6231f845abec3a99dfdd6fdbf9f4fe",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-59i-native-tree-anchor-review.py",
+      "combined_sha256": "1d2e7cbe5b23d154196b8059a2482d9035c8b547481c75e261b0fdf6e90add63",
+      "feature_sha256": null,
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-59i-nested-results.py",
+      "combined_sha256": "47a71fb4fae807321897f20fe129932b0884cc241aaf1769a13d98fb8dbeec43",
+      "feature_sha256": "47a71fb4fae807321897f20fe129932b0884cc241aaf1769a13d98fb8dbeec43",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-59i-source-review.py",
+      "combined_sha256": "3da87c1bd5b4f7d0a7927e243c548837155294e6598255593e5ffc06a0cee8da",
+      "feature_sha256": "1ca29613396d9348ac3a51841fb3199673405e796f7a82b70524a123bf5a67c3",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-59i-widening-source-review.py",
+      "combined_sha256": "c3e29508bedaf8e64b9734304df3931534843686ba6ef23ce68a3777f87e5bc4",
+      "feature_sha256": "2b4fc5e7b339f43dd4092abc1936d6e7766f7b134e138dad17ba0b510d4a34c4",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-60c-signed-declarations.py",
+      "combined_sha256": "7f5662450abdfa848eb439bf13299b631ac3809eb0f6c5caac464715e976cd9c",
+      "feature_sha256": "7fa376ae1328dc062a91d4ca64e6fdc12fa68526c003bfe680958f15b15b0a3f",
+      "target_sha256": "7f5662450abdfa848eb439bf13299b631ac3809eb0f6c5caac464715e976cd9c"
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-60d-pure-sint-casts.py",
+      "combined_sha256": "405f696ce814fdd3e156ed445b0e84935f5e4cd7cfb8c4bf7dd066a7165af819",
+      "feature_sha256": "3fbdf661fe69a24bbf786ff7c1f3bef569330016625e949f47ee420b713e121b",
+      "target_sha256": "405f696ce814fdd3e156ed445b0e84935f5e4cd7cfb8c4bf7dd066a7165af819"
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-60e-signedness-boundaries.py",
+      "combined_sha256": "b7d97fb6ea51f8329862dcfffe12963940f445abf8097150e3e6af195da76c48",
+      "feature_sha256": "46c831771e5f5ccd9263b5e3ba36a15c47dd3d023c54ca1a6baeb6a164fece13",
+      "target_sha256": "b7d97fb6ea51f8329862dcfffe12963940f445abf8097150e3e6af195da76c48"
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-60f-artifacts.py",
+      "combined_sha256": "8d8610b5f00d088cad1213dc4aeb12d36031128a0261ddaabaf438a3675314b1",
+      "feature_sha256": "4e558659339128eee54643664a0efa2f745c32c5bddf4e5ac52c550a4d1adc9c",
+      "target_sha256": "8d8610b5f00d088cad1213dc4aeb12d36031128a0261ddaabaf438a3675314b1"
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-60f-equivalence-closure.py",
+      "combined_sha256": "5df64d5a11116ce1c727c73a242f1dd8b5e8ccdd30b6bb91c9df1aebb11cdfae",
+      "feature_sha256": "341c12f429852042b5e16e96219127ae36325252ede5918b135a7a49e407fa0a",
+      "target_sha256": "1f3ca7fd40faf4b865a7bc4b39bac4d7dbe5f4628ec95839ff418621d349ba64"
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-60g-default-rollout.py",
+      "combined_sha256": "790c9c650cacf005e49174b32dfe2a21bc9402a9f74893f2651a3331d5a1c5b2",
+      "feature_sha256": null,
+      "target_sha256": "790c9c650cacf005e49174b32dfe2a21bc9402a9f74893f2651a3331d5a1c5b2"
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-60g-source-scope.py",
+      "combined_sha256": "b6baeb6a9587ce3ab19cf4c53b3eec45b5a074d184963a9429fbaf82d848e77e",
+      "feature_sha256": null,
+      "target_sha256": "a49e07e936054dedef0b8f37d0254d9bd3a2550540aa8ffc570d609f67c5042a"
+    },
+    {
+      "path": "morphhdl/scripts/check-wa07b-inherited-review.py",
+      "combined_sha256": "f7e9d36b64664a3d357cf5672d630b26e3cb6bd27c4f54e7305c03be2cbc6003",
+      "feature_sha256": "f7e9d36b64664a3d357cf5672d630b26e3cb6bd27c4f54e7305c03be2cbc6003",
+      "target_sha256": "166272d092b418e4252abf70841c05774afe0213967e4ac35ee8988f2515b806"
+    },
+    {
+      "path": "morphhdl/scripts/check-yosys-symbolic-data-shapes-contract.py",
+      "combined_sha256": "b0f8535ecc13e347d3c833f4b8f2f9cb446179ded2ccd1612816788cba9c26e5",
+      "feature_sha256": "72eab5c7d5284942f0fb5e03d9a0bbda8a560dd4da37e63847f3b03a639c28b1",
+      "target_sha256": "b0f8535ecc13e347d3c833f4b8f2f9cb446179ded2ccd1612816788cba9c26e5"
+    },
+    {
+      "path": "morphhdl/scripts/test-increment-59c-inherited-source-scope.py",
+      "combined_sha256": "1c80072cd56a3518387459d1582d78a6c192d8c59090b2ef5473fba044fee3bd",
+      "feature_sha256": "428b80f014dde35bc1c55d938ef4dec586d8b180b0b460e888433c66b7b72110",
+      "target_sha256": "1c80072cd56a3518387459d1582d78a6c192d8c59090b2ef5473fba044fee3bd"
+    },
+    {
+      "path": "morphhdl/scripts/test-increment-59d-inherited-60f-scope.py",
+      "combined_sha256": "54df3c90aa0c8c09c5621c66eccded8aedbbefd8f91191cf075dff67d49a6d69",
+      "feature_sha256": "49105b3adc8d46af7e73f3fcc8942a64bc808b382f366cf1785bbe841cfcfa9a",
+      "target_sha256": "54df3c90aa0c8c09c5621c66eccded8aedbbefd8f91191cf075dff67d49a6d69"
+    },
+    {
+      "path": "morphhdl/scripts/test-increment-59f-source-scope.py",
+      "combined_sha256": "f2ff879ff984bbb1348e1abaedd054d4a4d4a194dc581476255d85c59a0cee6e",
+      "feature_sha256": "ebd5afe3c534110a47289af0966cfa53e58afd82e414e8d54bc8d33041c4f229",
+      "target_sha256": "f2ff879ff984bbb1348e1abaedd054d4a4d4a194dc581476255d85c59a0cee6e"
+    },
+    {
+      "path": "morphhdl/scripts/test-increment-59g-source-review.py",
+      "combined_sha256": "9ca0cbba29b323a9853ff73f704c086fbe1950198996192e02f65091fd7853be",
+      "feature_sha256": "80a8a3fa2374ba56cd43a57897a2fff972cf98f2196dc890223bb586d00dd823",
+      "target_sha256": "9ca0cbba29b323a9853ff73f704c086fbe1950198996192e02f65091fd7853be"
+    },
+    {
+      "path": "morphhdl/scripts/test-increment-59h-inherited-source-scope.py",
+      "combined_sha256": "0e3c2b4ebc2de68b9fa1ba9f417885d2cc71a642b0bd69acfc831f7e2c25c9c9",
+      "feature_sha256": "da3f7cd67dd39523bfd31e4a8a52f0074d748dfdd6ac2976b65812cbfb3dceca",
+      "target_sha256": "0acd3aaf2997b77eb63f029064087b91a2da335ee604d9e926f0b2870b2786db"
+    },
+    {
+      "path": "morphhdl/scripts/test-increment-59i-capture-review.py",
+      "combined_sha256": "790c9deb49278c9e562312a12f4c3beb472fa2acb7c032f3ee6b9766d2d2f387",
+      "feature_sha256": "790c9deb49278c9e562312a12f4c3beb472fa2acb7c032f3ee6b9766d2d2f387",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/scripts/test-increment-59i-combined.py",
+      "combined_sha256": "dd9ae98eca343a12aa1598fe97f315cfb58ed7ddebf47ca1880682a63277aaa0",
+      "feature_sha256": "dd9ae98eca343a12aa1598fe97f315cfb58ed7ddebf47ca1880682a63277aaa0",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/scripts/test-increment-59i-composite-captures.py",
+      "combined_sha256": "3439df349f14a58261c8a4e55a9f1ce27108cfb78d13a94d0a2e008acbd5eacd",
+      "feature_sha256": "3439df349f14a58261c8a4e55a9f1ce27108cfb78d13a94d0a2e008acbd5eacd",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/scripts/test-increment-59i-nested-results.py",
+      "combined_sha256": "17e53a6aebb179eaa0a617ab0d768d04955f380f259eef410e52eeb8ca539ea5",
+      "feature_sha256": "17e53a6aebb179eaa0a617ab0d768d04955f380f259eef410e52eeb8ca539ea5",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/scripts/test-increment-59i-review-composition.py",
+      "combined_sha256": "4e204d4b939c5af5e01c63234d999e7115f7ef770262385f43aacc514fa2b1b1",
+      "feature_sha256": "4e204d4b939c5af5e01c63234d999e7115f7ef770262385f43aacc514fa2b1b1",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/scripts/test-increment-59i-widening-source-review.py",
+      "combined_sha256": "5d10acec606b054d1a41417e2fbcbfe04f68550495ad8ff44eff10b0b1131a84",
+      "feature_sha256": "5d10acec606b054d1a41417e2fbcbfe04f68550495ad8ff44eff10b0b1131a84",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/scripts/test-wa07b-inherited-review.py",
+      "combined_sha256": "d3908e465c58502571bc27cc046b7fd7eb8618e708ad466fd0709dba268bf05c",
+      "feature_sha256": "d3908e465c58502571bc27cc046b7fd7eb8618e708ad466fd0709dba268bf05c",
+      "target_sha256": "a5de0d39119acd2f24a77114806a25f2fdce8c09534d3d851e5e20cf8bcfd023"
+    },
+    {
+      "path": "morphhdl/src/main/scala/morphhdl/MorphSignedCasts.scala",
+      "combined_sha256": "98321693cca463acf87989b44ad6ea5bc187b53a8ef88491fc1b3853aa5de9b9",
+      "feature_sha256": "89c51359baec59ea593c8c0069b696280c3381803f9720ab84926585500e7ace",
+      "target_sha256": "98321693cca463acf87989b44ad6ea5bc187b53a8ef88491fc1b3853aa5de9b9"
+    },
+    {
+      "path": "morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala",
+      "combined_sha256": "3085816ba26dbceb899ed08270ff9cc00fede099e7bcb6cfbb29f14ac671b139",
+      "feature_sha256": "b49805387d95f9fb9390228d4fbf719cef3d8642ad4bcc5cb15c3ad6a5583d12",
+      "target_sha256": "3085816ba26dbceb899ed08270ff9cc00fede099e7bcb6cfbb29f14ac671b139"
+    },
+    {
+      "path": "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala",
+      "combined_sha256": "934a5920ad1bf7c93a6862848c86155e545abc96795646d3059a3667bb336529",
+      "feature_sha256": "a30ff441d12611baae105d94a59263d51f21633b7385b88288068d095d09e612",
+      "target_sha256": "934a5920ad1bf7c93a6862848c86155e545abc96795646d3059a3667bb336529"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala",
+      "combined_sha256": "c01a92f6d9e8d80a889e44590b6db8496450d1a7b8aff4773b6b6e9e5874638a",
+      "feature_sha256": "33047032ea28de572c96153f7eb3ec3e6eeab35b84e0097e00c2c6ed8d7a1ecf",
+      "target_sha256": "c01a92f6d9e8d80a889e44590b6db8496450d1a7b8aff4773b6b6e9e5874638a"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala",
+      "combined_sha256": "62820ae6841dfb15a99ffbfe85e56d465e69f1ae2addcc148f41ed088ea367e0",
+      "feature_sha256": "62820ae6841dfb15a99ffbfe85e56d465e69f1ae2addcc148f41ed088ea367e0",
+      "target_sha256": "2f5617afcf9f97c5ace1afd71e7c37fde0efd12f1573990bdff78882679476f9"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala",
+      "combined_sha256": "160923bb2910191ba097fcc85ba0a6dd813e9d6c1acd9176ab11d516bdec915d",
+      "feature_sha256": "dd1b204c1e7bfaf8f87fa1699defa5da10f09ffcd994977446c40e8489e39fe7",
+      "target_sha256": "160923bb2910191ba097fcc85ba0a6dd813e9d6c1acd9176ab11d516bdec915d"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
+      "combined_sha256": "7411eceb769d5b8fc2b7effd1a02a0d8a0f9dfddcee9602a06907778d4cf59e7",
+      "feature_sha256": "4a8a763221d3a6267db6cdfd06f6b3a8eb24bdaf1f1296939a8c2cae431bba07",
+      "target_sha256": "7411eceb769d5b8fc2b7effd1a02a0d8a0f9dfddcee9602a06907778d4cf59e7"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala",
+      "combined_sha256": "ddd5a5e6877c0a399b85abfa58bc1a54b4ff313ed9081b144d0e629e45901af7",
+      "feature_sha256": "ddd5a5e6877c0a399b85abfa58bc1a54b4ff313ed9081b144d0e629e45901af7",
+      "target_sha256": "4a194fb5a5e535a2df3cbc5c27683bc90ada678ac249f085d4cf9cc7ae4629bb"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogVecs.scala",
+      "combined_sha256": "e7c574d9b5bddd62af15acb38a77f8bfadc9beed2584dfa4464e09db81eaf013",
+      "feature_sha256": "e7c574d9b5bddd62af15acb38a77f8bfadc9beed2584dfa4464e09db81eaf013",
+      "target_sha256": "78b96c71871c986b6e92a9960505cfc4d741c989d2bf83383be848f459df3998"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala",
+      "combined_sha256": "f9f8c10534946c51676fcdf383d89cc7c3624974620377982688d30ef639d2eb",
+      "feature_sha256": "f9f8c10534946c51676fcdf383d89cc7c3624974620377982688d30ef639d2eb",
+      "target_sha256": "1ea85c0a9c3a159be4e7c18451b7876de51223ae29d90b4333e6cb69dd6e5aec"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicy.scala",
+      "combined_sha256": "925e37225709c327e326193966bc43ed9744d8dbb20776ab1b932caf73d20634",
+      "feature_sha256": "925e37225709c327e326193966bc43ed9744d8dbb20776ab1b932caf73d20634",
+      "target_sha256": "db37d6540af715b6f535a78891439020fb7196d450dc403af3cde6a9fedc53fb"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala",
+      "combined_sha256": "26e4f019b61ebd80ef5fc5344a108df3213efc019b4d925ba4c7d23ed56263a3",
+      "feature_sha256": "26e4f019b61ebd80ef5fc5344a108df3213efc019b4d925ba4c7d23ed56263a3",
+      "target_sha256": "b0dca5577d1b32e742a3f78fc7cddfc5d38cb4533fa4acf57f3aff4040519416"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeLeafReplay.scala",
+      "combined_sha256": "2a99870dd35e913f67fb26514784a133e238649f6215d7c77ae3cfe02f458767",
+      "feature_sha256": "2a99870dd35e913f67fb26514784a133e238649f6215d7c77ae3cfe02f458767",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala",
+      "combined_sha256": "49363585c8c4e06e59caa533a254b7c2c75862e079551de50d7d661d424ef6ae",
+      "feature_sha256": "49363585c8c4e06e59caa533a254b7c2c75862e079551de50d7d661d424ef6ae",
+      "target_sha256": "fd767dfbbca20cf2dd407e39ff5a01a451f2c487f135d0da25476bdfe812e325"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeWidthSchedule.scala",
+      "combined_sha256": "fdc3aaf84946212b0b6ab871910865a1de3b2a693fad56fa18eddce8655a37d0",
+      "feature_sha256": "fdc3aaf84946212b0b6ab871910865a1de3b2a693fad56fa18eddce8655a37d0",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/src/test/scala/morphhdl/SignednessBoundaryTests.scala",
+      "combined_sha256": "d09715fded789a95797d480e685cc059796947c747346c7055ab39d5d0619ed3",
+      "feature_sha256": "03d1b1c1ca14e7a370425f68e40bee24ff299a5b207b74ea9dcb0138f1bcca37",
+      "target_sha256": "d09715fded789a95797d480e685cc059796947c747346c7055ab39d5d0619ed3"
+    },
+    {
+      "path": "morphhdl/src/test/scala/morphhdl/SignednessCompatibilityTests.scala",
+      "combined_sha256": "e689e64573c4a3b803388b27f36a8fb7a22c54deba54cf15ae62a7f851bf047a",
+      "feature_sha256": "af685edafeb330f5868ac630697bf000e704689e2550483f2aafc9c8e4ef36d8",
+      "target_sha256": "e689e64573c4a3b803388b27f36a8fb7a22c54deba54cf15ae62a7f851bf047a"
+    },
+    {
+      "path": "morphhdl/src/test/scala/morphhdl/TypedSignednessAuthorityTests.scala",
+      "combined_sha256": "27b53a03a4f8ed0e69531d4db2eef73291acf3981a0e5137e811957dac27fb5c",
+      "feature_sha256": "6c72b1e7d6e20072811d0e09f485f21a9b6bf81f24321365387fce4fbaa83954",
+      "target_sha256": "27b53a03a4f8ed0e69531d4db2eef73291acf3981a0e5137e811957dac27fb5c"
+    },
+    {
+      "path": "morphhdl/src/test/scala/nativeapplication/BalancedCombinedNativeOracle.scala",
+      "combined_sha256": "088af3993837968d9c85587d20f8d9396d5bf0b51d2b3b1c41dc64cb894a15f9",
+      "feature_sha256": "088af3993837968d9c85587d20f8d9396d5bf0b51d2b3b1c41dc64cb894a15f9",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/src/test/scala/nativeapplication/BalancedNestedResultNativeOracle.scala",
+      "combined_sha256": "709e6a1a6d778a5ae27ac10f0b6fbe295da38a1af3d5b7e9e7b0f20cce75448d",
+      "feature_sha256": "709e6a1a6d778a5ae27ac10f0b6fbe295da38a1af3d5b7e9e7b0f20cce75448d",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/src/test/scala/nativeapplication/CompositeCaptureNativeOracle.scala",
+      "combined_sha256": "bd5d1bb3a7f9903de0a617be5c7d0e35104d3376d5e6f336c02508c4eec7f595",
+      "feature_sha256": "bd5d1bb3a7f9903de0a617be5c7d0e35104d3376d5e6f336c02508c4eec7f595",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/src/test/scala/nativeapplication/DefaultSignedVerilogArtifactWriter.scala",
+      "combined_sha256": "24ce6b6491ede2da141c2fbf7f4f6ebfda827c141242adc9f3c33b024f3a6a29",
+      "feature_sha256": null,
+      "target_sha256": "24ce6b6491ede2da141c2fbf7f4f6ebfda827c141242adc9f3c33b024f3a6a29"
+    },
+    {
+      "path": "morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala",
+      "combined_sha256": "129ee5e297219202d75b42105e69d011cea62e82348432d29147d582a9d89638",
+      "feature_sha256": "8ce75c1afc48a9039f70ba2c0ad4b9411f60fe2edc72a7b45cadd87052a220e5",
+      "target_sha256": "129ee5e297219202d75b42105e69d011cea62e82348432d29147d582a9d89638"
+    },
+    {
+      "path": "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala",
+      "combined_sha256": "a238290761b5901f0ffff300da2bb2023a6df2908dc0269d8978c5a806656fa5",
+      "feature_sha256": "51eef633888a42e383c97dc48dbb533d95a9df8edeb1ff2ed65eb2727b082509",
+      "target_sha256": "a238290761b5901f0ffff300da2bb2023a6df2908dc0269d8978c5a806656fa5"
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/internals/ParameterizedVerilogStructuralLexicalTests.scala",
+      "combined_sha256": "a94930ab0ae55f3cd622a945b6f46a9f3ede4bae2d6ddb981724e1c6720fddac",
+      "feature_sha256": "a94930ab0ae55f3cd622a945b6f46a9f3ede4bae2d6ddb981724e1c6720fddac",
+      "target_sha256": "15d7398426924bb8f74b50208625fce5c0e9c3d036a8b03cc1e8e0ad8fd33864"
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCombinedArtifactWriter.scala",
+      "combined_sha256": "d65509e2e5cd11b164637ec74676a8d82d55a7342fce4d9d9de23563791e5c57",
+      "feature_sha256": "f32a5ae93b04c093e5338062fcdee8b324c6b2d660165b7f685df0bb93fb0d48",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCombinedHardware.scala",
+      "combined_sha256": "00144d25a914006686cffb2075df5b1b7b6de979e5d87e88b09c6befc617e6c9",
+      "feature_sha256": "00144d25a914006686cffb2075df5b1b7b6de979e5d87e88b09c6befc617e6c9",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCombinedTests.scala",
+      "combined_sha256": "044d989a14bac89663192876dff12cd7994d35404a73dd6a0c612fe68bf86aec",
+      "feature_sha256": "044d989a14bac89663192876dff12cd7994d35404a73dd6a0c612fe68bf86aec",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeCaptureArtifacts.scala",
+      "combined_sha256": "fa445e12ad08d4f237dfa807fe2cbcbe07623903751484567e1182e2c469ee5f",
+      "feature_sha256": "fa445e12ad08d4f237dfa807fe2cbcbe07623903751484567e1182e2c469ee5f",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeCaptureTests.scala",
+      "combined_sha256": "2c4b203f8d0ecab1d8d70065c8137fc7ca5c87f5d8d035ff4d814b9f62cf9c0a",
+      "feature_sha256": "2c4b203f8d0ecab1d8d70065c8137fc7ca5c87f5d8d035ff4d814b9f62cf9c0a",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala",
+      "combined_sha256": "ba9b9c6dcdafbba28dcafb088fbf8643e057b426e7054332158cce7d0e7ed4b9",
+      "feature_sha256": null,
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeStaticRedirectTests.scala",
+      "combined_sha256": "c9566b1478dbda6712a983759f45283c3ef030cbf12dfeaae8337f1f6f217cc6",
+      "feature_sha256": "c9566b1478dbda6712a983759f45283c3ef030cbf12dfeaae8337f1f6f217cc6",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningTests.scala",
+      "combined_sha256": "0ff998d9fa7e9c3ad9824bd719584b5857d8e42b02abfbe72c37eaa3309b5d8a",
+      "feature_sha256": "0ff998d9fa7e9c3ad9824bd719584b5857d8e42b02abfbe72c37eaa3309b5d8a",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionDeclarationFilterTests.scala",
+      "combined_sha256": "704714d123623aa81b85570f5a64b378083a1a832a9c67ffb1f1f95f1e7aa24c",
+      "feature_sha256": "704714d123623aa81b85570f5a64b378083a1a832a9c67ffb1f1f95f1e7aa24c",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionGeneratedChildCombinationTests.scala",
+      "combined_sha256": "117d130afb0b8d50e279fdd784af0a04872990b989b162d11f4e68d9078b6a83",
+      "feature_sha256": null,
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedResultArtifactWriter.scala",
+      "combined_sha256": "8a41108bcff7560d4ad36de2fe572851499cc37a65c9d1907b89c30a01aa48ee",
+      "feature_sha256": "8a41108bcff7560d4ad36de2fe572851499cc37a65c9d1907b89c30a01aa48ee",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedResultHardware.scala",
+      "combined_sha256": "a07cc3a809934cbd9dc667b3434de65770f9605fe24b4c519fed40f72fcf268d",
+      "feature_sha256": "a07cc3a809934cbd9dc667b3434de65770f9605fe24b4c519fed40f72fcf268d",
+      "target_sha256": null
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedResultTests.scala",
+      "combined_sha256": "e7fbd7bd1235afdc27bbc61389e032615fca27e574f55fdae249ff6edcc99204",
+      "feature_sha256": "e7fbd7bd1235afdc27bbc61389e032615fca27e574f55fdae249ff6edcc99204",
+      "target_sha256": null
+    }
+  ]
+}

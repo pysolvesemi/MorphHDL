@@ -160,11 +160,11 @@ object CapturedDomainWidthEquivalenceSmoke {
     val observed = out UInt (1 bits)
 
     var escaped: UInt = null
-    if (width == 1) {
+    ElabControl.selectSymbolic(width.elabEq(1), "CapturedDomainWidthEquivalenceTests.scala", 163) {
       val branchMarker = new TypedResizeChild
       branchMarker.incoming := source
       escaped = source.resize(width)
-    } else {
+    } {
       val branchMarker = new TypedResizeChild
       branchMarker.incoming := source
     }
@@ -488,8 +488,7 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
 
   test("a normalized typed resize rejects an internal source without width provenance") {
     for (cleanup <- Vector(false, true)) withTemporaryDirectory { directory =>
-      val config = MorphWireAssignmentPasses(
-        SpinalConfig(targetDirectory = directory.toString), enabled = cleanup)
+      val config = SpinalConfig(targetDirectory = directory.toString)
       val fileName = "typed_resize_unproven_internal_source.v"
       config.netlistFileName = fileName
       val width =

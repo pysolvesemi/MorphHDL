@@ -230,11 +230,16 @@ abstract class BitVector extends BaseType with Widthable {
   /** Cast the `BitVector` into a vector of `Bool`
     */
   def asBools: Vec[Bool] = signalCache(this, "asBools") {
-    val vec = ArrayBuffer[Bool]()
     val bitCount = getWidth
     if (bitCount == -1) SpinalError("Can't convert to bools a Bit that has unspecified width value")
-    for (i <- 0 until bitCount) vec += this (i)
-    Vec(vec)
+    val vec = ArrayBuffer[Bool]()
+    for (i <- 0 until bitCount) vec += this(i)
+    val result = Vec(vec)
+    if (bitCount > 0 &&
+        (VerilogAggregateOptions.current.preserveConstantVecs || VerilogAggregateOptions.current.preserveConstantLoops) &&
+        ParameterizedWidth.expressionOf(this).forall(_.parameters.isEmpty))
+      ParameterizedVec.recordNativeBitViews(result)
+    result
   }
 
   /** Return `this.lsb` */

@@ -23,6 +23,8 @@ class MorphHdlTypedElaborationControlComponentTests extends AnyFunSuite {
       |    def >(other: Int): ElabBool = new ElabBool
       |  }
       |  object ElabControl {
+      |    def generateSymbolic[T](p: ElabBool, file: String, line: Int)(body: => T): T = body
+      |    def localValue[T](value: T, name: String): T = value
       |    def selectSymbolic[T](condition: ElabBool, source: String, line: Int)(
       |        whenTrue: => T
       |    )(
@@ -47,6 +49,8 @@ class MorphHdlTypedElaborationControlComponentTests extends AnyFunSuite {
       |    def >(other: Int): ElabBool = new ElabBool
       |  }
       |  object ElabControl {
+      |    def generateSymbolic[T](p: ElabBool, file: String, line: Int)(body: => T): T = body
+      |    def localValue[T](value: T, name: String): T = value
       |    def selectSymbolic[T](condition: ElabBool, source: String, line: Int)(
       |        whenTrue: => T
       |    )(
@@ -59,6 +63,48 @@ class MorphHdlTypedElaborationControlComponentTests extends AnyFunSuite {
       |  }
       |}
       |""".stripMargin
+
+  test("typed Boolean matches lower exhaustive branches without changing ordinary matches") {
+    val source = neutralDefinitions + """
+      |package typedmatches {
+      |  import spinal.core._
+      |  object Selection {
+      |    def typed(value: ElabBool): Int = value match {
+      |      case true => 1
+      |      case false => 0
+      |    }
+      |    def reversed(value: ElabBool): Int = value match {
+      |      case false => 0
+      |      case true => 1
+      |    }
+      |    def fallback(value: ElabBool): Int = value match {
+      |      case false => 0
+      |      case _ => 1
+      |    }
+      |    def ordinary(value: Boolean): Int = value match {
+      |      case true => 1
+      |      case false => 0
+      |    }
+      |  }
+      |}
+      |""".stripMargin
+    val errors = compile(source, "TypedBooleanMatch.scala")
+    assert(errors.isEmpty, errors.mkString("\n"))
+  }
+
+  test("guarded and non-exhaustive typed Boolean matches fail at their source") {
+    for (cases <- Seq("case true => 1", "case true if true => 1; case false => 0")) {
+      val source = neutralDefinitions + s"""
+        |package typedmatchnegative {
+        |  object Selection {
+        |    def typed(value: spinal.core.ElabBool): Int = value match { $cases }
+        |  }
+        |}
+        |""".stripMargin
+      val errors = compile(source, "TypedBooleanMatchNegative.scala")
+      assert(errors.exists(_.message.contains("MORPHDL-TYPED-BOOLEAN-MATCH-UNSUPPORTED")), errors.mkString("\n"))
+    }
+  }
 
   test("canonical carrier imports, aliases and rooted names enable typed control") {
     val source = neutralDefinitions +
@@ -572,4 +618,33 @@ class MorphHdlTypedElaborationControlComponentTests extends AnyFunSuite {
     assert(diagnostic.get.line == expectedLine, diagnostic.get.toString)
     assert(diagnostic.get.source == "TypedRequirePosition.scala", diagnostic.get.toString)
   }
+  test("block helper infers an immutable parameter intermediate") {
+    val source = neutralDefinitions + """
+      package blockhelpers {
+        import spinal.core._
+        object Example {
+          def forwarded(value: ElabInt) = { val local = value; local }
+          def choose(value: ElabInt): Int = if (forwarded(value) > 0) 1 else 0
+        }
+      }
+    """
+    val errors = compile(source, "BlockHelper.scala")
+    assert(errors.isEmpty, errors.mkString("\n"))
+  }
+
+  test("immutable block helper nesting retains lexical shadowing") {
+    val source = neutralDefinitions + """
+      package blockhelpershadow {
+        import spinal.core._
+        object Example {
+          def forwarded(value: ElabInt) = { val local = { val inner = value; inner }; local }
+          def ordinary(value: ElabInt) = { val value = 2; value }
+          def choose(value: ElabInt): Int = if (forwarded(value) > 0) ordinary(value) else 0
+        }
+      }
+    """
+    val errors = compile(source, "BlockHelperShadow.scala")
+    assert(errors.isEmpty, errors.mkString("\n"))
+  }
+
 }

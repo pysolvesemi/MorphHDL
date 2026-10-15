@@ -50,7 +50,7 @@ trait DeclarationStatement extends LeafStatement with Nameable {
 }
 
 
-class ScopeStatement(var parentStatement: TreeStatement) {
+class ScopeStatement(var parentStatement: TreeStatement) extends RtlDocumentationAnchor {
   var component: Component = if(parentStatement != null) parentStatement.component else null
   var head, last: Statement = null
 
@@ -208,7 +208,7 @@ object Statement{
 }
 
 
-trait Statement extends ExpressionContainer with ContextUser with ScalaLocated with BaseNode{
+trait Statement extends ExpressionContainer with ContextUser with ScalaLocated with BaseNode with RtlDocumentationAnchor{
   var lastScopeStatement, nextScopeStatement: Statement = null
 
   def rootScopeStatement: ScopeStatement = if(parentScope.parentStatement != null) parentScope.parentStatement.rootScopeStatement else parentScope

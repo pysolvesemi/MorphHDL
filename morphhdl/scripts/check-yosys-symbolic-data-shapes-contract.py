@@ -69,9 +69,7 @@ def main():
     if {name for name, port in ports.items() if port.get("signed", 0)} != signed_ports:
         return fail("scalar signedness or unsigned packed/control port metadata changed")
     for leaf in ("bits", "uint", "sint"):
-        if "internal_payload_" + leaf in netnames:
-            return fail("removable Bundle input alias survived: " + leaf)
-        for prefix in ("payload_register_",):
+        for prefix in ("internal_payload_", "payload_register_"):
             name = prefix + leaf
             signal = netnames.get(name)
             if signal is None or bool(signal.get("signed", 0)) != (leaf == "sint"):
@@ -101,6 +99,8 @@ def main():
                 )
             if input_bits != bits(ports, "bundle_out_{}".format(leaf)):
                 return fail("{} does not directly drive its Bundle output".format(input_name))
+            if input_bits != bits(netnames, "internal_payload_{}".format(leaf)):
+                return fail("{} does not drive its native Bundle alias".format(input_name))
 
         direct_pairs = (
             ("bits_out", "bits_in"),

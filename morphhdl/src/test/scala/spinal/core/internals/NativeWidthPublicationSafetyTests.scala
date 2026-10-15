@@ -123,8 +123,14 @@ class NativeWidthPublicationSafetyTests extends AnyFunSuite {
       val highText = "assign high = source[4];"
       val resizeText = "assign resized = {3'd0, source};\nassign equalResize = source;"
       assert(ExternalParameterizedHighBit.rewrite(fixture, highText).contains("WIDTH"))
-      assert(ExternalParameterizedNativeResize.rewrite(fixture, resizeText)
-        .contains("1'b0"))
+      // Supplied Verilog text cannot stand in for an exact native emission.
+      expectLineage(ExternalParameterizedNativeResize.rewrite(fixture, resizeText))
+      val original = fixture.resized.head.asInstanceOf[DataAssignmentStatement]
+      val duplicate = DataAssignmentStatement(original.target, original.source)
+      original.parentScope.append(duplicate)
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, original))
+      duplicate.removeStatement()
+      assert(ExternalParameterizedNativeResize.provesAssignment(fixture, original))
       expectLineage(ExternalParameterizedHighBit.rewrite(fixture, highText + "\n" + highText))
       expectLineage(ExternalParameterizedHighBit.rewrite(fixture, "assign high = foreign[4];"))
       expectLineage(ExternalParameterizedNativeResize.rewrite(fixture,

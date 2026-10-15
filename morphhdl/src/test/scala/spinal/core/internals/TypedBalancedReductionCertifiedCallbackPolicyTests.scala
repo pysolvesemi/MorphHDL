@@ -20,6 +20,7 @@ class TypedBalancedReductionCertifiedCallbackPolicyTests extends AnyFunSuite {
 
   test("multi-node native expressions and order-sensitive subtraction are inspected without execution") {
     Vector[AnyRef](
+      (a: UInt, b: UInt) => RtlDocumentation.attach(a + b, "sum", "explicit", "", false),
       (a: UInt, b: UInt) => (a + b) ^ a,
       (a: UInt, b: UInt) => a - b,
       (a: UInt, b: UInt) => Mux(a > b, a - b, a + b),
@@ -49,6 +50,7 @@ class TypedBalancedReductionCertifiedCallbackPolicyTests extends AnyFunSuite {
   }
 
   test("external writes reject before effects even when hidden behind helpers or extraction aliases") {
+    reject((a: UInt, b: UInt) => RtlDocumentation.attach(a, "input", "explicit", "", false))
     reject((a: UInt, b: UInt) => { a := b; a })
     reject((a: UInt, b: UInt) => CertifiedReductionPureHelpers.write(a, b))
     reject((a: UInt, b: UInt) => { a.msb := b.msb; a })
@@ -167,6 +169,8 @@ class TypedBalancedReductionCertifiedCallbackPolicyTests extends AnyFunSuite {
       val inspect = {
         val bias = input
         val width = ElabInt.literal(8)
+        reject((a: UInt, b: UInt) => RtlDocumentation.attach(bias, "capture", "explicit", "", false))
+        assert(!bias.getTags().exists(_.isInstanceOf[RtlDocTag]))
         reject((a: UInt, b: UInt) => { bias := a; b })
         reject((a: UInt, b: UInt) => if (width.maximum == 8) a else b)
         output := input

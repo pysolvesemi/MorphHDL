@@ -1,0 +1,351 @@
+{
+  "base": "db54d01e5b21c7664f7a0de3795f061d77a3d259",
+  "schema_version": 1,
+  "suites": {
+    "morphhdl.NativeConditionalProcessTests": {
+      "added_cases": [
+        "conditional packed loops retain priority and four-state behavior, parameterized=false",
+        "conditional packed loops retain priority and four-state behavior, parameterized=true",
+        "ordinary Scala constant loops retain the existing unrolled native baseline",
+        "unsupported conditional bodies fail closed, mode=1",
+        "unsupported conditional bodies fail closed, mode=2",
+        "unsupported conditional bodies fail closed, mode=3",
+        "unsupported conditional bodies fail closed, mode=4",
+        "unsupported conditional bodies fail closed, mode=5"
+      ],
+      "cases": [
+        "conditional packed loops retain priority and four-state behavior, parameterized=false",
+        "conditional packed loops retain priority and four-state behavior, parameterized=true",
+        "ordinary Scala constant loops retain the existing unrolled native baseline",
+        "unsupported conditional bodies fail closed, mode=1",
+        "unsupported conditional bodies fail closed, mode=2",
+        "unsupported conditional bodies fail closed, mode=3",
+        "unsupported conditional bodies fail closed, mode=4",
+        "unsupported conditional bodies fail closed, mode=5"
+      ],
+      "inherited_tests": 0,
+      "project": "morphhdl",
+      "source": "morphhdl/src/test/scala/morphhdl/NativeConditionalProcessTests.scala",
+      "source_sha256": "9f18b578548b6473f823e2de08c9fa8f60fb527607c6221afb40abf2970728a8"
+    },
+    "morphhdl.NativeNamedFactoryTests": {
+      "added_cases": [
+        "named factory mappings reject invalid alignment, overlap and duplicate reads, lite=false mode=0",
+        "named factory mappings reject invalid alignment, overlap and duplicate reads, lite=false mode=1",
+        "named factory mappings reject invalid alignment, overlap and duplicate reads, lite=false mode=2",
+        "named factory mappings reject invalid alignment, overlap and duplicate reads, lite=false mode=3",
+        "named factory mappings reject invalid alignment, overlap and duplicate reads, lite=true mode=0",
+        "named factory mappings reject invalid alignment, overlap and duplicate reads, lite=true mode=1",
+        "named factory mappings reject invalid alignment, overlap and duplicate reads, lite=true mode=2",
+        "named factory mappings reject invalid alignment, overlap and duplicate reads, lite=true mode=3",
+        "real slave factory named case maps preserve the literal implementation, lite=false symbolic=false",
+        "real slave factory named case maps preserve the literal implementation, lite=false symbolic=true",
+        "real slave factory named case maps preserve the literal implementation, lite=true symbolic=false",
+        "real slave factory named case maps preserve the literal implementation, lite=true symbolic=true"
+      ],
+      "cases": [
+        "named factory mappings reject invalid alignment, overlap and duplicate reads, lite=false mode=0",
+        "named factory mappings reject invalid alignment, overlap and duplicate reads, lite=false mode=1",
+        "named factory mappings reject invalid alignment, overlap and duplicate reads, lite=false mode=2",
+        "named factory mappings reject invalid alignment, overlap and duplicate reads, lite=false mode=3",
+        "named factory mappings reject invalid alignment, overlap and duplicate reads, lite=true mode=0",
+        "named factory mappings reject invalid alignment, overlap and duplicate reads, lite=true mode=1",
+        "named factory mappings reject invalid alignment, overlap and duplicate reads, lite=true mode=2",
+        "named factory mappings reject invalid alignment, overlap and duplicate reads, lite=true mode=3",
+        "real slave factory named case maps preserve the literal implementation, lite=false symbolic=false",
+        "real slave factory named case maps preserve the literal implementation, lite=false symbolic=true",
+        "real slave factory named case maps preserve the literal implementation, lite=true symbolic=false",
+        "real slave factory named case maps preserve the literal implementation, lite=true symbolic=true"
+      ],
+      "inherited_tests": 0,
+      "project": "morphhdl",
+      "source": "morphhdl/src/test/scala/morphhdl/NativeNamedFactoryTests.scala",
+      "source_sha256": "f41051da45f3f6903152905ecc0ac922c04897f4444be636a16d0da358001759"
+    },
+    "morphhdl.NativeTypedLocalConstantTests": {
+      "added_cases": [
+        "invalid named constants fail before publication, mode=0",
+        "invalid named constants fail before publication, mode=1",
+        "invalid named constants fail before publication, mode=2",
+        "invalid named constants fail before publication, mode=3",
+        "invalid named constants fail before publication, mode=4",
+        "invalid named constants fail before publication, mode=5",
+        "invalid named constants fail before publication, mode=6",
+        "invalid named constants fail before publication, mode=7",
+        "invalid named constants fail before publication, mode=8",
+        "invalid named constants fail before publication, mode=9",
+        "typed locals remain packed declarations and native case labels, symbolic=false",
+        "typed locals remain packed declarations and native case labels, symbolic=true"
+      ],
+      "cases": [
+        "invalid named constants fail before publication, mode=0",
+        "invalid named constants fail before publication, mode=1",
+        "invalid named constants fail before publication, mode=2",
+        "invalid named constants fail before publication, mode=3",
+        "invalid named constants fail before publication, mode=4",
+        "invalid named constants fail before publication, mode=5",
+        "invalid named constants fail before publication, mode=6",
+        "invalid named constants fail before publication, mode=7",
+        "invalid named constants fail before publication, mode=8",
+        "invalid named constants fail before publication, mode=9",
+        "typed locals remain packed declarations and native case labels, symbolic=false",
+        "typed locals remain packed declarations and native case labels, symbolic=true"
+      ],
+      "inherited_tests": 0,
+      "project": "morphhdl",
+      "source": "morphhdl/src/test/scala/morphhdl/NativeTypedLocalConstantTests.scala",
+      "source_sha256": "f2d69db81ee169b9fd4c5bdaf3a20ed5714fc82271bf16c433021b0f6a13b82f"
+    },
+    "morphhdl.compiler.MorphHdlTypedElaborationControlComponentTests": {
+      "added_cases": [
+        "guarded and non-exhaustive typed Boolean matches fail at their source",
+        "typed Boolean matches lower exhaustive branches without changing ordinary matches"
+      ],
+      "cases": [
+        "arbitrary wildcards shadow unrooted carrier and Predef qualifiers",
+        "canonical carrier imports, aliases and rooted names enable typed control",
+        "guarded and non-exhaustive typed Boolean matches fail at their source",
+        "local and explicitly imported fake carrier names remain ordinary Scala",
+        "non-Predef wildcard imports do not authorize typed require rewriting",
+        "noncanonical wildcard carrier imports remain ordinary Scala",
+        "only unshadowed Predef require and assert calls are rewritten",
+        "resolved external package-object members remain ordinary",
+        "resolved external wildcards do not shadow canonical typed control",
+        "root package prefixes do not make external wildcards source-owned",
+        "same-run relative qualifiers shadow root external providers",
+        "simple carriers are canonical inside package spinal.core",
+        "spinal.core and custom assert bindings are not rewritten",
+        "typed Boolean matches lower exhaustive branches without changing ordinary matches",
+        "typed require arity diagnostics preserve the original source position"
+      ],
+      "inherited_tests": 13,
+      "project": "morphplugin",
+      "source": "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponentTests.scala",
+      "source_sha256": "cfcba4baae6445095236207f23562d2ade502f18e69abfac7f146071aa305bee"
+    },
+    "spinal.core.NativeCdcFormalTests": {
+      "added_cases": [
+        "real CDC children preserve independent WIDTH/STAGES, reset, attributes and Gray logic, split=false standalone=false",
+        "real CDC children preserve independent WIDTH/STAGES, reset, attributes and Gray logic, split=false standalone=true",
+        "real CDC children preserve independent WIDTH/STAGES, reset, attributes and Gray logic, split=true standalone=false",
+        "real CDC children preserve independent WIDTH/STAGES, reset, attributes and Gray logic, split=true standalone=true"
+      ],
+      "cases": [
+        "real CDC children preserve independent WIDTH/STAGES, reset, attributes and Gray logic, split=false standalone=false",
+        "real CDC children preserve independent WIDTH/STAGES, reset, attributes and Gray logic, split=false standalone=true",
+        "real CDC children preserve independent WIDTH/STAGES, reset, attributes and Gray logic, split=true standalone=false",
+        "real CDC children preserve independent WIDTH/STAGES, reset, attributes and Gray logic, split=true standalone=true"
+      ],
+      "inherited_tests": 0,
+      "project": "morphhdl",
+      "source": "morphhdl/src/test/scala/spinal/core/NativeCdcFormalTests.scala",
+      "source_sha256": "29f2d47ef2a6ad4a50a3ba213c3d1c269cb1cdf3fe6e68401bf1bf278a1967e4"
+    },
+    "spinal.core.NativeDerivedLocalParameterTests": {
+      "added_cases": [
+        "RecordLink uses a native localparam with same-file overrides, split=false, passes=false",
+        "RecordLink uses a native localparam with same-file overrides, split=false, passes=true",
+        "RecordLink uses a native localparam with same-file overrides, split=true, passes=false",
+        "RecordLink uses a native localparam with same-file overrides, split=true, passes=true",
+        "a cyclic calculation graph is rejected before publication",
+        "a derived value used only by an external generic retains its parent local",
+        "alternate declaration defaults do not change the retained calculation",
+        "child actuals reference parent locals and canonical children keep their own formals",
+        "explicit signal collisions are preserved and unused calculations add no parameters",
+        "named calculations preserve dependency order and asymmetric roots",
+        "names cannot transfer to public expression copies or another component",
+        "negative intermediate local parameters preserve signed integer arithmetic",
+        "ordinary concrete SpinalVerilog remains parameter-free",
+        "restricted branch calculations stay within their generate owner",
+        "same-file asymmetric overrides detect frozen defaults, operator changes and root swaps",
+        "typed helper dependencies remain legal Verilog-2001 constant functions"
+      ],
+      "cases": [
+        "RecordLink uses a native localparam with same-file overrides, split=false, passes=false",
+        "RecordLink uses a native localparam with same-file overrides, split=false, passes=true",
+        "RecordLink uses a native localparam with same-file overrides, split=true, passes=false",
+        "RecordLink uses a native localparam with same-file overrides, split=true, passes=true",
+        "a cyclic calculation graph is rejected before publication",
+        "a derived value used only by an external generic retains its parent local",
+        "alternate declaration defaults do not change the retained calculation",
+        "child actuals reference parent locals and canonical children keep their own formals",
+        "explicit signal collisions are preserved and unused calculations add no parameters",
+        "named calculations preserve dependency order and asymmetric roots",
+        "names cannot transfer to public expression copies or another component",
+        "negative intermediate local parameters preserve signed integer arithmetic",
+        "ordinary concrete SpinalVerilog remains parameter-free",
+        "restricted branch calculations stay within their generate owner",
+        "same-file asymmetric overrides detect frozen defaults, operator changes and root swaps",
+        "typed helper dependencies remain legal Verilog-2001 constant functions"
+      ],
+      "inherited_tests": 0,
+      "project": "morphhdl",
+      "source": "morphhdl/src/test/scala/spinal/core/NativeDerivedLocalParameterTests.scala",
+      "source_sha256": "e86b6332f88ba3909557e113164e113fc364a229f87502e2a12cd944707f75e0"
+    },
+    "spinal.core.NativeExplicitFormalTests": {
+      "added_cases": [
+        "explicit native child formals preserve derived actuals and scalar zero, kind=0 split=false",
+        "explicit native child formals preserve derived actuals and scalar zero, kind=0 split=true",
+        "explicit native child formals preserve derived actuals and scalar zero, kind=1 split=false",
+        "explicit native child formals preserve derived actuals and scalar zero, kind=1 split=true",
+        "explicit native child formals preserve derived actuals and scalar zero, kind=2 split=false",
+        "explicit native child formals preserve derived actuals and scalar zero, kind=2 split=true",
+        "explicit native child formals preserve derived actuals and scalar zero, kind=3 split=false",
+        "explicit native child formals preserve derived actuals and scalar zero, kind=3 split=true"
+      ],
+      "cases": [
+        "explicit native child formals preserve derived actuals and scalar zero, kind=0 split=false",
+        "explicit native child formals preserve derived actuals and scalar zero, kind=0 split=true",
+        "explicit native child formals preserve derived actuals and scalar zero, kind=1 split=false",
+        "explicit native child formals preserve derived actuals and scalar zero, kind=1 split=true",
+        "explicit native child formals preserve derived actuals and scalar zero, kind=2 split=false",
+        "explicit native child formals preserve derived actuals and scalar zero, kind=2 split=true",
+        "explicit native child formals preserve derived actuals and scalar zero, kind=3 split=false",
+        "explicit native child formals preserve derived actuals and scalar zero, kind=3 split=true"
+      ],
+      "inherited_tests": 0,
+      "project": "morphhdl",
+      "source": "morphhdl/src/test/scala/spinal/core/NativeExplicitFormalTests.scala",
+      "source_sha256": "7de059832e5603a768aa700250edc7c2f5dde85d9ec330813aa0df5f58166246"
+    },
+    "spinal.core.NativeFormalOwnershipTests": {
+      "added_cases": [
+        "equal-default sibling formals retain independent actual identities",
+        "native formal rejects invalid declarations without guessing authority, mode=0",
+        "native formal rejects invalid declarations without guessing authority, mode=1",
+        "native formal rejects invalid declarations without guessing authority, mode=2",
+        "standalone scalar formals retain native and HdlInt literal declarations, zero=false legacy=false",
+        "standalone scalar formals retain native and HdlInt literal declarations, zero=false legacy=true",
+        "standalone scalar formals retain native and HdlInt literal declarations, zero=true legacy=false",
+        "standalone scalar formals retain native and HdlInt literal declarations, zero=true legacy=true"
+      ],
+      "cases": [
+        "equal-default sibling formals retain independent actual identities",
+        "native formal rejects invalid declarations without guessing authority, mode=0",
+        "native formal rejects invalid declarations without guessing authority, mode=1",
+        "native formal rejects invalid declarations without guessing authority, mode=2",
+        "standalone scalar formals retain native and HdlInt literal declarations, zero=false legacy=false",
+        "standalone scalar formals retain native and HdlInt literal declarations, zero=false legacy=true",
+        "standalone scalar formals retain native and HdlInt literal declarations, zero=true legacy=false",
+        "standalone scalar formals retain native and HdlInt literal declarations, zero=true legacy=true"
+      ],
+      "inherited_tests": 0,
+      "project": "morphhdl",
+      "source": "morphhdl/src/test/scala/spinal/core/NativeFormalOwnershipTests.scala",
+      "source_sha256": "eb49d1a9531e1d51ff83cd0d009871ec85a079d624b3a34db5a04c0aa807b25b"
+    },
+    "spinal.core.NativeLegalityPresentationTests": {
+      "added_cases": [
+        "multiple obligations retain order and avoid user names in sibling scopes",
+        "native legality presentation and simulation with passes=false",
+        "native legality presentation and simulation with passes=true",
+        "native messages retain empty text and literal escaping"
+      ],
+      "cases": [
+        "multiple obligations retain order and avoid user names in sibling scopes",
+        "native legality presentation and simulation with passes=false",
+        "native legality presentation and simulation with passes=true",
+        "native messages retain empty text and literal escaping"
+      ],
+      "inherited_tests": 0,
+      "project": "morphhdl",
+      "source": "morphhdl/src/test/scala/spinal/core/NativeLegalityPresentationTests.scala",
+      "source_sha256": "76f55c46d3a84b86ac5d7a0a2247f2c2287df279dac27dcd807a8600ba6db34c"
+    },
+    "spinal.core.NativeResizeSimplificationTests": {
+      "added_cases": [
+        "native resize proves width relations while retaining nested type boundaries, split=false derived=false",
+        "native resize proves width relations while retaining nested type boundaries, split=false derived=true",
+        "native resize proves width relations while retaining nested type boundaries, split=true derived=false",
+        "native resize proves width relations while retaining nested type boundaries, split=true derived=true"
+      ],
+      "cases": [
+        "native resize proves width relations while retaining nested type boundaries, split=false derived=false",
+        "native resize proves width relations while retaining nested type boundaries, split=false derived=true",
+        "native resize proves width relations while retaining nested type boundaries, split=true derived=false",
+        "native resize proves width relations while retaining nested type boundaries, split=true derived=true"
+      ],
+      "inherited_tests": 0,
+      "project": "morphhdl",
+      "source": "morphhdl/src/test/scala/spinal/core/NativeResizeSimplificationTests.scala",
+      "source_sha256": "52d649890640c6cc1177330948d304d238d791e1db3cc891274dc7cd163ef651"
+    },
+    "spinal.core.NativeScopedLegalityTests": {
+      "added_cases": [
+        "OptionalPipeline retains scoped legality and latency, split=false, default=0",
+        "OptionalPipeline retains scoped legality and latency, split=false, default=1",
+        "OptionalPipeline retains scoped legality and latency, split=true, default=0",
+        "OptionalPipeline retains scoped legality and latency, split=true, default=1",
+        "a rejected second branch rolls back the first obligation and exact hardware before retry",
+        "bounded relational capture retains independent child actuals and activated legality, minimum=1",
+        "bounded relational capture retains independent child actuals and activated legality, minimum=2",
+        "canonical children keep distinct actuals and instance activation, split=false",
+        "canonical children keep distinct actuals and instance activation, split=true",
+        "finite generate ownership keeps zero iterations inactive and retains the loop binding",
+        "joint structural evidence rejects copied predicates and does not mint integer authority",
+        "live activation and latency mutants are detected by semantic oracles",
+        "nested else-if owners retain full priority and defer a false requirement only under activation",
+        "ordinary typed Boolean match preserves scoped requirements",
+        "safe invalid defaults are retained and universally true requirements disappear",
+        "standalone scoped fixture generation is deterministic"
+      ],
+      "cases": [
+        "OptionalPipeline retains scoped legality and latency, split=false, default=0",
+        "OptionalPipeline retains scoped legality and latency, split=false, default=1",
+        "OptionalPipeline retains scoped legality and latency, split=true, default=0",
+        "OptionalPipeline retains scoped legality and latency, split=true, default=1",
+        "a rejected second branch rolls back the first obligation and exact hardware before retry",
+        "bounded relational capture retains independent child actuals and activated legality, minimum=1",
+        "bounded relational capture retains independent child actuals and activated legality, minimum=2",
+        "canonical children keep distinct actuals and instance activation, split=false",
+        "canonical children keep distinct actuals and instance activation, split=true",
+        "finite generate ownership keeps zero iterations inactive and retains the loop binding",
+        "joint structural evidence rejects copied predicates and does not mint integer authority",
+        "live activation and latency mutants are detected by semantic oracles",
+        "nested else-if owners retain full priority and defer a false requirement only under activation",
+        "ordinary typed Boolean match preserves scoped requirements",
+        "safe invalid defaults are retained and universally true requirements disappear",
+        "standalone scoped fixture generation is deterministic"
+      ],
+      "inherited_tests": 0,
+      "project": "morphhdl",
+      "source": "morphhdl/src/test/scala/spinal/core/NativeScopedLegalityTests.scala",
+      "source_sha256": "eab5dba94a5e029747106f0d2b84f51d0cf90cae26db1e3fef0834ecacc9f925"
+    },
+    "spinal.core.NativeSymbolicHardwareValueTests": {
+      "added_cases": [
+        "unchanged output-only value example supports all bus-byte overrides",
+        "unsigned symbolic values retain exact packed type through nested operations, split=false",
+        "unsigned symbolic values retain exact packed type through nested operations, split=true",
+        "unsigned value construction rejects insufficient widths and forged evidence",
+        "zero and maximum values preserve exact explicit widths and concrete literal behavior"
+      ],
+      "cases": [
+        "unchanged output-only value example supports all bus-byte overrides",
+        "unsigned symbolic values retain exact packed type through nested operations, split=false",
+        "unsigned symbolic values retain exact packed type through nested operations, split=true",
+        "unsigned value construction rejects insufficient widths and forged evidence",
+        "zero and maximum values preserve exact explicit widths and concrete literal behavior"
+      ],
+      "inherited_tests": 0,
+      "project": "morphhdl",
+      "source": "morphhdl/src/test/scala/spinal/core/NativeSymbolicHardwareValueTests.scala",
+      "source_sha256": "bda1abacceef1cf9e9a8a8becb41c8a15aec4107070bdcc162177394c98447d9"
+    },
+    "spinal.core.internals.ParameterizedVerilogVecDeclarationTests": {
+      "added_cases": [
+        "declaration prefix scan recognizes native nets and attributed signed ports",
+        "expression text and malformed attributes cannot become declaration prefixes"
+      ],
+      "cases": [
+        "declaration prefix scan recognizes native nets and attributed signed ports",
+        "expression text and malformed attributes cannot become declaration prefixes"
+      ],
+      "inherited_tests": 0,
+      "project": "morphhdl",
+      "source": "morphhdl/src/test/scala/spinal/core/internals/ParameterizedVerilogVecDeclarationTests.scala",
+      "source_sha256": "a0375655798edae43cd427f746dea9a7b4c019142a842254075b93d51496a2f5"
+    }
+  }
+}

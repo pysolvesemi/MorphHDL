@@ -115,7 +115,7 @@ private object VecEmittedIdentityAdversarialFixture {
     val values = in(Vec(Bits(8 bits), depth)).setName("values")
     val values_0 = in(Vec(Bits(8 bits), depth)).setName("values_0")
     val fallbackBlocker =
-      in(Bool()).setName("values_0_morphhdl_vec")
+      in(Bool()).setName("values_0_vec")
     val observed = out(Bool()).setName("observed")
 
     observed := values(0).xorR ^ values_0(0).xorR ^ fallbackBlocker
@@ -313,11 +313,11 @@ class VecEmittedIdentityAdversarialTests extends AnyFunSuite {
 
       assert(inputDeclaration("values").findFirstIn(verilog).nonEmpty, verilog)
       assert(
-        inputDeclaration("values_0_morphhdl_vec").findFirstIn(verilog).nonEmpty,
+        inputDeclaration("values_0_vec").findFirstIn(verilog).nonEmpty,
         verilog
       )
       assert(
-        inputDeclaration("values_0_morphhdl_vec_2").findFirstIn(verilog).nonEmpty,
+        inputDeclaration("values_0_vec_2").findFirstIn(verilog).nonEmpty,
         verilog
       )
       assert(

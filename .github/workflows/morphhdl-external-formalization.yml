@@ -16,6 +16,9 @@ concurrency:
   group: morphhdl-external-formalization-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   source-boundary:
     name: Native Int formalization source boundary
@@ -23,6 +26,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Prove native formalization retirement
         run: |
           python3 morphhdl/scripts/check-production-retirement.py --self-test
@@ -42,8 +47,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
+      - name: Require RTL validation tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          for tool in iverilog vvp verilator yosys; do command -v "$tool"; done
       - name: Exercise typed formal binding and hierarchy
         run: >-
           sbt -batch "++${{ matrix.scala_version }}"
-          "morph/testOnly morphhdl.FormalParameterIdentityTests morphhdl.HierarchyParameterBindingTests"
+          "morph/testOnly morphhdl.FormalParameterIdentityTests morphhdl.ScopedProcessTests morphhdl.ScopedProcessExtensionTests morphhdl.PublicationDecisionTests spinal.core.ProcessExpressionLineageTests spinal.core.internals.CanonicalSchemaDiagnosticTests morphhdl.HierarchyParameterBindingTests morphhdl.ScalarFormalReuseTests morphhdl.TransitiveScalarFormalTests morphhdl.ClockedFormalForwardingTests morphhdl.NativeBootInitializerTests morphhdl.NativeHelperNamingTests morphhdl.GrayStageSharingTests spinal.core.NativeCdcFormalTests morphhdl.LibraryDefinitionReuseTests morphhdl.NativeValueSizingTests morphhdl.NativeConstantShiftTests morphhdl.NativeHierarchyWidthBoundaryTests morphhdl.NativeContextualUIntLiteralTests morphhdl.NativeTypedLocalConstantTests morphhdl.NativeNamedFactoryTests spinal.core.NativeDerivedLocalParameterTests"
+      - name: Retain formal reuse and sizing evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-formal-reuse-${{ matrix.scala_version }}
+          path: morphhdl/target/test-reports
+          if-no-files-found: error
+          retention-days: 30

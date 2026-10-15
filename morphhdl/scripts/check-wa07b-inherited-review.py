@@ -133,6 +133,31 @@ def restore_bytes(entry: dict, baseline: bytes, source: bytes) -> bytes:
     return restored
 
 
+def joined_adapter_source(root: Path, path: str, source: bytes) -> bytes:
+    """Unwrap only an exact, separately reviewed 59i checker successor.
+
+    The frozen WA-07b adapter digests stay authoritative. Already restored
+    adapter bytes need no second unwrap; every other byte sequence must reverse
+    through the full 59i span certificate before the original WA-07b checks.
+    This function cannot authorize pass production or test sources.
+    """
+    entry = next((entry for entry in load_contract(root)["checker_adapters"]
+                  if entry["path"] == path), None)
+    if entry is None or digest(source) == entry["after_sha256"]:
+        return source
+    checker = root / "morphhdl/scripts/check-increment-59i-source-review.py"
+    contract = root / "morphhdl/contracts/increment-59i-source-review.json"
+    if not (checker.exists() or checker.is_symlink() or contract.exists() or contract.is_symlink()):
+        return source  # The unchanged WA-07b digest check must reject it.
+    require(checker.is_file() and not checker.is_symlink() and
+            contract.is_file() and not contract.is_symlink(), "missing regular 59i successor review")
+    spec = importlib.util.spec_from_file_location("wa07b_join_source_review", checker)
+    require(spec is not None and spec.loader is not None, "cannot load 59i successor review")
+    join = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(join)
+    return join.restore_source(root, path, source.decode()).encode()
+
+
 def restore_rollout(root: Path, path: str, source: str) -> str:
     """Reverse only the separately pinned outer publication layer, if present.
 
@@ -154,10 +179,15 @@ def restore_rollout(root: Path, path: str, source: str) -> str:
 def restore_adapter(root: Path, path: str, source: str) -> str:
     if path not in ADAPTER_PATHS:
         return source
-    source = restore_rollout(root, path, source)
     value = load_contract(root)
     entry = next(x for x in value["checker_adapters"] if x["path"] == path)
-    return restore_bytes(entry, frozen_source(root.resolve(), BASE, path), source.encode()).decode()
+    join_inputs = (root / "morphhdl/scripts/check-increment-59i-source-review.py",
+                   root / "morphhdl/contracts/increment-59i-source-review.json")
+    if any(path.exists() or path.is_symlink() for path in join_inputs):
+        reviewed = joined_adapter_source(root, path, source.encode())
+    else:
+        reviewed = restore_rollout(root, path, source).encode()
+    return restore_bytes(entry, frozen_source(root.resolve(), BASE, path), reviewed).decode()
 
 
 def tree_entries(root: Path, revision: str, paths: tuple[str, ...]) -> dict[str, tuple[str, str]]:
@@ -254,8 +284,8 @@ def verify(root: Path) -> bool:
     for entry in value["checker_adapters"]:
         path = entry["path"]
         current = regular(root, path)
-        restored = restore_rollout(root, path, current.decode()).encode()
-        restore_bytes(entry, frozen_source(root.resolve(), BASE, path), restored)
+        restore_bytes(entry, frozen_source(root.resolve(), BASE, path),
+                      joined_adapter_source(root, path, current))
     # Reject a hidden index change even when the visible bytes were restored.
     dirty = git(root, "diff", "--cached", "--name-only", "HEAD", "--", *ADAPTER_PATHS, CONTRACT)
     require(not dirty.strip(), "staged compatibility adapter or manifest")
@@ -270,7 +300,14 @@ def inherited_inventory(root: Path, paths: set[str], qualification_base: str) ->
         return paths
     overlay = wa08_overlay(root)
     if overlay is not None:
-        paths = overlay.inherited_inventory(root, paths, qualification_base)
+        integration = getattr(overlay, "integration_review", lambda _: None)(root)
+        if integration is not None:
+            # This inherited chain owns the feature parent's WA-07b layer.
+            # Keep feature deltas already projected by 59i; target-only WA-08
+            # changes are authenticated by the outer seal before removal.
+            paths = integration.feature_inventory(root, paths, qualification_base)
+        else:
+            paths = overlay.inherited_inventory(root, paths, qualification_base)
     delta = set(load_contract(root)["production_delta"])
     previous = set(git(root, "diff", "--no-renames", "--name-only", qualification_base, BASE,
                        "--", *sorted(delta)).decode().splitlines())
@@ -280,6 +317,15 @@ def inherited_inventory(root: Path, paths: set[str], qualification_base: str) ->
 def restore_pass_source(root: Path, path: str, source: bytes) -> bytes:
     value = load_contract(root)
     if path not in value["production_delta"]:
+        return source
+    # The exact joined feature view can already expose the immutable WA-07a
+    # preimage. Idempotence accepts only that complete frozen blob (or a path
+    # proven absent there), before applying a newer WA-08 byte projection.
+    if path in value["baseline_sources"] and digest(source) == value["baseline_sources"][path]:
+        require(source == frozen_source(root.resolve(), BASE, path), "old pass source changed: " + path)
+        return source
+    if path not in value["baseline_sources"] and source == b"":
+        require(not git(root, "ls-tree", BASE, "--", path), "new B source exists in the old baseline")
         return source
     # Non-pass sources may already be restored by the independently verified
     # publication layer. Only reverse the WA-08 overlay on this layer's owned

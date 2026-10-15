@@ -158,7 +158,7 @@ class Bits extends BitVector with DataPrimitives[Bits] with BaseTypePrimitives[B
   override def asBits: Bits = {
     val ret = new Bits()
     ret := this
-    ret
+    NativeWidthProvenance.retainResult(ret, this)
   }
 
   /**
@@ -241,6 +241,9 @@ class Bits extends BitVector with DataPrimitives[Bits] with BaseTypePrimitives[B
       this(this.getWidth - 1 downto math.abs(lengthDifference))
     }
   }
+
+  def apply(offset: ElabScopedIndex, bitCount: BitCount): Bits = offset.selectPacked(this, bitCount)
+  def apply(offset: ElabScopedWordOffset, bitCount: ParameterizedBitCount): Bits = offset.selectPacked(this, bitCount)
 
   override def apply(bitId: Int): Bool  = newExtract(bitId, new BitsBitAccessFixed)
   override def apply(bitId: UInt): Bool = newExtract(bitId, new BitsBitAccessFloating)

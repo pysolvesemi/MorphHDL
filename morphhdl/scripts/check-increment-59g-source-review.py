@@ -162,6 +162,23 @@ def baseline_source(root: Path, path: str) -> bytes:
     return subprocess.check_output(["git", "show", BASE + ":" + path], cwd=root)
 
 
+def join_source_review(root: Path):
+    """Verify the exact 59i join before exposing the frozen register view."""
+    checker = root / "morphhdl/scripts/check-increment-59i-source-review.py"
+    contract = root / "morphhdl/contracts/increment-59i-source-review.json"
+    if not (checker.exists() or checker.is_symlink() or contract.exists() or contract.is_symlink()):
+        return None
+    require(checker.is_file() and not checker.is_symlink() and
+            contract.is_file() and not contract.is_symlink(),
+            "59i source-review checker or contract is missing")
+    spec = importlib.util.spec_from_file_location("combined_59i_review", checker)
+    require(spec is not None and spec.loader is not None, "cannot load exact 59i source review")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+
 def boolean_ternary_review(root: Path):
     """An independently sealed pass successor; absence retains historical audits."""
     path = root / "morphhdl/scripts/check-wa07b-inherited-review.py"
@@ -193,7 +210,9 @@ def restore_rollout(root: Path, path: str, source: str) -> str:
 
 
 def restore_source(root: Path, path: str, source: str) -> str:
-    source = restore_rollout(root, path, source)
+    join = join_source_review(root)
+    if join is not None:
+        source = join.restore_source(root, path, source)
     ternary = boolean_ternary_review(root)
     if ternary is not None:
         source = ternary.restore_adapter(root, path, source)
@@ -205,6 +224,9 @@ def restore_source(root: Path, path: str, source: str) -> str:
 
 def verify_spans(root: Path) -> None:
     subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
+    join = join_source_review(root)
+    if join is not None:
+        join.verify_spans(root)
     entries = load_contract(root)
     for relative in (CONTRACT, *PATHS):
         source = root / relative
@@ -215,7 +237,9 @@ def verify_spans(root: Path) -> None:
         require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == relative,
                 "59g reviewed source is not uniquely tracked: " + relative)
         if relative in entries:
-            current = restore_rollout(root, relative, source.read_text())
+            current = source.read_text()
+            if join is not None:
+                current = join.restore_source(root, relative, current)
             ternary = boolean_ternary_review(root)
             if ternary is not None:
                 current = ternary.restore_adapter(root, relative, current)
@@ -227,6 +251,11 @@ def verify(root: Path) -> None:
     if rollout is not None:
         rollout.source_scope(root)
     paths = production_changes(root, BASE)
+    join = join_source_review(root)
+    if join is not None:
+        # Verify the complete joined source before removing only its delta.
+        # The independent ternary audit below still checks its full inventory.
+        paths = join.inherited_inventory(root, paths, BASE)
     ternary = boolean_ternary_review(root)
     if ternary is not None:
         paths = ternary.inherited_inventory(root, paths, BASE)

@@ -51,7 +51,7 @@ private[spinal] object TypedBalancedReductionValueEvidence {
     private val clock = value.clockDomain
     private val fixed = value match { case bits: BitVector => bits.fixedWidth; case _ => -1 }
 
-    def requireFreshness(): Unit = {
+    def requireFreshness(): Unit = TypedBalancedReductionFreshness.once(this) {
       prerequisite()
       val currentFixed = value match { case bits: BitVector => bits.fixedWidth; case _ => -1 }
       if ((value.component ne owner) || (value.parentScope ne scope) ||

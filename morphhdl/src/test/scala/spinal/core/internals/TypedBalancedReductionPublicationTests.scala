@@ -27,7 +27,7 @@ class TypedBalancedReductionPublicationTests extends AnyFunSuite {
   test("singleton-default publication retains all balanced stages for larger overrides") {
     val text = generate()
     for (tree <- 1 to 5; level <- 0 until 5) {
-      assert(text.contains(s"morphhdl_balanced_${tree}_active_$level"), text)
+      assert(text.contains(s"balanced_${tree}_active_$level"), text)
     }
     assert(text.contains("generate") && text.contains("genvar") && text.contains("begin : tail"), text)
     assert(text.contains("+:"), text)
@@ -45,7 +45,7 @@ class TypedBalancedReductionPublicationTests extends AnyFunSuite {
         HdlInt.param("COUNT", 1, 1, 17))
     }
     val rtl = new String(Files.readAllBytes(directory.resolve("BalancedPublication.v")), StandardCharsets.UTF_8)
-    assert(rtl.contains("morphhdl_balanced_2_active_4"), rtl)
+    assert(rtl.contains("balanced_2_active_4"), rtl)
     assert("(?m)^.*output\\s+wire\\s+signed\\s+\\[WIDTH-1:0\\]\\s+sAdd\\b.*$".r
       .findFirstIn(rtl).nonEmpty, rtl)
     if (available("iverilog") && available("vvp")) {

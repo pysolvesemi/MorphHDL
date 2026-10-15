@@ -7,12 +7,14 @@ are mocked; the actual audit wrappers and entry-point budget choices execute.
 """
 from __future__ import annotations
 
+import ast
 import contextlib
 import importlib.util
 import io
 import subprocess
 import sys
 import types
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -71,12 +73,18 @@ class AuditTimeoutTests(unittest.TestCase):
                     patch.object(module.importlib.util, "module_from_spec", return_value=helper), \
                     patch.object(module.subprocess, "run", return_value=types.SimpleNamespace(
                         returncode=0, stdout=PASS)) as run:
-                module.main()
+                with tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    marker = root / "morphhdl/contracts/increment-59c-source-review.json"
+                    marker.parent.mkdir(parents=True)
+                    marker.write_text("budget fixture only; authentication is not mocked by production")
+                    with patch.object(module, "ROOT", root):
+                        module.main()
                 self.assertEqual(len(invoked), 1)
                 self.assertEqual(run.call_count, 1)
                 self.assertEqual(run.call_args.kwargs["timeout"], 600)
                 self.assertEqual(run.call_args.args[0][:2], [sys.executable, "-c"])
-                self.assertEqual(run.call_args.args[0][3], str(ROOT))
+                self.assertEqual(run.call_args.args[0][3], str(root))
                 self.assertTrue(run.call_args.args[0][4].endswith(
                     "check-increment-60f-equivalence-closure.py"))
                 self.assertIn("exact negative inherited", invoked[0][2])
@@ -156,11 +164,45 @@ class AuditTimeoutTests(unittest.TestCase):
                 self.assertEqual(record["expected_rejection"], expected)
                 self.assertEqual(record["source_head"], "source-head")
 
+    def test_59h_current_successor_negative_budget_has_bounded_headroom(self):
+        module = load("test-increment-59h-inherited-source-scope.py")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertEqual(module.current_negative_timeout(root), 180)
+            integration = root / "morphhdl/contracts/increment-59i-target-integration.json"
+            integration.parent.mkdir(parents=True)
+            integration.write_text("fixture presence only")
+            self.assertEqual(module.current_negative_timeout(root), 180)
+            successor = root / "morphhdl/contracts/increment-59i-production-successor.json"
+            successor.write_text("fixture presence only; the real audit authenticates its bytes")
+            self.assertEqual(module.current_negative_timeout(root), 600)
+            self.assertGreater(module.current_negative_timeout(root), 2 * 180)
+
+    def test_59h_current_negative_call_uses_the_successor_selector(self):
+        module = load("test-increment-59h-inherited-source-scope.py")
+        tree = ast.parse(Path(module.__file__).read_text())
+        main = next(node for node in tree.body
+                    if isinstance(node, ast.FunctionDef) and node.name == "main")
+        calls = [node for node in ast.walk(main)
+                 if isinstance(node, ast.Call)
+                 and isinstance(node.func, ast.Name)
+                 and node.func.id == "checked"]
+        routed = [keyword.value for call in calls for keyword in call.keywords
+                  if keyword.arg == "timeout_seconds"
+                  and isinstance(keyword.value, ast.Call)
+                  and isinstance(keyword.value.func, ast.Name)
+                  and keyword.value.func.id == "current_negative_timeout"]
+        self.assertEqual(len(routed), 1)
+        self.assertEqual(ast.unparse(routed[0]),
+                         "current_negative_timeout(fixture)")
+
     def test_59h_main_selects_600_seconds_only_for_complete_positive(self):
         module = load("test-increment-59h-inherited-source-scope.py")
         class StopBeforeFixtureOrchestration(Exception):
             pass
-        with contextlib.redirect_stdout(io.StringIO()), \
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(module, "ROOT", Path(directory)), \
+                contextlib.redirect_stdout(io.StringIO()), \
                 patch.object(module, "git", return_value="source-head") as git, \
                 patch.object(module.importlib.util, "spec_from_file_location",
                              side_effect=StopBeforeFixtureOrchestration) as load_review, \
@@ -171,10 +213,10 @@ class AuditTimeoutTests(unittest.TestCase):
             self.assertEqual(run.call_count, 1)
             self.assertEqual(run.call_args.kwargs["timeout"], 600)
             self.assertEqual(run.call_args.args[0][:2], [sys.executable, "-c"])
-            self.assertEqual(run.call_args.args[0][3], str(ROOT))
-            self.assertEqual(run.call_args.args[0][4], str(ROOT / module.CHECKER))
+            self.assertEqual(run.call_args.args[0][3], directory)
+            self.assertEqual(run.call_args.args[0][4], str(Path(directory) / module.CHECKER))
             self.assertEqual(git.call_count, 2)
-            self.assertTrue(all(call.args == (ROOT, "rev-parse", "HEAD")
+            self.assertTrue(all(call.args == (Path(directory), "rev-parse", "HEAD")
                                 for call in git.call_args_list))
             load_review.assert_called_once()
 
@@ -197,6 +239,73 @@ class AuditTimeoutTests(unittest.TestCase):
                     patch.object(module.subprocess, "run", side_effect=subprocess.TimeoutExpired(
                         "source audit", budget)), self.assertRaises(subprocess.TimeoutExpired):
                 module.checked(ROOT, "timed-out audit", expected, timeout_seconds=budget)
+
+
+    def test_joined_budgets_preserve_target_only_600_second_selection(self):
+        for filename, budget, marker in (
+                (CASES[0][0], 3600, "increment-59i-production-successor.json"),
+                (CASES[1][0], 3600, "increment-59i-production-successor.json"),
+                ("test-increment-59h-inherited-source-scope.py", 900,
+                 "increment-59i-target-integration.json")):
+            module = load(filename)
+            with self.subTest(caller=filename), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                self.assertEqual(module.current_positive_timeout(root), 600)
+                file = root / "morphhdl/contracts" / marker
+                file.parent.mkdir(parents=True)
+                file.write_text("presence selects time only, not source acceptance")
+                self.assertEqual(module.current_positive_timeout(root), budget)
+                file.unlink()
+                self.assertEqual(module.current_positive_timeout(root), 600)
+
+    def test_joined_60f_entrypoints_pass_3600_seconds_to_actual_wrapper(self):
+        def check(module, caller):
+            spec = types.SimpleNamespace(loader=types.SimpleNamespace(exec_module=lambda _: None))
+            helper = types.SimpleNamespace(frozen_inherited_fixture=lambda root, path, out, checks, marker: checks())
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                for marker in ("increment-59c-source-review.json", "increment-59i-production-successor.json"):
+                    file = root / "morphhdl/contracts" / marker
+                    file.parent.mkdir(parents=True, exist_ok=True)
+                    file.write_text("fixture")
+                with patch.object(module, "ROOT", root), \
+                        patch.object(module.importlib.util, "spec_from_file_location", return_value=spec), \
+                        patch.object(module.importlib.util, "module_from_spec", return_value=helper), \
+                        patch.object(module.subprocess, "run", return_value=types.SimpleNamespace(
+                            returncode=0, stdout=PASS)) as run:
+                    module.main()
+                    self.assertEqual(run.call_count, 1)
+                    self.assertEqual(run.call_args.kwargs["timeout"], 3600)
+        self.exercise(check)
+
+    def test_joined_59h_entrypoint_passes_900_seconds_to_actual_wrapper(self):
+        module = load("test-increment-59h-inherited-source-scope.py")
+        class StopBeforeFixtures(Exception):
+            pass
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            marker = root / "morphhdl/contracts/increment-59i-target-integration.json"
+            marker.parent.mkdir(parents=True)
+            marker.write_text("fixture")
+            with patch.object(module, "ROOT", root), \
+                    patch.object(module, "git", return_value="source-head"), \
+                    patch.object(module.importlib.util, "spec_from_file_location", side_effect=StopBeforeFixtures), \
+                    patch.object(module.subprocess, "run", return_value=types.SimpleNamespace(
+                        returncode=0, stdout=PASS)) as run, contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(StopBeforeFixtures):
+                    module.main()
+                self.assertEqual(run.call_count, 1)
+                self.assertEqual(run.call_args.kwargs["timeout"], 900)
+
+    def test_joined_timeout_and_contradictory_markers_are_not_success(self):
+        def check(module, caller):
+            with patch.object(module.subprocess, "run", side_effect=subprocess.TimeoutExpired("joined", 3600)), \
+                    self.assertRaises(subprocess.TimeoutExpired):
+                caller(ROOT, "joined", timeout_seconds=3600)
+            with patch.object(module.subprocess, "run", return_value=types.SimpleNamespace(returncode=1, stdout=PASS)), \
+                    self.assertRaises(RuntimeError):
+                caller(ROOT, "joined", timeout_seconds=3600)
+        self.exercise(check)
 
 
 if __name__ == "__main__":

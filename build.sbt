@@ -4,13 +4,15 @@ import sbt.Tests._
 
 def parallelTest = scala.sys.env.getOrElse("SBT_TEST_PARALLEL", "1") == "1"
 
+lazy val checkCompilerPluginCache = taskKey[Unit]("Check content-addressed MorphHDL plugin invalidation")
+
 val scalatestVersion = "3.2.14"
 val defaultSettings = Defaults.coreDefaultSettings ++ xerial.sbt.Sonatype.sonatypeSettings ++ Seq(
   organization := "com.github.spinalhdl",
   version      := SpinalVersion.all,
   crossScalaVersions := SpinalVersion.compilers,
   scalaVersion := SpinalVersion.compilers(0),
-  scalacOptions ++= Seq("-unchecked","-target:jvm-1.8"/*, "-feature" ,"-deprecation"*/),
+  scalacOptions ++= Seq("-unchecked","-Yrangepos","-target:jvm-1.8"/*, "-feature" ,"-deprecation"*/),
   scalacOptions += "-language:reflectiveCalls",
   javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
   fork := true,
@@ -76,13 +78,31 @@ lazy val all = (project in file("."))
   .settings(
     defaultSettings,
     name := "SpinalHDL-all",
+    checkCompilerPluginCache := {
+      val directory = IO.createTemporaryDirectory
+      try {
+        val artifact = directory / "plugin.jar"
+        IO.write(artifact, "first plugin")
+        val first = CompilerPluginCache.option(artifact)
+        assert(CompilerPluginCache.option(artifact) == first, "unchanged plugin must keep its compiler option")
+        IO.write(artifact, "second plugin")
+        val second = CompilerPluginCache.option(artifact)
+        assert(first != second, "changed plugin bytes must invalidate compiler options")
+        assert(IO.read(file(first.stripPrefix("-Xplugin:"))) == "first plugin", "prior cache must be immutable")
+        IO.write(file(second.stripPrefix("-Xplugin:")), "tampered plugin")
+        var rejected = false
+        try CompilerPluginCache.option(artifact) catch { case _: IllegalArgumentException => rejected = true }
+        assert(rejected, "tampered content-addressed plugin must fail closed")
+      } finally IO.delete(directory)
+      streams.value.log.info("Compiler plugin cache: stable, changed-artifact and tamper controls passed")
+    },
     version := SpinalVersion.all,
     publishArtifact := false,
     publishLocal := {},
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(lib, core),
     ScalaUnidoc / unidoc / scalacOptions ++= Seq(
       s"-Xplugin:${(idslplugin / Compile / packageBin / artifactPath).value.getAbsolutePath}",
-      s"-Xplugin:${(morphplugin / Compile / packageBin).value.getAbsolutePath}",
+      CompilerPluginCache.option((morphplugin / Compile / packageBin).value),
       "-Xplugin-require:morphhdl"
     )
   )
@@ -226,21 +246,11 @@ lazy val morph = (project in file("morphhdl"))
     defaultSettingsWithPlugin,
     Test / scalacOptions += {
       val file = (morphplugin / Compile / packageBin).value
-      s"-Xplugin:${file.getAbsolutePath}"
+      CompilerPluginCache.option(file)
     },
     Test / scalacOptions += "-Xplugin-require:morphhdl",
     name := "MorphHDL-orchestration",
-    // WA-08 compiles the reviewed pass implementations from their single source.
-    Compile / unmanagedSourceDirectories += baseDirectory.value.getParentFile /
-      "morphhdl-passes" / "src" / "main" / "scala",
-    Compile / unmanagedSources ++= {
-      val examples = baseDirectory.value.getParentFile / "morphhdl-passes" / "examples"
-      Seq("ParameterizedStreamFifo", "UnnamedWireAliasNativeBridge",
-        "NamedWireAliasNativeBridge", "UnnamedWireExpressionNativeBridge",
-        "NativeWireExpressionCodec", "NamedWireExpressionNativeBridge",
-        "ConstantOperandNativeBridge", "BooleanTernaryNativeBridge")
-        .map(name => examples / (name + ".scala"))
-    },
+    libraryDependencies += "org.scala-lang" % "scala-compiler" % scalaVersion.value % Test,
     version := SpinalVersion.core,
     libraryDependencies += "org.ow2.asm" % "asm-tree" % "9.2",
     libraryDependencies += "com.lihaoyi" %% "sourcecode" % "0.3.0",
@@ -253,7 +263,7 @@ lazy val lib = (project in file("lib"))
     name := "SpinalHDL-lib",
     Compile / scalacOptions += {
       val file = (morphplugin / Compile / packageBin).value
-      s"-Xplugin:${file.getAbsolutePath}"
+      CompilerPluginCache.option(file)
     },
     Compile / scalacOptions += "-Xplugin-require:morphhdl",
     libraryDependencies += "commons-io" % "commons-io" % "2.11.0",

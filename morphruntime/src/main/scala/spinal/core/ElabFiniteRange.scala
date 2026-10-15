@@ -3,6 +3,7 @@ package spinal.core
 import scala.collection.mutable
 
 import spinal.core.internals.DataAssignmentStatement
+import spinal.idslplugin.Location
 
 /** One generic typed population-count operation retained for final portable
   * publication. The native zero assignment is only a validated graph anchor;
@@ -38,7 +39,9 @@ private[core] final class ElabFiniteAffineVecRead private[core] (
     val admitted: Set[BigInt],
     val token: ElabFiniteIndexToken,
     val coefficient: Int,
-    val offset: Int
+    val offset: Int,
+    val previous: Option[ElabFinitePreviousRead] = None,
+    val guarded: Option[ElabFiniteGuardedAffineRead] = None
 ) {
   private[core] def matches(
       actualVector: Vec[_],
@@ -46,6 +49,13 @@ private[core] final class ElabFiniteAffineVecRead private[core] (
       actualToken: ElabFiniteIndexToken,
       ownerCount: Option[ElaborationIntegerExpression] = None
   ): Boolean = {
+    if (guarded.nonEmpty) return previous.isEmpty &&
+      (baseIndex eq guarded.get.index.expression) && (count eq guarded.get.count) &&
+      (depth eq guarded.get.depth) && coefficient == guarded.get.coefficient && offset == guarded.get.offset &&
+      ParameterizedVec.shapeOf(vector).exists(_.depth eq originalDepth) &&
+      guarded.get.matches(actualVector, actualSelector, actualToken, ownerCount)
+    if (previous.nonEmpty) return previous.get.envelope(baseIndex, count, originalDepth, depth, admitted, coefficient, offset) &&
+      previous.get.matches(actualVector, actualSelector, actualToken, ownerCount)
     val domainMatches = (count.exactDomain, depth.exactDomain) match {
       case (Some(c), Some(d)) if c.root eq d.root =>
         admitted.nonEmpty && admitted.subsetOf(c.evidenceValues) &&
@@ -89,7 +99,105 @@ final class ElabFiniteIndex private[core] (
     private[core] val expression: ElaborationIntegerExpression,
     private[core] val count: ElaborationIntegerExpression,
     private[core] val token: ElabFiniteIndexToken
-) {
+) extends ElabScopedIndex {
+  private[core] def selectPacked(source: Bits, width: BitCount): Bits = packed(source, 1, width)
+  def *(width: ElabInt): ElabScopedWordOffset = new ElabFiniteWordOffset(this, width)
+  private[core] override def select[T <: Data](vector: Vec[T]): T = apply(vector)
+  def +(offset: Int): ElabScopedIndex = new ElabFiniteAffineIndex(this, 1, offset)
+  def *(coefficient: Int): ElabScopedIndex = new ElabFiniteAffineIndex(this, coefficient, 0)
+  def elabEq(value: Int): ElabScopedCondition = new ElabFiniteAffineIndex(this, 1, 0).elabEq(value)
+  def <(bound: ElabInt): ElabScopedCondition = new ElabFiniteAffineIndex(this, 1, 0) < bound
+
+
+  /** Capture a structural alternative for this exact, lexically active index.
+    * Both callbacks describe hardware; this does not create a runtime mux.
+    */
+  def whenEqual(value: Int, role: String)(ifTrue: => Unit)(ifFalse: => Unit): Unit = {
+    if (!ParameterizedStructure.captureEnabled || expression.generateIndex.isEmpty) {
+      if (witness == value) ifTrue else ifFalse
+    } else ParameterizedStructure.captureFiniteIndexIf(this, value, role)(ifTrue)(ifFalse)
+  }
+
+  /** Generate-time affine comparison, with correlated parameter/iteration proof.
+    * Both alternatives are structural hardware, not runtime mux branches.
+    */
+  def whenAffineLessThan(coefficient: Int, offset: Int, bound: ElabInt, role: String,
+      emptyTrue: Boolean = false, emptyFalse: Boolean = false)
+      (ifTrue: => Unit)(ifFalse: => Unit): Unit = {
+    require(coefficient > 0 && offset >= 0 && bound != null)
+    if (!ParameterizedStructure.captureEnabled || expression.generateIndex.isEmpty) {
+      if (BigInt(coefficient)*witness+offset < bound.witness) ifTrue else ifFalse
+    } else ParameterizedStructure.captureFiniteAffineIf(this,coefficient,offset,bound,role,emptyTrue,emptyFalse)(ifTrue)(ifFalse)
+  }
+
+  def onlyEqual(value: Int, role: String)(body: => Unit): Unit = {
+    if (!ParameterizedStructure.captureEnabled || expression.generateIndex.isEmpty) {
+      if (witness == value) body
+    } else ParameterizedStructure.captureFiniteIndexIf(this, value, role, emptyElse = true)(body)(())
+  }
+
+  /** A common-scope Bool driven by the two mutually exclusive generate branches. */
+  def selectBool(value: Int, role: String)(ifTrue: => Bool)(ifFalse: => Bool): Bool = {
+    val result = Bool()
+    whenEqual(value, role) { result := ifTrue } { result := ifFalse }
+    result
+  }
+
+  /** Unsigned hardware value of this generate index, with checked explicit width. */
+  def uint(width: BitCount): UInt = TypedFiniteIndexValue(this, width.value)
+
+  def bits(width: BitCount): Bits = uint(width).asBits
+
+  def choose[T](value: Int, role: String)(ifTrue: => T)(ifFalse: => T)
+      (implicit result: ElabAreaBranchResult[T]): T = result(this, value, role)(ifTrue)(ifFalse)
+
+  def packed(source: Bits, stride: Int, width: BitCount): Bits =
+    TypedFinitePackedAccess(this, source, stride, width)
+
+  /** A word slice with a retained positive parameter-constant lane stride. */
+  def packed(source: Bits, stride: ElabInt, width: ParameterizedBitCount): Bits =
+    TypedFinitePackedAccess(this, source, stride, width)
+
+  def bit(source: Bits): Bool = {
+    val selected = packed(source, 1, 1 bits)
+    val result = selected.asBool
+    result.compositeAssign = new Assignable {
+      protected def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)(implicit location: Location): Unit = {
+        require(kind == DataAssign && (target eq result), "finite bit assignment must be whole-leaf data")
+        selected := that.asInstanceOf[Bool].asBits
+      }
+      def getRealSourceNoRec: BaseType = source
+    }
+    result
+  }
+
+  def at[T <: Data](source: Vec[T]): T = apply(source)
+  def at(source: Bits): Bool = bit(source)
+  /** Read an earlier iteration of a module-scope Vec under a proven index guard. */
+  def previous[T <: Data](vector: Vec[T], distance: Int): T = {
+    if (distance <= 0) ParameterizedVerilogException.fail("SPINAL-ELAB-AREA-PREVIOUS-DISTANCE-INVALID", "previous distance must be positive")
+    if (!ParameterizedStructure.captureEnabled || expression.generateIndex.isEmpty)
+      return vector(witness - distance)
+    ParameterizedVec.retainConstantLoopOperand(vector)
+    val shape = ParameterizedVec.shapeOf(vector).getOrElse(
+      throw new IllegalArgumentException("previous iteration requires a retained Vec"))
+    val (capture, values) = ParameterizedStructure.previousIndexDomain(this)
+    if (values.exists(_ < distance) || !ElabFiniteRange.equivalentLogicalCount(shape.depth, count))
+      ParameterizedVerilogException.fail("SPINAL-ELAB-AREA-PREVIOUS-INDEX-OUT-OF-RANGE",
+        "previous-iteration index must be in bounds throughout its guarded loop domain")
+    val selector = expression.copy(verilog = s"(${expression.verilog} - $distance)",
+      default = if (values.isEmpty) 0 else values.min - distance,
+      minimum = if (values.isEmpty) 0 else values.min - distance,
+      maximum = if (values.isEmpty) 0 else values.max - distance)
+    ElabFinitePreviousCycles.schedule(Component.current)
+    val proof = new ElabFinitePreviousRead(vector, selector, this, distance, values, capture, Component.current, shape.depth)
+    val evidence = new ElabFiniteAffineVecRead(vector, selector, expression, count, shape.depth,
+      shape.depth, Set.empty, token, 1, -distance, Some(proof))
+    ParameterizedStructure.recordAffineVecRead(vector, vector(selector.default.toInt), selector, token, evidence, expression.sourceLocation)
+  }
+
+  def equal(source: UInt): Bool = source === uint((expression.maximum.bitLength max 1) bits)
+
   private def witness: Int = {
     if (!expression.default.isValidInt) {
       ParameterizedVerilogException.fail(
@@ -105,6 +213,9 @@ final class ElabFiniteIndex private[core] (
   def apply[T <: Data](vector: Vec[T]): T = {
     if (vector == null)
       throw new IllegalArgumentException("finite-index Vec must not be null")
+    if (ParameterizedStructure.captureEnabled && expression.generateIndex.nonEmpty &&
+        VerilogAggregateOptions.current.preserveConstantLoops)
+      ParameterizedVec.retainConstantLoopOperand(vector)
     val selected = vector(witness)
     if (ParameterizedStructure.captureEnabled && expression.generateIndex.nonEmpty) {
       val vectorDepth = ParameterizedVec
@@ -128,6 +239,22 @@ final class ElabFiniteIndex private[core] (
     }
     selected
   }
+
+  /** Library-owned contiguous selection; registration retains its exact range. */
+  private[spinal] def at[T <: Data](vector: Vec[T], offset: Int): T = {
+    require(offset >= 0, "finite Vec offset must be nonnegative")
+    if (expression.generateIndex.isEmpty) return vector(witness + offset)
+    val depth = ParameterizedVec.shapeOf(vector).getOrElse(
+      throw new IllegalArgumentException("finite subrange requires a typed Vec")).depth
+    require(ElabBool.projectedTruth((ElabInt.fromExpression(count) + offset) <=
+      ElabInt.fromExpression(depth)) == ElabBool.AlwaysTrue, "finite subrange exceeds logical Vec depth")
+    val selector = expression.copy(verilog = if(offset == 0) expression.verilog else s"(${expression.verilog} + $offset)",
+      default = expression.default + offset, minimum = expression.minimum + offset,
+      maximum = expression.maximum + offset)
+    ParameterizedStructure.recordVecIndex(vector, vector(witness + offset), selector, token, expression.sourceLocation)
+  }
+
+  private[spinal] def shiftRightPowerOfTwo(source: UInt): UInt = TypedLoopPowerShift(this, source)
 
   /** Read `coefficient * index + offset` from a typed Vec. Every admitted
     * positive loop extent is checked against that same root's logical Vec
@@ -177,7 +304,18 @@ final class ElabFiniteIndex private[core] (
           expression.sourceLocation
         )
     }
-    val maximum = BigInt(coefficient) * (projectedCount.maximum - 1) + offset
+    val guard = ParameterizedStructure.activeAffineGuard(this)
+    val allowed = guard.map { case (frames, _) =>
+      frames.foldLeft(frames.head._1.rows.toSet) { case (rows, (proof, positive)) =>
+        rows intersect proof.allowed(positive)
+      }
+    }
+    val maximum = allowed match {
+      case Some(rows) if rows.nonEmpty => rows.map { case (_, i) => BigInt(coefficient)*i+offset }.max
+      case Some(_) => ParameterizedVerilogException.fail("SPINAL-ELAB-FINITE-AFFINE-DOMAIN-EMPTY",
+        "affine read has no reachable guarded iteration", expression.sourceLocation)
+      case None => BigInt(coefficient) * (projectedCount.maximum - 1) + offset
+    }
     if (!maximum.isValidInt || maximum >= shape.carrierCapacity)
       ParameterizedVerilogException.fail(
         "SPINAL-ELAB-FINITE-AFFINE-DOMAIN-OUT-OF-RANGE",
@@ -195,7 +333,9 @@ final class ElabFiniteIndex private[core] (
     )
     val evidence = new ElabFiniteAffineVecRead(
       vector, selector, expression, projectedCount, shape.depth,
-      projectedDepth, admitted, token, coefficient, offset
+      projectedDepth, admitted, token, coefficient, offset,
+      guarded = guard.map { case (frames, capture) => new ElabFiniteGuardedAffineRead(
+        this, vector, projectedDepth, projectedCount, selector, coefficient, offset, frames, capture, Component.current) }
     )
     if (!evidence.matches(vector, selector, token))
       ParameterizedVerilogException.fail(
@@ -203,7 +343,9 @@ final class ElabFiniteIndex private[core] (
         "finite affine Vec index exceeds the logical depth at an admitted exact-domain point",
         expression.sourceLocation
       )
-    val selected = vector(selectedWitness.toInt)
+    // This is the already-proved affine read's native witness, not an authored
+    // constant selector. Its legal domain is the retained correlated guard.
+    val selected = if (guard.nonEmpty) vector.vec(selectedWitness.toInt) else vector(selectedWitness.toInt)
     ParameterizedStructure.recordAffineVecRead(vector, selected, selector, token, evidence, expression.sourceLocation)
   }
 
@@ -291,6 +433,7 @@ object ElabFiniteRange {
     var nextFoldId = 0L
     val stems = mutable.LinkedHashMap.empty[String, Int]
     val countOnes = mutable.ArrayBuffer.empty[ParameterizedFiniteCountOne]
+    val automaticIndices = new java.util.IdentityHashMap[ElabFiniteIndexToken, String]()
   }
 
   /** Require exhaustive identity-bearing evidence for every symbolic value
@@ -398,10 +541,10 @@ object ElabFiniteRange {
     storage.nextFoldId += 1
     val ordinal = storage.nextFoldId
     if (Option(source.getName()).forall(_.isEmpty))
-      source.setName(s"morphhdl_finite_fold_source_$ordinal")
+      source.setName(s"finite_fold_source_$ordinal")
     source.dontSimplifyIt()
     val result = UInt(ElabInt.fromExpression(width) bits)
-      .setName(s"morphhdl_finite_count_one_$ordinal")
+      .setName(s"finite_count_one_$ordinal")
     result.dontSimplifyIt()
     val (_, assignments) = ParameterizedVec.captureAssignments(result) {
       result := 0
@@ -469,7 +612,9 @@ object ElabFiniteRange {
       "SPINAL-ELAB-FINITE-RANGE-EXACT-DOMAIN-REQUIRED"
     )
 
-    if (expression.parameters.isEmpty) {
+    val preserveConstant = expression.parameters.isEmpty && expression.default > 0 &&
+      ParameterizedStructure.captureEnabled && VerilogAggregateOptions.current.preserveConstantLoops
+    if (expression.parameters.isEmpty && !preserveConstant) {
       var index = 0
       while (index < count.witness) {
         body(
@@ -505,7 +650,7 @@ object ElabFiniteRange {
           rootValue
       }
     }.toSet
-    if (positiveRootValues.isEmpty) {
+    if (positiveRootValues.isEmpty && !preserveConstant) {
       ParameterizedVerilogException.fail(
         "SPINAL-ELAB-FINITE-RANGE-POSITIVE-WITNESS-REQUIRED",
         s"$role expression '${expression.verilog}' needs at least one exact positive-domain point to capture the index-zero representative body",
@@ -520,6 +665,7 @@ object ElabFiniteRange {
       )
     }
     val names = allocateNames(component, role)
+    storageOf(component).automaticIndices.put(indexToken, names._2)
     val indexExpression = ElaborationIntegerExpression(
       verilog = names._2,
       default = BigInt(0),
@@ -529,6 +675,15 @@ object ElabFiniteRange {
       generateIndex = Some(names._2),
       sourceLocation = expression.sourceLocation
     )
+    if (preserveConstant) {
+      val block = ParameterizedStructure.captureBlock(component, expression.sourceLocation) {
+        ParameterizedStructure.bindFiniteIndexToken(indexToken)
+        body(new ElabFiniteIndex(indexExpression, expression, indexToken))
+      }
+      ParameterizedStructure.registerExactFor(component, names._1, names._2,
+        expression, block, indexToken, expression.sourceLocation)
+      return
+    }
     val exactRoot = exactDomain.map(_._1.root).getOrElse {
       ParameterizedVerilogException.fail(
         "SPINAL-ELAB-FINITE-RANGE-EXACT-DOMAIN-REQUIRED",
@@ -555,6 +710,9 @@ object ElabFiniteRange {
       expression.sourceLocation
     )
   }
+
+  private[spinal] def automaticIndexName(component: Component, token: ElabFiniteIndexToken): Option[String] =
+    Option(storageOf(component).automaticIndices.get(token))
 
   private def allocateNames(
       component: Component,

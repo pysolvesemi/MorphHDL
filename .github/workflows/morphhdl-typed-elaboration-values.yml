@@ -18,6 +18,9 @@ concurrency:
   group: morphhdl-typed-elaboration-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   source-contract:
     name: Typed architecture source contract

@@ -1074,7 +1074,13 @@ class NativeStreamFifoCCParameterizedTests extends AnyFunSuite {
 
       assert(rtl.contains("parameter integer DEPTH = 2"), rtl)
       assert(countOccurrences(compactWhitespace(rtl), ".DEPTH(DEPTH)") == 1, rtl)
-      assert(!fifoRtl.contains("generate"), fifoRtl)
+      // The singleton domain needs no conditional owner, but its five native
+      // Gray decoders still retain their logarithmic prefix loops.
+      val generateBodies = """(?s)\bgenerate\b(.*?)\bendgenerate\b""".r
+        .findAllMatchIn(fifoRtl).map(_.group(1).trim).toVector
+      assert(generateBodies.size == 5, fifoRtl)
+      assert(generateBodies.forall(body => body.startsWith("for (") &&
+        body.contains("begin : g_decode_prefix_") && !body.contains("if (")), fifoRtl)
       assert(!compactFifo.contains("DEPTH&(DEPTH-1)"), fifoRtl)
       assert(!compactFifo.contains("io_push_ready=1'b0;"), fifoRtl)
       assert(!compactFifo.contains("formal_stream_fifocc_push_checks=1'b1;"), fifoRtl)
@@ -1335,7 +1341,9 @@ class NativeStreamFifoCCParameterizedTests extends AnyFunSuite {
         ).foreach { name =>
           assert(moduleNames(rtl).count(_ == name) == 1, rtl)
           val bufferRtl = compactWhitespace(moduleDefinition(rtl, name))
-          assert(bufferRtl.contains("parameterintegerWIDTH=4"), bufferRtl)
+          // Reusable explicit formals publish the deterministic domain minimum;
+          // each instance retains its symbolic actual below.
+          assert(bufferRtl.contains("parameterintegerWIDTH=2"), bufferRtl)
           assert(bufferRtl.contains("[WIDTH-1:0]io_dataIn"), bufferRtl)
           assert(bufferRtl.contains("[WIDTH-1:0]io_dataOut"), bufferRtl)
           assert(bufferRtl.contains("[WIDTH-1:0]buffers_0"), bufferRtl)
@@ -1837,36 +1845,33 @@ class NativeStreamFifoCCParameterizedTests extends AnyFunSuite {
   }
 
   private def assertGrayShiftGeometry(fifoRtl: String): Unit = {
-    val declarations = RangedDeclaration
-      .findAllMatchIn(fifoRtl)
-      .map(value => value.group(2) -> compactWhitespace(value.group(1)))
-      .toMap
-    val shifts = ConstantShiftAssignment
-      .findAllMatchIn(fifoRtl)
-      .map(value => value.group(1) -> value.group(2).toInt)
-      .toVector
-
-    Vector(1, 2, 4).foreach { amount =>
-      assert(
-        shifts.count(_._2 == amount) >= 2,
-        s"Gray decode is missing one or both domain-required shift-$amount stages:\n$fifoRtl"
-      )
+    val declarations = RangedDeclaration.findAllMatchIn(fifoRtl)
+      .map(value => value.group(2) -> compactWhitespace(value.group(1))).toMap
+    val stageArrays = declarations.filter(_._1.startsWith("decode_stage"))
+    assert(stageArrays.size == 2, s"Both clock domains need one prefix array:\n$fifoRtl")
+    val pointerWidth = "(clog2(DEPTH,0)+1)"
+    val stageCount = s"clog2($pointerWidth,0)"
+    stageArrays.foreach { case (_, width) =>
+      assert(width == s"((($pointerWidth))*(($stageCount+1)))-1:0", s"$width\n$fifoRtl")
     }
-    Vector(8, 16).foreach { amount =>
-      assert(
-        !shifts.exists(_._2 == amount),
-        s"Gray decode retained unnecessary shift-$amount above the authoritative five-bit pointer maximum:\n$fifoRtl"
-      )
+    val compact = compactWhitespace(fifoRtl)
+    assert(countOccurrences(compact, s"<$stageCount;") == 2, fifoRtl)
+    val indexedShifts = """(?m)^\s*assign\s+(prefix_shift[A-Za-z0-9_$]*)\s*=.*?>>\s*\(1\s*<<\s*([A-Za-z_][A-Za-z0-9_$]*)\)\)\s*;""".r
+      .findAllMatchIn(fifoRtl).toVector
+    assert(indexedShifts.size == 2, fifoRtl)
+    indexedShifts.foreach { shift =>
+      assert(Set(pointerWidth, s"($pointerWidth)", s"(($pointerWidth))")
+        .map(_ + "-1:0").contains(declarations(shift.group(1))), fifoRtl)
+      assert(compact.contains(s"${shift.group(2)}<$stageCount;"), fifoRtl)
+      assert(compact.contains(s"^${shift.group(1)}"), fifoRtl)
     }
-    shifts.foreach { case (target, _) =>
-      val width = declarations.getOrElse(
-        target,
-        fail(s"shift target '$target' has no ranged declaration:\n$fifoRtl")
-      )
-      assert(
-        width.contains("clog2(DEPTH,0)+1"),
-        s"Gray shift target '$target' froze to width '$width'"
-      )
+    // The symbolic loop above emits exactly the required logarithmic layers:
+    // no maximum-width layers survive at smaller legal pointer widths.
+    LegalDepths.foreach { depth =>
+      val pointerBits = log2Up(depth) + 1
+      val shifts = (0 until log2Up(pointerBits)).map(1 << _).toVector
+      assert(shifts == Vector(1, 2, 4).filter(_ < pointerBits))
+      assert(!shifts.exists(Vector(8, 16).contains))
     }
   }
 
@@ -2038,14 +2043,22 @@ class NativeStreamFifoCCParameterizedTests extends AnyFunSuite {
   ): Unit = {
     val quotedSignal = java.util.regex.Pattern.quote(signal)
     val pattern = (
-      s"always@\\(\\*\\)begin$quotedSignal=([^;]+);" +
+      s"always@\\(([^()]*)\\)begin$quotedSignal=([^;]+);" +
         s"if\\($inert\\)begin$quotedSignal=([^;]+);endend"
     ).r
     val assignment = pattern.findFirstMatchIn(invalidBody).getOrElse {
       fail(s"invalid output '$signal' lacks retained zero sensitivity:\n$context")
     }
-    val defaultValue = assignment.group(1)
-    val sensitizedValue = assignment.group(2)
+    val sensitivity = assignment.group(1)
+    val defaultValue = assignment.group(2)
+    val sensitizedValue = assignment.group(3)
+    if (sensitivity != "*") {
+      val events = sensitivity.split("or").toSet
+      val sourceCarriers = Vector(defaultValue, sensitizedValue).flatMap(value =>
+        """^[A-Za-z_][A-Za-z0-9_$]*""".r.findFirstIn(value))
+      assert((sourceCarriers :+ inert).forall(events),
+        s"explicit zero-output sensitivity lost a read dependency: $sensitivity\n$context")
+    }
     Vector(defaultValue, sensitizedValue).foreach { value =>
       assert(
         isZeroDrivenExpression(invalidBody, value),

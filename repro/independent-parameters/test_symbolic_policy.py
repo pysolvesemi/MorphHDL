@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from check_symbolic_publication import check_guard, failed_simulation
+from check_symbolic_publication import check_guard, failed_simulation, check_message, fixture
 
 
 class SymbolicPolicyEvidenceTests(unittest.TestCase):
@@ -82,6 +82,21 @@ class SymbolicPolicyEvidenceTests(unittest.TestCase):
         commands = self.result(1, 'legality rejected')
         self.assertEqual(commands[0]['returncode'], 1)
         self.assertIn('invalid-parameter', commands[0]['expected'])
+
+    def test_product_neutral_messages_still_require_exactly_one_expected_diagnostic(self):
+        item = fixture('mixed', ((1, 2),))
+        check_message(item, 'FATAL: A must be >= B\nTime: 0 Scope: tb.dut')
+        for output in ('unrelated failure', 'A must be >= B\nA must be >= B',
+                       'MorphHDL parameter legality failed: A must be >= B'):
+            with self.assertRaises(RuntimeError):
+                check_message(item, output)
+
+    def test_automatic_width_and_user_constraints_have_distinct_markers(self):
+        check_message(fixture('difference', ((2, 5),)),
+                      'FATAL: bit width must be greater than zero: (A - B)')
+        check_message(fixture('default-invalid-require', ((3, 2),)), 'FATAL: A must be < B')
+        with self.assertRaises(RuntimeError):
+            check_message(fixture('default-invalid-require', ((3, 2),)), 'FATAL: A must be >= B')
 
 
 if __name__ == '__main__':

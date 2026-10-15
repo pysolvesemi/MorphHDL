@@ -27,7 +27,7 @@ CHECKER = "morphhdl/scripts/check-increment-61-source-review.py"
 CONTRACT = "morphhdl/contracts/increment-61-source-review.json"
 REGISTRY = "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
 OUTER = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
-OUTER_NORMALIZED_SHA256 = "14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab"
+OUTER_NORMALIZED_SHA256 = "1593324f64df2351ece9f8c3d181fcf2f6ac72f4d1ebfbb44faf3730d27ec3bc"
 
 
 def require(ok: bool, detail: str) -> None:

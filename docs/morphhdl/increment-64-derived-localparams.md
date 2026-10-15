@@ -1,28 +1,107 @@
 # Increment 64 — Derived localparam implementation handoff
 
-## Status: preparatory review; implementation dependency not satisfied
+## Status: implemented and locally validated; remote qualification deferred
 
-Reviewed on 22 September 2026 against integration commit
-`67d944fd6fa1bd7f3dc65bdc6439ce31e59283ca`, tree
-`d19d225af835fcba77bcf96e142cf8a79f4a0fb6`.
+Implementation began on 2 October 2026 on
+`work/remaining-parameterized-increments`, from integration baseline
+`db54d01e5b21c7664f7a0de3795f061d77a3d259` plus the isolated CDC-LEG-01 checkpoint.
+The user's current batch plan supersedes the former roadmap dependency on 59i:
+implement independently, validate locally one increment at a time, reconcile
+59i later, and run targeted then full CI when the batch is ready. Do not change
+`parameterized-verilog` or implement the old wire-pass roadmap.
 
 The controlling contract remains
 [the Increment 64 roadmap entry](parameterized-verilog-todo.md#parameter-expression-and-structural-legality-follow-ups-increments-64-and-65).
-That contract requires Increments 59i, 61 and 63 implemented and merged,
-including the retained PR188/189/190 repairs. At this review, Increment 59i
-[PR #177](https://github.com/pysolvesemi/MorphHDL/pull/177) is still open,
-draft and unmerged; its reported feature head is
-`9d6d738d32c71ff4359384ae9d87f715bf20ec55`.
+The source observations and checklist below originated in the 22 September
+review of `67d944fd6fa1bd7f3dc65bdc6439ce31e59283ca`; they are design inputs, not
+completion evidence. Local implementation evidence is recorded below; no
+remote qualification or merge is claimed.
 
-This document records source inspection and a proposed implementation sequence.
-It does not waive the dependency, start an implementation branch, change a
-completion checkbox, or claim compiled Scala, generated Verilog or passing
-qualification. No compiler, application RTL, workflow or source-audit contract
-is changed by this documentation checkpoint. **No generated-Verilog effect.**
+## Current implementation surface
 
-Before implementation, re-read the actual merged dependency source and current
-AGENTS.md. Do not use the pending 59i branch as an integration baseline or treat
-an old successful workflow as qualification of a new source tree.
+The native member callback records exact `ElabInt` expression identities and
+source binding hints. Typed arithmetic retains its operand graph before naming;
+module-local publication selects live uses and emits dependencies first through
+the native localparam buffer. Names use uppercase underscore separation and the
+existing component allocator for collisions. Reusing the same expression object
+reuses its first binding; equal text or equal default values do not establish
+identity. Trusted unrestricted width projection and formal-actual normalization
+preserve presentation identity. Public case-class copies do not.
+
+Supported named calculations include integer addition, subtraction,
+multiplication, division, remainder, ceiling logarithm, address width and powers
+of two. The native scalar declaration callback prints local references in ANSI
+ports and internal declarations. Typed hierarchy publication prints parent-local
+actual references; children retain their independent formals. Existing semantic
+comparisons continue to use the original typed expression and domain evidence.
+
+Restricted structural calculations keep the existing direct-expression path
+within their generate owner. They are not hoisted into module-local constants.
+Method-local values without a compiler member callback also retain direct
+expressions. Literal hardware constants and explicit native child-formal APIs
+remain in Increment 66's separate contract.
+
+`NativeDerivedLocalParameterTests` contains the unchanged `RecordLink` source,
+same-file parameter overrides, independent native concrete specialization
+proofs, asymmetric live mutations, dependency chains, name collisions, identity
+and cycle controls, helpers, hierarchy and ordinary concrete behavior. The local validation receipt below distinguishes these results from remote
+qualification.
+
+Reproduce the standalone example with:
+
+```sh
+sbt 'morph/Test/runMain morphhdl.examples.DerivedLocalParameterArtifactWriter target/increment64-artifacts'
+```
+
+The writer uses ordinary `MorphVerilog` with optional wire passes disabled.
+Its `RecordLink` class is also the test fixture, so the published example and
+the same-file override/equivalence matrix exercise the same Scala source.
+
+Compatibility validation exposed excessive regex scanning of non-declarations
+and absent identifiers in the existing Vec/structural publisher. A lexical
+declaration-prefix scan and literal absence prechecks avoid those scans while
+retaining exact identifier boundaries, comment/string handling and unique
+declaration/ownership checks. No matrix, proof or timeout was reduced.
+
+## Local validation receipt — 2 October 2026
+
+Implementation source: `0c2f07b4a49cacc918923663dbd0859f27b57c7d`, tree
+`04a70bb4898539a3e4854bb8d38f79dfec82eafa`, on
+`work/remaining-parameterized-increments`.
+
+- Final focused suite: **59/59 on Scala 2.12.18 and 59/59 on Scala 2.13.12**.
+  Includes native localparams, Vec declarations/structural lexical scanning,
+  parameterized Vecs and typed BlackBox generics.
+- Compatibility suite: **311/311 across 26 suites on Scala 2.13.12**, including
+  the full `TypedBalancedReduction*` set and widening repeat determinism.
+- Earlier targeted safety/legality/formal-boundary suite: **66/66 on Scala
+  2.12.18**; hierarchy, clone and typed-domain compatibility: **95/95 on Scala
+  2.13.12**. Native Counter and StreamFifoCC cases passed in the earlier broader
+  run; that entire run was interrupted and is not counted as a passing matrix.
+- RecordLink: both source publication modes and optional wire-pass settings;
+  five same-file parameter tuples per setting; Icarus X/Z/data simulations,
+  strict Verilog-2001 parsing, Verilator lint, Yosys synthesis and equivalence
+  against independently elaborated native concrete references. Alternate
+  defaults, chained locals, helpers, hierarchy, branch scope and external-only
+  generic uses are included. Six actual RTL mutations detect frozen defaults,
+  operator/root/binding mistakes and sign/carry loss.
+- Standalone generated RTL is byte-identical across Scala lanes. The source,
+  artifact and hashes are retained in [the evidence directory](evidence/increment64/README.md).
+- Native-source audit: **7 roots, 54 approved paths, 245 reviewed edits**;
+  self-test passed all **8 exact negative controls**. Production-retirement
+  audit passed **814 sources**, with all **17 retired paths** absent.
+
+Local logs are `/tmp/morphhdl-localparams-final-validation.log` and
+`/tmp/morphhdl-localparams-stable-head.log`. The latter contains two successful
+59-test tasks and both successful artifact writers, followed by a deliberately
+stopped redundant widening-only rerun. The original complete compatibility run
+passed its unchanged byte-determinism test; its widening artifact is header-free.
+No interrupted process is represented as a passing test suite.
+
+Restricted branch calculations and method-local values retain the documented
+direct-expression path. Remote qualification, integration with merged 59i and
+merge/closure remain deferred under the batch plan. The roadmap checkbox stays
+open.
 
 ## Reviewed implementation seams
 
@@ -40,10 +119,10 @@ future post-59i tree.
 Prefer a small generic typed registration hook using existing member callbacks
 where they are sufficient. Do not extend the compiler plugin merely because a
 name is needed. Conversely, do not claim the existing callback covers lexical
-owners it does not observe. Inspect the actual post-59i structural capture and
-publication paths before deciding the final change inventory.
+owners it does not observe. Reconcile the combined structural capture and
+publication paths after 59i merges, before final batch qualification.
 
-## Proposed implementation sequence — not started
+## Implementation and validation checklist
 
 ### 1. Capture bindings and preserve the original calculation
 
@@ -96,7 +175,8 @@ publication paths before deciding the final change inventory.
 
 ### 4. Establish meaningful tests before declaring implementation complete
 
-All entries below are required or proposed tests, not executed results.
+This table records the acceptance contract; execution results belong in the
+local validation receipt, separately from final qualification and closure.
 
 | Fixture/control | Required observation |
 | --- | --- |
@@ -117,7 +197,7 @@ functional negative because that expression is commutative. Keep the exact
 roadmap fixture and add an asymmetric companion rather than changing the
 acceptance example to make testing easier.
 
-### 5. Qualification and closure after the dependency is merged
+### 5. Qualification and closure after the batch is ready
 
 - [ ] Record the actual approved native-change inventory and compatible
   source-review successors without weakening predecessor checks or proofs.
@@ -132,6 +212,5 @@ acceptance example to make testing easier.
   rules, merge qualified ancestry with safe post-merge CI suppression, verify
   closure and only then stop the increment monitor.
 
-No targeted CI was launched for this preparatory document, so it creates no
-Increment 64 CI monitor. The outstanding next implementation prerequisite is
-merged, qualified Increment 59i followed by a fresh dependency-state review.
+No targeted CI has been launched for this batch, and no CI monitor is active.
+Follow the current user-directed batch timing before remote qualification.
