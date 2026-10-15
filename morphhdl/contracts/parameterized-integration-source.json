@@ -18,11 +18,11 @@
     },
     ".github/workflows/increment-55-concrete-compatibility-audit.yml": {
       "mode": "100644",
-      "sha256": "6fa652033e37cd8cfcc2c48243ca1ad2da79debc0e01adc1ebc87ad74f9afebb"
+      "sha256": "dc7a9e079134a1b3d0fd005d8e8d3563c74453034e906e8426627aaa43486255"
     },
     ".github/workflows/increment-56-native-typed-library-surface.yml": {
       "mode": "100644",
-      "sha256": "453e21d90a9ba246d8a14b3c172386986fd4476f5d882f70e6328c07f489b1b9"
+      "sha256": "219e9582c3b443d6f1774669ca9ae60ff1dbb287912969db0787383b9e598bdf"
     },
     ".github/workflows/increment-57-broad-native-library-migration.yml": {
       "mode": "100644",
@@ -42,7 +42,7 @@
     },
     ".github/workflows/increment-59a-recursive-verilog-module.yml": {
       "mode": "100644",
-      "sha256": "a65bc9ec58e4a73edb8a4028dbb891a5c77c8228e1e2e278b692872c673bb3b0"
+      "sha256": "5632301d4fff030a3286cfe7d324840aa07dbf32be793baa6156d6e0832894c8"
     },
     ".github/workflows/increment-59b-publication.yml": {
       "mode": "100644",
@@ -320,7 +320,7 @@
     },
     "docs/morphhdl/lightweight-scala-rtl/qualification.md": {
       "mode": "100644",
-      "sha256": "9b65dd3d228afb1dea82582312dea580624ffccbd5843cd13a887624e0f6666f"
+      "sha256": "4e3eea465941ebe0be1d226f2120cbfc155e55ab082ecc50cb6ed1f6430a3709"
     },
     "docs/morphhdl/lightweight-scala-rtl/semantics-v1.md": {
       "mode": "100644",
@@ -766,11 +766,15 @@
     },
     "morphhdl/scripts/candidate_provenance_ci.py": {
       "mode": "100644",
-      "sha256": "74e6e19beeaf5fbb7617479ac577c9f591fda0a248fe6d7a084ac5f77921266c"
+      "sha256": "8c45e1277289257bd2ec5802d985ebcba7d3caaf380e6b8b00942de8e5b83323"
     },
     "morphhdl/scripts/candidate_provenance_migration.py": {
       "mode": "100644",
       "sha256": "ebdee43fb703592073eaf156879b3ce541366e42226dbb6af62d68ea3d6498ca"
+    },
+    "morphhdl/scripts/check-broad-native-library-migration-boundary.sh": {
+      "mode": "100755",
+      "sha256": "54519e56672ba145d21d3a0966ccf33eb54ef83e56492063c810877181b5c03c"
     },
     "morphhdl/scripts/check-candidate-provenance.py": {
       "mode": "100644",
@@ -787,6 +791,10 @@
     "morphhdl/scripts/check-increment-58-retirement.py": {
       "mode": "100755",
       "sha256": "b8f3d3173b5669d609a1d15227363711cf5fb5aa01ebfdf6af900180ebddb043"
+    },
+    "morphhdl/scripts/check-increment-59a-recursive-module.py": {
+      "mode": "100644",
+      "sha256": "bfdcb7c151b673304d091dcf872e104a7b708720cbe4b27acb79c66c02876a68"
     },
     "morphhdl/scripts/check-increment-59b-publication.py": {
       "mode": "100644",
@@ -902,7 +910,7 @@
     },
     "morphhdl/scripts/test-candidate-provenance-ci.py": {
       "mode": "100644",
-      "sha256": "403ef18ad170a48f5ffcef2e0e9284650674a1a08f63f13626452e45cdf3485a"
+      "sha256": "ba5e115b958759d825e8af447ab89e0ff81fde7e88c47dbaedf2fe47d369f86d"
     },
     "morphhdl/scripts/test-candidate-provenance.py": {
       "mode": "100644",
