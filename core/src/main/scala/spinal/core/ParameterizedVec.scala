@@ -2351,7 +2351,14 @@ object ParameterizedVec {
             targetShape.sourceLocation.orElse(sourceShape.sourceLocation)
           )
         case None =>
-          val authored = ParameterizedWidth.expressionOf(source).getOrElse {
+          val authored = ParameterizedWidth.expressionOf(source).orElse {
+            // An explicit fixed native leaf or resize is constant geometry,
+            // not an inferred parameter witness. Reuse the native proof rules
+            // and still compare against the complete target shape below.
+            expectedPackedWidth(targetShape).filter(_.parameters.isEmpty).flatMap { _ =>
+              NativeWidthProvenance.widthOf(source).filter(_.parameters.isEmpty)
+            }
+          }.getOrElse {
             fail(
               "SPINAL-ELAB-VEC-PACKED-SOURCE-PROVENANCE-MISSING",
               s"packed source '${source.getName()}' has only native witness width ${source.getBitsWidth}; a typed width or Vec.asBits origin is required",
@@ -2431,6 +2438,10 @@ object ParameterizedVec {
           shape.sourceLocation
         )
       }
+      // Slice receipts refer to this exact carrier even for a one-element
+      // constant target. Keep native simplification from bypassing it before
+      // publication has authenticated and consumed the complete bulk write.
+      carrier.dontSimplifyIt()
       val carrierAssignments = assignmentStatementsOf(carrier)
       if (carrier ne source) {
         if (carrier.getBitsWidth < source.getBitsWidth || carrierAssignments.size != 1) {
