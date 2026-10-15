@@ -96,7 +96,7 @@
     ".github/workflows/lane-when-expression-diagnostic.yml": null,
     ".github/workflows/morphhdl-baseline.yml": {
       "mode": "100644",
-      "sha256": "703e2757482d0c17693de861a7821106a86d19b92ff500a21840f8975249c1c5"
+      "sha256": "97b6fbe5a0ca2a2c2c94717dc5d33f554a73eb4c39f3a6e900d0a10f6d54b432"
     },
     ".github/workflows/morphhdl-external-formalization.yml": {
       "mode": "100644",
@@ -135,11 +135,11 @@
     },
     "build.mill": {
       "mode": "100644",
-      "sha256": "17ea6284b5fcfeaa14a6119b9dec161cf9f7875ad253d3fa89907c8b28e6f80b"
+      "sha256": "4a44dbe2838071f30589c1d5b38e1e36ee7a79e65418e6a690009050d513c7ed"
     },
     "build.sbt": {
       "mode": "100644",
-      "sha256": "355ec823ddbef1436f4dcf11804136e5240200002964027e0bd0226925f4fa03"
+      "sha256": "4b8057c180b944bc15b5b8f0762bd8846175fc9e941a10f0c04874d9369b78a9"
     },
     "core/src/main/scala/spinal/core/BitVector.scala": {
       "mode": "100644",
