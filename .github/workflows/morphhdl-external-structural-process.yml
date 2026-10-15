@@ -86,6 +86,13 @@ jobs:
           assert 'Mill Build Tool version 1.1.0' in version, version
           print(version)
           PYTHON
+      - name: Verify tool-path changes reach cached Mill forks
+        if: matrix.build == 'mill'
+        shell: bash
+        run: |
+          python3 morphhdl/scripts/lightweight-scala-rtl/test-mill-tool-path.py \
+            --mill /tmp/morphhdl-mill --scala '${{ matrix.scala_version }}' \
+            --output "${{ runner.temp }}/lightweight-path-check"
       - name: Run every enrolled current-source suite
         shell: bash
         run: |
@@ -104,6 +111,7 @@ jobs:
           name: lightweight-${{ matrix.build }}-${{ matrix.scala_version }}-${{ github.sha }}
           path: |
             ${{ runner.temp }}/lightweight-results
+            ${{ runner.temp }}/lightweight-path-check
             ${{ runner.temp }}/lightweight-tools
             ${{ runner.temp }}/iverilog/build-receipt.json
           if-no-files-found: error
