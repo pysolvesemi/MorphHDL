@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "359bfa9cb663290b1921c89597ed4fbc91b3e76b"
+      "approved_tree": "56d608218811f2312df9ad1524f0e0205f1c8b97"
     },
     {
       "path": "idslpayload/src/main",
@@ -27,7 +27,7 @@
     {
       "path": "lib/src/main",
       "baseline_tree": "76cd20a58e83ff73404632aec84bb03f2dd4dea9",
-      "approved_tree": "d402ec0826510567d565b6436f829cc20f03979d"
+      "approved_tree": "de629eb783d67517e2c4ba4ecb95b0fffe3b7c4e"
     },
     {
       "path": "scalaplugin/src/main",
@@ -145,8 +145,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/BitVector.scala",
         "mode": "100644",
-        "blob": "0692a83259f3e088421bbe935385acb84c2d0a77",
-        "sha256": "4b43e301ff849d02f2bb4bd64782a3332ed7ecc98fcde9ab1789d06825d3565f"
+        "blob": "f7896235116a8f4aebedc591ef18ce1148ee83ce",
+        "sha256": "fc62ec8c0632a04e1ba58afc977e16e00b4307d1fd8ea3ec082e1f10c622f625"
       },
       "edits": [
         {
@@ -198,8 +198,8 @@
         {
           "id": "bitvector-resize-01",
           "kind": "overload",
-          "owner": "spinal.core.BitVector.resize(ElabInt)",
-          "reason": "Add a concrete typed resize seam that delegates literal widths and fails closed for unsupported symbolic subclasses.",
+          "owner": "spinal.core.BitVector typed whole-width selection and resize",
+          "reason": "Add a concrete typed resize seam that delegates literal widths and fails closed for unsupported symbolic subclasses. Authenticate an exact whole-width slice against retained native geometry and preserve the original assignable carrier; reject partial offsets, independent witness-equal widths, and unauthenticated geometry.",
           "baseline_span": {
             "start": 6978,
             "end": 6978,
@@ -207,13 +207,23 @@
           },
           "approved_span": {
             "start": 7060,
-            "end": 7552,
-            "sha256": "b13f7b439e1658847e68fa3ae4947070393df67a7aaa845e3c42aa4ae13bf57a"
+            "end": 8304,
+            "sha256": "cda407daef8d8032d1951391d37f67c147e1d53cce39703c211dcb113a203426"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "SPINAL-ELAB-INT-BITVECTOR-RESIZE-SUBTYPE-UNSUPPORTED",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "  def apply(offset: Int, bitCount: ParameterizedBitCount): this.type = {",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "SPINAL-TYPED-SLICE-GEOMETRY-UNPROVEN",
               "count": 1
             }
           ]
@@ -229,8 +239,8 @@
             "sha256": "997e191b4ef819058725932ff6a5cfb7f7d6c41962ef9b2ea8d5edb9df407806"
           },
           "approved_span": {
-            "start": 8109,
-            "end": 8109,
+            "start": 8861,
+            "end": 8861,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "required_exact_text": [
@@ -252,8 +262,8 @@
             "sha256": "f68fd43dc2e1a4b29c543f3ab04a6abbefe6615a01ee5a6ad29d0d025fb6415b"
           },
           "approved_span": {
-            "start": 8242,
-            "end": 8630,
+            "start": 8994,
+            "end": 9382,
             "sha256": "b5d48665123ceee6301f0c9ba5a8c472ab306b6f455add5036aa40eec6cf5af4"
           },
           "required_exact_text": [
@@ -275,8 +285,8 @@
             "sha256": "89b016e86241a0dfa97a6818e54e1122e246d732f4a7c44f637d45c0d133cf0a"
           },
           "approved_span": {
-            "start": 20235,
-            "end": 20477,
+            "start": 20987,
+            "end": 21229,
             "sha256": "1ff84cbb9b3b0bc5e14fdfc4e13a35d4c2b3edf581c765761eea2a7cfcfe75bd"
           },
           "required_exact_text": [
@@ -759,8 +769,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElabInt.scala",
         "mode": "100644",
-        "blob": "abd2aab13d80d60a7fefd225b56763814da986e5",
-        "sha256": "2e0a38a4596c884e3f61c3c307b78d1eb26b556922ee921ebe5fc7bbfc99c591"
+        "blob": "f7536c5be753b6b8f2cd0ebb9ed66311ec831ce1",
+        "sha256": "87c398558ecd75fb16100ae0e14b0324401d6f4cdb74e1151e14878f125b707d"
       },
       "edits": []
     },
@@ -794,8 +804,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElabValue.scala",
         "mode": "100644",
-        "blob": "7f08d7ed40edd512db6c2445140bfef2cffeacba",
-        "sha256": "fe2f847ea2dcb4dd37895368f5467e4ce4ee5948a554acae3fadb7b02193f882"
+        "blob": "95fc86d9bc039dd1bb9cf07ba12346901205d7ae",
+        "sha256": "6f439586ff1d9a895c437051265b56abb5e890f202d5aa5e48b78bdafa3d6d92"
       },
       "edits": []
     },
@@ -924,8 +934,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/ExternalParameterizedValueRegistry.scala",
         "mode": "100644",
-        "blob": "f627e809fa0f606bbeb1783a076138a03cc55974",
-        "sha256": "3d4dbee2b1c0279f2c215e5332b764278dd799ac6dceb2157ec5549a780b0b67"
+        "blob": "bf105bf5367c64e56c3a44645fcb4c6baa484fc3",
+        "sha256": "963ad519d531111ce22d23fc0d22a7a9888c38b1268f6230acb97336f7df4dcb"
       },
       "edits": []
     },
@@ -1114,7 +1124,7 @@
       "introduced_by": [
         "Increment 66: native parameter and RTL readability extensions"
       ],
-      "reason": "Add the explicit fixed-width unsigned ElabInt value overload, delegating to the existing exact typed value registry. Existing literal overloads and native arithmetic remain unchanged.",
+      "reason": "Add typed U/B/S value materialization overloads through the authenticated value registry; existing concrete literal overloads remain unchanged.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/Literal.scala",
         "mode": "100644",
@@ -1124,29 +1134,75 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/Literal.scala",
         "mode": "100644",
-        "blob": "f4e58d640a38b60c429c51667910536e88326685",
-        "sha256": "ee622e63150feeaf2d9da58b686cc7f9c027dc985a6667f126f769f6378e1a94"
+        "blob": "884d85a3150a19179972f79e4ef9703dd1b41f35",
+        "sha256": "5ac53cfd59803096d7571aed781f12ec730d0633967d0034ae3bbc5c51679109"
       },
       "edits": [
         {
-          "id": "increment66-literal-1",
+          "id": "lightweight-literal-bits",
           "kind": "overload",
-          "owner": "spinal.core.U.apply(ElabInt, BitCount)",
-          "reason": "Add the explicit fixed-width unsigned ElabInt value overload, delegating to the existing exact typed value registry. Existing literal overloads and native arithmetic remain unchanged.",
+          "owner": "spinal.core typed bits literal factories",
+          "reason": "Materialize explicitly sized typed values through authenticated native value lineage; preserve existing concrete literal factories.",
+          "baseline_span": {
+            "start": 7463,
+            "end": 7463,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 7463,
+            "end": 7629,
+            "sha256": "1d8e2d0dc750c8fc7c6c69e7318289c4e9e01d807e9460698ed7138bd046fb52"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  def apply(value: ElabInt, width: ParameterizedBitCount): Bits = U(value, width).asBits",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-literal-uint",
+          "kind": "overload",
+          "owner": "spinal.core typed uint literal factories",
+          "reason": "Materialize explicitly sized typed values through authenticated native value lineage; preserve existing concrete literal factories.",
           "baseline_span": {
             "start": 8759,
             "end": 8759,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 8759,
-            "end": 9032,
-            "sha256": "77da8fc3c7a5acab62f61a9a37abac6f3bf1b29d37540cfa79b3939c18664269"
+            "start": 8925,
+            "end": 9313,
+            "sha256": "de1a7ca5ce99076d415fa1dc4a3a105d2468b79bd2bd70c404868c7541da2612"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "  /** Explicitly sized unsigned hardware value retaining its ElabInt authority.\n    * Width and value remain independent; unsupported values fail before emission.\n    */\n  def apply(value: ElabInt, width: BitCount): UInt =\n    ElabValue.uintLike(value, UInt(width), null)\n\n",
+              "text": "  def apply(value: ElabInt, width: ParameterizedBitCount): UInt =",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-literal-sint",
+          "kind": "overload",
+          "owner": "spinal.core typed sint literal factories",
+          "reason": "Materialize explicitly sized typed values through authenticated native value lineage; preserve existing concrete literal factories.",
+          "baseline_span": {
+            "start": 9651,
+            "end": 9651,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 10205,
+            "end": 10484,
+            "sha256": "2e47541e378252def5c98c90dc45659cb47e246a0e6177c35ff3405e3e359af7"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  def apply(value:ElabInt,width:ParameterizedBitCount):SInt = ElabValue.sintLike(value,SInt(width),null)",
               "count": 1
             }
           ]
@@ -1995,8 +2051,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
         "mode": "100644",
-        "blob": "4f21614b0ec23107c828466ca46c3027c3f02ed0",
-        "sha256": "f3b46d508ff91272772ec60e85dbe9994d47f08033d189ce7a6b090c70067161"
+        "blob": "79dca402d5507521de19ad4f93203668cd7fac66",
+        "sha256": "9fb6bb5ec97b8439e5ff94ec971bb90d72825738a7fe16f618c320364a41a74e"
       },
       "edits": []
     },
@@ -5757,8 +5813,8 @@
       "approved": {
         "path": "lib/src/main/scala/spinal/lib/BalancedTree.scala",
         "mode": "100644",
-        "blob": "cc48f2222ceb08cba661acf128e1c0ec8f8e62c6",
-        "sha256": "87afb5fecfb27ce63d969f40bc8adec33e8e001f9d73c0758dc3b91eaa004f7d"
+        "blob": "b6349a87ed0f00821b6383e9c5cd7a4250695fdf",
+        "sha256": "2dddafb74d93de347c2dcfd0a377f4bb72eb015d1c715f72668d35e9973435c2"
       },
       "edits": []
     },
@@ -9559,6 +9615,282 @@
       ]
     },
     {
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/TransferFilter.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Lightweight RTL inferred parameter declarations"
+      ],
+      "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
+      "baseline": {
+        "path": "lib/src/main/scala/spinal/lib/bus/tilelink/TransferFilter.scala",
+        "mode": "100644",
+        "blob": "c6834c81b7cad6465865646b0fa03a78bc81a511",
+        "sha256": "1c1050a9a1a125cfd9e5e97543e7186150d7a191021d3638341c42cf25a7c211"
+      },
+      "approved": {
+        "path": "lib/src/main/scala/spinal/lib/bus/tilelink/TransferFilter.scala",
+        "mode": "100644",
+        "blob": "145f6b004971aadca12505a0aa6a4f21f295d9ed",
+        "sha256": "a5b6400cad3635b02f7333ef052378f54a4440f5eb135b3a64fa68fe775f2228"
+      },
+      "edits": [
+        {
+          "id": "core-param-import-spinal-lib-bus-tilelink-transferfilter",
+          "kind": "mechanical-propagation",
+          "owner": "Scala import resolution",
+          "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
+          "baseline_span": {
+            "start": 52,
+            "end": 53,
+            "sha256": "d2e2adf7177b7a8afddbc12d1634cf23ea1a71020f6a1308070a16400fb68fde"
+          },
+          "approved_span": {
+            "start": 52,
+            "end": 67,
+            "sha256": "7c9f158010d967c1b5623dfcecc120f6778e4d5a92db9e4e9e6658dcd4a85941"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "{Param => _, _}",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Lightweight RTL inferred parameter declarations"
+      ],
+      "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
+      "baseline": {
+        "path": "lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala",
+        "mode": "100644",
+        "blob": "0e2d1d64cf0d5c43bfc5bfd8dd925ebb18fc2970",
+        "sha256": "711dd2d45ad3e2ed7ed4623f5c1cea5744570fab189973e59e10c21f810d65af"
+      },
+      "approved": {
+        "path": "lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala",
+        "mode": "100644",
+        "blob": "260ea077515cba1cb6a8caf0ecb519bb6dccbdc8",
+        "sha256": "a0a62bed8df3c4520ab00d3df50e8489847cdacd35960a9a557d57cdc4fd2826"
+      },
+      "edits": [
+        {
+          "id": "core-param-import-spinal-lib-bus-tilelink-coherent-cache",
+          "kind": "mechanical-propagation",
+          "owner": "Scala import resolution",
+          "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
+          "baseline_span": {
+            "start": 61,
+            "end": 62,
+            "sha256": "d2e2adf7177b7a8afddbc12d1634cf23ea1a71020f6a1308070a16400fb68fde"
+          },
+          "approved_span": {
+            "start": 61,
+            "end": 76,
+            "sha256": "7c9f158010d967c1b5623dfcecc120f6778e4d5a92db9e4e9e6658dcd4a85941"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "{Param => _, _}",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/coherent/CacheFiber.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Lightweight RTL inferred parameter declarations"
+      ],
+      "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
+      "baseline": {
+        "path": "lib/src/main/scala/spinal/lib/bus/tilelink/coherent/CacheFiber.scala",
+        "mode": "100644",
+        "blob": "3f811d7556389fa11224f8b93a8ee3ebba16c719",
+        "sha256": "15b1c0ad26cc1d6d6a06fd92e29a701cdd5d106f5a82de0d59306b210133e654"
+      },
+      "approved": {
+        "path": "lib/src/main/scala/spinal/lib/bus/tilelink/coherent/CacheFiber.scala",
+        "mode": "100644",
+        "blob": "346add678a8260b3dd36add2049b5021c3550b78",
+        "sha256": "72c26d984a71e0dbdccd595c18c8bc552b022eeddcfae0e189ef2f838b630b3c"
+      },
+      "edits": [
+        {
+          "id": "core-param-import-spinal-lib-bus-tilelink-coherent-cachefiber",
+          "kind": "mechanical-propagation",
+          "owner": "Scala import resolution",
+          "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
+          "baseline_span": {
+            "start": 61,
+            "end": 62,
+            "sha256": "d2e2adf7177b7a8afddbc12d1634cf23ea1a71020f6a1308070a16400fb68fde"
+          },
+          "approved_span": {
+            "start": 61,
+            "end": 76,
+            "sha256": "7c9f158010d967c1b5623dfcecc120f6778e4d5a92db9e4e9e6658dcd4a85941"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "{Param => _, _}",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Hub.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Lightweight RTL inferred parameter declarations"
+      ],
+      "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
+      "baseline": {
+        "path": "lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Hub.scala",
+        "mode": "100644",
+        "blob": "a388ca5ed20cfe2b6690c61bc5818476a1699f66",
+        "sha256": "30dd3f583bd3b8b173f29e33620c9839d35453d539233ff82d2e8408d2e79ea0"
+      },
+      "approved": {
+        "path": "lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Hub.scala",
+        "mode": "100644",
+        "blob": "19079e5da8c0281676efd346ae387d1421f0d9ba",
+        "sha256": "c642b94f86c38b07b610023ba083495d8803c37f01ce78ad50d02ce82df2ad7a"
+      },
+      "edits": [
+        {
+          "id": "core-param-import-spinal-lib-bus-tilelink-coherent-hub",
+          "kind": "mechanical-propagation",
+          "owner": "Scala import resolution",
+          "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
+          "baseline_span": {
+            "start": 61,
+            "end": 62,
+            "sha256": "d2e2adf7177b7a8afddbc12d1634cf23ea1a71020f6a1308070a16400fb68fde"
+          },
+          "approved_span": {
+            "start": 61,
+            "end": 76,
+            "sha256": "7c9f158010d967c1b5623dfcecc120f6778e4d5a92db9e4e9e6658dcd4a85941"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "{Param => _, _}",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/sim/MasterAgent.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Lightweight RTL inferred parameter declarations"
+      ],
+      "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
+      "baseline": {
+        "path": "lib/src/main/scala/spinal/lib/bus/tilelink/sim/MasterAgent.scala",
+        "mode": "100644",
+        "blob": "011ffd1dd6b500f01e048c33fdcaf3cc5b9a8d74",
+        "sha256": "ffb87cae4545cc9e6b98b61ec7917735ee69332923563d0b8723ea82896d3e03"
+      },
+      "approved": {
+        "path": "lib/src/main/scala/spinal/lib/bus/tilelink/sim/MasterAgent.scala",
+        "mode": "100644",
+        "blob": "a8b5ad648734b527ee0d6848c98d3f1298f850e3",
+        "sha256": "3bcb97d06109d16e3b02509cbe7166fb9382aef9622743b2cb55ae10d8775f2f"
+      },
+      "edits": [
+        {
+          "id": "core-param-import-spinal-lib-bus-tilelink-sim-masteragent",
+          "kind": "mechanical-propagation",
+          "owner": "Scala import resolution",
+          "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
+          "baseline_span": {
+            "start": 56,
+            "end": 57,
+            "sha256": "d2e2adf7177b7a8afddbc12d1634cf23ea1a71020f6a1308070a16400fb68fde"
+          },
+          "approved_span": {
+            "start": 56,
+            "end": 71,
+            "sha256": "7c9f158010d967c1b5623dfcecc120f6778e4d5a92db9e4e9e6658dcd4a85941"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "{Param => _, _}",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/sim/MasterTester.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Lightweight RTL inferred parameter declarations"
+      ],
+      "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
+      "baseline": {
+        "path": "lib/src/main/scala/spinal/lib/bus/tilelink/sim/MasterTester.scala",
+        "mode": "100644",
+        "blob": "6bbf47ff049641d9f31f3a43e4ba0148b02c1a46",
+        "sha256": "e7a0103c427c3899e0aba84864cf126967d3d1ea1495a21412c774d2bc301c0a"
+      },
+      "approved": {
+        "path": "lib/src/main/scala/spinal/lib/bus/tilelink/sim/MasterTester.scala",
+        "mode": "100644",
+        "blob": "90b371a4f8e4d2f9c863d0938571dd016374538b",
+        "sha256": "5f1becc6c9d603619a75eebdeaf0a878a31603c826e7fe194a6d80b51eb95b93"
+      },
+      "edits": [
+        {
+          "id": "core-param-import-spinal-lib-bus-tilelink-sim-mastertester",
+          "kind": "mechanical-propagation",
+          "owner": "Scala import resolution",
+          "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
+          "baseline_span": {
+            "start": 56,
+            "end": 57,
+            "sha256": "d2e2adf7177b7a8afddbc12d1634cf23ea1a71020f6a1308070a16400fb68fde"
+          },
+          "approved_span": {
+            "start": 56,
+            "end": 71,
+            "sha256": "7c9f158010d967c1b5623dfcecc120f6778e4d5a92db9e4e9e6658dcd4a85941"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "{Param => _, _}",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
       "path": "lib/src/main/scala/spinal/lib/bus/wishbone/WishboneSlaveFactory.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
@@ -9598,6 +9930,144 @@
             {
               "side": "approved",
               "text": "typedAddressAlignmentBytes",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/graphic/vga/TilelinkVgaCtrl.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Lightweight RTL inferred parameter declarations"
+      ],
+      "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
+      "baseline": {
+        "path": "lib/src/main/scala/spinal/lib/graphic/vga/TilelinkVgaCtrl.scala",
+        "mode": "100644",
+        "blob": "f67c09740042cd9cc7752305c77de949ccdc36bd",
+        "sha256": "973e8ccb5068a4d9a743509c64b648da3496e7d571bc082ce13a9cfc7d059ca6"
+      },
+      "approved": {
+        "path": "lib/src/main/scala/spinal/lib/graphic/vga/TilelinkVgaCtrl.scala",
+        "mode": "100644",
+        "blob": "dff5732f8696dc367233a82f9cc540d2907da0a5",
+        "sha256": "66b9925009b8748a5e22cdcb1aecc03e83b9a8617c354cf7039b149449412f51"
+      },
+      "edits": [
+        {
+          "id": "core-param-import-spinal-lib-graphic-vga-tilelinkvgactrl",
+          "kind": "mechanical-propagation",
+          "owner": "Scala import resolution",
+          "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
+          "baseline_span": {
+            "start": 52,
+            "end": 52,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 52,
+            "end": 64,
+            "sha256": "3aadaa3c6fa8d52e9650bb9e0d7082938ed32f9528ca57f70a7b64e13e3bc1a2"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "Param => _, ",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/system/dma/sg2/DmaSgReadOnly.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Lightweight RTL inferred parameter declarations"
+      ],
+      "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
+      "baseline": {
+        "path": "lib/src/main/scala/spinal/lib/system/dma/sg2/DmaSgReadOnly.scala",
+        "mode": "100644",
+        "blob": "71cf4da0cedace2f98c32fdae77e612693c6326b",
+        "sha256": "b3612002600b2c307300240a47d05a692c4e6d7b5c8d77957636f73ba98c50fb"
+      },
+      "approved": {
+        "path": "lib/src/main/scala/spinal/lib/system/dma/sg2/DmaSgReadOnly.scala",
+        "mode": "100644",
+        "blob": "a4be34980d38f8139bbb051d54d4a62a0bf6b764",
+        "sha256": "ffa1b4a85a9371551f5979c0d108ff827c061ee0e1dac3186067da0fdc45226a"
+      },
+      "edits": [
+        {
+          "id": "core-param-import-spinal-lib-system-dma-sg2-dmasgreadonly",
+          "kind": "mechanical-propagation",
+          "owner": "Scala import resolution",
+          "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
+          "baseline_span": {
+            "start": 54,
+            "end": 55,
+            "sha256": "d2e2adf7177b7a8afddbc12d1634cf23ea1a71020f6a1308070a16400fb68fde"
+          },
+          "approved_span": {
+            "start": 54,
+            "end": 69,
+            "sha256": "7c9f158010d967c1b5623dfcecc120f6778e4d5a92db9e4e9e6658dcd4a85941"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "{Param => _, _}",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/system/dma/sg2/DmaSgWriteOnly.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Lightweight RTL inferred parameter declarations"
+      ],
+      "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
+      "baseline": {
+        "path": "lib/src/main/scala/spinal/lib/system/dma/sg2/DmaSgWriteOnly.scala",
+        "mode": "100644",
+        "blob": "cebc4402e9ba87f7963505b761ba64d2c4e990fc",
+        "sha256": "c8e715ae79b0c6729bd81d883026ab037ccf38a00678d4e10c031bb7fa808420"
+      },
+      "approved": {
+        "path": "lib/src/main/scala/spinal/lib/system/dma/sg2/DmaSgWriteOnly.scala",
+        "mode": "100644",
+        "blob": "94fa329d1ebfb31bcf312cdd734035946830596b",
+        "sha256": "afec436101a5241251b865e9d52f04f591765c126cb4acbea1e6648a6456d8fc"
+      },
+      "edits": [
+        {
+          "id": "core-param-import-spinal-lib-system-dma-sg2-dmasgwriteonly",
+          "kind": "mechanical-propagation",
+          "owner": "Scala import resolution",
+          "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
+          "baseline_span": {
+            "start": 54,
+            "end": 55,
+            "sha256": "d2e2adf7177b7a8afddbc12d1634cf23ea1a71020f6a1308070a16400fb68fde"
+          },
+          "approved_span": {
+            "start": 54,
+            "end": 69,
+            "sha256": "7c9f158010d967c1b5623dfcecc120f6778e4d5a92db9e4e9e6658dcd4a85941"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "{Param => _, _}",
               "count": 1
             }
           ]
