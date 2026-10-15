@@ -35,7 +35,7 @@ for(k=0;k<64;k=k+1) begin source={$$random,$$random}; #3; end $$finish; end endm
       val(status,log)=Increment66ToolEvidence.run(directory,command);assert(status==0,log)
     }
   }
-  for (mode <- Seq("symbolic", "sequence", "prefix")) test(s"public reduction adapter retains actual count mode=$mode") {
+  for (mode <- Seq("symbolic", "sequence", "prefix", "prefixWidth")) test(s"public reduction adapter retains actual count mode=$mode") {
     val sequence = mode != "symbolic"
     val directory=Files.createTempDirectory("lightweight-tree-adapter-")
     MorphVerilog(MorphAggregateOptions(SpinalConfig(targetDirectory=directory.toString,
@@ -47,7 +47,9 @@ for(k=0;k<64;k=k+1) begin source={$$random,$$random}; #3; end $$finish; end endm
         val count: ElabInt=RtlParam.int("COUNT",5,1,8)
         val terms = if(sequence) in(Vec(UInt(8 bits),8)) else in(Vec(UInt(8 bits),count))
         val result=out UInt(8 bits)
-        if(mode == "prefix") result := BalancedTree.define(HardType(UInt(8 bits)),8,"AdapterTree")(
+        if(mode == "prefixWidth") result := BalancedTree.defineWidth((w:ElabInt)=>UInt(w bits),8,8,"AdapterTree")(
+          (a:UInt,b:UInt)=>a-b).reduceBalancedTree(terms,count,null)
+        else if(mode == "prefix") result := BalancedTree.define(HardType(UInt(8 bits)),8,"AdapterTree")(
           (a:UInt,b:UInt)=>a-b).reduceBalancedTree(terms,count,null)
         else if(sequence) result := BalancedTree.define(HardType(UInt(8 bits)),8,"AdapterTree")(
           (a:UInt,b:UInt)=>a-b).reduceBalancedTree(terms.toVector,count,null)

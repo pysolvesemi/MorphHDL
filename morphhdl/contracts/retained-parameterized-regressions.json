@@ -1026,7 +1026,8 @@
         "literal 5-lane reduction connects to a larger generic definition prefix=true",
         "public reduction adapter retains actual count mode=symbolic",
         "public reduction adapter retains actual count mode=sequence",
-        "public reduction adapter retains actual count mode=prefix"
+        "public reduction adapter retains actual count mode=prefix",
+        "public reduction adapter retains actual count mode=prefixWidth"
       ],
       "morphhdl.LightweightBalancedCompositeTests": [
         "generic recursive payload and callback kind=bits default=1",
@@ -4168,7 +4169,7 @@
     "morphhdl/src/test/scala/morphhdl/LibraryDefinitionReuseTests.scala": "84784c0718615ba7e20cd831e89719a98d47e16b437abbf26ddc6c0141a1b09e",
     "morphhdl/src/test/scala/morphhdl/LightweightAffineTests.scala": "878f0b3e18b7b68d6238d6c0b0069ec3d698d98b30235bc34b6010f94fbb4e76",
     "morphhdl/src/test/scala/morphhdl/LightweightAffineWriteTests.scala": "45a5a32adbd961d5c56092740f5a1b175f3e39b71b190d97da2328483ffacf52",
-    "morphhdl/src/test/scala/morphhdl/LightweightBalancedAdapterTests.scala": "a55e71478601f7452ba15c66d36aaa6a1236a793c1df30fd04615c4697a98a59",
+    "morphhdl/src/test/scala/morphhdl/LightweightBalancedAdapterTests.scala": "e7e1a83fc105920240e878fd7dc3b80063c951f1a58f3e73350850b377e91fc8",
     "morphhdl/src/test/scala/morphhdl/LightweightBalancedCompositeTests.scala": "a9e9ccb338695781c48820ada3422c77f8b52d317ffe1fc6caa8fe9aa8c850d6",
     "morphhdl/src/test/scala/morphhdl/LightweightBalancedFormalTests.scala": "3de8eec19ae344da272e5949ff61224c1e9bc7b660a824945dd27c482b923302",
     "morphhdl/src/test/scala/morphhdl/LightweightBalancedSafetyTests.scala": "0f1f3061a6f71d5d05fe56416bd6b0f89f0cb10fac4171108588b44239d930eb",

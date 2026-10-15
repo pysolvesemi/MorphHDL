@@ -3380,15 +3380,7 @@ private[internals] object ParameterizedVerilogVecs {
           val (plan,evidence)=adapted.head
           lines=rewriteAdaptedChildConnection(lines,child,vector,shape,plan,evidence,claimed,live)
         } else {
-        val connectionNames = connections.zip(childLeafWidths).map { case (connection, leafWidth) =>
-          directConnectionName(connection._2, leafWidth).getOrElse {
-            fail(
-              "SPINAL-PARAMETERIZED-VERILOG-VEC-HIERARCHY-CONNECTION-EXPRESSION",
-              s"child Vec port '$formalName' of instance '${child.getName()}' has non-direct native connection '${connection._2}'",
-              shape.sourceLocation
-            )
-          }
-        }
+
 
         // A child input is a packed Vec boundary only when the authoritative
         // Vec algorithm retained the complete parent-to-child relation by
@@ -3447,6 +3439,29 @@ private[internals] object ParameterizedVerilogVecs {
           }
           childOwned ++ parentOwned
         }
+        val connectionNames = connections.zip(childLeafWidths).zipWithIndex.map {
+          case ((connection, leafWidth), ordinal) =>
+            directConnectionName(connection._2, leafWidth).orElse {
+              // Native ports may print a full slice in the parent's actual
+              // width rather than the child's formal. Only an exact live Vec
+              // boundary plus formal substitution may authorize that spelling.
+              retainedInputs.iterator.map(_._1).filter { candidate =>
+                candidate.leaves.size == childLeaves.size &&
+                  ParameterizedVec.logicalHierarchyCompatible(vector, candidate.vector)
+              }.flatMap { candidate =>
+                val leaf = candidate.leaves(ordinal)
+                directConnectionName(connection._2, leaf.shape.width).filter(_ == leaf.name)
+              }.toVector.distinct match {
+                case Vector(name) => Some(name)
+                case _ => None
+              }
+            }.getOrElse {
+              fail("SPINAL-PARAMETERIZED-VERILOG-VEC-HIERARCHY-CONNECTION-EXPRESSION",
+                s"child Vec port '$formalName' of instance '${child.getName()}' has non-direct native connection '${connection._2}'",
+                shape.sourceLocation)
+            }
+        }
+
         val directlyConnected = retainedInputs.collect {
           case (candidate, assignments)
               if candidate.leaves.size == connectionNames.size &&
