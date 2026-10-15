@@ -52,7 +52,7 @@ class MigratedAuditTests(unittest.TestCase):
 
     def test_workflows_preserve_every_byte_outside_explicit_policy_migration(self):
         contract = json.loads((ROOT / 'morphhdl/contracts/candidate-provenance-workflow-migration.json').read_text())
-        self.assertEqual(len(contract['workflows']), 12)
+        self.assertEqual(len(contract['workflows']), 15)
         for path, record in contract['workflows'].items():
             with self.subTest(path=path):
                 current = (ROOT / path).read_text()

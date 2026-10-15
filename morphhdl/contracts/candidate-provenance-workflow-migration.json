@@ -242,6 +242,72 @@
           "after": "          name: integrated-source-morphhdl-native-source-guard-guard-source-${{ github.run_attempt }}\n"
         }
       ]
+    },
+    ".github/workflows/increment-59b-inherited-source-scope.yml": {
+      "before_sha256": "ac58516e51fba2552dcdd8ec23828638c57191394b319f056483157fa497d190",
+      "after_sha256": "0d1e463144faacd327a0ad0cd61d6fa3f0b865912c0589670ff3f05cadf21ec2",
+      "patches": [
+        {
+          "before": "permissions:\n  contents: read\n",
+          "after": "permissions:\n  contents: read\n  actions: read\n"
+        },
+        {
+          "before": "      - name: Accept audited descendants and reject changed or unapproved native source\n",
+          "after": "      - name: Consume authenticated candidate provenance\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py\n      - name: Reject altered source, evidence, ancestry and stale receipts\n        shell: bash\n        run: |\n          python3 morphhdl/scripts/test-candidate-provenance.py\n          python3 morphhdl/scripts/test-candidate-provenance-ci.py\n      - name: Accept audited descendants and reject changed or unapproved native source\n"
+        },
+        {
+          "before": "          python3 morphhdl/scripts/test-increment-59b-inherited-source-scope.py \\\n",
+          "after": "          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/test-increment-59b-inherited-source-scope.py \\\n"
+        }
+      ]
+    },
+    ".github/workflows/increment-61-compatibility-matrix.yml": {
+      "before_sha256": "06a27f143b7c2ee998dd803fb80a4cec2501241a3710606e0b4bee9a5b101420",
+      "after_sha256": "6769bf88e9ef9a76d80d49ae05088379bca2454de0ec2012f61a0116ab802e48",
+      "patches": [
+        {
+          "before": "permissions:\n  contents: read\n",
+          "after": "permissions:\n  contents: read\n  actions: read\n"
+        },
+        {
+          "before": "      - name: Require exact reviewed source\n",
+          "after": "      - name: Consume authenticated candidate provenance\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py\n      - name: Reject altered source, evidence, ancestry and stale receipts\n        shell: bash\n        run: |\n          python3 morphhdl/scripts/test-candidate-provenance.py\n          python3 morphhdl/scripts/test-candidate-provenance-ci.py\n      - name: Require exact reviewed source\n"
+        },
+        {
+          "before": "          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test\n",
+          "after": "          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test\n"
+        },
+        {
+          "before": "          python3 morphhdl/scripts/check-increment-61-source-review.py\n",
+          "after": "          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py\n"
+        }
+      ]
+    },
+    ".github/workflows/increment-61-one-file-per-component.yml": {
+      "before_sha256": "bafaa09f8a92165ee32707311957e8283637e9f077274125690a8f8a39949ddd",
+      "after_sha256": "bbb436af2ebd2fef995877d0f4e9915ead5f158bcd481332c8a9448ebbdceecd",
+      "patches": [
+        {
+          "before": "permissions:\n  contents: read\n",
+          "after": "permissions:\n  contents: read\n  actions: read\n"
+        },
+        {
+          "before": "      - name: Verify Increment 61 and the unchanged predecessor source contracts\n",
+          "after": "      - name: Consume authenticated candidate provenance\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py\n      - name: Reject altered source, evidence, ancestry and stale receipts\n        shell: bash\n        run: |\n          python3 morphhdl/scripts/test-candidate-provenance.py\n          python3 morphhdl/scripts/test-candidate-provenance-ci.py\n      - name: Verify Increment 61 and the unchanged predecessor source contracts\n"
+        },
+        {
+          "before": "          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test | tee -a \"$output/review.log\"\n",
+          "after": "          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test | tee -a \"$output/review.log\"\n"
+        },
+        {
+          "before": "          python3 morphhdl/scripts/check-increment-61-source-review.py | tee \"$output/review.log\"\n",
+          "after": "          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py | tee \"$output/review.log\"\n"
+        },
+        {
+          "before": "          base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)\n          git worktree add --detach \"$predecessor\" \"$base\"\n          trap 'git worktree remove --force \"$predecessor\"' EXIT\n          (\n            cd \"$predecessor\"\n            python3 morphhdl/scripts/check-increment-60g-source-scope.py\n            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only\n          ) | tee \"$output/inherited.log\"\n",
+          "after": "          # The producer authenticates the fixed Increment 61 predecessor and\n          # its immutable evidence; this is not historical suite execution.\n          python3 morphhdl/scripts/candidate_provenance_ci.py --consume | tee \"$output/inherited.log\"\n"
+        }
+      ]
     }
   }
 }

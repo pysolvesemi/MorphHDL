@@ -23,6 +23,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: increment-59b-source-scope-${{ github.ref }}
@@ -46,12 +47,22 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Consume authenticated candidate provenance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 morphhdl/scripts/candidate_provenance_ci.py
+      - name: Reject altered source, evidence, ancestry and stale receipts
+        shell: bash
+        run: |
+          python3 morphhdl/scripts/test-candidate-provenance.py
+          python3 morphhdl/scripts/test-candidate-provenance-ci.py
       - name: Accept audited descendants and reject changed or unapproved native source
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p target/increment-59b-source-scope
-          python3 morphhdl/scripts/test-increment-59b-inherited-source-scope.py \
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/test-increment-59b-inherited-source-scope.py \
             2>&1 | tee target/increment-59b-source-scope/tests.log
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=no)"

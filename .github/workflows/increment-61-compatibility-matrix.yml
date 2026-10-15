@@ -35,6 +35,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: increment-61-compatibility-${{ github.event.pull_request.number || github.ref }}
@@ -64,12 +65,22 @@ jobs:
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
+      - name: Consume authenticated candidate provenance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 morphhdl/scripts/candidate_provenance_ci.py
+      - name: Reject altered source, evidence, ancestry and stale receipts
+        shell: bash
+        run: |
+          python3 morphhdl/scripts/test-candidate-provenance.py
+          python3 morphhdl/scripts/test-candidate-provenance-ci.py
       - name: Require exact reviewed source
         shell: bash
         run: |
           set -euo pipefail
-          python3 morphhdl/scripts/check-increment-61-source-review.py
-          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test
       - name: Bootstrap pinned SBT
         shell: bash
         run: |
