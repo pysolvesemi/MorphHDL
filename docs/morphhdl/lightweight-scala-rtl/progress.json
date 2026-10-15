@@ -409,6 +409,21 @@
     "broader_regression": "102/102 tests in seven suites pass on each supported Scala version after placing exact signed input reconstruction aliases before generate consumers",
     "remote": "pending",
     "regression_log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/nested-capacity-regression-v2.log",
-    "source_snapshot": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/nested-capacity-regression-v2/source"
+    "source_snapshot": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/nested-capacity-regression-v2/source",
+    "committed_followup": {
+      "commit": "56d5b356c3ed7b6b6feec548577a20c7a33cd974",
+      "tree": "51631d6c9c300752e1dad89c752fd2a915229d42",
+      "scala_versions": [
+        "2.12.18",
+        "2.13.12"
+      ],
+      "event_and_capacity_tests_per_scala": 29,
+      "signedness_tests_per_scala": 37,
+      "logs": [
+        "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/nested-signed-followup.log",
+        "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/signed-boundary-followup.log"
+      ],
+      "note": "First invocation omitted signedness suites due to wrong package selectors; corrected separate invocation ran both actual signedness suites."
+    }
   }
 }
