@@ -183,7 +183,9 @@ def mutate(text: str, control: str) -> str:
     else:
         field = 'unsigned' if control == 'inner-index-swap' else 'signed'
         require(control in ('inner-index-swap', 'signed-bit-loss'), 'unknown mutation')
-        pattern = re.compile(r'(?m)^(\s*selected_samples_' + field + r'\[[^;]+\]\s*=\s*)(balanced_\d+_result_leaf_\d+)(;)')
+        # Scoped result publication can use continuous assignments. Retain the
+        # same exact six leaf anchors for both publication forms.
+        pattern = re.compile(r'(?m)^(\s*(?:assign\s+)?selected_samples_' + field + r'\[[^;]+\]\s*=\s*)(balanced_\d+_result_leaf_\d+)(;)')
         matches = list(pattern.finditer(text))
         require(len(matches) == 6, 'missing exact two-owner/three-lane mutation anchors')
         changes = []

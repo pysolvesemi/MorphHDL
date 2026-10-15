@@ -68,6 +68,29 @@ class NestedResultCheckerTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             C.mutate(text.replace('result_leaf_6','result_leaf_2'),'inner-index-swap')
 
+    def test_continuous_publication_mutates_exact_leaf_operands(self):
+        # Syntax from the fields/legacy/default-one CI artifact: two owners,
+        # three guarded lanes, and distinct unsigned/signed leaf identities.
+        lines = []
+        for owner in (1, 2):
+            for lane in (0, 1, 2):
+                for field, width, leaf in (('unsigned', 'U_W', 2), ('signed', 'S_W', 3)):
+                    offset = '0' if lane == 0 else width if lane == 1 else '2 * ' + width
+                    lines.append(f'      assign selected_samples_{field}[({offset}) +: {width}] = balanced_{owner}_result_leaf_{lane*4+leaf};')
+        text = '\n'.join(lines)
+        swapped = C.mutate(text, 'inner-index-swap')
+        expected = lines.copy()
+        expected[0] = expected[0].replace('result_leaf_2;', 'result_leaf_6;')
+        expected[2] = expected[2].replace('result_leaf_6;', 'result_leaf_2;')
+        self.assertEqual(swapped, '\n'.join(expected))
+        expected = lines.copy()
+        expected[1] = expected[1].replace(';', " & {1'b0, {(S_W-1){1'b1}}};")
+        self.assertEqual(C.mutate(text, 'signed-bit-loss'), '\n'.join(expected))
+        for control in ('inner-index-swap', 'signed-bit-loss'):
+            for changed in ('\n'.join(lines[:-2]), text + '\n' + '\n'.join(lines[:2]),
+                            text.replace('assign ', 'assign unrelated_')):
+                with self.assertRaises(RuntimeError): C.mutate(changed, control)
+
     def test_new_review_spans_reject_removed_ownership_and_process_guards(self):
         entries=R.load_contract(ROOT)
         controls={

@@ -96,7 +96,7 @@ def restore_reviewed_workflow(text: str) -> str:
     bridge_count = "'TypedBalancedReductionBridgeReplayTests': 13"
     if text.count(bridge_count) != 1:
         raise AssertionError('Expected exactly one reviewed bridge inventory successor')
-    text = text.replace(bridge_count, "'TypedBalancedReductionBridgeReplayTests': 12")
+    # The exact provenance migration reverses this count after authenticating it.
     text = restore_integration_enrollment(text)
     return text.replace(ENROLLMENT, '').replace(REVIEWED_BUDGET, OLD_BUDGET).replace(
         "'TypedBalancedReductionClosedGraphTests': 27", "'TypedBalancedReductionClosedGraphTests': 20")
