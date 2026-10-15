@@ -33,6 +33,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+      - name: Validate enrolled qualification workflow definitions
+        shell: bash
+        run: bash morphhdl/scripts/lightweight-scala-rtl/check-workflows.sh
       - name: Authenticate candidate provenance once
         shell: bash
         env:
@@ -107,7 +110,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: integrated-source-morphhdl-native-source-guard-guard-${{ matrix.scala || 'source' }}-${{ github.run_attempt }}
+          name: integrated-source-morphhdl-native-source-guard-guard-source-${{ github.run_attempt }}
           path: target/parameterized-inherited-audits
           if-no-files-found: error
           retention-days: 30
