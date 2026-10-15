@@ -44,6 +44,10 @@
       "mode": "100644",
       "sha256": "b3ead2eb78a81ecaf440ee562619f9314df067075eb41646ae5f9013e594fec6"
     },
+    ".github/workflows/increment-59b-inherited-source-scope.yml": {
+      "mode": "100644",
+      "sha256": "0d1e463144faacd327a0ad0cd61d6fa3f0b865912c0589670ff3f05cadf21ec2"
+    },
     ".github/workflows/increment-59b-publication.yml": {
       "mode": "100644",
       "sha256": "3796114c4d1c2bf48c138212ebd1c2b93192b37fb62b1575bacfc34b013c986d"
@@ -91,6 +95,14 @@
     ".github/workflows/increment-60g-default-signed-verilog.yml": {
       "mode": "100644",
       "sha256": "27794cd9b2bad4f3a07289206ac3da831ec822a4b832fd3624ad56b3001b7a88"
+    },
+    ".github/workflows/increment-61-compatibility-matrix.yml": {
+      "mode": "100644",
+      "sha256": "6769bf88e9ef9a76d80d49ae05088379bca2454de0ec2012f61a0116ab802e48"
+    },
+    ".github/workflows/increment-61-one-file-per-component.yml": {
+      "mode": "100644",
+      "sha256": "bbb436af2ebd2fef995877d0f4e9915ead5f158bcd481332c8a9448ebbdceecd"
     },
     ".github/workflows/increment-62-wa08-source-overlay.yml": null,
     ".github/workflows/lane-when-expression-diagnostic.yml": null,
@@ -706,7 +718,7 @@
     "morphhdl-passes/wa11-boolean-width-normalization.md": null,
     "morphhdl/contracts/candidate-provenance-workflow-migration.json": {
       "mode": "100644",
-      "sha256": "ae501086fa0ea99ec66812fe5c909ed49fdfbe05b1b1da321eeda09ef21c89dd"
+      "sha256": "7a0df2375c8f55e0ca904e07216585be62244f5ae63db3883e5af878e37359c9"
     },
     "morphhdl/contracts/candidate-provenance.json": {
       "mode": "100644",
@@ -978,7 +990,7 @@
     },
     "morphhdl/scripts/test-parameterized-inherited-audit.py": {
       "mode": "100644",
-      "sha256": "79431d8f47dcc0b34d885b248b398813acbb7c46b533d6d33df8fc20d86c05a8"
+      "sha256": "469a16a16040f8eb2a43a05c8adf2319eaf9f84be5fe2ecd689a6824381218a1"
     },
     "morphhdl/src/main/scala/morphhdl/MorphAggregateOptions.scala": {
       "mode": "100644",
