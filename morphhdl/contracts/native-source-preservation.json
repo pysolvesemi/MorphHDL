@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "2456966fbb7ddb288b8f10b16ec4ccb74ed0eeb8"
+      "approved_tree": "afeabd02eb099ba348bf69b94cfcd415e3bfc43c"
     },
     {
       "path": "idslpayload/src/main",
@@ -953,7 +953,7 @@
       "introduced_by": [
         "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
       ],
-      "reason": "Apply native port direction to symbolic Vec.fill through the factory hook, preserving Scala 2.12 overload resolution. Lightweight roadmap: Apply native port direction to symbolic Vec.fill through the factory hook, preserving Scala 2.12 overload resolution.",
+      "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/IODirection.scala",
         "mode": "100644",
@@ -963,15 +963,15 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/IODirection.scala",
         "mode": "100644",
-        "blob": "005201a64db1cf5f6c611ed3173d7d861e3b6151",
-        "sha256": "aa2ee474bfa0e7c71a81a7c97c2b5fba95cd4495e229b8b264687a8216bf66da"
+        "blob": "8bbf098ff3fc4d79c5065c2619a0d3156636aa61",
+        "sha256": "0070be0391ddc0dbca51fe0825533bd6665ba8d82e7069695fefb37d785b24e3"
       },
       "edits": [
         {
-          "id": "lightweight-iodirection-0",
+          "id": "lightweight-iodirection-abi-0",
           "kind": "overload",
-          "owner": "native IODirection authoring boundary",
-          "reason": "Apply native port direction to symbolic Vec.fill through the factory hook, preserving Scala 2.12 overload resolution.",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
           "baseline_span": {
             "start": 977,
             "end": 977,
@@ -979,13 +979,128 @@
           },
           "approved_span": {
             "start": 977,
-            "end": 1184,
-            "sha256": "d50c6be1e598844c7238c13e1fcfcf7f49b3d6b6cfce32017ff833629eec0de5"
+            "end": 1069,
+            "sha256": "0619e98c6d33a4e44ed7f7caf3b55c3f51ac1cf0d2428e8d7c42368b39e9a517"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "\n  override protected def postVecFactory[T <: Data](vector: Vec[T]): Vec[T] = port(vector)\n  // Keep the builder and overloaded methods on the same owner for Scala 2.12.\n  override val Vec = new VecBuilder\n\n",
+              "text": "\n  override protected def postVecFactory[T <: Data](vector: Vec[T]): Vec[T] = port(vector)\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-iodirection-abi-1",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "baseline_span": {
+            "start": 3214,
+            "end": 3214,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 3306,
+            "end": 3427,
+            "sha256": "4a73da550b10f29b7f1e4ea4552ecd1d113bb1afa717b3addd4b65f28690d687"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.\n  override val Vec = new VecBuilder\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-iodirection-abi-2",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "baseline_span": {
+            "start": 3390,
+            "end": 3390,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 3603,
+            "end": 3724,
+            "sha256": "4a73da550b10f29b7f1e4ea4552ecd1d113bb1afa717b3addd4b65f28690d687"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.\n  override val Vec = new VecBuilder\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-iodirection-abi-3",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "baseline_span": {
+            "start": 3568,
+            "end": 3568,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 3902,
+            "end": 4023,
+            "sha256": "4a73da550b10f29b7f1e4ea4552ecd1d113bb1afa717b3addd4b65f28690d687"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.\n  override val Vec = new VecBuilder\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-iodirection-abi-4",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "baseline_span": {
+            "start": 3773,
+            "end": 3773,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 4228,
+            "end": 4349,
+            "sha256": "4a73da550b10f29b7f1e4ea4552ecd1d113bb1afa717b3addd4b65f28690d687"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.\n  override val Vec = new VecBuilder\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-iodirection-abi-5",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "baseline_span": {
+            "start": 4009,
+            "end": 4009,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 4585,
+            "end": 4706,
+            "sha256": "4a73da550b10f29b7f1e4ea4552ecd1d113bb1afa717b3addd4b65f28690d687"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.\n  override val Vec = new VecBuilder\n",
               "count": 1
             }
           ]
@@ -1875,13 +1990,13 @@
       "introduced_by": [
         "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
       ],
-      "reason": "Define optional typed documentation metadata, configuration, identity-preserving APIs, exception-safe regions, declaration publication and exact relocation envelopes. Decode optional source coordinates in the metadata owner while preserving valid and malformed location behavior; the canonical producer consumes typed coordinates without parsing source text.",
+      "reason": "Define optional typed documentation metadata, configuration, identity-preserving APIs, exception-safe regions, declaration publication and exact relocation envelopes. Decode optional source coordinates in the metadata owner while preserving valid and malformed location behavior; the canonical producer consumes typed coordinates without parsing source text. Store region notes in elaboration-owned identity metadata with concrete default accessors, preserving binary compatibility of existing Statement implementations and empty scope construction outside elaboration.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/RtlDocumentation.scala",
         "mode": "100644",
-        "blob": "cbe159bf1bcd131eba17f4b7ff605150b05d397f",
-        "sha256": "1155dd13e807bd2729cea78a99472b3223e8de5133fb6272068296c42a933ef6"
+        "blob": "88c62cb99c5fa1b02165d5f61eaf01b3abee9c6c",
+        "sha256": "a39be301d7f09b3f3d86db526e902b3652edd83d76beab3baf999e804353bbc3"
       },
       "edits": []
     },

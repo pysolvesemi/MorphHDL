@@ -543,17 +543,82 @@
       "introduced_by": [
         "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
       ],
-      "reason": "Apply native port direction to symbolic Vec.fill through the factory hook, preserving Scala 2.12 overload resolution. Lightweight roadmap: Apply native port direction to symbolic Vec.fill through the factory hook, preserving Scala 2.12 overload resolution.",
+      "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
       "edits": [
         {
-          "id": "lightweight-iodirection-0",
+          "id": "lightweight-iodirection-abi-0",
           "kind": "overload",
-          "owner": "native IODirection authoring boundary",
-          "reason": "Apply native port direction to symbolic Vec.fill through the factory hook, preserving Scala 2.12 overload resolution.",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "\n  override protected def postVecFactory[T <: Data](vector: Vec[T]): Vec[T] = port(vector)\n  // Keep the builder and overloaded methods on the same owner for Scala 2.12.\n  override val Vec = new VecBuilder\n\n",
+              "text": "\n  override protected def postVecFactory[T <: Data](vector: Vec[T]): Vec[T] = port(vector)\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-iodirection-abi-1",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.\n  override val Vec = new VecBuilder\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-iodirection-abi-2",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.\n  override val Vec = new VecBuilder\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-iodirection-abi-3",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.\n  override val Vec = new VecBuilder\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-iodirection-abi-4",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.\n  override val Vec = new VecBuilder\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-iodirection-abi-5",
+          "kind": "overload",
+          "owner": "native IODirection and concrete direction factories",
+          "reason": "Preserve typed Vec factory direction and Scala 2.12 overload resolution with concrete direction-object builders, without adding abstract requirements to the existing IODirection JVM interface.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Concrete storage resolves Scala 2.12 overloads without extending the trait ABI.\n  override val Vec = new VecBuilder\n",
               "count": 1
             }
           ]
@@ -1100,7 +1165,7 @@
       "introduced_by": [
         "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
       ],
-      "reason": "Define optional typed documentation metadata, configuration, identity-preserving APIs, exception-safe regions, declaration publication and exact relocation envelopes. Decode optional source coordinates in the metadata owner while preserving valid and malformed location behavior; the canonical producer consumes typed coordinates without parsing source text.",
+      "reason": "Define optional typed documentation metadata, configuration, identity-preserving APIs, exception-safe regions, declaration publication and exact relocation envelopes. Decode optional source coordinates in the metadata owner while preserving valid and malformed location behavior; the canonical producer consumes typed coordinates without parsing source text. Store region notes in elaboration-owned identity metadata with concrete default accessors, preserving binary compatibility of existing Statement implementations and empty scope construction outside elaboration.",
       "baseline_path": null,
       "edits": []
     },
