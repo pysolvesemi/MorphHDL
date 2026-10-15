@@ -5,7 +5,7 @@
   "working_directory": "/home/kartik/.local/state/morphhdl/worktrees/lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Guarded register next-value joins locally validated; staged host-effect diagnostics next",
+  "phase": "Direct staged-effect diagnostics and explicit weak naming repaired locally; helper effects and mixed indices next",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -43,7 +43,8 @@
     "Exact guarded positive-stride whole-leaf Vec write partitions with complete domain coverage, non-overlap and competing-writer rejection",
     "Scoped no-else statements preserve absent branch identity; finite loops inside native when/otherwise retain enclosing control and independent writes",
     "Compiler-inferred recursive interfaces forward exact current-domain clock/reset/soft-reset/enable ports with binding tamper checks",
-    "Complete complementary static writes to a capture-local register normalize into a typed combinational next-value join while preserving storage, reset, clocks, attributes and feedback"
+    "Complete complementary static writes to a capture-local register normalize into a typed combinational next-value join while preserving storage, reset, clocks, attributes and feedback",
+    "Ordinary staged if/for reject direct host assignment, lexical compound mutation, mutable locals, early return and throw while retaining explicit-generate compatibility"
   ],
   "local_logs": [
     "/tmp/lwr01-plugin-all.log",
@@ -267,6 +268,23 @@
       "tests_per_scala": 1,
       "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/guarded-registers-formal-cross",
       "scope": "three two-state temporal-induction comparisons and one corrupted-reference rejection per Scala version"
+    }
+  },
+  "local_validation_direct_effects": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "compiler_tests_per_scala": 67,
+    "native_tests_per_scala": 96,
+    "native_suites": 9,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/staged-effects-v6",
+    "scope": "full plugin tests, native syntax/arrays/registers/clock tests, preserved escape and rollback controls; helper/callback purity remains open",
+    "fifo_followup": {
+      "tests_per_scala": 33,
+      "suites": 4,
+      "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/staged-effects-fifo-repaired",
+      "scope": "native StreamFifo/StreamFifoCC and concrete compatibility plus explicit strong/weak staged local names; original three naming failures retained in staged-effects-fifo.log"
     }
   }
 }

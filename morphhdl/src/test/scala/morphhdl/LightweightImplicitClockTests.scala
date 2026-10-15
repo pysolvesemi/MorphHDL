@@ -3,7 +3,7 @@ package morphhdl
 import java.nio.file.Files
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
-import spinal.core.internals._
+import spinal.core.internals.{BoolLiteral, PhaseContext, PhaseMisc, PhaseVerilog}
 
 @_root_.spinal.core.rtlRecursive
 final class LightweightImplicitClockTree(actual: ElabInt, foreignDomain: Boolean = false, guardedRegister: Boolean = false) extends Component {

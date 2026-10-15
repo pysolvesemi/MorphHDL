@@ -121,7 +121,7 @@ endmodule
         val result = out(Vec(Bits(8 bits), count))
         val escaped = out Bits(8 bits)
         var saved: ElabScopedIndex = null
-        for (i <- 0 until count) {
+        ElabFiniteRange.foreach(count, "runtime_escape") { i =>
           saved = i
           result(i) := source(i)
         }

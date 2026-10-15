@@ -231,10 +231,10 @@ class NativeScopedLegalityTests extends AnyFunSuite {
       result := source
       val rejected = new IllegalStateException("deliberate rejected probe")
       def attempt(reject: Boolean): Unit = {
-        if (mode == 1) {
+        ElabControl.selectSymbolic(mode.elabEq(1), "NativeScopedLegalityTests.scala", 234) {
           require(width >= 8, "RETRY_RULE")
           marker(source, "retryTrue")
-        } else {
+        } {
           if (reject) throw rejected
           marker(source, "retryFalse")
         }

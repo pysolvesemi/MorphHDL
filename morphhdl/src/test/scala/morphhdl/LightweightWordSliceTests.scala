@@ -60,7 +60,7 @@ $$finish; end endmodule
         val result = out Bits(width bits)
         val kept = out Bits((count * width) bits)
         var escaped: ElabScopedWordOffset = null
-        for (i <- 0 until count) {
+        ElabFiniteRange.foreach(count, "runtime_word_escape") { i =>
           kept(i * width, width bits) := ~source(i * width, width bits)
           escaped = i * width
         }

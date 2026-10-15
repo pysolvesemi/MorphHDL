@@ -339,3 +339,28 @@ enter this narrow normalization. Existing ownership/driver checks still apply.
 Cross-version tests cover Bool/Bits/UInt/SInt, symbolic widths, feedback, register
 attributes, two layouts and recursive clock/reset/enable behavior. The 11-suite
 regression passes 163 tests per Scala version; remote qualification remains open.
+
+
+## Direct host effects in ordinary staged syntax (qualification pending)
+
+Ordinary symbolic `if` and `for` reject direct host assignments, mutable local
+declarations, early `return` and `throw`. Compound assignment is rejected when
+its unqualified receiver resolves to an exact mutable lexical binding. Immutable
+hardware values still use their normal `:=` and hardware methods. Concrete Scala
+control flow outside staged bodies keeps its existing behavior.
+
+The established explicit `.generate` API retains its advanced native metadata
+capture behavior, used by the FIFO library to retain authenticated branch-owner
+handles. It still passes native capture/ownership checks. An explicit `.generate`
+inside an ordinary checked body does not clear that body's effect boundary.
+Runtime escape and transaction-rollback tests use explicit capture APIs so the
+underlying defenses remain tested independently of frontend rejection.
+
+This is not a proof of arbitrary helper or callback purity. Transitive effects,
+qualified mutable receivers, collection mutation and I/O need additional analysis
+before the broader effect acceptance item can close.
+
+Compiler-supplied staged local names preserve explicit weak `setName` requests,
+as well as strong names and `keep` attributes. This fallback does not replace
+native naming priorities for ordinary reflected component fields. FIFO width
+assertions and behavioral regressions cover the weak-name compatibility path.

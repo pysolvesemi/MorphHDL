@@ -279,4 +279,78 @@ class LightweightSyntaxBaselineTests extends AnyFunSuite {
     assert(errors.isEmpty, errors.mkString("\n"))
   }
 
+  for (body <- Seq("host = 1", "host += 1", "var local = 0; ()", "return ()", "throw new RuntimeException(\"effect\")");
+       form <- Seq("branch", "range", "scoped")) {
+    test(s"ordinary staged $form rejects direct host effect $body") {
+      val statement = form match {
+        case "branch" => s"if(count > 1) { $body } else ()"
+        case "range" => s"for(i <- 0 until count) { $body }"
+        case "scoped" => s"for(i <- 0 until count) { if(i < count) { $body } }"
+      }
+      val errors = compile(definitions + s"""
+        package stageeffects {
+          import spinal.core._
+          object Probe {
+            def run(count: ElabInt): Unit = { var host=0; $statement }
+          }
+        }
+      """, "StagedEffects.scala")
+      assert(errors.exists(_.message.contains("MORPHDL-STAGED-HOST-EFFECT-UNSUPPORTED")), errors.mkString("\n"))
+    }
+  }
+  test("ordinary concrete mutation is unchanged and a val hardware operator is not a host variable assignment") {
+    val errors = compile(definitions + """
+      package stageeffectcontrols {
+        import spinal.core._
+        class Hardware {
+          def :=(value: Int): Unit = ()
+          def +=(value: Int): Unit = ()
+        }
+        object Probe {
+          def concrete(n: Int): Int = {
+            var host=0
+            for(i <- 0 until n) host += i
+            if(n == 0) return 0 else host
+          }
+          def staged(count: ElabInt): Unit = {
+            var value=0
+            for(i <- 0 until count) {
+              val value = new Hardware
+              value := 1
+              value += 2
+            }
+          }
+        }
+      }
+    """, "StagedEffectControls.scala")
+    assert(errors.isEmpty, errors.mkString("\n"))
+  }
+
+  test("explicit generate preserves native metadata capture but cannot escape an ordinary staged body") {
+    val compatible = compile(definitions + """
+      package advancedgenerate {
+        import spinal.core._
+        object Probe {
+          def run(condition: ElabBool): Unit = {
+            var captured=0
+            condition.generate { captured = 1 }
+          }
+        }
+      }
+    """, "AdvancedGenerate.scala")
+    assert(compatible.isEmpty,compatible.mkString("\n"))
+    val nested = compile(definitions + """
+      package nestedgenerate {
+        import spinal.core._
+        object Probe {
+          def run(count: ElabInt, condition: ElabBool): Unit = {
+            var captured=0
+            if(count > 1) condition.generate { captured = 1 }
+          }
+        }
+      }
+    """, "NestedGenerate.scala")
+    assert(nested.exists(_.message.contains("MORPHDL-STAGED-HOST-EFFECT-UNSUPPORTED")),nested.mkString("\n"))
+  }
+
 }

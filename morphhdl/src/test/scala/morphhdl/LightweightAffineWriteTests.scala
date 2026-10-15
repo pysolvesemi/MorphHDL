@@ -99,7 +99,9 @@ reset=1; #13;reset=0;#20;$$finish; end endmodule
           val result=out Bits(count bits)
           result := source
           var touched=0
-          for(i<-0 until count) if(2*i+1<count) { touched += 1 }
+          ElabFiniteRange.foreach(count, "runtime_empty_guard") { i =>
+            i.whenAffineLessThan(2, 1, count, "empty", emptyFalse = true) { touched += 1 } { () }
+          }
         }
       }
     }

@@ -46,7 +46,8 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       typedRequires: IdentityHashMap[Tree, java.lang.Boolean],
       typedEqualities: IdentityHashMap[Tree, java.lang.Boolean],
       typedRanges: IdentityHashMap[Tree, java.lang.Boolean],
-      scopedIfs: IdentityHashMap[Tree, java.lang.Boolean]
+      scopedIfs: IdentityHashMap[Tree, java.lang.Boolean],
+      hostMutations: IdentityHashMap[Tree, java.lang.Boolean]
   )
 
   private final case class WildcardMembers(
@@ -198,9 +199,11 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     val typedEqualities = new IdentityHashMap[Tree, java.lang.Boolean]()
     val typedRanges = new IdentityHashMap[Tree, java.lang.Boolean]()
     val scopedIfs = new IdentityHashMap[Tree, java.lang.Boolean]()
+    val hostMutations = new IdentityHashMap[Tree, java.lang.Boolean]()
 
     final class LexicalScope {
       val terms = mutable.LinkedHashMap.empty[TermName, BindingKind]
+      val mutableTerms = mutable.LinkedHashSet.empty[TermName]
       val callResults = mutable.LinkedHashMap.empty[TermName, BindingKind]
       val localTypes = mutable.LinkedHashMap.empty[TypeName, BindingKind]
       val explicitTypes =
@@ -609,11 +612,16 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       if (value.tpt == null || value.tpt.isEmpty) expressionKind(value.rhs)
       else typeKind(value.tpt)
 
-    def bind(value: ValDef): Unit =
+    def bind(value: ValDef): Unit = {
       scopes.head.terms.update(value.name, bindingKind(value))
+      if (value.mods.hasFlag(Flag.MUTABLE)) scopes.head.mutableTerms += value.name
+      else scopes.head.mutableTerms -= value.name
+    }
 
-    def bindOrdinary(name: TermName): Unit =
+    def bindOrdinary(name: TermName): Unit = {
       scopes.head.terms.update(name, OrdinaryBinding)
+      scopes.head.mutableTerms -= name
+    }
 
     def bindTypeOrdinary(name: TypeName): Unit =
       scopes.head.localTypes.update(name, OrdinaryBinding)
@@ -674,7 +682,9 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
 
     def prebindTerms(values: List[Tree]): Unit = {
       values.foreach {
-        case definition: ValDef    => bindOrdinary(definition.name)
+        case definition: ValDef =>
+          bindOrdinary(definition.name)
+          if (definition.mods.hasFlag(Flag.MUTABLE)) scopes.head.mutableTerms += definition.name
         case definition: DefDef    => bindOrdinary(definition.name)
         case definition: ModuleDef => bindOrdinary(definition.name)
         case _                     =>
@@ -926,6 +936,15 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
             }
           } else super.traverse(original)
 
+        case original @ Apply(Select(Ident(name: TermName), operator), _)
+            if decoded(operator).endsWith("=") &&
+              !Set("==", "!=", "<=", ">=", ":=")(decoded(operator)) &&
+              scopes.collectFirst { case scope if scope.terms.contains(name) =>
+                scope.mutableTerms(name)
+              }.contains(true) =>
+          mark(hostMutations, original)
+          super.traverse(original)
+
         case original: Match =>
           if (isTypedBoolean(original.selector)) mark(typedMatches, original)
           super.traverse(original)
@@ -975,7 +994,8 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       typedRequires,
       typedEqualities,
       typedRanges,
-      scopedIfs
+      scopedIfs,
+      hostMutations
     )
   }
 
@@ -1006,9 +1026,14 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       classified: ClassifiedTrees
   ) extends Transformer {
     private var stagedDepth = 0
-    private def staged(tree: Tree): Tree = {
+    private var checkedEffectDepth = 0
+    private def staged(tree: Tree, checkEffects: Boolean = true): Tree = {
       stagedDepth += 1
-      try transform(tree) finally stagedDepth -= 1
+      if (checkEffects) checkedEffectDepth += 1
+      try transform(tree) finally {
+        stagedDepth -= 1
+        if (checkEffects) checkedEffectDepth -= 1
+      }
     }
     private def sourceFile: String =
       Option(unit.source)
@@ -1254,7 +1279,10 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
             Literal(Constant(sourceLine(original)))
           )
         ),
-        List(staged(body))
+        // Preserve the established explicit generate API used by native
+        // metadata-owning libraries. An enclosing ordinary staged body still
+        // supplies its checked depth; this call cannot erase that boundary.
+        List(staged(body, checkEffects = false))
       )
       rewritten.setPos(original.pos)
     }
@@ -1298,7 +1326,20 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
         List(staged(body))).setPos(original.pos)
     }
 
+    private def rejectStagedEffect(tree: Tree, effect: String): Tree = {
+      reporter.error(tree.pos,
+        s"MORPHDL-STAGED-HOST-EFFECT-UNSUPPORTED: $effect is not supported in a symbolic branch or finite loop; use immutable elaboration values and hardware assignments")
+      tree
+    }
+
     override def transform(tree: Tree): Tree = tree match {
+      case original: Assign if checkedEffectDepth > 0 => rejectStagedEffect(original, "host assignment")
+      case original: Return if checkedEffectDepth > 0 => rejectStagedEffect(original, "early return")
+      case original: Throw if checkedEffectDepth > 0 => rejectStagedEffect(original, "throw")
+      case original: ValDef if checkedEffectDepth > 0 && original.mods.hasFlag(Flag.MUTABLE) =>
+        rejectStagedEffect(original, "mutable host declaration")
+      case original if checkedEffectDepth > 0 && classified.hostMutations.containsKey(original) =>
+        rejectStagedEffect(original, "compound host assignment")
       case original: Block if stagedDepth > 0 =>
         val statements = original.stats.map {
           case value: ValDef if !value.mods.hasFlag(Flag.MUTABLE) &&

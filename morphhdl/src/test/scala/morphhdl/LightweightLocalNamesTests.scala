@@ -20,13 +20,15 @@ class LightweightLocalNamesTests extends AnyFunSuite {
         } else {
           val scratch = Bits(8 bits).setName("authorChoice").dontSimplifyIt()
           scratch.addAttribute("keep")
-          scratch := source
+          val weakScratch = Bits(8 bits).setName("weakAuthorChoice", weak = true).dontSimplifyIt()
+          weakScratch := source
+          scratch := weakScratch
           result := scratch
         }
       }
     }
     val rtl = new String(Files.readAllBytes(directory.resolve("LocalNames.v")), "UTF-8")
-    assert(rtl.contains("scratch") && rtl.contains("authorChoice") && rtl.contains("keep"), rtl)
+    assert(rtl.contains("scratch") && rtl.contains("authorChoice") && rtl.contains("keep") && rtl.contains("weakAuthorChoice"), rtl)
     Files.write(directory.resolve("tb.v"), """module tb;
 reg [7:0] source; wire [7:0] a,b; integer i;
 LocalNames #(.MODE(0)) normal(source,a);

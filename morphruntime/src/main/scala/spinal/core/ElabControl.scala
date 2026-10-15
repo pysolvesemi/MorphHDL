@@ -12,14 +12,18 @@ import scala.collection.mutable
 object ElabControl {
   /** Compiler-supplied lexical spelling for local hardware declarations.
     * Native naming priorities preserve explicit user names. Names never grant
-    * ownership, width or structural access authority.
+    * ownership, width or structural access authority. Explicit weak names also
+    * precede this compiler-supplied fallback; unlike a source field callback,
+    * the fallback must not replace an existing authored local naming request.
     */
   def localValue[T](value: T, name: String): T = {
     val owner = Component.current
     if (owner != null && name != null && name.nonEmpty && !name.contains("$")) {
       value match {
-        case data: Data if data.component eq owner => owner.valCallback(data, name)
-        case child: Component if child.parent eq owner => owner.valCallback(child, name)
+        case data: Data if (data.component eq owner) && data.namePriority != Nameable.USER_WEAK =>
+          owner.valCallback(data, name)
+        case child: Component if (child.parent eq owner) && child.namePriority != Nameable.USER_WEAK =>
+          owner.valCallback(child, name)
         case _ =>
       }
     }
