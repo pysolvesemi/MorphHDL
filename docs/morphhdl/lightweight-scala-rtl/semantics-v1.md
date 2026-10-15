@@ -462,3 +462,22 @@ changed interleaved padding, consumed audit outputs and unrelated parameter
 roots remain errors. Mixed-direction and branch-local capacity adaptation remain
 outside this admission. These results are development evidence, not remote
 qualification or permission to migrate application code.
+
+
+## Source-visible hardware callback effects (qualification pending)
+
+The lightweight BalancedTree entry points mark operation, bridge and width-factory
+parameters with `rtlHardwareCallback`. This library contract causes a typed
+compiler check; it is not an assertion supplied by the callback author and does
+not bypass native ownership or width validation. Direct host writes, qualified
+field setters, mutable locals, early return and throw are rejected. The checker
+follows exact helper and stored-closure symbols in the same compilation unit,
+including forward references and overload resolution. An immutable captured
+value's already evaluated initializer is not replayed as part of the callback.
+Ordinary Scala callbacks outside marked API boundaries are unchanged.
+
+Opaque external helper/closure implementations and arbitrary collection/I/O
+effects are not proven pure by this check. The broader callback-effect roadmap
+requirement remains open. Native checks still reject captured foreign hardware,
+changed payload widths and illegal recursive ownership. The existing native
+`Vec.reduceBalancedTree` API and its topology are unchanged.

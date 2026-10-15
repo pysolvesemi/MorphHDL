@@ -5,7 +5,7 @@
   "working_directory": "/home/kartik/.local/state/morphhdl/worktrees/lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Nested hierarchy capacity and recursive signed-alias placement repaired; broader acceptance and remote qualification remain open",
+  "phase": "Nested capacities and source-visible callback effects repaired; helper-block inference and CI enrollment in progress",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -425,5 +425,24 @@
       ],
       "note": "First invocation omitted signedness suites due to wrong package selectors; corrected separate invocation ran both actual signedness suites."
     }
+  },
+  "local_validation_callback_effects": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "plugin_tests_per_scala": 87,
+    "overload_followup_tests_per_scala": 12,
+    "library_tests_per_scala": 39,
+    "library_suites": 6,
+    "logs": [
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/callback-effects-plugin.log",
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/callback-effects-overloads.log",
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/callback-library.log"
+    ],
+    "source_and_tools": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/callback-library",
+    "scope": "same-unit typed helper/callback effects; retained immutable capture, exact overload identity, library operations/bridges/registers/adapters/widths; opaque external purity remains open",
+    "guards": "current typed layering and retirement inventories include exact six plugin components; source checks and mutation selftests pass; no packaged-JAR result claimed",
+    "remote": "pending"
   }
 }

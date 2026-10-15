@@ -12,7 +12,7 @@ import scala.collection.Seq
 final class BalancedTree[T <: Data](elementType: HardType[T], capacity: Int,
     countActual: ElabInt, initialCountActual: ElabInt, pipelineMaskActual: ElabInt,
     widthActual: ElabInt, moduleName: String, clockConfig: ClockDomainConfig,
-    operation: (T,T) => T, levelBridge: (T,Int) => T, widthFactory: ElabInt => T)
+    @rtlHardwareCallback operation: (T,T) => T, @rtlHardwareCallback levelBridge: (T,Int) => T, @rtlHardwareCallback widthFactory: ElabInt => T)
     extends Component {
   require(capacity >= 2 && capacity <= 64, "reduction capacity must be in 2..64")
   require(moduleName != null && moduleName.matches("[A-Za-z_][A-Za-z0-9_]*"),
@@ -101,8 +101,8 @@ object BalancedTree {
     val result = out(elementType())
   }
   final class Operation[T <: Data] private[BalancedTree](elementType: HardType[T],
-      capacity: Int, moduleName: String, operation: (T,T) => T,
-      levelBridge: (T,Int) => T, widthFactory: ElabInt => T) {
+      capacity: Int, moduleName: String, @rtlHardwareCallback operation: (T,T) => T,
+      @rtlHardwareCallback levelBridge: (T,Int) => T, @rtlHardwareCallback widthFactory: ElabInt => T) {
     def component(count: ElabInt, pipelineMask: ElabInt = null,
         clockConfig: ClockDomainConfig = ClockDomainConfig(),
         payloadWidth: ElabInt = null): BalancedTree[T] = {
@@ -169,20 +169,20 @@ object BalancedTree {
       b.flatten.map(v=>(v.getClass,v.getBitsWidth))
 
   def define[T <: Data](elementType: HardType[T],capacity: Int,moduleName: String)(
-      operation: (T,T) => T,levelBridge: (T,Int) => T = identityBridge[T]): Operation[T] =
+      @rtlHardwareCallback operation: (T,T) => T,@rtlHardwareCallback levelBridge: (T,Int) => T = identityBridge[T]): Operation[T] =
     new Operation(elementType,capacity,moduleName,operation,levelBridge,null)
 
-  def defineWidth[T <: BitVector](factory: ElabInt => T,width: Int,
-      capacity: Int,moduleName: String)(operation: (T,T) => T,
-      levelBridge: (T,Int) => T = identityBridge[T]): Operation[T] = {
+  def defineWidth[T <: BitVector](@rtlHardwareCallback factory: ElabInt => T,width: Int,
+      capacity: Int,moduleName: String)(@rtlHardwareCallback operation: (T,T) => T,
+      @rtlHardwareCallback levelBridge: (T,Int) => T = identityBridge[T]): Operation[T] = {
     require(width>=1 && width<=64,"payload width must be in 1..64")
     new Operation(HardType(factory(ElabInt.literal(width))),capacity,moduleName,
       operation,levelBridge,factory)
   }
 
   def reduceBalancedTree[T <: Data](inputs: Seq[T],moduleName: String,
-      pipelineMask: ElabInt = null)(operation: (T,T) => T,
-      levelBridge: (T,Int) => T = identityBridge[T]): T = {
+      pipelineMask: ElabInt = null)(@rtlHardwareCallback operation: (T,T) => T,
+      @rtlHardwareCallback levelBridge: (T,Int) => T = identityBridge[T]): T = {
     val count = inputCount(inputs)
     require(count.minimum>=1 && count.maximum<=64,"input count must be in 1..64")
     val first=inputs(0)
