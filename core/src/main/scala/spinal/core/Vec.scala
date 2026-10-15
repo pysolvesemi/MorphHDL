@@ -554,14 +554,7 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
           }
         }
         if (parameterized) {
-          val (_, assignments) =
-            ParameterizedVec.captureAssignments(this)(assignNative())
-          ParameterizedVec.recordWholeAssignment(
-            this,
-            that,
-            assignments,
-            kind
-          )
+          ParameterizedVec.captureWholeAssignment(this, that, kind)(assignNative())
         } else {
           assignNative()
         }

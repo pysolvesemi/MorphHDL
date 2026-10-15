@@ -388,3 +388,41 @@ two-state SAT evidence, including a rejected corrupt reference. The signed and
 Boolean guarded-register fixtures also cover nonzero resets. See `toolchain.md`
 for the pinned simulator needed by the singleton unpacked-array case. Mixed
 hardware/scoped decoded writes remain a separate, unclosed composition.
+
+## Hardware-selected rows with scoped column writes
+
+A complete scoped column loop may update one hardware-selected row of a
+combinational two-dimensional scalar Vec that has an authored whole-array
+default. For example:
+
+```scala
+result := source
+for (column <- 0 until columns) {
+  when(enable) {
+    result(row)(column) := replacement(column)
+  }
+}
+```
+
+`row` is a hardware `UInt`; `columns` is a typed finite elaboration bound.
+The compiler retains the column loop and normalizes its exact writes into a
+complete next-row value, then uses the native row write decoder. Disabled lanes
+retain the corresponding authored default. An out-of-range row writes no lane.
+Hardware conditions retain Verilog `if` four-state behavior; an unknown condition
+does not select the conditional update. This does not change the separately
+specified out-of-range behavior of hardware-indexed reads.
+
+Normalization requires exact array, alias, default, source, address and assignment
+identities. The publication checks reject missing defaults, partial column loops,
+read-only target views, competing writers, combinational target feedback and
+altered normalization edges. It does not infer intent from signal names or from
+a parameter's witness value. Complete native row assignments retain a separate
+forwarding journal, so removing a forwarding record cannot turn the selected
+row view into an independent writable array.
+
+The current admission is one module-owned unit-stride column loop over scalar
+row elements. Structurally nested decoded-write loops, multiple independently
+captured write aliases, partial row updates and register destinations are not
+covered by this normalization. Their support must be established separately.
+Development checks and their exact source snapshots are listed in `progress.json`;
+remote qualification remains pending.

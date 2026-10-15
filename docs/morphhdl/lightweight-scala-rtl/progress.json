@@ -5,7 +5,7 @@
   "working_directory": "/home/kartik/.local/state/morphhdl/worktrees/lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Helper effects and mixed hardware/scoped reads pass local cross-version checks; decoded writes and remaining roadmap closure next",
+  "phase": "Mixed-index writes pass hardened cross-version validation; integrating exact this-owner helper repair and broader affected regressions",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -311,5 +311,40 @@
     },
     "simulator_commit": "af348e2a468d3e58bf2aa10a5ae97734b59e48ea",
     "remaining": "CI simulator enrollment and fresh exact-final-head qualification; system Icarus12 singleton unpacked alias failure retained"
+  },
+  "local_validation_mixed_writes": {
+    "base_commit": "3850396875c99708d7f5b5076584a7e0b331ef72",
+    "source_state": "uncommitted development changes; final source qualification pending",
+    "scala": "2.12.18",
+    "normalized_controls_passed": 4,
+    "original_shorthand_controls_passed": 4,
+    "checks": [
+      "deterministic generation",
+      "Icarus strict Verilog-2001 simulation on 36 geometry profiles, invalid addresses and X/Z",
+      "Verilator lint",
+      "Yosys synthesis, check and no latches"
+    ],
+    "logs": [
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/mixed-write-procedural-storage.log",
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/mixed-write-normalization.log"
+    ],
+    "cross_version_regression": "running; mixed-write-cross.log",
+    "remaining": [
+      "explicit native temporary-array driver bridges",
+      "independent whole-forwarding journal and tamper rejection tests",
+      "permanent decoded-write SAT regressions",
+      "final cross-version checks and source evidence"
+    ]
+  },
+  "local_validation_mixed_write_hardened": {
+    "base_commit": "3850396875c99708d7f5b5076584a7e0b331ef72",
+    "source_snapshot": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/mixed-write-resumed/source/manifest.json",
+    "log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/mixed-write-resumed.log",
+    "tool_receipts": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/mixed-write-resumed/tools/tools.jsonl",
+    "scala_2_12_18": "20/20 passed",
+    "scala_2_13_12": "20/20 passed",
+    "scope": "8 original/normalized conditional/unconditional packed/unpacked cases; 36 geometry profiles per artifact; four-state simulation, lint, synthesis, 24 positive SAT proofs and 8 deliberately corrupted-reference rejections per Scala version; 12 compiler safety cases",
+    "remote": "pending",
+    "interrupted_run": "mixed-write-hardened-v2.log has no completion result and is not passing evidence"
   }
 }

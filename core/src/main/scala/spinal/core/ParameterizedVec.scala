@@ -354,7 +354,8 @@ private[spinal] final case class ParameterizedVecWholeAssignment(
     source: Vec[_],
     assignments: Vector[DataAssignmentStatement],
     assignmentKind: String,
-    sourceLocation: Option[String]
+    sourceLocation: Option[String],
+    forwardedWrites: Vector[ParameterizedVecWriteInvocation] = Vector.empty
 ) extends ParameterizedVecOperation
 
 private[spinal] final case class ParameterizedVecPackedRead(
@@ -548,6 +549,7 @@ object ParameterizedVec {
     // The owning Vec is the registry's weak key. Do not retain that key again
     // through the journal value; recover it only while returning a snapshot.
     val completedWriteInvocations = ArrayBuffer.empty[(BaseType, ParameterizedVecOperation)]
+    val completedWholeForwards = ArrayBuffer.empty[ParameterizedVecWholeAssignment]
     val formalBindings = ArrayBuffer.empty[ParameterizedVecFormalBinding]
   }
 
@@ -1202,6 +1204,7 @@ object ParameterizedVec {
     retainedVectorsOf(component).foreach { vector =>
       operationsOf(vector).foreach(collect)
       writeInvocationsOf(vector).foreach(collect)
+      wholeForwardInvocationsOf(vector).foreach(collect)
     }
     expressions.toVector
   }
@@ -1222,6 +1225,12 @@ object ParameterizedVec {
         })
         .getOrElse(Vector.empty)
     }
+  }
+
+  private[spinal] def wholeForwardInvocationsOf(vector: Vec[_]): Vector[ParameterizedVecWholeAssignment] = synchronized {
+    reap()
+    retained.get(new ParameterizedVecIdentityRef(vector, null))
+      .map(_.completedWholeForwards.toVector).getOrElse(Vector.empty)
   }
 
   private[spinal] def vectorsOf(component: Component): Vector[Vec[_]] = synchronized {
@@ -1436,7 +1445,7 @@ object ParameterizedVec {
             if (before.map(_.shape).size != expected.size ||
                 before.zip(expected).exists { case (entry, shape) =>
                   !equivalentShape(entry.shape, shape) || entry.operations.nonEmpty ||
-                    entry.completedWriteInvocations.nonEmpty || entry.formalBindings.nonEmpty
+                    entry.completedWriteInvocations.nonEmpty || entry.completedWholeForwards.nonEmpty || entry.formalBindings.nonEmpty
                 }) invalid("fresh clone must retain its original unused Vec depth, roots and capacity")
             vectors += ((cloned, before, expected))
           case (_: Vec[_], _) | (_, _: Vec[_]) => invalid("fresh clone changed a Vec container")
@@ -1984,6 +1993,26 @@ object ParameterizedVec {
           s"concrete Vec cannot be assigned from symbolic Vec depth '${shape.depth.verilog}'",
           shape.sourceLocation
         )
+    }
+  }
+
+  /** Preserve the native forwarding invocation tree even when a whole-row
+    * assignment reaches storage through the selected view's scalar hooks. */
+  private[core] def captureWholeAssignment(target: Vec[_], source: Vec[_], kind: AnyRef)
+      (body: => Unit): Unit = {
+    val parent = writeInvocations.get()
+    val ((_, assignments), writes) = captureWriteInvocations {
+      captureAssignments(target)(body)
+    }
+    if (parent != null) parent ++= writes
+    shapeOf(target).foreach { shape =>
+      val forwarded = if (assignments.isEmpty) writes else Vector.empty
+      val operation = ParameterizedVecWholeAssignment(source, assignments, kindName(kind),
+        shape.sourceLocation, forwarded)
+      append(target, operation)
+      if (forwarded.nonEmpty) synchronized {
+        retained.get(new ParameterizedVecIdentityRef(target, null)).get.completedWholeForwards += operation
+      }
     }
   }
 

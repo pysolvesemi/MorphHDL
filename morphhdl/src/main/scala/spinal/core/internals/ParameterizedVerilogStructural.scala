@@ -1714,6 +1714,7 @@ private[internals] object ParameterizedVerilogStructural {
   ): BlockPlan = {
     if (plan.body.trim.isEmpty) plan
     else {
+      plan.block.vecIndices.flatMap(_.dynamicRowNormalization).foreach(_.validate(plan.block, liveStatements))
       var nativeBody = plan.body
       plan.block.vecIndices.flatMap(_.registerStorage).foreach { template =>
         TypedLoopRegisterStorage.validate(template, plan.block, liveStatements)
@@ -4556,6 +4557,10 @@ private[internals] object ParameterizedVerilogStructural {
 
     val retainedAliases = new IdentityHashMap[BaseType, java.lang.Boolean]()
     selections.foreach { selection =>
+      selection.proceduralAliases = Vector.empty
+      if (selection.pendingDynamicRow.nonEmpty)
+        fail("SPINAL-ELAB-SCOPED-DYNAMIC-WRITE-LINEAGE-MISSING",
+          "scoped decoded write reached publication without normalized storage ownership", selection.sourceLocation)
       (ParameterizedVec.shapeOf(selection.vector), selection.staticAccess) match {
         case (Some(_), None) if selection.affineRead.exists(evidence =>
             evidence.guarded.nonEmpty && selection.finiteIndexToken.exists(token =>
@@ -4654,6 +4659,11 @@ private[internals] object ParameterizedVerilogStructural {
             "structural Vec alias leaf",
             location
           )
+          val aliasWrites = blockAssignments.filter(_.finalTarget eq aliasLeaf)
+          val nativeDeclaration = rewritten.split("\n", -1).filter(line => standaloneDeclarationName(line).contains(aliasName))
+          if (nativeDeclaration.length == 1 && aliasWrites.nonEmpty &&
+              "\\breg\\b".r.findFirstIn(nativeDeclaration.head).nonEmpty)
+            selection.proceduralAliases :+= aliasLeaf -> aliasWrites
           rewritten = removeVecAliasDeclaration(
             rewritten,
             aliasName,
@@ -4671,7 +4681,9 @@ private[internals] object ParameterizedVerilogStructural {
           }
           val writesAlias = blockAssignments.exists(_.finalTarget eq aliasLeaf)
           if (aliasLeaf.isInstanceOf[SInt] && writesAlias &&
-            blockAssignments.exists(assignment => expressionContainsIdentity(assignment.source, aliasLeaf)))
+            blockAssignments.exists(assignment =>
+              !selection.coverageBridges.exists(_.assignment eq assignment) &&
+                expressionContainsIdentity(assignment.source, aliasLeaf)))
             fail(
               "SPINAL-PARAMETERIZED-VERILOG-VEC-SIGNED-ALIAS-MIXED-USE-UNSUPPORTED",
               "one signed structural Vec alias cannot be used as both read and write; retain separate exact selections",
