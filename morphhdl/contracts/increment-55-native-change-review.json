@@ -5675,31 +5675,6 @@
       ]
     },
     {
-      "path": "lib/src/main/scala/spinal/lib/bus/wishbone/WishboneSlaveFactory.scala",
-      "change": "modified",
-      "classification": "mechanical-propagation",
-      "introduced_by": [
-        "Increment 57: broad native library migration and proof"
-      ],
-      "reason": "Declare the effective native Wishbone byte-address alignment for generic typed mappings without changing its transaction decoder.",
-      "baseline_path": "lib/src/main/scala/spinal/lib/bus/wishbone/WishboneSlaveFactory.scala",
-      "edits": [
-        {
-          "id": "wishbone-typed-alignment-01",
-          "kind": "mechanical-propagation",
-          "owner": "spinal.lib.bus.wishbone.WishboneSlaveFactory typed address policy",
-          "reason": "Derive the low-bit alignment already imposed by configured address granularity and byte-address reconstruction.",
-          "required_exact_text": [
-            {
-              "side": "approved",
-              "text": "typedAddressAlignmentBytes",
-              "count": 1
-            }
-          ]
-        }
-      ]
-    },
-    {
       "path": "lib/src/main/scala/spinal/lib/bus/tilelink/TransferFilter.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
@@ -5843,6 +5818,31 @@
             {
               "side": "approved",
               "text": "import spinal.core.{Param => _, _}",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/wishbone/WishboneSlaveFactory.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Declare the effective native Wishbone byte-address alignment for generic typed mappings without changing its transaction decoder.",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/wishbone/WishboneSlaveFactory.scala",
+      "edits": [
+        {
+          "id": "wishbone-typed-alignment-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.wishbone.WishboneSlaveFactory typed address policy",
+          "reason": "Derive the low-bit alignment already imposed by configured address granularity and byte-address reconstruction.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "typedAddressAlignmentBytes",
               "count": 1
             }
           ]
