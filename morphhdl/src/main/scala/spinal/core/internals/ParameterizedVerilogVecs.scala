@@ -2304,8 +2304,13 @@ private[internals] object ParameterizedVerilogVecs {
             val (storagePlan, elementIndex, fieldIndex) = storage(plan, leaf.elementIndex, leaf.leafIndex)
             val storageName = storagePlan.layout.map(_.fieldForLeaf(fieldIndex).name).getOrElse(storagePlan.name)
             val storageDeclaration = parseDeclaration(lines, storageName, plan.sourceLocation)
-            val insertion = if (storageDeclaration.direction.nonEmpty) lines.indexWhere(_.trim == "endmodule")
-              else storageDeclaration.lineIndex + 1
+            // Port-backed aliases belong immediately inside the module, before
+            // any generate scope can consume them. In particular, signed
+            // constant reads must not depend on forward declaration lookup.
+            val insertion = if (storageDeclaration.direction.nonEmpty) {
+              (storageDeclaration.lineIndex + 1 until lines.size)
+                .find(index => lines(index).trim == ");").map(_ + 1).getOrElse(-1)
+            } else storageDeclaration.lineIndex + 1
             if (insertion < 0) fail("SPINAL-PARAMETERIZED-VERILOG-VEC-MODULE-BOUNDARY-MISSING",
               "signed leaf reconstruction requires its exact aggregate owner", plan.sourceLocation)
             val width = render(leaf.shape.width)
@@ -3268,9 +3273,14 @@ private[internals] object ParameterizedVerilogVecs {
     val removed=mutable.HashSet.empty[Int]
     val bridges=ArrayBuffer.empty[String]
     childLeaves.zip(connections).zipWithIndex.foreach { case((leaf,connection),index)=>
+      val pairedParent=evidence.paired.collectFirst {
+        case (to,from) if (if(evidence.input) to else from) eq leaf =>
+          if(evidence.input) from else to
+      }.map(value => parent.leaves.find(_.value eq value).getOrElse(
+        reject("adapted child coordinate lost its exact parent carrier")))
       if(evidence.input) {
-        if(index<parent.leaves.size) {
-          val expected=parent.leaves(index)
+        if(pairedParent.nonEmpty) {
+          val expected=pairedParent.get
           if(!directConnectionName(connection._2,expected.shape.width).contains(expected.name))
             reject(s"adapted input '$formal' lost its exact parent carrier connection")
         } else {
@@ -3284,8 +3294,8 @@ private[internals] object ParameterizedVerilogVecs {
         val width=shape.elementLeaves(index % shape.elementLeaves.size).width
         val bridge=directConnectionName(connection._2,width).getOrElse(
           reject(s"adapted output '$formal' has a non-direct native connection"))
-        if(index<parent.leaves.size) {
-          val target=parent.leaves(index)
+        if(pairedParent.nonEmpty) {
+          val target=pairedParent.get
           val assignment=findAssignment(original,target.name,Some(bridge),"adapted child Vec output",source)
           if(!assignment.continuous || assignment.operator != "=" ||
               !directConnectionName(assignment.rhs,target.shape.width).contains(bridge))
@@ -3296,7 +3306,7 @@ private[internals] object ParameterizedVerilogVecs {
         if(declaration.direction.nonEmpty) reject("adapted output bridge unexpectedly became a parent port")
         removed += declaration.lineIndex
         bridges += bridge
-      } else if(index<parent.leaves.size) reject("a live adapted output connection disappeared")
+      } else if(pairedParent.nonEmpty) reject("a live adapted output connection disappeared")
     }
     val indexes=connections.map(_._1)
     val insertion=indexes.max

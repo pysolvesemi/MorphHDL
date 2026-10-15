@@ -57,6 +57,13 @@ class LightweightCompositeRecursiveTests extends AnyFunSuite {
       val (directory, rtl) = generate(kind, default)
       assert(rtl == generate(kind, default)._2)
       assert(rtl.contains(") nextLevel (") && rtl.contains("for ("), rtl)
+      // Signed static reads must be declared in the owning module before the
+      // recursive base-case generate scope uses them (including COUNT = 1).
+      if (kind != "bits") {
+        val alias = if (kind == "bundle") "terms_0_value" else "terms_0"
+        val declaration = rtl.linesIterator.find(line => line.contains("wire signed") && line.contains(alias + ";")).get
+        assert(rtl.indexOf(declaration) < rtl.indexOf("begin : g_if_"), rtl)
+      }
       val width = if (kind == "bundle") 9 else 8
       val ports = if (kind == "bundle") ".result_value(result[7:0]),.result_valid(result[8])" else ".result(result)"
       val reduce = if (kind == "bundle") "{words[2*i][8] && words[2*i+1][8], (words[2*i][7:0] - words[2*i+1][7:0])}"

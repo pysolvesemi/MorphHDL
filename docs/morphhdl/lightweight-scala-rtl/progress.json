@@ -5,7 +5,7 @@
   "working_directory": "/home/kartik/.local/state/morphhdl/worktrees/lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Hardware Bool diagnostic passes SBT and Mill on both Scala versions; nested hierarchy capacity repair in development",
+  "phase": "Nested hierarchy capacity and recursive signed-alias placement repaired; broader acceptance and remote qualification remain open",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -393,5 +393,22 @@
       "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lightweight-mill-final-213.log"
     ],
     "mill_evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lightweight-mill-final"
+  },
+  "local_validation_nested_capacity": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "tests_per_scala": 35,
+    "record_tests_per_scala": 8,
+    "logs": [
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/nested-capacity-integrated.log",
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/record-capacity.log"
+    ],
+    "scope": "exact coordinate mapping for nested Vec and records; Bool/Bits/UInt/SInt, widths1/8/36/64, named-field/packed boundaries, both layouts, four-state simulation, lint, synthesis, SAT and seven ownership mutations",
+    "broader_regression": "102/102 tests in seven suites pass on each supported Scala version after placing exact signed input reconstruction aliases before generate consumers",
+    "remote": "pending",
+    "regression_log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/nested-capacity-regression-v2.log",
+    "source_snapshot": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/nested-capacity-regression-v2/source"
   }
 }

@@ -442,3 +442,23 @@ It must be rejected by scalac; it provides no usable hardware-to-host conversion
 extracts no witness and emits no control logic. The normal parameter-only staging
 rules remain separate. This diagnostic does not reinterpret ordinary Scala
 object equality as a hardware comparison.
+
+
+## Nested hierarchy capacities (qualification pending)
+
+Direct module-owned Vec connections admit narrower physical audit capacities at
+both outer and inner dimensions, including Vecs of records with nested Vec fields.
+The compiler compares logical dimensions and scalar widths after exact child
+formal substitution. It pairs native carriers by their recursive coordinates and
+ordered field identities, rather than taking a prefix of flattened leaves.
+Child-only input audit lanes receive authenticated typed zeros; child-only output
+lanes must remain unconsumed. Publication validates every paired native edge,
+padding edge, width, owner and driver before removing audit-only ports.
+
+Local fixtures cover Bool/Bits/UInt/SInt, literal and symbolic dimensions,
+WIDTH 1/8/36/64, packed and unpacked internal layouts, and both packed and
+named-field boundaries. Changed coordinate sources, missing/duplicate writes,
+changed interleaved padding, consumed audit outputs and unrelated parameter
+roots remain errors. Mixed-direction and branch-local capacity adaptation remain
+outside this admission. These results are development evidence, not remote
+qualification or permission to migrate application code.

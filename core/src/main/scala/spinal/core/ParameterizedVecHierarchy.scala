@@ -13,6 +13,9 @@ private[spinal] object ParameterizedVecHierarchy {
       val target: Vec[_], val source: Vec[_], val child: Vec[_], val parent: Vec[_],
       val input: Boolean, val operation: ParameterizedVecWholeAssignment,
       val paired: Vector[(BaseType, BaseType)], val padding: Vector[(BaseType, Literal)]) {
+    val auditLeaves = leaves(child).filterNot(leaf => paired.exists { case (to, from) =>
+      (if(input) to else from) eq leaf
+    })
     val parentComponent = parent.component
     val childComponent = child.component
     private[ParameterizedVecHierarchy] val targetShape=ParameterizedVec.shapeOf(target).get
@@ -25,8 +28,36 @@ private[spinal] object ParameterizedVecHierarchy {
   private def entries(component: Component): Vector[Evidence] =
     component.userCache.get(Key).map(_.asInstanceOf[ArrayBuffer[Evidence]].toVector).getOrElse(Vector.empty)
 
+  /** Pair physical carriers by recursive coordinates, never by flattened
+    * prefixes: padding in an inner dimension is interleaved between real rows. */
+  private def coordinatePairs(child: Data, parent: Data): Option[Vector[(BaseType, BaseType)]] = {
+    val active = new java.util.IdentityHashMap[Data, java.lang.Boolean]()
+    var visited = 0
+    def collect(values: Vector[Option[Vector[(BaseType, BaseType)]]]) =
+      if(values.forall(_.nonEmpty)) Some(values.flatMap(_.get)) else None
+    def visit(child: Data, parent: Data): Option[Vector[(BaseType, BaseType)]] = {
+      visited += 1
+      if(child == null || parent == null || active.size >= 128 || visited > 65536 ||
+          active.containsKey(child) || active.containsKey(parent)) return None
+      active.put(child,java.lang.Boolean.TRUE)
+      active.put(parent,java.lang.Boolean.TRUE)
+      try { (child, parent) match {
+        case (c: BaseType, p: BaseType) if c.getTypeObject == p.getTypeObject => Some(Vector(c -> p))
+        case (c: Vec[_], p: Vec[_]) if c.vec.size >= p.vec.size && p.vec.nonEmpty =>
+          collect(c.vec.take(p.vec.size).zip(p.vec).map { case (a,b) =>
+            visit(a.asInstanceOf[Data],b.asInstanceOf[Data])
+          }.toVector)
+        case (c: MultiData, p: MultiData) if c.getClass == p.getClass &&
+            c.elements.map(_._1) == p.elements.map(_._1) =>
+          collect(c.elements.zip(p.elements).map { case ((_,a),(_,b)) => visit(a,b) }.toVector)
+        case _ => None
+      }} finally { active.remove(child); active.remove(parent) }
+    }
+    visit(child,parent)
+  }
+
   def assign(target: Vec[_], source: Vec[_], kind: AnyRef)(implicit loc: Location): Boolean = {
-    if (target.vec.size == source.vec.size || (kind ne DataAssign) ||
+    if (leaves(target).size == leaves(source).size || (kind ne DataAssign) ||
         target.component == null || source.component == null) return false
     val input = target.component.parent eq source.component
     val output = source.component.parent eq target.component
@@ -43,8 +74,13 @@ private[spinal] object ParameterizedVecHierarchy {
         (if(input) l.isInput && !l.isOutput else l.isOutput && !l.isInput)) ||
       !parentLeaves.forall(l => !l.isInOut && (l.component eq parent.component)) ||
       !childLeaves.forall(l => Set[Any](TypeBool,TypeBits,TypeUInt,TypeSInt)(l.getTypeObject))) return false
-    val paired=leaves(target).zip(leaves(source))
-    val padding=if(input) childLeaves.drop(parentLeaves.size).map { leaf =>
+    val coordinates=coordinatePairs(child,parent).getOrElse(return false)
+    if(coordinates.size != parentLeaves.size ||
+        coordinates.map(_._1).distinct.size != coordinates.size ||
+        coordinates.map(_._2).distinct.size != coordinates.size) return false
+    val paired=coordinates.map { case(c,p) => if(input) c -> p else p -> c }
+    val extra=childLeaves.filterNot(leaf => coordinates.exists(_._1 eq leaf))
+    val padding=if(input) extra.map { leaf =>
       val zero: Literal=leaf.getTypeObject match {
         case TypeBool => new BoolLiteral(false)
         case TypeBits => BitsLiteral(BigInt(0),leaf.getBitsWidth)
@@ -86,7 +122,7 @@ private[spinal] object ParameterizedVecHierarchy {
   /** The Vec publisher separately validates emission of these native-only ports. */
   def isAuditPort(parent: Component, child: Component, port: BaseType): Boolean =
     parent != null && child != null && (child.parent eq parent) && entries(parent).exists { e =>
-      (e.childComponent eq child) && leaves(e.child).drop(leaves(e.parent).size).exists(_ eq port) && valid(e)
+      (e.childComponent eq child) && e.auditLeaves.exists(_ eq port) && valid(e)
     }
 
   def matches(local: Vec[_], peer: Vec[_], assignments: Vector[DataAssignmentStatement]): Boolean =
@@ -100,8 +136,12 @@ private[spinal] object ParameterizedVecHierarchy {
       !ParameterizedVec.operationsOf(e.target).exists(_ eq e.operation)) return false
     val assignments=e.operation.assignments
     val targetLeaves=leaves(e.target)
-    val sourceLeaves=leaves(e.source)
-    val currentPairs=targetLeaves.zip(sourceLeaves)
+    val coordinates=coordinatePairs(e.child,e.parent).getOrElse(return false)
+    val currentPairs=coordinates.map { case(c,p) => if(e.input) c -> p else p -> c }
+    val extra=leaves(e.child).filterNot(leaf => coordinates.exists(_._1 eq leaf))
+    if(extra.size != e.auditLeaves.size || !extra.zip(e.auditLeaves).forall { case(a,b) => a eq b } ||
+        (e.input && (e.padding.size != extra.size ||
+          !e.padding.zip(extra).forall { case((leaf,_), expected) => leaf eq expected }))) return false
     if(!ParameterizedVec.shapeOf(e.target).exists(_ eq e.targetShape) ||
       !ParameterizedVec.shapeOf(e.source).exists(_ eq e.sourceShape) ||
       currentPairs.size != e.paired.size || !currentPairs.zip(e.paired).forall {
@@ -133,7 +173,6 @@ private[spinal] object ParameterizedVecHierarchy {
           (a.finalTarget eq to) && (a.source eq zero)) == 1
     }) return false
     if(!e.input) {
-      val extra=leaves(e.child).drop(leaves(e.parent).size)
       var referenced=false
       e.parentComponent.dslBody.walkStatements { statement =>
         statement.walkDrivingExpressions { expression => if(extra.exists(_ eq expression)) referenced=true }

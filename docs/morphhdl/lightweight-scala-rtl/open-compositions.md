@@ -11,10 +11,12 @@ logical geometry, audit-only padding and every driver consumed at publication.
 The 11-suite hierarchy regression passes 194 tests on each supported Scala
 version; evidence is recorded in `progress.json`. Remote qualification is pending.
 
-The supported adaptation covers root-scope, scalar-element Vec boundaries with
-pure input or output directions. Differing nested physical capacities,
-mixed-direction records and branch-local adaptation are not claimed. Equal
-capacity paths keep their existing behavior. Negative tests revoke authorization
+The supported adaptation now includes root-scope nested Vecs and records with
+pure input or output directions. Physical carriers pair by exact recursive
+coordinates and field identity, so inner-dimension audit padding is not confused
+with the following row. Logical dimensions and widths still require exact formal
+substitution across their full domains. Mixed-direction records and branch-local
+adaptation are not claimed. Equal-capacity paths keep their existing behavior. Negative tests revoke authorization
 for changed padding values/widths, poison, missing/competing writes and consumed
 extra output lanes.
 

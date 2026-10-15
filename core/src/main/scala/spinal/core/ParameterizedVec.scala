@@ -2858,7 +2858,43 @@ object ParameterizedVec {
       val bindings = formalBindingsOf(
         if (child eq leftComponent) leftVector else rightVector
       )
-      childShape.witnessDepth == parentShape.witnessDepth &&
+      def dimensionCompatible(cd: ElaborationIntegerExpression, cc: Int,
+          pd: ElaborationIntegerExpression, pc: Int): Boolean =
+        cd.default == pd.default && pd.minimum >= 1 && pd.maximum <= pc &&
+          cd.maximum <= cc && pc <= cc && equivalentBoundaryExpression(cd, pd, bindings)
+      def layoutCompatible(c: ParameterizedVecElementLayout.Node,
+          p: ParameterizedVecElementLayout.Node): Boolean = {
+        import ParameterizedVecElementLayout._
+        (c, p) match {
+          case (Scalar(ck, cw), Scalar(pk, pw)) =>
+            (ck eq pk) && equivalentBoundaryExpression(cw, pw, bindings)
+          case (Fields(ck, cf), Fields(pk, pf)) =>
+            ck == pk && cf.size == pf.size && cf.zip(pf).forall {
+              case ((cn, cv), (pn, pv)) => cn == pn && layoutCompatible(cv, pv)
+            }
+          case (Dimension(cd, cc, ce), Dimension(pd, pc, pe)) =>
+            dimensionCompatible(cd, cc, pd, pc) && layoutCompatible(ce, pe)
+          case _ => false
+        }
+      }
+      // Carrier counts may differ at each dimension, but logical geometry must
+      // still be proven by the exact child formal/actual binding at every node.
+      if (allowCapacityDifference) {
+        childShape.witnessDepth == parentShape.witnessDepth &&
+          dimensionCompatible(childShape.depth, childShape.carrierCapacity,
+            parentShape.depth, parentShape.carrierCapacity) &&
+          layoutCompatible(childShape.elementLayout.root, parentShape.elementLayout.root) &&
+          childShape.elementFields.size == parentShape.elementFields.size &&
+          childShape.elementFields.zip(parentShape.elementFields).forall { case (cf,pf) =>
+            cf.path == pf.path && (cf.typeObject eq pf.typeObject) &&
+              equivalentBoundaryExpression(cf.width,pf.width,bindings) &&
+              cf.dimensions.size == pf.dimensions.size &&
+              cf.dimensions.zip(pf.dimensions).forall { case (cd,pd) =>
+                cd.witnessDepth == pd.witnessDepth && dimensionCompatible(
+                  cd.depth,cd.carrierCapacity,pd.depth,pd.carrierCapacity)
+              }
+          }
+      } else childShape.witnessDepth == parentShape.witnessDepth &&
       (childShape.carrierCapacity == parentShape.carrierCapacity ||
         (allowCapacityDifference && parentShape.depth.minimum >= 1 &&
           parentShape.depth.maximum <= parentShape.carrierCapacity &&
