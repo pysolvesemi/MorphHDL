@@ -3,18 +3,26 @@
   "basis": "bfed00f992281d83dde20dfabf319d8f1ea0bc57",
   "basis_tree": "67204ea39fb995d66f782da19f3c80dd11b6f832",
   "files": {
+    ".github/actions/lightweight-simulator/action.yml": {
+      "mode": "100644",
+      "sha256": "b30359a3ae9924615b8cefd45da5f9a0811e6afc336be4742b0427fff6d696be"
+    },
     ".github/workflows/cdc-wire-fixed-point.yml": null,
+    ".github/workflows/increment-53g-production-retirement.yml": {
+      "mode": "100644",
+      "sha256": "32d4c70779aa33f029aa19be32ea11c3397467cef822cd4d7fab9b0b06e3b97d"
+    },
     ".github/workflows/increment-54-typed-layering-ir.yml": {
       "mode": "100644",
-      "sha256": "cd5732a99e9391b34aa4d2f846b687e2112511155e3784c59b82de5fd125c797"
+      "sha256": "0a87f3470fe48f09dc67cfa3872b79292d1082eabfd3ef1717e2a72a5711f382"
     },
     ".github/workflows/increment-55-concrete-compatibility-audit.yml": {
       "mode": "100644",
-      "sha256": "235ed75bbbffaea1d0a06d5e6b1531b546c302e2fba9195baaba0a97db9f0c63"
+      "sha256": "183702154283928cafd7d8e7f8c28a616f6971fd06b7ed57e187d486bb156e81"
     },
     ".github/workflows/increment-56-native-typed-library-surface.yml": {
       "mode": "100644",
-      "sha256": "72eef2d1e4913d339faf71b2f39988209beb55f1f2e346e17fe7b46765cacaf5"
+      "sha256": "c32dbfdab869ec628da6d2a68694f1c6d44fa77516ed8643378d9d240fdd9f83"
     },
     ".github/workflows/increment-57-broad-native-library-migration.yml": {
       "mode": "100644",
@@ -34,7 +42,7 @@
     },
     ".github/workflows/increment-59a-recursive-verilog-module.yml": {
       "mode": "100644",
-      "sha256": "103918e524d0630a7dea5d98e95033290ee7e8e29e6a66f99bcbc79c28b7f337"
+      "sha256": "5810889478e6dff65bf27f247fd2ee61c365f0d80251193c8883260523301a59"
     },
     ".github/workflows/increment-59b-publication.yml": {
       "mode": "100644",
@@ -86,6 +94,10 @@
     },
     ".github/workflows/increment-62-wa08-source-overlay.yml": null,
     ".github/workflows/lane-when-expression-diagnostic.yml": null,
+    ".github/workflows/morphhdl-baseline.yml": {
+      "mode": "100644",
+      "sha256": "703e2757482d0c17693de861a7821106a86d19b92ff500a21840f8975249c1c5"
+    },
     ".github/workflows/morphhdl-external-formalization.yml": {
       "mode": "100644",
       "sha256": "af165fa05aabca1bfedf23c67ce1275e0b4c960464980249fb08cfa83bf4c0d2"
@@ -101,6 +113,10 @@
     ".github/workflows/morphhdl-external-symbolic-width.yml": {
       "mode": "100644",
       "sha256": "ef653c2c2695d4f66b858d90d6ea9667eb5cb00299ab799a25cc1b46178f52c6"
+    },
+    ".github/workflows/morphhdl-mill.yml": {
+      "mode": "100644",
+      "sha256": "e9d00de71057010fa5a836f317840d9f79ec8bbf4d43569c0a29183bb9bc15ef"
     },
     ".github/workflows/morphhdl-native-source-guard.yml": {
       "mode": "100644",
@@ -300,11 +316,11 @@
     },
     "docs/morphhdl/lightweight-scala-rtl/progress.json": {
       "mode": "100644",
-      "sha256": "3ff303d224535bd5da6c91f352ca757f28087e84a7800982fbe8ae67756b483d"
+      "sha256": "7e34577f92753cafd63970ff4b5315211495b8bd746a5937a4e7750002cdb62b"
     },
     "docs/morphhdl/lightweight-scala-rtl/qualification.md": {
       "mode": "100644",
-      "sha256": "a9f7ff95fee6cadca267e3c06429b6860eff5a77a57b871b32efeae82a634d3c"
+      "sha256": "9b65dd3d228afb1dea82582312dea580624ffccbd5843cd13a887624e0f6666f"
     },
     "docs/morphhdl/lightweight-scala-rtl/semantics-v1.md": {
       "mode": "100644",
