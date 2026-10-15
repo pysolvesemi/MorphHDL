@@ -626,7 +626,7 @@
     "morphhdl-passes/wa11-boolean-width-normalization.md": null,
     "morphhdl/contracts/candidate-provenance-workflow-migration.json": {
       "mode": "100644",
-      "sha256": "ceeafd146134b028e6a75b63809ae0ee6225d4c1bbb5bc17d3d9b606c0291c70"
+      "sha256": "41a2b616679ad6ca09289bf6c081bfc66d0e331492218d6456487d071bc1adc2"
     },
     "morphhdl/contracts/candidate-provenance.json": {
       "mode": "100644",
@@ -734,7 +734,7 @@
     },
     "morphhdl/scripts/check-increment-59i-nested-results.py": {
       "mode": "100644",
-      "sha256": "b2fa6fd94451397233e35d1cd40e732dad88470e8a6caa88907350eac2e3152b"
+      "sha256": "c0002fa2c3eea0bd756253b50ab968c9c5bddcf6c1e6d9ce70e28626ba8bad6d"
     },
     "morphhdl/scripts/check-increment-59i-production-successor.py": {
       "mode": "100644",
@@ -810,7 +810,7 @@
     },
     "morphhdl/scripts/test-increment-59g-report-inventory.py": {
       "mode": "100644",
-      "sha256": "0adbea9c8d22fa2d9fb168a7c5933e1b2db72e2a2c4ea9bd68b82ed1eabc4452"
+      "sha256": "cb8634013233fc9ffcc9e8242d290ea63bed25dd7858081cf4bb6f6f881bacbe"
     },
     "morphhdl/scripts/test-increment-59g-source-review.py": {
       "mode": "100644",
@@ -826,7 +826,7 @@
     },
     "morphhdl/scripts/test-increment-59i-nested-results.py": {
       "mode": "100644",
-      "sha256": "875e3dddcaa67f5ddbfb60d5a5398af28bd19d3fa3d3a08b3352e908baf5fa28"
+      "sha256": "d06ec23953f803bb86311dd733a70d474f862005af705ad8837e1aca9d56e5ea"
     },
     "morphhdl/scripts/test-increment-59i-production-successor.py": {
       "mode": "100644",
