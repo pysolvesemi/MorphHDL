@@ -47,7 +47,7 @@ private[core] final class ElabFiniteAffineIndex(
   }
 
   private[core] def select[T <: Data](vector: Vec[T]): T =
-    if (coefficient == 1 && offset == 0) index(vector)
+    if (coefficient == 1 && offset == 0) index.select(vector)
     else if (coefficient == 1) index.at(vector, offset)
     else index.affine(vector, coefficient, offset)
 }

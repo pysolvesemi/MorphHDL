@@ -121,7 +121,7 @@ object BalancedTree {
     def reduceBalancedTree(inputs: Seq[T], count: ElabInt, pipelineMask: ElabInt): T = {
       val supplied = inputCount(inputs)
       require(supplied.minimum>=1 && supplied.maximum<=capacity, "input count must be in 1..capacity")
-      require(count.minimum>=1 && count.maximum<=supplied.maximum, "live count must fit supplied inputs")
+      require(count.minimum>=1 && (count <= supplied).isAlwaysTrue, "live count must fit supplied inputs over the complete domain")
       val representative = inputs match {
         case vector: Vec[_] => Seq(vector(0).asInstanceOf[T])
         case _ => inputs
@@ -146,7 +146,15 @@ object BalancedTree {
       tree.io.softReset := clock.readSoftResetWire
       tree.io.enable := clock.readClockEnableWire
       inputs match {
-        case vector: Vec[_] => tree.io.terms := vector.asInstanceOf[Vec[T]]
+        case vector: Vec[_] if count.elabEq(supplied).isAlwaysTrue =>
+          tree.io.terms := vector.asInstanceOf[Vec[T]]
+        case vector: Vec[_] =>
+          // The public live-count overload selects the low, lane-zero-first
+          // prefix. Prove its length against the source before resizing; never
+          // use the source or payload's elaborated witness as geometry.
+          val terms = Vec(cloneOf(expected), count)
+          terms.assignFromBits(vector.asBits.resize(count * widthOfExpr(expected)))
+          tree.io.terms := terms
         case _ =>
           val terms=Vec(elementType(),count)
           terms.assignFromBits(Vec(inputs).asBits.resize(count*expected.getBitsWidth))

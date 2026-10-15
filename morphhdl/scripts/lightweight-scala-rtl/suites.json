@@ -316,6 +316,13 @@
       "suites": [
         "spinal.core.StructuralIdentityAdversarialTests"
       ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightPrefixTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightPrefixTests"
+      ]
     }
   ]
 }
