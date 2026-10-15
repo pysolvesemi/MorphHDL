@@ -1,0 +1,68 @@
+{
+  "repository": "pysolvesemi/MorphHDL",
+  "pr": 195,
+  "base_ref": "parameterized-verilog",
+  "base_sha": "db54d01e5b21c7664f7a0de3795f061d77a3d259",
+  "candidate_ref": "work/remaining-parameterized-increments",
+  "candidate_sha": "c96a3c0bb90dd13015174362b104cbde5f5aeac5",
+  "candidate_tree": "cfc7e083cdabe05cb8a0cf27651982e4bc09acc1",
+  "control_ref": "control/ca055-c96a3c0bb90d-repairs",
+  "control_files": [
+    ".github/workflows/ca055-c96a3c0bb90d-repairs.yml",
+    ".github/controllers/ca055-c96a3c0bb90d-repairs/dispatch.py",
+    ".github/controllers/ca055-c96a3c0bb90d-repairs/dispatch.json"
+  ],
+  "workflows": [
+    {
+      "id": 351947632,
+      "path": ".github/workflows/increment-59g-register-bridges.yml",
+      "sha256": "7452e069ca441ec9585f278b7d82e38bc3c0e4588a4b5100019e9c8d39cfe657",
+      "expected_job_names": [
+        "Native register bridges Scala 2.12.18",
+        "Native register bridges Scala 2.13.12"
+      ],
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 352827927,
+      "path": ".github/workflows/increment-59i-combined-closure.yml",
+      "sha256": "6f4d812ac31dfcecb0aa4ada9d1288a55a3a69c13fe94556a7a74ae06e226bb6",
+      "expected_job_names": [
+        "Composite integration source audits",
+        "Composite integration inherited source audits",
+        "Composite integration Scala 2.12.18",
+        "Composite integration Scala 2.13.12",
+        "Cross-Scala composite integration RTL determinism"
+      ],
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    },
+    {
+      "id": 351370311,
+      "path": ".github/workflows/increment-59d-widening.yml",
+      "sha256": "36732dbdb454d48ee2ef11c7b1b52da8fe94a28d4643634768707564a7fff0c2",
+      "expected_job_names": [
+        "Symbolic widening Scala 2.12.18",
+        "Symbolic widening Scala 2.13.12"
+      ],
+      "payload": {
+        "ref": "work/remaining-parameterized-increments"
+      }
+    }
+  ],
+  "original_failures": [
+    {
+      "workflow_id": 351947632,
+      "run_id": 38624717607,
+      "head_sha": "50644a1300c3853dfa4f9874bd08423fd72de2e7"
+    },
+    {
+      "workflow_id": 352827927,
+      "run_id": 38624735035,
+      "head_sha": "50644a1300c3853dfa4f9874bd08423fd72de2e7"
+    }
+  ]
+}
