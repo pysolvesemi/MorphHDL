@@ -86,6 +86,11 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
+      - name: Install authenticated singleton-array simulator
+        uses: ./.github/actions/lightweight-simulator
+        with:
+          receipt-name: pinned-iverilog-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_attempt }}
+
       - name: Verify recorded upstream base
         shell: bash
         run: ./morphhdl/scripts/check-upstream-base.sh
