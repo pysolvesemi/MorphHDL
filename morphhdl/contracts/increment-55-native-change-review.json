@@ -5684,7 +5684,7 @@
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "import spinal.core.{Param => _, _}",
+              "text": "{Param => _, _}",
               "count": 1
             }
           ]
@@ -5709,7 +5709,7 @@
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "import spinal.core.{Param => _, _}",
+              "text": "{Param => _, _}",
               "count": 1
             }
           ]
@@ -5734,7 +5734,7 @@
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "import spinal.core.{Param => _, _}",
+              "text": "{Param => _, _}",
               "count": 1
             }
           ]
@@ -5759,7 +5759,7 @@
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "import spinal.core.{Param => _, _}",
+              "text": "{Param => _, _}",
               "count": 1
             }
           ]
@@ -5784,7 +5784,7 @@
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "import spinal.core.{Param => _, _}",
+              "text": "{Param => _, _}",
               "count": 1
             }
           ]
@@ -5809,7 +5809,7 @@
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "import spinal.core.{Param => _, _}",
+              "text": "{Param => _, _}",
               "count": 1
             }
           ]
@@ -5859,7 +5859,7 @@
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "import spinal.core.{Param => _, Reg, _}",
+              "text": "Param => _, ",
               "count": 1
             }
           ]
@@ -5884,7 +5884,7 @@
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "import spinal.core.{Param => _, _}",
+              "text": "{Param => _, _}",
               "count": 1
             }
           ]
@@ -5909,7 +5909,7 @@
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "import spinal.core.{Param => _, _}",
+              "text": "{Param => _, _}",
               "count": 1
             }
           ]
