@@ -89,10 +89,22 @@ final class ElabInt private[core] (
   def %(that: ElabInt): ElabInt = NativeLocalParameters.calculated(ElabInt.modulo(this, that), "%", this, that)
   def %(that: Int): ElabInt = this % ElabInt.literal(that)
 
-  /** Non-negative parameter shift. The existing authenticated division and
-    * power domains prove both operands; no Scala shift-count masking applies.
+  /** Logical shift of a non-negative parameter. A correlated distance needs
+    * proof from the active generate path, never a simulation-only requirement.
     */
-  def >>(distance: ElabInt): ElabInt = this / distance.pow2
+  def >>(distance: ElabInt): ElabInt = {
+    if (distance.expression.minimum >= 0 && distance.expression.maximum <= 30)
+      this / distance.pow2
+    else {
+      if (!NativeSymbolicLegality.provenInActiveScope((distance >= 0) && (distance <= 30)))
+        ParameterizedVerilogException.fail("SPINAL-ELAB-INT-POW2-DOMAIN-UNSUPPORTED",
+          "shift distance must be proven within 0..30", distance.expression.sourceLocation)
+      // The certificate remains total on the original product domain: invalid
+      // distances produce zero, as with a Verilog logical integer shift. It
+      // therefore cannot export narrowed width/domain authority from this scope.
+      ElabInt.fromExpression(ElaborationProductDomain.integer(">>", expression, distance.expression))
+    }
+  }
   def >>(distance: Int): ElabInt = this >> ElabInt.literal(distance)
 
   /** Select a contiguous low-bit mask (0, 1, 3, 7, ...).

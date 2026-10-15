@@ -690,6 +690,14 @@
         "signed event cells preserve dynamic read views with unpacked=true",
         "split structural processes keep only visible events and retain masked-condition initialization"
       ],
+      "morphhdl.CompactReductionExampleTests": [
+        "generic Option recursive example mode=plain default=1",
+        "generic Option recursive example mode=plain default=5",
+        "generic Option recursive example mode=pipeline default=1",
+        "generic Option recursive example mode=pipeline default=5",
+        "generic Option recursive example mode=bridge default=1",
+        "generic Option recursive example mode=bridge default=5"
+      ],
       "morphhdl.ConstantAggregateTests": [
         "CA-001 contextual zero assignments retain native width",
         "CA-002 constant register Vec writes retain switch control",
@@ -918,6 +926,11 @@
         "scalar-formal recursive definitions share across defaults peer=true default=1",
         "scalar-formal recursive definitions share across defaults peer=true default=3"
       ],
+      "morphhdl.HardTypeParameterGeometryTests": [
+        "HardType retains symbolic scalar geometry without widthFactory kind=uint",
+        "HardType retains symbolic scalar geometry without widthFactory kind=sint",
+        "HardType retains symbolic scalar geometry without widthFactory kind=bits"
+      ],
       "morphhdl.HierarchyParameterBindingTests": [
         "a parameterless parent binds a parameterized child to one concrete literal",
         "a parent binding must remain inside the complete child domain",
@@ -951,6 +964,12 @@
         "split publication localizes enum constants into their owning component files",
         "split publication preserves a validated bounded recursive owner file",
         "split publication uses one deterministic file per canonical logical component"
+      ],
+      "morphhdl.InferredParameterTests": [
+        "Param declarations infer names and authored domains default=1 inverted=false",
+        "Param declarations infer names and authored domains default=1 inverted=true",
+        "Param declarations infer names and authored domains default=8 inverted=false",
+        "Param declarations infer names and authored domains default=8 inverted=true"
       ],
       "morphhdl.LibraryDefinitionReuseTests": [
         "equal witnesses with mixed literal and symbolic actuals publish order-independent definitions",
@@ -1625,6 +1644,36 @@
         "nested explicit symbolic conditionals retain legal nested generate structure",
         "non-final chained predicates reject a false-label override",
         "ordinary Scala Boolean conditionals remain ordinary Scala control flow"
+      ],
+      "morphhdl.OptionalReductionPolicyTests": [
+        "recursive optional bindings preserve declared presence and exact identity",
+        "optional reduction policy preserves omission and explicit presence mode=none",
+        "optional reduction policy preserves omission and explicit presence mode=zero",
+        "optional reduction policy preserves omission and explicit presence mode=bridge",
+        "optional reduction policy preserves omission and explicit presence mode=identity",
+        "optional reduction policy preserves omission and explicit presence mode=legacy-null",
+        "Some symbolic mask forwards overrides and retains reset and stall behavior"
+      ],
+      "morphhdl.OrdinaryChildClockGeometryTests": [
+        "ordinary child wiring preserves symbolic expressions and clock reset enable priority operation=cast",
+        "ordinary child wiring preserves symbolic expressions and clock reset enable priority operation=sum",
+        "ordinary child wiring preserves symbolic expressions and clock reset enable priority operation=choice",
+        "whole-width typed slices reject partial offsets and independent equal-witness geometry",
+        "direct arithmetic cannot borrow equal default widths from independent actuals"
+      ],
+      "morphhdl.PackedParameterTests": [
+        "packed parameter types retain declared widths signedness and override values width=19",
+        "packed parameter types retain declared widths signedness and override values width=64",
+        "signed Int boundary parameters extend to wide hardware without unsigned reinterpretation",
+        "packed formals preserve independent actuals and shared definition representation",
+        "packed declarations reject contradictory types domains and overflow",
+        "packed defaults reject hardware sources and implicit literal sizing"
+      ],
+      "morphhdl.ParameterMaskTests": [
+        "readable parameter shifts and low masks retain override semantics",
+        "correlated logarithmic shifts use the authenticated generate guard",
+        "unguarded logarithmic differences and simulation requirements do not authorize shifts",
+        "invalid shift domains and noncontiguous masks fail without witness truncation"
       ],
       "morphhdl.ParameterizedStreamFifoDepthTests": [
         "compound bounded depth retains its exact formal actual",
@@ -3601,44 +3650,6 @@
         "unaligned and overflowing offsets do not acquire a false whole-word proof",
         "unaligned windows concatenate actual array bits across element boundaries",
         "whole-word expansion preserves unsigned and signed RHS extension"
-      ],
-      "morphhdl.InferredParameterTests": [
-        "Param declarations infer names and authored domains default=1 inverted=false",
-        "Param declarations infer names and authored domains default=1 inverted=true",
-        "Param declarations infer names and authored domains default=8 inverted=false",
-        "Param declarations infer names and authored domains default=8 inverted=true"
-      ],
-      "morphhdl.PackedParameterTests": [
-        "packed parameter types retain declared widths signedness and override values width=19",
-        "packed parameter types retain declared widths signedness and override values width=64",
-        "signed Int boundary parameters extend to wide hardware without unsigned reinterpretation",
-        "packed formals preserve independent actuals and shared definition representation",
-        "packed declarations reject contradictory types domains and overflow",
-        "packed defaults reject hardware sources and implicit literal sizing"
-      ],
-      "morphhdl.ParameterMaskTests": [
-        "readable parameter shifts and low masks retain override semantics",
-        "invalid shift domains and noncontiguous masks fail without witness truncation"
-      ],
-      "morphhdl.OptionalReductionPolicyTests": [
-        "optional reduction policy preserves omission and explicit presence mode=none",
-        "optional reduction policy preserves omission and explicit presence mode=zero",
-        "optional reduction policy preserves omission and explicit presence mode=bridge",
-        "optional reduction policy preserves omission and explicit presence mode=identity",
-        "optional reduction policy preserves omission and explicit presence mode=legacy-null",
-        "Some symbolic mask forwards overrides and retains reset and stall behavior"
-      ],
-      "morphhdl.HardTypeParameterGeometryTests": [
-        "HardType retains symbolic scalar geometry without widthFactory kind=uint",
-        "HardType retains symbolic scalar geometry without widthFactory kind=sint",
-        "HardType retains symbolic scalar geometry without widthFactory kind=bits"
-      ],
-      "morphhdl.OrdinaryChildClockGeometryTests": [
-        "ordinary child wiring preserves symbolic expressions and clock reset enable priority operation=cast",
-        "ordinary child wiring preserves symbolic expressions and clock reset enable priority operation=sum",
-        "ordinary child wiring preserves symbolic expressions and clock reset enable priority operation=choice",
-        "whole-width typed slices reject partial offsets and independent equal-witness geometry",
-        "direct arithmetic cannot borrow equal default widths from independent actuals"
       ]
     },
     "morphir": {
@@ -3688,6 +3699,19 @@
         "named recursive bindings preserve declaration identity in any authored order",
         "specialization changes cannot hide in recursive construction",
         "unsupported inheritance and missing explicit bindings reject"
+      ],
+      "morphhdl.compiler.InferredParameterSyntaxTests": [
+        "ordinary and renamed imports support declared integer domains and explicit HDL names",
+        "constructor specialization limits and named constants establish real declared bounds",
+        "optional typed parameter declarations lower Option actuals with inferred bounds",
+        "unbounded and empty domains cannot borrow the default as a bound",
+        "conditional requirements and shadowed require cannot establish a declaration domain",
+        "foreign wildcard require does not grant domain evidence; qualified Predef remains available",
+        "a foreign Param factory retains ordinary Scala behavior",
+        "local and foreign parameter type spellings cannot borrow built-in authority",
+        "same-block foreign Param declarations override wildcard imports",
+        "foreign wildcard parameter factories retain their authored semantics",
+        "imports in sibling packages cannot authorize a foreign declaration"
       ],
       "morphhdl.compiler.LightweightSyntaxBaselineTests": [
         "a shadowing host integer retains ordinary Scala control",
@@ -3792,19 +3816,6 @@
       "morphhdl.compiler.NativeSymbolicEqualitySafetyTests": [
         "inferred helper and qualified results cannot fall back to numeric Scala equality",
         "null checks explicit identity and unrelated host equality remain ordinary"
-      ],
-      "morphhdl.compiler.InferredParameterSyntaxTests": [
-        "ordinary and renamed imports support declared integer domains and explicit HDL names",
-        "constructor specialization limits and named constants establish real declared bounds",
-        "optional typed parameter declarations lower Option actuals with inferred bounds",
-        "unbounded and empty domains cannot borrow the default as a bound",
-        "conditional requirements and shadowed require cannot establish a declaration domain",
-        "foreign wildcard require does not grant domain evidence; qualified Predef remains available",
-        "a foreign Param factory retains ordinary Scala behavior",
-        "local and foreign parameter type spellings cannot borrow built-in authority",
-        "same-block foreign Param declarations override wildcard imports",
-        "foreign wildcard parameter factories retain their authored semantics",
-        "imports in sibling packages cannot authorize a foreign declaration"
       ]
     },
     "paramrtl": {
@@ -4206,6 +4217,7 @@
     "morphhdl/src/test/scala/morphhdl/CaseRoutingContractFixture.scala": "d023ec2012ae83d4a7cbe98ade300da2c638de567261c4f3d859cb2721bd4c03",
     "morphhdl/src/test/scala/morphhdl/ClockedFormalForwardingTests.scala": "297f2dcc3fd20df8f9c8da85cb647fb54b5a8dd2c91c4b4ec207289a0d34b6e1",
     "morphhdl/src/test/scala/morphhdl/CombinationalEventDependencyTests.scala": "8ee4779056a6360a9a312e80bfbe98767abeea0d4620d645e0a04c9ccd5ddfe8",
+    "morphhdl/src/test/scala/morphhdl/CompactReductionExampleTests.scala": "15e5999a710469e78e23a7c6d9823edd5e97b383810cc748e6db904c7bb28463",
     "morphhdl/src/test/scala/morphhdl/ComparisonRoutingContractFixture.scala": "3c97bad965df0b5939bcf30bbf5a4da1776ab2e92ffe2cec852f8bb1ba7e4a0d",
     "morphhdl/src/test/scala/morphhdl/ConditionalForwardingContractFixture.scala": "17e178ecd03bad24bdddbe29c98d376be7f51b95eea47b633006dd6d0ceb1b7e",
     "morphhdl/src/test/scala/morphhdl/ConditionalWidthContractFixture.scala": "10492466f4281597a997518d2da81166a1c5998f8dc7fcf327fc0d878612642d",
@@ -4226,11 +4238,13 @@
     "morphhdl/src/test/scala/morphhdl/GenericProcessLoweringTests.scala": "046ba7e5d752b4db52ba189ff8d69d1d024c9cda1656e6e3a7859a54da112e2d",
     "morphhdl/src/test/scala/morphhdl/GrayStageSharingTests.scala": "60fdf76f872a6d31ad41a2a01229e97f065b8e06573bca6102e3556ec4644eab",
     "morphhdl/src/test/scala/morphhdl/GuardedVecPublicationTests.scala": "ee64456dc0196404065eb56e58e8bd37ea7e116ea7d0ba56d1e3f0b6b3238312",
+    "morphhdl/src/test/scala/morphhdl/HardTypeParameterGeometryTests.scala": "36cdc02ded0a076f8f7ed9f6eb91cba3f7f546d2b2d5baa455976470013d0320",
     "morphhdl/src/test/scala/morphhdl/HierarchyParameterBindingTests.scala": "ded556d070b92fab5462ce47bd30d2f1a30cd41a7abfa39b4d428493603b1152",
     "morphhdl/src/test/scala/morphhdl/Increment61CompatibilityCatalog.scala": "5f9f89a4ea2fbd958caa92273718fed6fd8f24de5c7ba0d57335f6b278716910",
     "morphhdl/src/test/scala/morphhdl/Increment61CompatibilityMatrix.scala": "23182c8d50be2c24d58204c74a714a0957895ff779525655fd20279c6728fb4f",
     "morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala": "235777af8521aa93aaed5aafb0c58f1b735330c1eaa24dace6794bd45ff604a5",
     "morphhdl/src/test/scala/morphhdl/Increment66ToolEvidence.scala": "13f48fc657cf7cfd283f86677011fa23646922e0de75eb2a073d1195a69c8b59",
+    "morphhdl/src/test/scala/morphhdl/InferredParameterTests.scala": "117011c0ad72512db4318cfcc84be30eb99a1d69e1fba5b93fe3b02b5a7c6f66",
     "morphhdl/src/test/scala/morphhdl/LaneArrayContractFixture.scala": "77ef87334eae392b107353446cd63503890e7befec0479b5dbe481016e64f7bf",
     "morphhdl/src/test/scala/morphhdl/LaneConditionCoverageExample.scala": "814b9c6bc371a91c7a621f287bfa8a3516c23066212ee118d26aa052ded3201e",
     "morphhdl/src/test/scala/morphhdl/LaneReceiverCoverageExample.scala": "76e1f07bf1f7abdceeb60eb5758db1b3df6a225bddac1cae5e9b7a347b6f6f83",
@@ -4301,7 +4315,11 @@
     "morphhdl/src/test/scala/morphhdl/NativeValueSizingTests.scala": "8940eaa33540c443381a11e4ad12149afd074dbf1884c084ebb436835ddfe034",
     "morphhdl/src/test/scala/morphhdl/NativeWireCompatibility.scala": "d2458caee53ff314df4159e19cc32d7b71bd83ac1b9f271946cd1758f070d346",
     "morphhdl/src/test/scala/morphhdl/NaturalSymbolicConditionalTests.scala": "7effda58bcee90a3092ba30ac2a574e4234f4d4bb5a2d0d9f9d9583783a81cca",
+    "morphhdl/src/test/scala/morphhdl/OptionalReductionPolicyTests.scala": "3864806ba5799794a3e29abdf30b0885650394c1fd8a675453d54eb1f5456819",
+    "morphhdl/src/test/scala/morphhdl/OrdinaryChildClockGeometryTests.scala": "86d2815353554bc6d29020ad583243e4bc8d02bfbe8a899a880893b9499f3dc4",
+    "morphhdl/src/test/scala/morphhdl/PackedParameterTests.scala": "073e29b145a02d579611591c010ed7a72788268ea876fcc508bbb7e66a2783ce",
     "morphhdl/src/test/scala/morphhdl/ParameterForwardingContractFixture.scala": "1d81e70b0761d2d5b24179af2b474cac96b66fbf67a913b1c56da0b153031110",
+    "morphhdl/src/test/scala/morphhdl/ParameterMaskTests.scala": "df7c6f00dc335445d2c44e768f7d98266f826075f6982594f8844936f4db9ddf",
     "morphhdl/src/test/scala/morphhdl/ParameterizedCounterContractFixture.scala": "14ca6ef96558969bf772a2b4a772d627cfe4b59849b0da4d6925a2f608897be1",
     "morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala": "85b2d2d36e419e7b6e7fd7e9e5be3d3daec450267b5ff4f02d3de1c9ac3809c4",
     "morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala": "0eb60d07a03a73b99a71cac9e52c4bd29ee8c5e9ecca950777e729286c3f404b",
@@ -4518,6 +4536,7 @@
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala": "24b185c3ef7939be404500704e955d598c2493ee7c3a1f737d0cf16267d9c362",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrV1Spec.scala": "835224bc5028bc192976dd96e08906add489d4824d328397466a7e4dd7f31493",
     "morphplugin/src/test/scala/morphhdl/compiler/DirectRecursiveSyntaxTests.scala": "583a6a612a15cfc4b80c1fa9a613314c4917c77db7ccadb35b60851c40d3815a",
+    "morphplugin/src/test/scala/morphhdl/compiler/InferredParameterSyntaxTests.scala": "d7c7badff17f887b6ff23690e241072b4c059faec9c6abc47f3d19d0081aa943",
     "morphplugin/src/test/scala/morphhdl/compiler/LightweightSyntaxBaselineTests.scala": "066b0e145e450fc8e488ae60713a75f3fdbcd8e8c02e2f9ea766ae37bf403a5b",
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlAreaCollectionComponentTests.scala": "27400d483cb4145d6412e0d8ccdc7cd43f3e5a988ed2203bc99110636bebee67",
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlCallbackEffectTests.scala": "8d4b116356912e0384a164733fbf1ae47e476dea45574a2301ca4c9198789241",
@@ -4547,13 +4566,6 @@
     "paramrtl/src/test/scala/morphhdl/paramrtl/SynchronousReadFirstSinglePortMemoryValidatorTests.scala": "4bbd9ed72d079e2d0eb731103b218efccb632bd0c86bce45be28010abf47cb7c",
     "paramrtl/src/test/scala/morphhdl/paramrtl/SynchronousRegisterValidatorTests.scala": "39f7eb5f8be72e3757d9be75d96a198100803d58fec0d191aec829543ef8d71b",
     "paramrtl/src/test/scala/morphhdl/paramrtl/SynchronousStreamFifoValidatorTests.scala": "69850c4e840385a6fd7e30282917c6e5ef32ee01a7926154e412b947165c4878",
-    "paramrtl/src/test/scala/morphhdl/paramrtl/SynchronousStreamM2sPipeValidatorTests.scala": "e0efa84d814108268a97ac378a51f537a024c4eec9bf9971063fa7440eb8ea12",
-    "morphhdl/src/test/scala/morphhdl/InferredParameterTests.scala": "117011c0ad72512db4318cfcc84be30eb99a1d69e1fba5b93fe3b02b5a7c6f66",
-    "morphhdl/src/test/scala/morphhdl/PackedParameterTests.scala": "073e29b145a02d579611591c010ed7a72788268ea876fcc508bbb7e66a2783ce",
-    "morphhdl/src/test/scala/morphhdl/ParameterMaskTests.scala": "8012e3a52b65b7407851fa4bab1e543149780f233d069999d9bc15372c74850c",
-    "morphhdl/src/test/scala/morphhdl/OptionalReductionPolicyTests.scala": "748a95504740749b4f547da7b82a9310796b3b2e57082feba0bdcf5278905c72",
-    "morphhdl/src/test/scala/morphhdl/HardTypeParameterGeometryTests.scala": "36cdc02ded0a076f8f7ed9f6eb91cba3f7f546d2b2d5baa455976470013d0320",
-    "morphhdl/src/test/scala/morphhdl/OrdinaryChildClockGeometryTests.scala": "86d2815353554bc6d29020ad583243e4bc8d02bfbe8a899a880893b9499f3dc4",
-    "morphplugin/src/test/scala/morphhdl/compiler/InferredParameterSyntaxTests.scala": "d7c7badff17f887b6ff23690e241072b4c059faec9c6abc47f3d19d0081aa943"
+    "paramrtl/src/test/scala/morphhdl/paramrtl/SynchronousStreamM2sPipeValidatorTests.scala": "e0efa84d814108268a97ac378a51f537a024c4eec9bf9971063fa7440eb8ea12"
   }
 }

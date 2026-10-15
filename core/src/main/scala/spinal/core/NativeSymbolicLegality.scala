@@ -92,6 +92,18 @@ object NativeSymbolicLegality {
     else ElabBool.projectedTruth(condition)
   }
 
+  /** Only the authenticated active generate path can justify a scoped operation.
+    * Deferred simulation requirements are deliberately not consulted.
+    */
+  private[core] def provenInActiveScope(condition: ElabBool): Boolean = {
+    val baseline = classification(condition)
+    baseline == ElabBool.AlwaysTrue || activeScope.get.exists { factory =>
+      val scope = factory()
+      require(scope.component eq Component.current, "structural proof belongs to another component")
+      scope.classify(condition, baseline) == ElabBool.AlwaysTrue
+    }
+  }
+
   private def validate(record: Obligation, completed: Boolean = true): Unit = {
     if (completed) record.scope.foreach(_.validate())
     ElaborationProductDomain.ownerWithCompact(record.encoded, "symbolic legality publication", record.location)(

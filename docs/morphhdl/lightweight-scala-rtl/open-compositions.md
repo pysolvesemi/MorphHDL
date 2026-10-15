@@ -1,7 +1,9 @@
 # Open lightweight compositions
 
 These are current development findings, not reopened historical CA claims.
-No application source or compiler pin has changed.
+Application migration is underway with explicit user authorization. The compiler
+branch remains `work/remaining-parameterized-increments`; final pin reconciliation
+and migration receipts are tracked in the application roadmap.
 
 ## Literal-depth parent Vec to generic child Vec (LWR-08)
 
@@ -22,12 +24,14 @@ extra output lanes.
 
 ## Remaining acceptance work
 
-The durable progress record and the frozen 86-item baseline remain authoritative
-for task scope. In particular, broader affine write compositions, helper inference,
-broader clock composition acceptance, callback-effect restrictions, cleanup/readability,
-current-source integrity enrollment, remote qualification and application migration
-are not closed by the local library tests. Statement-valued symbolic chains with no final else now have local cross-version
-composition and side-effect rejection evidence. Remote qualification remains pending.
+The current application roadmap extends the frozen historical 86-item baseline.
+The user authorized closure with proportional local tests on 16 October 2026;
+remote/full CI is not a closure gate for this task. See `parameter-api-receipt.json`
+for the inferred parameter, packed signed/unsigned value, optional policy,
+HardType geometry and ordinary single-domain child checks. Source integrity is
+retained separately; historical receipts are unchanged. Guarded correlated shifts and the compact generic Option example now pass
+focused checks on both Scala versions; see `roadmap-completion-receipt.json`.
+Application pin and migration closure are recorded in the application roadmap.
 
 ## Hardware-selected row with scoped column writes (LWR-04/05)
 

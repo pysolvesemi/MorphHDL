@@ -109,8 +109,15 @@ object RtlParam {
       "recursive optional declaration identity is missing")
     formal -> actual
   }
-  def recursiveOptionalOverride(formal:ElabInt, actual:Option[ElabInt]):(ElabInt,ElabInt) =
-    formal -> optionalActual(actual)
+  def recursiveOptionalOverride(formal:ElabInt, actual:Option[ElabInt]):(ElabInt,ElabInt) = {
+    val value = optionalActual(actual)
+    val declaration = Option(Component.current).flatMap(_.userCache.get(DeclarationKey))
+      .flatMap(_.asInstanceOf[Declarations].find(_.formal eq formal)).getOrElse(
+        throw new IllegalArgumentException("recursive optional declaration identity is missing"))
+    require(actual.isDefined == declaration.active,
+      "SPINAL-OPTIONAL-PARAMETER-PRESENCE-MISMATCH: recursive children must preserve optional parameter presence")
+    formal -> value
+  }
   def recursiveOptionalOverride(formal:ElabInt, actual:ElabInt):(ElabInt,ElabInt) = formal -> actual
 
   /** A null actual omits the HDL formal and returns an authenticated constant.

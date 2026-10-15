@@ -16,6 +16,9 @@ COUNT and ENABLED are module parameters; nextCount is a derived expression.
 Names come from the declaration, regardless of capitalization. `Param(8,
 "TERM_COUNT")` on a typed declaration overrides the HDL name. Integer and Boolean
 parameters retain the legacy HDL integer representation (Boolean domain 0..1).
+`Param[Int]` follows the existing nonnegative geometry-parameter contract; use
+`Param[SInt]` for a signed value domain. Arithmetic still uses checked signed
+integer intermediates, so legal differences may be negative.
 A constructor argument annotated `Param[Int]` is a typed actual; a component's
 `val COUNT: Param[Int] = Param(actual)` declares its own formal.
 
@@ -63,17 +66,33 @@ usual Scala wildcard-name collision, not a protocol API rename.
 
 ## Readable mask selection
 
-`((mask >> level) & 1) != 0` uses authenticated division/power/remainder arithmetic.
-The shift distance must be proven in 0..30, the value nonnegative, and the mask a
-contiguous nonnegative low-bit mask. Noncontiguous masks are explicitly rejected.
-No Scala shift-distance masking or witness arithmetic is used. Correlated
-logarithm differences are not automatically proven nonnegative by the current
-product enclosure; the reduction library selects at its proven concrete bridge
-levels instead. This limitation remains separate from simple bounded shifts.
+`((mask >> level) & 1) != 0` retains native parameter arithmetic. The shift
+distance must be proven in 0..30, the value nonnegative, and the mask a contiguous
+nonnegative low-bit mask. Noncontiguous masks are explicitly rejected.
+No Scala shift-distance masking or witness arithmetic is used.
+
+For correlated logarithms, establish the real structural guard:
+
+```scala
+if (INITIAL_COUNT >= COUNT) {
+  val distance = INITIAL_COUNT.log2Up - COUNT.log2Up
+  if (((PIPELINE_MASK >> distance) & 1) != 0) result := source
+  else result := False
+} else result := False
+```
+
+The active generate path proves the valid distance. A simulation-only
+`require(INITIAL_COUNT >= COUNT)` is not equivalent and cannot authorize the
+shift. The internal right-shift certificate is total on the original product
+domain, returning zero for invalid distances like Verilog logical integer shifts;
+it does not export a narrowed parameter domain or width proof outside the guard.
+Joint structural proofs retain their existing finite enumeration limits.
+The reduction library continues specializing concrete bridge levels, preserving
+its large-capacity behavior and callback contract.
 
 ## Evidence
 
-Implementation and tests are in progress. `InferredParameterSyntaxTests`,
+The parameter checkpoint is recorded in `parameter-api-receipt.json`. `InferredParameterSyntaxTests`,
 `InferredParameterTests`, `ParameterMaskTests` and `PackedParameterTests` are the
 focused probes. Do not treat this document as a passing result for a new source
 snapshot; completion receipts must identify the tested source and actual outcomes.
@@ -93,7 +112,8 @@ class Policy(actual: Option[Param[Int]]) extends Component {
 `None` creates an authenticated constant and omits the formal. `Some(Param(0))`
 creates a formal whose default is zero and whose non-default overrides remain
 live. The absent value must belong to the authored legal domain. A null Option
-or Some(null) is invalid. Legacy nullable ElabInt APIs remain compatibility
+or Some(null) is invalid. Recursive forwarding must preserve presence: neither
+None-to-Some nor Some-to-None can change a definition during recursion. Legacy nullable ElabInt APIs remain compatibility
 entry points; new call sites should use Option.
 
 For a native Vec with retained count and scalar width, no separate capacity or

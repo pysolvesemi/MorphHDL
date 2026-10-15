@@ -6,6 +6,29 @@ import spinal.core._
 import spinal.lib.BalancedTree
 
 class OptionalReductionPolicyTests extends AnyFunSuite {
+  test("recursive optional bindings preserve declared presence and exact identity") {
+    for(present<-Seq(false,true); changed<-Seq(false,true)) {
+      val dir=Files.createTempDirectory("optional-presence-")
+      def generate():Unit = {
+        MorphVerilog(SpinalConfig(targetDirectory=dir.toString,headerWithDate=false)) {
+          new Component {
+            val width=RtlParam.int("WIDTH",8,1,16)
+            val input=in Bits(width bits); val output=out Bits(width bits)
+            output:=input
+            val original=if(present) Some(ElabInt.literal(0)) else None
+            val formal=RtlParam.optional("MASK",original,0,7,0)
+            val forwarded=if(present != changed) Some(formal) else None
+            RtlParam.recursiveOptionalOverride(formal,forwarded)
+          }
+        }
+      }
+      if(changed) {
+        val error=intercept[Exception](generate())
+        assert(error.toString.contains("PRESENCE-MISMATCH"),error.toString)
+      } else generate()
+    }
+  }
+
   for(mode<-Seq("none","zero","bridge","identity","legacy-null")) test(s"optional reduction policy preserves omission and explicit presence mode=$mode") {
     val dir=Files.createTempDirectory("optional-reduction-")
     MorphVerilog(MorphAggregateOptions(SpinalConfig(targetDirectory=dir.toString,headerWithDate=false),

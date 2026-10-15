@@ -379,6 +379,13 @@
       "suites": [
         "morphhdl.OrdinaryChildClockGeometryTests"
       ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/CompactReductionExampleTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.CompactReductionExampleTests"
+      ]
     }
   ]
 }

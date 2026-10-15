@@ -75,6 +75,7 @@ private[spinal] object ElaborationProductDomain {
         case "*" => at(0) * at(1)
         case "/" => at(0) / at(1)
         case "%" => at(0) % at(1)
+        case ">>" => if (at(1) < 0 || at(1) > 30) BigInt(0) else at(0) >> at(1).toInt
         case "min" => at(0).min(at(1))
         case "max" => at(0).max(at(1))
         case "<" => boolean(at(0) < at(1))
@@ -365,6 +366,12 @@ private[spinal] object ElaborationProductDomain {
               l.maximum * r.minimum, l.maximum * r.maximum)
             Extrema(corners.min, corners.max)
           } else fallback
+        case ">>" =>
+          val l = b(0); val r = b(1)
+          if (l.minimum < 0) fail("SPINAL-ELAB-INT-SHIFT-DOMAIN-UNSUPPORTED", "right shift requires a non-negative operand", location)
+          if (independent && r.minimum >= 0 && r.maximum <= 30)
+            Extrema(l.minimum >> r.maximum.toInt, l.maximum >> r.minimum.toInt)
+          else fallback
         case "/" =>
           val l = b(0); val r = b(1)
           if (l.minimum < 0 || r.minimum <= 0)
@@ -481,6 +488,12 @@ private[spinal] object ElaborationProductDomain {
             val corners = Vector(l.minimum * r.minimum, l.minimum * r.maximum,
               l.maximum * r.minimum, l.maximum * r.maximum)
             Enclosure(corners.min, corners.max)
+          case ">>" =>
+            val l = b(0); val r = b(1)
+            if (l.minimum < 0) fail("SPINAL-ELAB-INT-SHIFT-DOMAIN-UNSUPPORTED", "right shift requires a non-negative operand", location)
+            if (r.minimum >= 0 && r.maximum <= 30)
+              Enclosure(l.minimum >> r.maximum.toInt, l.maximum >> r.minimum.toInt)
+            else Enclosure(0, l.maximum)
           case "/" | "%" =>
             val l = b(0); val r = b(1)
             if (l.minimum < 0 || r.minimum <= 0)

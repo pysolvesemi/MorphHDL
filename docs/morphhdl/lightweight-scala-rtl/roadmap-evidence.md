@@ -7,9 +7,10 @@ closure gates. This map does not turn historical results into fresh executions.
 
 The reviewed starting compiler is `f7135bbd8b1e40b89ee1183de826c90d2f999e31`.
 Historical local runs and their source snapshots are recorded in `progress.json`,
-`qualification.md`, and `compiler-repair-receipt.json`. New parameter spelling,
-packed representation, optional policies and HardType inference require their
-new focused receipts before closure. Source inventory is in `source-inventory.md`.
+`qualification.md`, and `compiler-repair-receipt.json`. The parameter spelling, packed representation, optional policies and HardType
+inference checks are recorded in `parameter-api-receipt.json`; guarded shifts,
+optional recursive presence and the compact example are recorded in
+`roadmap-completion-receipt.json`. Source inventory is in `source-inventory.md`.
 
 | Roadmap area | Implemented contract / regression evidence | Historical CA relationship |
 |---|---|---|
