@@ -310,6 +310,10 @@
       "mode": "100644",
       "sha256": "010f6e7ce6ea6e753c8601bb0899197730b2b47de0bcaa19c86839cbe7f1d162"
     },
+    "docs/morphhdl/lightweight-scala-rtl/migration.md": {
+      "mode": "100644",
+      "sha256": "5a90d3790c2a193319aacbe51733e6e412f8997390b03badefa8ceb64b388b6f"
+    },
     "docs/morphhdl/lightweight-scala-rtl/open-compositions.md": {
       "mode": "100644",
       "sha256": "3b10886b852871907595a8e9043b7166d6beae42135bb411991fda05f9d71b33"
@@ -440,7 +444,7 @@
     },
     "lib/src/main/scala/spinal/lib/BalancedTree.scala": {
       "mode": "100644",
-      "sha256": "7c7f40566367963b616e5a3d1cf3efa939eff1a382c903b3f95965891133f4b9"
+      "sha256": "87afb5fecfb27ce63d969f40bc8adec33e8e001f9d73c0758dc3b91eaa004f7d"
     },
     "lib/src/main/scala/spinal/lib/Counter.scala": {
       "mode": "100644",
@@ -746,11 +750,11 @@
     },
     "morphhdl/contracts/native-source-preservation.json": {
       "mode": "100644",
-      "sha256": "4f0391e5a6b15459e7c1c455bc0f2c70a8263757db276d9cd0431e7296de6d33"
+      "sha256": "b19b410371df4b55a203c3d70706cee97fe0a864c46ce37d5564eac20f1bfd29"
     },
     "morphhdl/contracts/retained-parameterized-regressions.json": {
       "mode": "100644",
-      "sha256": "00d3927e9a7b192d13cee79b5f231a7d689b8366cdee5b2f48e0177531f54cfc"
+      "sha256": "ad248ec41b91448932c815495bde3732d07dbfa474a32df407301fc6e9a30ac6"
     },
     "morphhdl/examples/contracts/symbolic_data_shapes.v": {
       "mode": "100644",
@@ -846,7 +850,7 @@
     },
     "morphhdl/scripts/check-retained-parameterized-regressions.py": {
       "mode": "100644",
-      "sha256": "4b9ade95685e633997b8449a70b197b31114ffb4cd74ce164bf7d6318a31bf1e"
+      "sha256": "66478300b0b1393519655faec6c39f030326ee563ffd900d9c7f3e68c86d0663"
     },
     "morphhdl/scripts/check-symbolic-recursive-width.py": {
       "mode": "100644",
@@ -894,7 +898,7 @@
     },
     "morphhdl/scripts/lightweight-scala-rtl/suites.json": {
       "mode": "100644",
-      "sha256": "aee8c5359db53d5374e86580eb12501ea6d2fd87aec44b6169c498ec0c4de351"
+      "sha256": "fe418207e61fe111c77b44897316b55dcd948b62ce5868d17dc7f5d0f3c80e10"
     },
     "morphhdl/scripts/lightweight-scala-rtl/test-installer.py": {
       "mode": "100644",
@@ -1232,7 +1236,7 @@
     },
     "morphhdl/src/test/scala/morphhdl/LightweightBalancedAdapterTests.scala": {
       "mode": "100644",
-      "sha256": "c781485d107c1e29db94bf3f92d7ae62fb30bb8be028b2e972de18d9c591fef6"
+      "sha256": "36e6194d343ce0986f2b503006facbac0829c2844bef7a46c0f667cda66d6d34"
     },
     "morphhdl/src/test/scala/morphhdl/LightweightBalancedCompositeTests.scala": {
       "mode": "100644",
@@ -1329,6 +1333,10 @@
     "morphhdl/src/test/scala/morphhdl/LightweightPortFactoryTests.scala": {
       "mode": "100644",
       "sha256": "4a57f08560d80b591d4e5f40c72ca8492ef95c2d089337d2c85e94d583986f53"
+    },
+    "morphhdl/src/test/scala/morphhdl/LightweightPrefixTests.scala": {
+      "mode": "100644",
+      "sha256": "cc11fdc8e02d0ed8e1e80be2540797edeb31cd97783a421755a8059d372af2eb"
     },
     "morphhdl/src/test/scala/morphhdl/LightweightRecordCapacityTests.scala": {
       "mode": "100644",
@@ -1863,7 +1871,7 @@
     },
     "morphruntime/src/main/scala/spinal/core/ElabFiniteAffineIndex.scala": {
       "mode": "100644",
-      "sha256": "ee80a744cb0eb26a2c6eef4b52423ddeb8ab58792cb11dd7461fe1eb18dc22cc"
+      "sha256": "03f19955a2144b4a3766196e08190a64df192aee9a31f738f0af73a368e9021f"
     },
     "morphruntime/src/main/scala/spinal/core/ElabFinitePreviousCycles.scala": {
       "mode": "100644",
@@ -1875,7 +1883,7 @@
     },
     "morphruntime/src/main/scala/spinal/core/ElabFiniteRange.scala": {
       "mode": "100644",
-      "sha256": "b444d7f464a949bd43108f05985a75da5e7c016ed8c3e4fe488169fd4a206600"
+      "sha256": "6d5caed6293918bcdfd1a9baece4d177e03364619d7801aec8b4f670ad34fc50"
     },
     "morphruntime/src/main/scala/spinal/core/ElabFiniteWordOffset.scala": {
       "mode": "100644",
