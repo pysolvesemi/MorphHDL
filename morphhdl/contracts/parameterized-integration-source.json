@@ -718,7 +718,7 @@
     },
     "morphhdl/contracts/increment-55-native-change-review.json": {
       "mode": "100644",
-      "sha256": "46e2d4d31a56b6530abd90585fe4fe372f505224c5621cc9248c4b35ac0d0fb8"
+      "sha256": "3f6aa799bf5d71c7cf4900f4226029468bbb6d9b1a4e586d9012c367016636c1"
     },
     "morphhdl/contracts/increment-58-retirement.contract": {
       "mode": "100644",
@@ -746,7 +746,7 @@
     },
     "morphhdl/contracts/native-source-preservation.json": {
       "mode": "100644",
-      "sha256": "7228665d44181cc1af226c1888c7324e902e26592b7f086dce16deaa63b8eab1"
+      "sha256": "4f0391e5a6b15459e7c1c455bc0f2c70a8263757db276d9cd0431e7296de6d33"
     },
     "morphhdl/contracts/retained-parameterized-regressions.json": {
       "mode": "100644",
