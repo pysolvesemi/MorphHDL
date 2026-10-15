@@ -304,7 +304,7 @@
     },
     "docs/morphhdl/lightweight-scala-rtl/qualification.md": {
       "mode": "100644",
-      "sha256": "4900625b181fa8ab2d73360e8730f1bff9c3f0087c7581ac58cf8e4ea90bee60"
+      "sha256": "a9f7ff95fee6cadca267e3c06429b6860eff5a77a57b871b32efeae82a634d3c"
     },
     "docs/morphhdl/lightweight-scala-rtl/semantics-v1.md": {
       "mode": "100644",
@@ -702,7 +702,7 @@
     },
     "morphhdl/contracts/increment-55-native-change-review.json": {
       "mode": "100644",
-      "sha256": "21d6efb7f63d5b8787b85ff6465991c95492e7aff919a71a41e1af76ac6b8001"
+      "sha256": "46e2d4d31a56b6530abd90585fe4fe372f505224c5621cc9248c4b35ac0d0fb8"
     },
     "morphhdl/contracts/increment-58-retirement.contract": {
       "mode": "100644",
@@ -730,7 +730,7 @@
     },
     "morphhdl/contracts/native-source-preservation.json": {
       "mode": "100644",
-      "sha256": "c8e2e9e415c2a8b95083691b75f204dc6f5e2f1caa22b57f52132a57a2724459"
+      "sha256": "7228665d44181cc1af226c1888c7324e902e26592b7f086dce16deaa63b8eab1"
     },
     "morphhdl/contracts/retained-parameterized-regressions.json": {
       "mode": "100644",
