@@ -85,12 +85,22 @@
         {
           "id": "bitvector-resize-01",
           "kind": "overload",
-          "owner": "spinal.core.BitVector.resize(ElabInt)",
-          "reason": "Add a concrete typed resize seam that delegates literal widths and fails closed for unsupported symbolic subclasses.",
+          "owner": "spinal.core.BitVector typed whole-width selection and resize",
+          "reason": "Add a concrete typed resize seam that delegates literal widths and fails closed for unsupported symbolic subclasses. Authenticate an exact whole-width slice against retained native geometry and preserve the original assignable carrier; reject partial offsets, independent witness-equal widths, and unauthenticated geometry.",
           "required_exact_text": [
             {
               "side": "approved",
               "text": "SPINAL-ELAB-INT-BITVECTOR-RESIZE-SUBTYPE-UNSUPPORTED",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "  def apply(offset: Int, bitCount: ParameterizedBitCount): this.type = {",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "SPINAL-TYPED-SLICE-GEOMETRY-UNPROVEN",
               "count": 1
             }
           ]
@@ -130,24 +140,6 @@
             {
               "side": "approved",
               "text": "NativeWidthProvenance.retainMuxType[T](inputs, result)",
-              "count": 1
-            }
-          ]
-        },
-        {
-          "id": "whole-width-parameterized-slice",
-          "kind": "overload",
-          "owner": "spinal.core.BitVector.apply(Int, ParameterizedBitCount)",
-          "reason": "Authenticate an exact whole-width slice against retained native geometry and preserve the original assignable carrier; reject partial offsets, independent witness-equal widths, and unauthenticated geometry.",
-          "required_exact_text": [
-            {
-              "side": "approved",
-              "text": "  def apply(offset: Int, bitCount: ParameterizedBitCount): this.type = {",
-              "count": 1
-            },
-            {
-              "side": "approved",
-              "text": "SPINAL-TYPED-SLICE-GEOMETRY-UNPROVEN",
               "count": 1
             }
           ]
@@ -654,40 +646,40 @@
       "baseline_path": "core/src/main/scala/spinal/core/Literal.scala",
       "edits": [
         {
-          "id": "increment66-literal-1",
+          "id": "lightweight-literal-bits",
           "kind": "overload",
-          "owner": "spinal.core.U.apply(ElabInt, BitCount)",
-          "reason": "Add the explicit fixed-width unsigned ElabInt value overload, delegating to the existing exact typed value registry. Existing literal overloads and native arithmetic remain unchanged.",
+          "owner": "spinal.core typed bits literal factories",
+          "reason": "Materialize explicitly sized typed values through authenticated native value lineage; preserve existing concrete literal factories.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "  /** Explicitly sized unsigned hardware value retaining its ElabInt authority.\n    * Width and value remain independent; unsupported values fail before emission.\n    */\n  def apply(value: ElabInt, width: BitCount): UInt =\n    ElabValue.uintLike(value, UInt(width), null)\n\n",
+              "text": "  def apply(value: ElabInt, width: ParameterizedBitCount): Bits = U(value, width).asBits",
               "count": 1
             }
           ]
         },
         {
-          "id": "lightweight-typed-uint-0",
+          "id": "lightweight-literal-uint",
           "kind": "overload",
-          "owner": "spinal.core typed UInt literal",
-          "reason": "Add typed U/B/S value materialization overloads through the authenticated value registry; existing concrete literal overloads remain unchanged.",
-          "required_exact_text": [
-            {
-              "side": "approved",
-              "text": "  def apply(value: ElabInt, width: BitCount): UInt =",
-              "count": 1
-            }
-          ]
-        },
-        {
-          "id": "lightweight-typed-uint-1",
-          "kind": "overload",
-          "owner": "spinal.core typed UInt literal",
-          "reason": "Add typed U/B/S value materialization overloads through the authenticated value registry; existing concrete literal overloads remain unchanged.",
+          "owner": "spinal.core typed uint literal factories",
+          "reason": "Materialize explicitly sized typed values through authenticated native value lineage; preserve existing concrete literal factories.",
           "required_exact_text": [
             {
               "side": "approved",
               "text": "  def apply(value: ElabInt, width: ParameterizedBitCount): UInt =",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lightweight-literal-sint",
+          "kind": "overload",
+          "owner": "spinal.core typed sint literal factories",
+          "reason": "Materialize explicitly sized typed values through authenticated native value lineage; preserve existing concrete literal factories.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  def apply(value:ElabInt,width:ParameterizedBitCount):SInt = ElabValue.sintLike(value,SInt(width),null)",
               "count": 1
             }
           ]
