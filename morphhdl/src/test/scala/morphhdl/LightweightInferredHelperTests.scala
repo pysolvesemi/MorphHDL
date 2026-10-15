@@ -14,7 +14,11 @@ class LightweightInferredHelperTests extends AnyFunSuite {
           setDefinitionName("InferredHelpers")
           val count: ElabInt=RtlParam.int("COUNT",defaultCount,1,17)
           def pairs(value: ElabInt) = this.rounded(value)
-          def rounded(value: ElabInt) = (value+1)/2
+          def rounded(value: ElabInt) = {
+            val plusOne = { val original = value; original + 1 }
+            val divided = plusOne / 2
+            divided
+          }
           val size=pairs(count)
           val source=in(Vec(Bits(8 bits),count))
           val result=out(Vec(Bits(8 bits),size))

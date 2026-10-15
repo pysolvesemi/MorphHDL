@@ -481,3 +481,18 @@ effects are not proven pure by this check. The broader callback-effect roadmap
 requirement remains open. Native checks still reject captured foreign hardware,
 changed payload widths and illegal recursive ownership. The existing native
 `Vec.reduceBalancedTree` API and its topology are unchanged.
+
+
+## Immutable block helper results (qualification pending)
+
+Exact lexical helpers may infer a symbolic result through nested blocks of
+immutable local values. For example, `def pairs(n: ElabInt) = { val rounded =
+n + 1; rounded / 2 }` retains parameter arithmetic without an explicit return
+type. Local terms shadow enclosing names before inference; initializers are then
+classified in authored order. This does not infer arbitrary statement blocks,
+mutable local results or opaque external helper implementations. Explicit return
+types remain available at unsupported inference boundaries.
+
+The same helper composes with guarded pair/tail loops and direct recursion;
+local native tests exercise counts 1/2/3/5/7/8/15/16/17, defaults 1/5, deterministic
+emission, X/Z simulation, lint and synthesis on both supported Scala versions.

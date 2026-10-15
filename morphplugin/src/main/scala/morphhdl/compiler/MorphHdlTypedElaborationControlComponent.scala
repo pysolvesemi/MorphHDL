@@ -540,6 +540,26 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       * Scala values.
       */
     def expressionKind(current: Tree): BindingKind = current match {
+      case Block(statements, result) if statements.forall {
+          case value: ValDef => !value.mods.hasFlag(Flag.MUTABLE)
+          case _: Import | _: TypeDef => true
+          case _ => false
+        } => withScope {
+          // A local block is sequential, unlike a template. Hide all local
+          // terms first, then infer immutable values in their authored order.
+          // Do not borrow an outer same-named value for a forward reference.
+          prebindTypes(statements)
+          statements.foreach {
+            case value: ValDef => bindOrdinary(value.name)
+            case _ =>
+          }
+          statements.foreach {
+            case imported: Import => recordImport(imported)
+            case value: ValDef => bind(value)
+            case _ =>
+          }
+          expressionKind(result)
+        }
       case Ident(name: TermName) => lookup(name).getOrElse(OrdinaryBinding)
       case Select(This(owner), name: TermName) =>
         thisScope(owner).flatMap(_.terms.get(name)).getOrElse(OrdinaryBinding)

@@ -5,7 +5,7 @@
   "working_directory": "/home/kartik/.local/state/morphhdl/worktrees/lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Nested capacities and source-visible callback effects repaired; helper-block inference and CI enrollment in progress",
+  "phase": "Immutable block helper inference passes local cross-version checks; CI enrollment and cross-file callback checks awaiting integration",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -444,5 +444,18 @@
     "scope": "same-unit typed helper/callback effects; retained immutable capture, exact overload identity, library operations/bridges/registers/adapters/widths; opaque external purity remains open",
     "guards": "current typed layering and retirement inventories include exact six plugin components; source checks and mutation selftests pass; no packaged-JAR result claimed",
     "remote": "pending"
+  },
+  "local_validation_block_helpers": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "plugin_tests_per_scala": 90,
+    "native_tests_per_scala": 22,
+    "native_suites": 4,
+    "before_log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/block-helper-before.log",
+    "native_log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/block-helper-native.log",
+    "source_and_tools": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/block-helper-native",
+    "scope": "immutable parameter intermediates, nested lexical shadowing, helper/control/parameter/direct-recursion tests; freshly built pinned simulator; remote pending"
   }
 }

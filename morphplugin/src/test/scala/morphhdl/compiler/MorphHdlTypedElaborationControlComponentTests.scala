@@ -618,4 +618,33 @@ class MorphHdlTypedElaborationControlComponentTests extends AnyFunSuite {
     assert(diagnostic.get.line == expectedLine, diagnostic.get.toString)
     assert(diagnostic.get.source == "TypedRequirePosition.scala", diagnostic.get.toString)
   }
+  test("block helper infers an immutable parameter intermediate") {
+    val source = neutralDefinitions + """
+      package blockhelpers {
+        import spinal.core._
+        object Example {
+          def forwarded(value: ElabInt) = { val local = value; local }
+          def choose(value: ElabInt): Int = if (forwarded(value) > 0) 1 else 0
+        }
+      }
+    """
+    val errors = compile(source, "BlockHelper.scala")
+    assert(errors.isEmpty, errors.mkString("\n"))
+  }
+
+  test("immutable block helper nesting retains lexical shadowing") {
+    val source = neutralDefinitions + """
+      package blockhelpershadow {
+        import spinal.core._
+        object Example {
+          def forwarded(value: ElabInt) = { val local = { val inner = value; inner }; local }
+          def ordinary(value: ElabInt) = { val value = 2; value }
+          def choose(value: ElabInt): Int = if (forwarded(value) > 0) ordinary(value) else 0
+        }
+      }
+    """
+    val errors = compile(source, "BlockHelperShadow.scala")
+    assert(errors.isEmpty, errors.mkString("\n"))
+  }
+
 }
