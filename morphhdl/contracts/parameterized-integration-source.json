@@ -330,6 +330,10 @@
       "mode": "100644",
       "sha256": "010f6e7ce6ea6e753c8601bb0899197730b2b47de0bcaa19c86839cbe7f1d162"
     },
+    "docs/morphhdl/lightweight-scala-rtl/compiler-repair-receipt.json": {
+      "mode": "100644",
+      "sha256": "8c88a003c1cc3221c24034fb332835bcac0651b7b2d277d1f662dca636cf97e1"
+    },
     "docs/morphhdl/lightweight-scala-rtl/migration.md": {
       "mode": "100644",
       "sha256": "5a90d3790c2a193319aacbe51733e6e412f8997390b03badefa8ceb64b388b6f"
