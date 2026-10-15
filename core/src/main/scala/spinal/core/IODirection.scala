@@ -37,6 +37,11 @@ package spinal.core
   */
 sealed trait IODirection extends BaseTypeFactory {
 
+  override protected def postVecFactory[T <: Data](vector: Vec[T]): Vec[T] = port(vector)
+  // Keep the builder and overloaded methods on the same owner for Scala 2.12.
+  override val Vec = new VecBuilder
+
+
   // This function should be protected, not public
   // Override it to define how to apply port specification on a non-null Data
   @deprecated("Use apply or port instead: `val b = in Bool ()` or `val rgb = out port Rgb`")

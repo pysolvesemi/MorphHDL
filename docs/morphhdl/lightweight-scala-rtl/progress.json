@@ -2,10 +2,10 @@
   "schema": 1,
   "task": "Implement all 86 Lightweight Scala RTL roadmap requirements",
   "roadmap": "/home/kartik/projects/py_francis/display_controller/docs/plans/morphhdl-lightweight-scala-rtl-roadmap.md",
-  "working_directory": "/tmp/morphhdl-lightweight-scala-rtl",
+  "working_directory": "/home/kartik/.local/state/morphhdl/worktrees/lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Statement chains locally validated; literal and narrower-symbolic Vec hierarchy capacity adaptation next",
+  "phase": "Typed Vec direction factories restored and locally cross-version validated; reconstructing pending hierarchy work and extending symbolic reduction adapters",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -138,5 +138,19 @@
     "plugin_tests_per_scala": 47,
     "native_tests_per_scala": 22,
     "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/statement-chains"
+  },
+  "recovery": {
+    "committed_head": "3a6ff06d25027f060bfd1fb473fb32c894a89183",
+    "note": "Temporary worktree disappeared during environment transition. Pending hierarchy-capacity edits and final test log unavailable; no passing claim for interrupted run. Reconstruct and revalidate. Worktree moved into persistent local state."
+  },
+  "local_validation_port_factories": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "tests_per_scala": 8,
+    "log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/port-factory-recovery.log",
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/port-factory-recovery",
+    "remote": "pending"
   }
 }

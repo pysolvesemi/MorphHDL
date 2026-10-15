@@ -32,6 +32,8 @@ import scala.collection.Seq
   */
 trait VecFactory {
 
+  protected def postVecFactory[T <: Data](vector: Vec[T]): Vec[T] = vector
+
   def Vec[T <: Data](elements: TraversableOnce[T], dataType : HardType[T] = null): Vec[T] = {
     val vector = elements.toVector
 
@@ -88,7 +90,7 @@ trait VecFactory {
       * branch retains the exact symbolic size.
       */
     def fill[T <: Data](size: ElabInt)(dataType: => T): Vec[T] = {
-      ParameterizedVec.create(size, "typed Vec size")(dataType)
+      postVecFactory(ParameterizedVec.create(size, "typed Vec size")(dataType))
     }
     def fill[T <: Data](n1: Int, n2: Int)(elem: => T): Vec[Vec[T]] =
       tabulate(n1)(_ => fill(n2)(elem))
