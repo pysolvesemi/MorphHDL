@@ -52,7 +52,7 @@ class MigratedAuditTests(unittest.TestCase):
 
     def test_workflows_preserve_every_byte_outside_explicit_policy_migration(self):
         contract = json.loads((ROOT / 'morphhdl/contracts/candidate-provenance-workflow-migration.json').read_text())
-        self.assertEqual(len(contract['workflows']), 15)
+        self.assertEqual(len(contract['workflows']), 16)
         for path, record in contract['workflows'].items():
             with self.subTest(path=path):
                 current = (ROOT / path).read_text()
@@ -79,6 +79,26 @@ class MigratedAuditTests(unittest.TestCase):
                     except AssertionError:
                         continue
                     self.assertNotEqual(restored, restore_workflow(path, current))
+
+    def test_60g_fixed_predecessor_scopes_are_authenticated_without_replay(self):
+        inventory = json.loads((ROOT / A.P.INVENTORY).read_text())
+        ref = '5a9294363c7b74ae584f1702160fe1f7e468f58a'
+        node = next(n for n in inventory['certificates'] if n['commit'] == ref)
+        for name in ('check-increment-60g-source-scope.py',
+                     'check-increment-60f-equivalence-closure.py',
+                     'test-increment-60f-inherited-source-scope.py',
+                     'test-increment-59f-source-scope.py',
+                     'test-increment-59c-inherited-source-scope.py',
+                     'check-increment-59h-source-review.py',
+                     'test-increment-59h-inherited-source-scope.py'):
+            path = 'morphhdl/scripts/' + name
+            self.assertEqual(node['evidence'][path]['sha256'],
+                             hashlib.sha256(A.P.git(ROOT, 'show', ref + ':' + path)).hexdigest())
+        workflow = (ROOT / '.github/workflows/increment-60g-default-signed-verilog.yml').read_text()
+        self.assertNotIn('git worktree add', workflow)
+        self.assertIn('candidate_provenance_ci.py --consume', workflow)
+        self.assertIn('test-candidate-provenance.py', workflow)
+        self.assertIn('test-candidate-provenance-ci.py', workflow)
 
     def test_historical_certificate_and_fixture_files_remain_unchanged(self):
         baseline = 'f70a20cebdc37319a6b74d0bfe227a0e4403101f'

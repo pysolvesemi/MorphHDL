@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: increment-60g-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -29,6 +30,16 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+      - name: Consume authenticated candidate provenance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 morphhdl/scripts/candidate_provenance_ci.py
+      - name: Reject altered source, evidence, ancestry and stale receipts
+        shell: bash
+        run: |
+          python3 morphhdl/scripts/test-candidate-provenance.py
+          python3 morphhdl/scripts/test-candidate-provenance-ci.py
       - name: Retain exact source and ancestry
         shell: bash
         run: |
@@ -42,22 +53,11 @@ jobs:
         run: |
           set -euo pipefail
           {
-            python3 morphhdl/scripts/check-increment-61-source-review.py
-            python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
-            predecessor="$GITHUB_WORKSPACE/target/increment-61-predecessor-60g"
-            git worktree add --detach "$predecessor" 5a9294363c7b74ae584f1702160fe1f7e468f58a
-            trap 'git worktree remove --force "$predecessor"' EXIT
-            (
-              cd "$predecessor"
-              python3 morphhdl/scripts/check-increment-60g-source-scope.py
-              python3 morphhdl/scripts/check-increment-60g-source-scope.py --self-test
-              python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
-              python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py
-              python3 morphhdl/scripts/test-increment-59f-source-scope.py
-              python3 morphhdl/scripts/test-increment-59c-inherited-source-scope.py
-              python3 morphhdl/scripts/check-increment-59h-source-review.py
-              python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py
-            )
+            python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py
+            python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test
+            # The producer authenticates the fixed predecessor and immutable
+            # evidence without checking out or executing historical programs.
+            python3 morphhdl/scripts/candidate_provenance_ci.py --consume
             python3 morphhdl/scripts/check-increment-60g-default-rollout.py self-test
             python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test
             python3 morphhdl/scripts/check-native-source-preservation.py

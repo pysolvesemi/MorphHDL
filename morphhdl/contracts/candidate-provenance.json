@@ -12121,6 +12121,22 @@
         "morphhdl/scripts/check-yosys-synchronous-stream-m2s-pipe-contract.py": {
           "mode": "100755",
           "sha256": "892cb4f45cadb30edea4eab98dfccff5afade64927ca1b12b5c609a363ee9014"
+        },
+        "morphhdl/scripts/test-increment-59c-inherited-source-scope.py": {
+          "mode": "100644",
+          "sha256": "1c80072cd56a3518387459d1582d78a6c192d8c59090b2ef5473fba044fee3bd"
+        },
+        "morphhdl/scripts/test-increment-59f-source-scope.py": {
+          "mode": "100644",
+          "sha256": "f2ff879ff984bbb1348e1abaedd054d4a4d4a194dc581476255d85c59a0cee6e"
+        },
+        "morphhdl/scripts/test-increment-59h-inherited-source-scope.py": {
+          "mode": "100644",
+          "sha256": "0acd3aaf2997b77eb63f029064087b91a2da335ee604d9e926f0b2870b2786db"
+        },
+        "morphhdl/scripts/test-increment-60f-inherited-source-scope.py": {
+          "mode": "100644",
+          "sha256": "878d23fbccf6825bc37362a2298502c11fa6d97dd1ea305003bb43098cfdedff"
         }
       },
       "parents": [

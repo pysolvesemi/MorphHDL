@@ -308,6 +308,24 @@
           "after": "          # The producer authenticates the fixed Increment 61 predecessor and\n          # its immutable evidence; this is not historical suite execution.\n          python3 morphhdl/scripts/candidate_provenance_ci.py --consume | tee \"$output/inherited.log\"\n"
         }
       ]
+    },
+    ".github/workflows/increment-60g-default-signed-verilog.yml": {
+      "before_sha256": "27794cd9b2bad4f3a07289206ac3da831ec822a4b832fd3624ad56b3001b7a88",
+      "after_sha256": "b4ab317754137ee9c25b15f5e486ca9f89b5f496f40a031c72b316ce7e8ab917",
+      "patches": [
+        {
+          "before": "permissions:\n  contents: read\n",
+          "after": "permissions:\n  contents: read\n  actions: read\n"
+        },
+        {
+          "before": "      - name: Retain exact source and ancestry\n",
+          "after": "      - name: Consume authenticated candidate provenance\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py\n      - name: Reject altered source, evidence, ancestry and stale receipts\n        shell: bash\n        run: |\n          python3 morphhdl/scripts/test-candidate-provenance.py\n          python3 morphhdl/scripts/test-candidate-provenance-ci.py\n      - name: Retain exact source and ancestry\n"
+        },
+        {
+          "before": "            python3 morphhdl/scripts/check-increment-61-source-review.py\n            python3 morphhdl/scripts/check-increment-61-source-review.py --self-test\n            predecessor=\"$GITHUB_WORKSPACE/target/increment-61-predecessor-60g\"\n            git worktree add --detach \"$predecessor\" 5a9294363c7b74ae584f1702160fe1f7e468f58a\n            trap 'git worktree remove --force \"$predecessor\"' EXIT\n            (\n              cd \"$predecessor\"\n              python3 morphhdl/scripts/check-increment-60g-source-scope.py\n              python3 morphhdl/scripts/check-increment-60g-source-scope.py --self-test\n              python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only\n              python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py\n              python3 morphhdl/scripts/test-increment-59f-source-scope.py\n              python3 morphhdl/scripts/test-increment-59c-inherited-source-scope.py\n              python3 morphhdl/scripts/check-increment-59h-source-review.py\n              python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py\n            )\n",
+          "after": "            python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py\n            python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test\n            # The producer authenticates the fixed predecessor and immutable\n            # evidence without checking out or executing historical programs.\n            python3 morphhdl/scripts/candidate_provenance_ci.py --consume\n"
+        }
+      ]
     }
   }
 }
