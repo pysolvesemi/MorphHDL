@@ -319,6 +319,23 @@ counts 1/2/3/5/7/8, defaults 1/5, asynchronous/synchronous and active-high/low r
 soft reset, enable stalls, reset while disabled, one-hot/random and X/Z data.
 Changed input sources and cleared native pull caches are rejected. Both Scala
 versions pass 32 tests across four suites. This does not claim implicit multi-domain
-recursion or remote qualification. A register assigned separately in both arms
-of a scoped finite guard remains a tracked process-ownership composition gap;
-computing the guarded next value before `RegNext` passes these clock tests.
+recursion or remote qualification. Complete assignments to a capture-local register in both arms of a scoped guard
+are supported by the next-value normalization below.
+
+
+## Static alternatives updating one local register
+
+A scalar register declared in an enclosing captured body may receive one
+unconditional whole-leaf assignment from each arm of a complete static `if`.
+The compiler joins those exact next-value writes on a typed combinational carrier
+and retains one assignment to the original register. Initialization, register
+identity, attributes and clock/reset/enable semantics remain unchanged. Feedback
+continues to read the original register. This transformation happens in the native
+graph before process emission; it does not reconstruct HDL text.
+
+The local declaration snapshot prevents a loop from borrowing outside storage.
+Partial targets, additional live writers and runtime-conditional writes do not
+enter this narrow normalization. Existing ownership/driver checks still apply.
+Cross-version tests cover Bool/Bits/UInt/SInt, symbolic widths, feedback, register
+attributes, two layouts and recursive clock/reset/enable behavior. The 11-suite
+regression passes 163 tests per Scala version; remote qualification remains open.

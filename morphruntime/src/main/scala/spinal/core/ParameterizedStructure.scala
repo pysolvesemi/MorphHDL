@@ -143,7 +143,8 @@ object ParameterizedStructure {
       val ownerAdmitted: Option[Set[BigInt]],
       val parent: Option[CaptureState],
       val ownerDomains: Vector[(ElaborationIntegerParameterRoot, Set[BigInt])] = Vector.empty,
-      val ownerJoint: Option[(ElaborationProductDomain.StructuralPredicate, Int)] = None
+      val ownerJoint: Option[(ElaborationProductDomain.StructuralPredicate, Int)] = None,
+      val initialStatements: Option[Vector[Statement]] = None
   ) {
     val slices = ArrayBuffer.empty[StructuralSlice]
     val vecIndices = ArrayBuffer.empty[StructuralVecIndex]
@@ -605,7 +606,8 @@ object ParameterizedStructure {
       ownerAdmitted,
       Option(previousCapture).filter(_.component eq component),
       ownerDomains,
-      ownerJoint
+      ownerJoint,
+      Some(beforeHardwareStatements)
     )
     activeCapture.set(state)
 
@@ -4212,6 +4214,13 @@ object ParameterizedStructure {
       sourceLocation,
       "generate-if condition"
     )
+    val enclosing = Option(activeCapture.get()).filter(_.component eq pending.component)
+    enclosing.foreach { state =>
+      val nestedDeclarations = state.regions.toVector.flatMap(allBlocks).flatMap(_.declarations)
+      TypedConditionalRegisterWrites.normalize(pending.component, whenTrue, whenFalse, target =>
+        state.initialStatements.exists(before => !before.exists(_ eq target)) &&
+          !nestedDeclarations.exists(_ eq target))
+    }
     registerRegion(
       pending.component,
       pending.captureId,

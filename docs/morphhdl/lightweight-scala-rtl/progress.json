@@ -5,7 +5,7 @@
   "working_directory": "/home/kartik/.local/state/morphhdl/worktrees/lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Implicit single-domain recursion locally validated; guarded register assignment composition next",
+  "phase": "Guarded register next-value joins locally validated; staged host-effect diagnostics next",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -42,7 +42,8 @@
     "Mill uses content-addressed tracked artifacts for both compiler plugins, matching SBT invalidation semantics",
     "Exact guarded positive-stride whole-leaf Vec write partitions with complete domain coverage, non-overlap and competing-writer rejection",
     "Scoped no-else statements preserve absent branch identity; finite loops inside native when/otherwise retain enclosing control and independent writes",
-    "Compiler-inferred recursive interfaces forward exact current-domain clock/reset/soft-reset/enable ports with binding tamper checks"
+    "Compiler-inferred recursive interfaces forward exact current-domain clock/reset/soft-reset/enable ports with binding tamper checks",
+    "Complete complementary static writes to a capture-local register normalize into a typed combinational next-value join while preserving storage, reset, clocks, attributes and feedback"
   ],
   "local_logs": [
     "/tmp/lwr01-plugin-all.log",
@@ -252,5 +253,20 @@
     "tests_per_scala": 32,
     "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/implicit-clocks-final",
     "scope": "11 clock tests plus existing recursion safety, optional parameters and BalancedTree registers/bridges; fresh simulation/lint/synthesis, local only"
+  },
+  "local_validation_guarded_registers": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "tests_per_scala": 163,
+    "suites": 11,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/guarded-registers-cross",
+    "scope": "guarded register and implicit-clock variants, affine read/write and register ownership negatives, existing loops, Gray decoder and library reduction regressions; remote pending",
+    "formal": {
+      "tests_per_scala": 1,
+      "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/guarded-registers-formal-cross",
+      "scope": "three two-state temporal-induction comparisons and one corrupted-reference rejection per Scala version"
+    }
   }
 }

@@ -6,7 +6,7 @@ import spinal.core._
 import spinal.core.internals._
 
 @_root_.spinal.core.rtlRecursive
-final class LightweightImplicitClockTree(actual: ElabInt, foreignDomain: Boolean = false) extends Component {
+final class LightweightImplicitClockTree(actual: ElabInt, foreignDomain: Boolean = false, guardedRegister: Boolean = false) extends Component {
   setDefinitionName("ImplicitClockTree")
   noIoPrefix()
   val count: ElabInt = RtlParam.int("COUNT", actual, 1, 8)
@@ -21,12 +21,19 @@ final class LightweightImplicitClockTree(actual: ElabInt, foreignDomain: Boolean
     val nextCount = (count+1)/2
     val stages = Vec(UInt(8 bits),nextCount)
     for(i<-0 until nextCount) {
-      val combined = UInt(8 bits)
-      if(2*i+1<count) combined := io.terms(2*i)+io.terms(2*i+1)
-      else combined := io.terms(2*i)
-      stages(i) := RegNext(combined) init(0)
+      if(guardedRegister) {
+        val value = Reg(UInt(8 bits)) init(0)
+        if(2*i+1<count) value := io.terms(2*i)+io.terms(2*i+1)
+        else value := io.terms(2*i)
+        stages(i) := value
+      } else {
+        val combined = UInt(8 bits)
+        if(2*i+1<count) combined := io.terms(2*i)+io.terms(2*i+1)
+        else combined := io.terms(2*i)
+        stages(i) := RegNext(combined) init(0)
+      }
     }
-    val nextLevel = new LightweightImplicitClockTree(nextCount, foreignDomain)
+    val nextLevel = new LightweightImplicitClockTree(nextCount, foreignDomain, guardedRegister)
     nextLevel.io.terms := stages
     io.result := nextLevel.io.result
   }
@@ -43,8 +50,8 @@ final class LightweightClockGolden(count: Int) extends Component {
   result := words.head
 }
 class LightweightImplicitClockTests extends AnyFunSuite {
-  for(default<-Seq(1,5); sync<-Seq(false,true); low<-Seq(false,true)) {
-    test(s"ordinary recursive registers forward clock reset soft-reset and enable default=$default sync=$sync low=$low") {
+  for(default<-Seq(1,5); sync<-Seq(false,true); low<-Seq(false,true); guarded<-Seq(false,true)) {
+    test(s"ordinary recursive registers forward clock reset soft-reset and enable default=$default sync=$sync low=$low guarded=$guarded") {
       val dir=Files.createTempDirectory("lightweight-implicit-clock-")
       val config=ClockDomainConfig(resetKind=if(sync) SYNC else ASYNC,
         resetActiveLevel=if(low) LOW else HIGH)
@@ -56,7 +63,7 @@ class LightweightImplicitClockTests extends AnyFunSuite {
       def generate(target: java.nio.file.Path): Unit = {
         MorphVerilog(MorphAggregateOptions(SpinalConfig(targetDirectory=target.toString,headerWithDate=false),
           preserveConstantVecs=true,preserveConstantLoops=true,vecLayout=MorphAggregateOptions.UnpackedArray)) {
-          domain().on(new LightweightImplicitClockTree(ElabInt.literal(default)))
+          domain().on(new LightweightImplicitClockTree(ElabInt.literal(default), false, guarded))
         }
       }
       generate(dir)
