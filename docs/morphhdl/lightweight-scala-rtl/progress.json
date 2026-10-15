@@ -233,5 +233,14 @@
     ],
     "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/affine-formal",
     "scope": "two-state flat-reference proof plus corrupted-reference rejection; X/Z simulation recorded separately"
+  },
+  "local_validation_nested_writes": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "tests_per_scala": 4,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/nested-writes",
+    "scope": "signed two-dimensional unit writes and inherited nested recursive tree; layout/geometry overrides, deterministic generation, simulation/lint/synthesis"
   }
 }
