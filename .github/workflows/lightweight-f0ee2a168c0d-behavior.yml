@@ -1,0 +1,260 @@
+name: Lightweight Scala RTL behavior exact-head dispatch
+'on':
+  push:
+    branches:
+    - control/lightweight-f0ee2a168c0d-behavior
+    paths:
+    - .github/workflows/lightweight-f0ee2a168c0d-behavior.yml
+permissions:
+  contents: read
+  actions: write
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+    - uses: actions/checkout@v4
+    - name: Validate identities and dispatch only allowlisted workflows
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        mkdir -p .github/controllers/lightweight-f0ee2a168c0d-behavior
+        cat > .github/controllers/lightweight-f0ee2a168c0d-behavior/dispatch.json <<'CONTROLLER_JSON'
+        {
+          "repository": "pysolvesemi/MorphHDL",
+          "pr": 196,
+          "base_ref": "parameterized-verilog",
+          "base_sha": "db54d01e5b21c7664f7a0de3795f061d77a3d259",
+          "candidate_ref": "work/lightweight-scala-rtl",
+          "candidate_sha": "f0ee2a168c0dc35140e7197d6639ffd78264dd2b",
+          "candidate_tree": "fce5c4deb44f9661c9ae25c9b6c108c9b6573f64",
+          "control_ref": "control/lightweight-f0ee2a168c0d-behavior",
+          "control_files": [
+            ".github/workflows/lightweight-f0ee2a168c0d-behavior.yml"
+          ],
+          "workflows": [
+            {
+              "id": 347814196,
+              "path": ".github/workflows/increment-53g-production-retirement.yml",
+              "sha256": "32d4c70779aa33f029aa19be32ea11c3397467cef822cd4d7fab9b0b06e3b97d",
+              "payload": {
+                "ref": "work/lightweight-scala-rtl"
+              }
+            },
+            {
+              "id": 348180595,
+              "path": ".github/workflows/increment-54-typed-layering-ir.yml",
+              "sha256": "0a87f3470fe48f09dc67cfa3872b79292d1082eabfd3ef1717e2a72a5711f382",
+              "payload": {
+                "ref": "work/lightweight-scala-rtl"
+              }
+            },
+            {
+              "id": 337738060,
+              "path": ".github/workflows/morphhdl-external-structural-process.yml",
+              "sha256": "6e41eef457da14802fb6c4070396bce782c048832657d821c1b51793ba99143f",
+              "payload": {
+                "ref": "work/lightweight-scala-rtl"
+              }
+            },
+            {
+              "id": 345463289,
+              "path": ".github/workflows/morphhdl-typed-elaboration-values.yml",
+              "sha256": "7192f17fd765a909b4b619bcc4b989042e0dd0970c0c38bd8bcc65388ad0e691",
+              "payload": {
+                "ref": "work/lightweight-scala-rtl"
+              }
+            },
+            {
+              "id": 336740926,
+              "path": ".github/workflows/morphhdl-external-symbolic-width.yml",
+              "sha256": "ef653c2c2695d4f66b858d90d6ea9667eb5cb00299ab799a25cc1b46178f52c6",
+              "payload": {
+                "ref": "work/lightweight-scala-rtl"
+              }
+            },
+            {
+              "id": 351368935,
+              "path": ".github/workflows/increment-59c-named-field-vectors.yml",
+              "sha256": "788521a457e3e5d1438ccf179c0bcb100be1dfa328a0a502f56cd971e7fd4028",
+              "payload": {
+                "ref": "work/lightweight-scala-rtl"
+              }
+            },
+            {
+              "id": 350495860,
+              "path": ".github/workflows/increment-59a-recursive-verilog-module.yml",
+              "sha256": "5810889478e6dff65bf27f247fd2ee61c365f0d80251193c8883260523301a59",
+              "payload": {
+                "ref": "work/lightweight-scala-rtl"
+              }
+            },
+            {
+              "id": 350886879,
+              "path": ".github/workflows/increment-59b-reduce-balanced-tree.yml",
+              "sha256": "4e1b21f540d2c18f99353a90a47d1ecde35660ab9263cb5058e59300aced8aac",
+              "payload": {
+                "ref": "work/lightweight-scala-rtl"
+              }
+            },
+            {
+              "id": 351397918,
+              "path": ".github/workflows/increment-59f-callback-graphs.yml",
+              "sha256": "f37f6b44097ccad2337c038e82eb621344e7453c1354858f85008a9ce176d04f",
+              "payload": {
+                "ref": "work/lightweight-scala-rtl"
+              }
+            },
+            {
+              "id": 351947632,
+              "path": ".github/workflows/increment-59g-register-bridges.yml",
+              "sha256": "7452e069ca441ec9585f278b7d82e38bc3c0e4588a4b5100019e9c8d39cfe657",
+              "payload": {
+                "ref": "work/lightweight-scala-rtl"
+              }
+            },
+            {
+              "id": 351996892,
+              "path": ".github/workflows/increment-59h-nested-owners.yml",
+              "sha256": "a66f928cd8b2c1989d0616213d02cdca23dfefb524eb9b942f5fde48f06a6670",
+              "payload": {
+                "ref": "work/lightweight-scala-rtl"
+              }
+            },
+            {
+              "id": 351037194,
+              "path": ".github/workflows/increment-60e-signedness-boundaries.yml",
+              "sha256": "fe07e3d85d03517e6396567ebdfea47f412f60d775cc0baab057d76dbd9eba68",
+              "payload": {
+                "ref": "work/lightweight-scala-rtl"
+              }
+            },
+            {
+              "id": 348491710,
+              "path": ".github/workflows/increment-55-concrete-compatibility-audit.yml",
+              "sha256": "183702154283928cafd7d8e7f8c28a616f6971fd06b7ed57e187d486bb156e81",
+              "payload": {
+                "ref": "work/lightweight-scala-rtl"
+              }
+            },
+            {
+              "id": 348647472,
+              "path": ".github/workflows/increment-56-native-typed-library-surface.yml",
+              "sha256": "c32dbfdab869ec628da6d2a68694f1c6d44fa77516ed8643378d9d240fdd9f83",
+              "payload": {
+                "ref": "work/lightweight-scala-rtl"
+              }
+            }
+          ],
+          "original_failures": []
+        }
+        CONTROLLER_JSON
+        cat > .github/controllers/lightweight-f0ee2a168c0d-behavior/dispatch.py <<'CONTROLLER_PY'
+        """Narrow increment controller. Render CONFIG_SHA256 before publication."""
+        import base64,hashlib,json,os,pathlib,time,urllib.request,urllib.error
+        CONFIG_SHA256='6afaa475e70c2fc1b4139475566544d8720cc5a7c8c6c0281c18ac509f60daf5'
+        class RejectRedirect(urllib.request.HTTPRedirectHandler):
+         def redirect_request(self,*args,**kwargs): raise RuntimeError('API redirect rejected')
+        class Controller:
+         def __init__(self,cfg,request,ledger):self.c=cfg;self.request=request;self.ledger=ledger
+         def log(self,event,**data):
+          with self.ledger.open('a') as f:f.write(json.dumps({'time':time.time(),'event':event,**data})+'\n');f.flush();os.fsync(f.fileno())
+         def api(self,method,path,body=None):
+          prefix='/repos/'+self.c['repository']
+          assert path.startswith(prefix+'/') and '..' not in path.split('/')
+          if method=='POST':
+           assert path in {prefix+'/actions/workflows/'+str(w['id'])+'/dispatches' for w in self.c['workflows']}
+           assert body=={'ref':self.c['candidate_ref']}
+          else:assert method=='GET' and body is None
+          return self.request(method,path,body)
+         def get(self,suffix):return self.api('GET','/repos/'+self.c['repository']+suffix)
+         def identities(self):
+          c=self.c;p=self.get('/pulls/'+str(c['pr']))
+          assert p['state']=='open' and not p['merged']
+          for side,ref,sha in [('head',c['candidate_ref'],c['candidate_sha']),('base',c['base_ref'],c['base_sha'])]:
+           assert p[side]['repo']['full_name']==c['repository'] and p[side]['ref']==ref and p[side]['sha']==sha
+           assert self.get('/git/ref/heads/'+ref)['object']['sha']==sha
+          assert self.get('/git/commits/'+c['candidate_sha'])['tree']['sha']==c['candidate_tree']
+         def workflow(self,w):
+          meta=self.get('/actions/workflows/'+str(w['id']))
+          assert meta['id']==w['id'] and meta['path']==w['path'] and meta['state']=='active'
+          file=self.get('/contents/'+w['path']+'?ref='+self.c['candidate_sha'])
+          assert file['type']=='file' and file['encoding']=='base64'
+          assert hashlib.sha256(base64.b64decode(file['content'])).hexdigest()==w['sha256']
+          assert w['payload']=={'ref':self.c['candidate_ref']}
+         def runs(self,w):
+          result=[];total=None
+          for page in range(1,11):
+           data=self.get('/actions/workflows/'+str(w['id'])+'/runs?event=workflow_dispatch&head_sha='+self.c['candidate_sha']+'&per_page=100&page='+str(page))
+           if total is None:total=data['total_count'];assert total<=1000
+           assert total==data['total_count'];items=data['workflow_runs'];result+=items
+           if len(items)<100:break
+          assert len(result)==total and len({x['id'] for x in result})==total
+          for run in result:
+           assert run['workflow_id']==w['id'] and run['event']=='workflow_dispatch'
+           assert run['head_sha']==self.c['candidate_sha'] and run['head_branch']==self.c['candidate_ref']
+          return result
+         def pages(self,path,key):
+          result=[];total=None
+          for page in range(1,101):
+           d=self.get(path+('&' if '?' in path else '?')+'per_page=100&page='+str(page))
+           if total is None:total=d['total_count']
+           assert d['total_count']==total
+           result+=d[key]
+           if len(d[key])<100:break
+          assert len(result)==total and len({x['id'] for x in result})==total
+          return result
+         def active_predecessors(self,w):
+          result=[]
+          for status in ('queued','in_progress','waiting','pending','requested'):
+           result+=self.pages('/actions/workflows/'+str(w['id'])+'/runs?status='+status,'workflow_runs')
+          # Conservative across all refs: never risk cancelling another active run.
+          return [r for r in result if r['head_sha']!=self.c['candidate_sha']]
+         def run(self):
+          c=self.c;assert c['workflows'] and len({w['id'] for w in c['workflows']})==len(c['workflows'])
+          self.identities()
+          ancestor=self.get('/compare/'+c['base_sha']+'...'+c['candidate_sha'])
+          assert ancestor['merge_base_commit']['sha']==c['base_sha']
+          for e in c.get('original_failures',[]):
+           r=self.get('/actions/runs/'+str(e['run_id']))
+           assert (r['workflow_id'],r['head_sha'],r['conclusion'])==(e['workflow_id'],e['head_sha'],'failure')
+          for w in c['workflows']:self.workflow(w)
+          for w in c['workflows']:
+           self.identities();self.workflow(w);runs=self.runs(w)
+           active=[r for r in runs if r['status']!='completed' or r['conclusion']=='success']
+           if active:self.log('retained',workflow_id=w['id'],runs=[r['id'] for r in active]);continue
+           assert not runs,'Previous unsuccessful same-head run requires explicit review'
+           predecessors=self.active_predecessors(w)
+           if predecessors:self.log('deferred-active-predecessor',workflow_id=w['id'],runs=[r['id'] for r in predecessors]);continue
+           self.identities();self.log('dispatch-attempt',workflow_id=w['id'],payload=w['payload'])
+           self.api('POST','/repos/'+c['repository']+'/actions/workflows/'+str(w['id'])+'/dispatches',w['payload'])
+           self.log('dispatch-accepted',workflow_id=w['id']);self.identities()
+        def main():
+         raw=pathlib.Path(__file__).with_name('dispatch.json').read_bytes();assert hashlib.sha256(raw).hexdigest()==CONFIG_SHA256
+         c=json.loads(raw)
+         assert os.environ['GITHUB_EVENT_NAME']=='push' and os.environ['GITHUB_REPOSITORY']==c['repository']
+         assert os.environ['GITHUB_REF']=='refs/heads/'+c['control_ref']
+         opener=urllib.request.build_opener(RejectRedirect())
+         def request(method,path,body):
+          req=urllib.request.Request('https://api.github.com'+path,data=json.dumps(body).encode() if body is not None else None,method=method,headers={'Authorization':'Bearer '+os.environ['GITHUB_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','Content-Type':'application/json'})
+          with opener.open(req,timeout=30) as r:
+           raw=r.read();return json.loads(raw) if raw else None
+         controller=Controller(c,request,pathlib.Path('dispatch-ledger.jsonl'))
+         controller.log('controller-start',head=os.environ['GITHUB_SHA'])
+         sha=os.environ['GITHUB_SHA'];commit=controller.get('/git/commits/'+sha)
+         assert [p['sha'] for p in commit['parents']]==[c['base_sha']]
+         assert controller.get('/git/ref/heads/'+c['control_ref'])['object']['sha']==sha
+         compare=controller.get('/compare/'+c['base_sha']+'...'+sha)
+         assert {f['filename'] for f in compare['files']}==set(c['control_files'])
+         assert all(f['status']=='added' for f in compare['files'])
+         try:controller.run()
+         except Exception as e:controller.log('stopped',reason=str(e));raise
+        if __name__=='__main__':main()
+        CONTROLLER_PY
+        python3 .github/controllers/lightweight-f0ee2a168c0d-behavior/dispatch.py
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: lightweight-f0ee2a168c0d-behavior-ledger
+        path: dispatch-ledger.jsonl
+        if-no-files-found: error
