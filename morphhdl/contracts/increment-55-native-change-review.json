@@ -5710,7 +5710,7 @@
       "baseline_path": "lib/src/main/scala/spinal/lib/bus/tilelink/TransferFilter.scala",
       "edits": [
         {
-          "id": "core-param-import-disambiguation",
+          "id": "core-param-import-spinal-lib-bus-tilelink-transferfilter",
           "kind": "mechanical-propagation",
           "owner": "Scala import resolution",
           "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
@@ -5735,7 +5735,7 @@
       "baseline_path": "lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala",
       "edits": [
         {
-          "id": "core-param-import-disambiguation",
+          "id": "core-param-import-spinal-lib-bus-tilelink-coherent-cache",
           "kind": "mechanical-propagation",
           "owner": "Scala import resolution",
           "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
@@ -5760,7 +5760,7 @@
       "baseline_path": "lib/src/main/scala/spinal/lib/bus/tilelink/coherent/CacheFiber.scala",
       "edits": [
         {
-          "id": "core-param-import-disambiguation",
+          "id": "core-param-import-spinal-lib-bus-tilelink-coherent-cachefiber",
           "kind": "mechanical-propagation",
           "owner": "Scala import resolution",
           "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
@@ -5785,7 +5785,7 @@
       "baseline_path": "lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Hub.scala",
       "edits": [
         {
-          "id": "core-param-import-disambiguation",
+          "id": "core-param-import-spinal-lib-bus-tilelink-coherent-hub",
           "kind": "mechanical-propagation",
           "owner": "Scala import resolution",
           "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
@@ -5810,7 +5810,7 @@
       "baseline_path": "lib/src/main/scala/spinal/lib/bus/tilelink/sim/MasterAgent.scala",
       "edits": [
         {
-          "id": "core-param-import-disambiguation",
+          "id": "core-param-import-spinal-lib-bus-tilelink-sim-masteragent",
           "kind": "mechanical-propagation",
           "owner": "Scala import resolution",
           "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
@@ -5835,7 +5835,7 @@
       "baseline_path": "lib/src/main/scala/spinal/lib/bus/tilelink/sim/MasterTester.scala",
       "edits": [
         {
-          "id": "core-param-import-disambiguation",
+          "id": "core-param-import-spinal-lib-bus-tilelink-sim-mastertester",
           "kind": "mechanical-propagation",
           "owner": "Scala import resolution",
           "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
@@ -5860,7 +5860,7 @@
       "baseline_path": "lib/src/main/scala/spinal/lib/graphic/vga/TilelinkVgaCtrl.scala",
       "edits": [
         {
-          "id": "core-param-import-disambiguation",
+          "id": "core-param-import-spinal-lib-graphic-vga-tilelinkvgactrl",
           "kind": "mechanical-propagation",
           "owner": "Scala import resolution",
           "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
@@ -5885,7 +5885,7 @@
       "baseline_path": "lib/src/main/scala/spinal/lib/system/dma/sg2/DmaSgReadOnly.scala",
       "edits": [
         {
-          "id": "core-param-import-disambiguation",
+          "id": "core-param-import-spinal-lib-system-dma-sg2-dmasgreadonly",
           "kind": "mechanical-propagation",
           "owner": "Scala import resolution",
           "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
@@ -5910,7 +5910,7 @@
       "baseline_path": "lib/src/main/scala/spinal/lib/system/dma/sg2/DmaSgWriteOnly.scala",
       "edits": [
         {
-          "id": "core-param-import-disambiguation",
+          "id": "core-param-import-spinal-lib-system-dma-sg2-dmasgwriteonly",
           "kind": "mechanical-propagation",
           "owner": "Scala import resolution",
           "reason": "Exclude the newly introduced core Param factory from this protocol-only wildcard import so the existing TileLink Param object keeps its exact Scala binding; no hardware behavior changes.",
