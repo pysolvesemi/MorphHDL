@@ -40,6 +40,38 @@ class LightweightSyntaxBaselineTests extends AnyFunSuite {
       }
     }
   """
+  test("single-expression parameter helpers infer through forward lexical calls") {
+    val errors = compile(definitions + """
+      package inferredhelpers {
+        import spinal.core._
+        object Probe {
+          def stage(count: ElabInt): Int = {
+            def upper(x: ElabInt) = lower(x)
+            def lower(x: ElabInt) = (x + 1) / 2
+            val next = upper(count)
+            if(next > 1) 7 else 9
+          }
+        }
+      }
+    """, "InferredHelpers.scala")
+    assert(errors.isEmpty,errors.mkString("\n"))
+  }
+  test("ordinary helper shadowing and metadata methods do not gain symbolic meaning") {
+    val errors = compile(definitions + """
+      package ordinaryhelpers {
+        import spinal.core._
+        object Probe {
+          def half(x: ElabInt) = (x + 1) / 2
+          def stage(count: ElabInt): Int = {
+            def half(x: Int) = x / 2
+            def description(x: ElabInt) = x.toString.length
+            if(half(4) == 2 && description(count) >= 0) 1 else 0
+          }
+        }
+      }
+    """, "OrdinaryHelpers.scala")
+    assert(errors.isEmpty,errors.mkString("\n"))
+  }
   test("statement chains with no final else remain Unit and ordered") {
     val errors = compile(definitions + """
       package statementchain {

@@ -247,3 +247,15 @@ the returned optional slot directly. An omitted slot may be forwarded only by
 its exact declaration identity or null; replacing it with an unrelated expression
 rejects. Active slots retain ordinary native domain/substitution validation.
 There is still no positional formal vector in authored recursive code.
+
+## Inferred simple helper results
+
+Unique local/member helper definitions with a single recognized carrier
+expression can omit their return annotation. For example, `def pairs(n: ElabInt)
+= (n + 1) / 2` retains the parameter result. Forward calls between such helpers
+are resolved to a bounded fixed point using lexical bindings and typed arguments.
+Ordinary helpers that shadow a name, and metadata/host operations such as
+`toString.length`, remain ordinary Scala. Overloaded, qualified and block-valued
+helpers still require an explicit typed intermediate or return annotation; there
+is no inference based merely on a subtree mentioning a parameter. Existing domain,
+index-escape and recursive-construction checks remain authoritative.

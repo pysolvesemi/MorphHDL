@@ -5,7 +5,7 @@
   "working_directory": "/home/kartik/.local/state/morphhdl/worktrees/lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Symbolic scalar reduction adapters locally validated; inferred parameter helpers next; lost hierarchy-capacity repair remains pending",
+  "phase": "Simple inferred parameter helpers locally validated; reconstructing exact hierarchy capacity adaptation",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -35,7 +35,8 @@
     "symbolic geometry helpers and concrete bridge-level loops retain staging; unstaged native equality fails explicitly",
     "statement-valued symbolic else-if chains without terminal else retain ordered capture and reject Scala-only effects",
     "typed Vec direction factories preserve input/output directions across braces, short and fill syntaxes",
-    "public reduction adapters forward authenticated native scalar Vec payload widths and optional pipeline masks"
+    "public reduction adapters forward authenticated native scalar Vec payload widths and optional pipeline masks",
+    "single-expression local parameter helpers infer symbolic types through forward lexical calls with ordinary shadowing preserved"
   ],
   "local_logs": [
     "/tmp/lwr01-plugin-all.log",
@@ -164,5 +165,18 @@
     "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/symbolic-adapter-final",
     "log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/symbolic-adapter-final.log",
     "scope": "UInt/SInt/Bits, counts through 17, widths 1/8/32/36/64, defaults 1/5, masks omitted/0/1/7/31, simulation/lint/synthesis/negative controls and inherited formal"
+  },
+  "local_validation_inferred_helpers": {
+    "compiler_tests_per_scala": 39,
+    "native_tests_per_scala": 15,
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/inferred-helpers",
+    "logs": [
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/inferred-helpers.log",
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/inferred-helpers-cross.log"
+    ]
   }
 }

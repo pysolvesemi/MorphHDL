@@ -646,17 +646,29 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     }
 
     def bindMethods(values: List[Tree]): Unit = {
-      values.collect { case method: DefDef => method }.groupBy(_.name).foreach {
-        case (name, List(method)) =>
+      val unique = values.collect { case method: DefDef => method }.groupBy(_.name)
+        .collect { case (_, List(method)) => method }.toVector
+      // Only exact lexical bindings and recognized carrier expressions participate.
+      // A bounded fixed point permits forward helpers without guessing recursive,
+      // overloaded, qualified or metadata-returning method semantics.
+      var changed = true
+      var remaining = unique.size + 1
+      while(changed && remaining > 0) {
+        changed = false
+        unique.foreach { method =>
           val result = withScope {
             method.tparams.foreach(parameter => bindTypeOrdinary(parameter.name))
-            typeKind(method.tpt)
+            method.vparamss.flatten.foreach(bind)
+            if(method.tpt == null || method.tpt.isEmpty) expressionKind(method.rhs)
+            else typeKind(method.tpt)
           }
-          if (result != OrdinaryBinding) {
-            scopes.head.callResults(name) = result
-            if (method.vparamss.isEmpty) scopes.head.terms(name) = result
+          if(result != OrdinaryBinding && scopes.head.callResults.get(method.name) != Some(result)) {
+            scopes.head.callResults(method.name) = result
+            if(method.vparamss.isEmpty) scopes.head.terms(method.name) = result
+            changed = true
           }
-        case _ => // Overloaded methods require typer resolution, never guess.
+        }
+        remaining -= 1
       }
     }
 
