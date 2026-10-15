@@ -40,7 +40,8 @@ Four original shorthand and four explicitly normalized controls pass local
 Scala 2.12 and 2.13 generation, four-state simulation, lint, synthesis and independent SAT
 checks in both layouts. The hardened run also passes 12 ownership/mutation
 rejection tests. Independent forwarding journals and explicit native driver
-bridges are implemented. Broader affected regressions remain in progress; this is not a completed roadmap phase or remote qualification.
+bridges are implemented. The affected seven-suite regression passes 104 tests
+on each supported Scala version; this is not a completed roadmap phase or remote qualification.
 
 The initial admission covers one module-owned complete unit-stride column loop
 into a combinational scalar-element row, with one exact whole-array default.

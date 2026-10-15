@@ -428,3 +428,17 @@ captured write aliases, partial row updates and register destinations are not
 covered by this normalization. Their support must be established separately.
 Development checks and their exact source snapshots are listed in `progress.json`;
 remote qualification remains pending.
+
+## Hardware conditions in Scala control
+
+With the ordinary `import spinal.core._`, a hardware `Bool` used where Scala
+requires `Boolean` reports `SPINAL-HARDWARE-BOOL-AS-SCALA-BOOLEAN` and directs the
+author to `when`. This includes composed hardware conditions, typed helper
+results and hardware comparisons. Native `when` and ordinary Scala `Boolean`
+control retain their existing behavior.
+
+The diagnostic uses a `compileTimeOnly` adaptation declared by the core factory.
+It must be rejected by scalac; it provides no usable hardware-to-host conversion,
+extracts no witness and emits no control logic. The normal parameter-only staging
+rules remain separate. This diagnostic does not reinterpret ordinary Scala
+object equality as a hardware comparison.

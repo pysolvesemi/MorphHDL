@@ -250,6 +250,7 @@ lazy val morph = (project in file("morphhdl"))
     },
     Test / scalacOptions += "-Xplugin-require:morphhdl",
     name := "MorphHDL-orchestration",
+    libraryDependencies += "org.scala-lang" % "scala-compiler" % scalaVersion.value % Test,
     version := SpinalVersion.core,
     libraryDependencies += "org.ow2.asm" % "asm-tree" % "9.2",
     libraryDependencies += "com.lihaoyi" %% "sourcecode" % "0.3.0",

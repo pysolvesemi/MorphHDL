@@ -5,7 +5,7 @@
   "working_directory": "/home/kartik/.local/state/morphhdl/worktrees/lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Mixed writes and exact this-owner helper inference pass affected cross-version regressions; hardware Bool diagnostic and remaining roadmap work continue",
+  "phase": "Hardware Bool diagnostic passes SBT and Mill on both Scala versions; nested hierarchy capacity repair in development",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -375,5 +375,23 @@
     "source_and_tools": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/mixed-helper-regression",
     "scope": "structural identity adversarial tests, inferred helpers, mixed indices, nested writes, named-field nested writes, affine writes, guarded registers",
     "remote": "pending"
+  },
+  "local_validation_hardware_boolean_diagnostic": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "tests_per_scala": 11,
+    "before_log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/hardware-bool-before.log",
+    "after_log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/hardware-bool-after.log",
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/hardware-bool-after",
+    "scope": "actual core API negative compilation for bare/composed/negated/helper-returned/comparison Bool; Scala Boolean and native when controls; inferred helper RTL simulation/lint/synthesis",
+    "mill": "23/23 across four suites pass on each Scala version (worker totals 8 + 15); final source omits redundant implicitConversions import",
+    "remote": "pending",
+    "mill_logs": [
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lightweight-mill-final-212.log",
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lightweight-mill-final-213.log"
+    ],
+    "mill_evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lightweight-mill-final"
   }
 }
