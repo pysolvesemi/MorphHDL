@@ -5306,7 +5306,7 @@ private[internals] object ParameterizedVerilogStructural {
       val indentText = matched.group(1)
       val declarations = parameters.zipWithIndex.map { case (parameter, index) =>
         val comma = if (index == parameters.size - 1) "" else ","
-        s"${indentText}  parameter integer ${parameter.name} = ${parameter.default}$comma"
+        s"${indentText}  ${parameter.declaration}$comma"
       }
       lines.take(moduleIndex) ++
         Vector(s"${indentText}module $definitionName #(") ++
@@ -5342,7 +5342,7 @@ private[internals] object ParameterizedVerilogStructural {
           }
         val additions = missing.zipWithIndex.map { case (parameter, index) =>
           val comma = if (index == missing.size - 1) "" else ","
-          s"  parameter integer ${parameter.name} = ${parameter.default}$comma"
+          s"  ${parameter.declaration}$comma"
         }
         lines.take(moduleIndex + 1) ++ withComma ++ additions ++ lines.drop(close)
       }

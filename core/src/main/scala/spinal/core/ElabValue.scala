@@ -57,6 +57,27 @@ object ElabValue {
     ParameterizedWidth.copyShape(zero, ones)
   }
 
+  /** Signed value adapter using the same exact assignment and emission lineage
+    * as unsigned values. Domain fitting accounts for the sign bit before any
+    * native literal is constructed; widening preserves sign extension.
+    */
+  def sintLike(value:ElabInt, prototype:SInt, stableName:String):SInt = {
+    require(value != null && prototype != null, "typed SInt adapter needs a value and prototype")
+    val expression=ElaborationPublicationValue.projected(value,"typed SInt value",
+      "SPINAL-PARAMETERIZED-VERILOG-VALUE-EXACT-DOMAIN-REQUIRED",requireProjectedExactExtrema=true)
+    ExternalParameterizedValueRegistry.validateCarrierDomain(prototype,expression,expression.sourceLocation)
+    val width=prototype.getBitsWidth
+    val retainedWidth=ParameterizedWidth.expressionOf(prototype).filter(_.parameters.nonEmpty)
+    if(expression.parameters.isEmpty && retainedWidth.isEmpty) S(expression.default,width bits)
+    else {
+      val result=retainedWidth.map(w=>SInt(ElabInt.fromExpression(w).bits)).getOrElse(SInt(width bits))
+      result.setName(retainedValueName(stableName))
+      result.assignFrom(spinal.core.internals.SIntLiteral(expression.default,null,width))
+      ExternalParameterizedValueRegistry.attach(result,expression,expression.default,expression.sourceLocation)
+      result
+    }
+  }
+
   /** Materialize one UInt with the prototype's native shape while retaining the
     * exact typed integer expression on that exact carrier object.
     */

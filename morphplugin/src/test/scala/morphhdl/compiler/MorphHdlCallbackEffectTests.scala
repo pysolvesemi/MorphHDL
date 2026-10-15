@@ -34,6 +34,27 @@ package example {
     }""")
     assert(found.isEmpty, found.mkString("\n"))
   }
+  test("optional callbacks retain stored closure effect checks") {
+    val found=errors("""object OptionalApi {
+      def hardware(@rtlHardwareCallback callback:Option[Int=>Int]):Int=callback.map(_(1)).getOrElse(0)
+    }
+    object Example {
+      var state=0
+      val callback:Option[Int=>Int]=Some((x:Int)=>{state=x;x})
+      val result=OptionalApi.hardware(callback)
+    }""")
+    assert(found.exists(_.message.contains("MORPHDL-HARDWARE-CALLBACK-HOST-EFFECT")),found.mkString("\n"))
+  }
+  test("absent and pure optional callbacks retain ordinary behavior") {
+    val found=errors("""object OptionalApi {
+      def hardware(@rtlHardwareCallback callback:Option[Int=>Int]):Int=callback.map(_(1)).getOrElse(0)
+    }
+    object Example {
+      val callback:Option[Int=>Int]=Some((x:Int)=>x+1)
+      val result=OptionalApi.hardware(callback)+OptionalApi.hardware(None)
+    }""")
+    assert(found.isEmpty,found.mkString("\n"))
+  }
   test("ordinary callbacks remain compatible") {
     val found = errors("object Example { var count = 0; val value = List(1).map(x => { count += 1; x }) }")
     assert(found.isEmpty, found.mkString("\n"))

@@ -98,7 +98,7 @@ private[internals] object NativeWidthFormalSchema {
     val a = left.binding
     val b = right.binding
     a.formal.name == b.formal.name && a.formal.minimum == b.formal.minimum &&
-      a.formal.maximum == b.formal.maximum && a.declarationKey == b.declarationKey &&
+      a.formal.maximum == b.formal.maximum && a.formal.representation == b.formal.representation && a.declarationKey == b.declarationKey &&
       a.ownerClassName == b.ownerClassName
   }
 

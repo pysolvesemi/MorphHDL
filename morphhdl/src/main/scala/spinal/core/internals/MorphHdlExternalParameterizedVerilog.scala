@@ -598,6 +598,9 @@ object MorphHdlExternalParameterizedVerilog {
           occurrences.flatMap(_.binding.sourceLocation).headOption
         )
       }
+      if (occurrences.map(_.binding.formal.representation).distinct.size != 1)
+        fail("SPINAL-PARAMETERIZED-VERILOG-FORMAL-REPRESENTATION-CONFLICT",
+          s"formal '$name' has incompatible packed representations", None)
       val domains = occurrences.map { value =>
         value.binding.formal.minimum -> value.binding.formal.maximum
       }.distinct
@@ -652,6 +655,9 @@ object MorphHdlExternalParameterizedVerilog {
           slots.flatMap(_.sourceLocation).headOption
         )
       }
+      if (slots.map(_.formal.representation).distinct.size != 1)
+        fail("SPINAL-PARAMETERIZED-VERILOG-FORMAL-REPRESENTATION-CONFLICT",
+          s"formal '$name' has incompatible packed representations", None)
       val domains = slots.map(slot => slot.formal.minimum -> slot.formal.maximum).distinct
       if (domains.size != 1) {
         fail(

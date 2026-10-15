@@ -2126,6 +2126,24 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     else if (port.isInOut) "inout"
     else "directionless"
 
+  /** These native casts preserve every bit and the complete packed width.
+    * Resolve their exact input identities before binding geometry. Resizes,
+    * extracts, arithmetic and arbitrary Cast subclasses are not transparent.
+    */
+  private def directPackedCarrier(expression: Expression): Expression = {
+    val classes = Set[Class[_]](classOf[CastSIntToBits], classOf[CastUIntToBits],
+      classOf[CastBitsToUInt], classOf[CastSIntToUInt], classOf[CastBitsToSInt],
+      classOf[CastUIntToSInt], classOf[CastBoolToBits])
+    val seen = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()
+    var current = expression
+    while (current != null && classes(current.getClass)) {
+      if (seen.put(current, true) != null)
+        fail("SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CAST-CYCLE", "packed connection has cyclic cast lineage")
+      current = current.asInstanceOf[Cast].input
+    }
+    current
+  }
+
   private def directConcreteOutputAdapter(
       expression: Expression,
       port: BaseType
@@ -2180,7 +2198,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         val touches = references(assignment.source, port)
         if (!touches) Vector.empty
         else if (
-          assignment.source == port && assignment.target == assignment.finalTarget &&
+          (directPackedCarrier(assignment.source) eq port) && assignment.target == assignment.finalTarget &&
           assignment.finalTarget.component == parent
         ) {
           Vector(
@@ -2193,7 +2211,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
             )
           )
         } else if (
-          (assignment.source eq port) && (assignment.target eq assignment.finalTarget) &&
+          (directPackedCarrier(assignment.source) eq port) && (assignment.target eq assignment.finalTarget) &&
           (assignment.finalTarget.component ne child) &&
           (assignment.finalTarget.component.parent eq parent) && assignment.finalTarget.isInput &&
           NativeWidthFormalSchema.portBinding(assignment.finalTarget).nonEmpty
@@ -2236,6 +2254,40 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     }
   }
 
+  /** Width-preserving native scalar expression trees may feed a child directly.
+    * Every operand must remain in the parent, and width evidence comes from the
+    * native operator transfer rules. Fixed extracts and resizes are deliberately
+    * excluded: their witness dimensions cannot stand in for symbolic geometry.
+    */
+  private def parentScalarExpressionWidth(parent: Component, expression: Expression): Option[ElaborationIntegerExpression] = {
+    val seen = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()
+    def knownOperator(value: Expression): Boolean = value match {
+      case _: Operator.BitVector.Add | _: Operator.BitVector.Sub |
+           _: Operator.BitVector.And | _: Operator.BitVector.Or | _: Operator.BitVector.Xor |
+           _: Operator.Bits.Not | _: Operator.UInt.Not | _: Operator.SInt.Not |
+           _: BinaryMultiplexerWidthable => true
+      case _ => false
+    }
+    def owned(value: Expression): Boolean = {
+      if (value == null || seen.containsKey(value)) return false
+      seen.put(value, true)
+      val result = value match {
+        case leaf: BaseType => leaf.component eq parent
+        case literal: BitVectorLiteral => literal.hasSpecifiedBitCount
+        case _: BoolLiteral => true
+        case cast if directPackedCarrier(cast) ne cast => owned(directPackedCarrier(cast))
+        case operator if knownOperator(operator) =>
+          var valid = true
+          operator.foreachExpression(child => if (!owned(child)) valid = false)
+          valid
+        case _ => false
+      }
+      seen.remove(value)
+      result
+    }
+    if (knownOperator(expression) && owned(expression)) NativeWidthProvenance.widthOf(expression) else None
+  }
+
   private def bindingOf(
       parent: Component,
       expression: Expression,
@@ -2243,6 +2295,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       allowConcreteInternal: Boolean,
       fixedFormalActual: Option[BigInt]
   ): BindingExpr = expression match {
+    case cast if directPackedCarrier(cast) ne cast =>
+      bindingOf(parent, directPackedCarrier(cast), context, allowConcreteInternal, fixedFormalActual)
     case _: BitAssignmentFixed if allowConcreteInternal =>
       LiteralBinding(1)
     case _: BitVectorBitAccessFixed if allowConcreteInternal =>
@@ -2266,10 +2320,12 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       }
     case value: BaseType if value.component == parent =>
       LiteralBinding(value.getBitsWidth)
+    case value if parentScalarExpressionWidth(parent, value).nonEmpty =>
+      ExpressionBinding(parentScalarExpressionWidth(parent, value).get)
     case _ =>
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED",
-        s"$context is not connected to one direct parent packed leaf"
+        s"$context lacks a direct packed carrier or authenticated parent scalar expression"
       )
   }
 

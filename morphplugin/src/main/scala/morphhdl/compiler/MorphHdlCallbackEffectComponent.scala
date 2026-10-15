@@ -29,7 +29,7 @@ final class MorphHdlCallbackEffectComponent(val global: Global) extends PluginCo
             case definition: DefDef => definitions(definition.symbol) = definition.rhs
             case definition: ValDef if definition.symbol != null && definition.symbol != NoSymbol &&
                 definition.symbol.info.finalResultType.baseClasses.exists(s =>
-                  s.fullName.matches("scala.Function[0-9]+")) =>
+                  s.fullName.matches("scala.Function[0-9]+") || s.fullName=="scala.Option") =>
               // Values are evaluated before capture. Only their returned closure
               // executes on invocation; unrelated initializer effects do not.
               def closure(tree: Tree): Tree = tree match {

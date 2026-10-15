@@ -1,0 +1,126 @@
+{
+  "schema": 1,
+  "status": "focused implementation checkpoint; full expanded roadmap remains open",
+  "branch": "work/remaining-parameterized-increments",
+  "tested_base_commit": "f7135bbd8b1e40b89ee1183de826c90d2f999e31",
+  "source_overlay_sha256": {
+    "core/src/main/scala/spinal/core/BitVector.scala": "fc62ec8c0632a04e1ba58afc977e16e00b4307d1fd8ea3ec082e1f10c622f625",
+    "core/src/main/scala/spinal/core/ElabInt.scala": "87c398558ecd75fb16100ae0e14b0324401d6f4cdb74e1151e14878f125b707d",
+    "core/src/main/scala/spinal/core/ElabValue.scala": "6f439586ff1d9a895c437051265b56abb5e890f202d5aa5e48b78bdafa3d6d92",
+    "core/src/main/scala/spinal/core/ExternalParameterizedValueRegistry.scala": "963ad519d531111ce22d23fc0d22a7a9888c38b1268f6230acb97336f7df4dcb",
+    "core/src/main/scala/spinal/core/Literal.scala": "5ac53cfd59803096d7571aed781f12ec730d0633967d0034ae3bbc5c51679109",
+    "core/src/main/scala/spinal/core/ParameterizedWidth.scala": "9fb6bb5ec97b8439e5ff94ec971bb90d72825738a7fe16f618c320364a41a74e",
+    "lib/src/main/scala/spinal/lib/BalancedTree.scala": "2dddafb74d93de347c2dcfd0a377f4bb72eb015d1c715f72668d35e9973435c2",
+    "lib/src/main/scala/spinal/lib/bus/tilelink/TransferFilter.scala": "a5b6400cad3635b02f7333ef052378f54a4440f5eb135b3a64fa68fe775f2228",
+    "lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala": "a0a62bed8df3c4520ab00d3df50e8489847cdacd35960a9a557d57cdc4fd2826",
+    "lib/src/main/scala/spinal/lib/bus/tilelink/coherent/CacheFiber.scala": "72c26d984a71e0dbdccd595c18c8bc552b022eeddcfae0e189ef2f838b630b3c",
+    "lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Hub.scala": "c642b94f86c38b07b610023ba083495d8803c37f01ce78ad50d02ce82df2ad7a",
+    "lib/src/main/scala/spinal/lib/bus/tilelink/sim/MasterAgent.scala": "3bcb97d06109d16e3b02509cbe7166fb9382aef9622743b2cb55ae10d8775f2f",
+    "lib/src/main/scala/spinal/lib/bus/tilelink/sim/MasterTester.scala": "5f1becc6c9d603619a75eebdeaf0a878a31603c826e7fe194a6d80b51eb95b93",
+    "lib/src/main/scala/spinal/lib/graphic/vga/TilelinkVgaCtrl.scala": "66b9925009b8748a5e22cdcb1aecc03e83b9a8617c354cf7039b149449412f51",
+    "lib/src/main/scala/spinal/lib/system/dma/sg2/DmaSgReadOnly.scala": "ffa1b4a85a9371551f5979c0d108ff827c061ee0e1dac3186067da0fdc45226a",
+    "lib/src/main/scala/spinal/lib/system/dma/sg2/DmaSgWriteOnly.scala": "afec436101a5241251b865e9d52f04f591765c126cb4acbea1e6648a6456d8fc",
+    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala": "e1cce9591aeddb26781b80334d8f2f1c531207c8c49ab32ed89ded4f8ca93af3",
+    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala": "9ea258cdd52bddd99a67823bb902ff4adf88da2d52b25209eb80ccc2b21078f8",
+    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala": "92c6d81207466c69d20db7556b2e8ca6c1808e41d224d6e458223e4cecc86701",
+    "morphhdl/src/main/scala/spinal/core/internals/NativeScalarFormalSchema.scala": "03f9c2c9cc5a50a2a7307515033d9e163ecbd2ba650f32cfec50272d5761c9c5",
+    "morphhdl/src/main/scala/spinal/core/internals/NativeWidthFormalSchema.scala": "a076d6b154713ef16f0d0d115eb06614ab6b7d8a3c98685084abf127348606bf",
+    "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala": "c072946581ba98ebdcbf8dd565732a3d758de213a910aa0532e152aa7655df55",
+    "morphhdl/src/test/scala/morphhdl/HardTypeParameterGeometryTests.scala": "36cdc02ded0a076f8f7ed9f6eb91cba3f7f546d2b2d5baa455976470013d0320",
+    "morphhdl/src/test/scala/morphhdl/InferredParameterTests.scala": "117011c0ad72512db4318cfcc84be30eb99a1d69e1fba5b93fe3b02b5a7c6f66",
+    "morphhdl/src/test/scala/morphhdl/NativeHierarchyWidthBoundaryTests.scala": "000b16f846dc8e3dde5060c04d6b36de9dfb75cef6f9088f19e087d80c0865b3",
+    "morphhdl/src/test/scala/morphhdl/OptionalReductionPolicyTests.scala": "748a95504740749b4f547da7b82a9310796b3b2e57082feba0bdcf5278905c72",
+    "morphhdl/src/test/scala/morphhdl/OrdinaryChildClockGeometryTests.scala": "86d2815353554bc6d29020ad583243e4bc8d02bfbe8a899a880893b9499f3dc4",
+    "morphhdl/src/test/scala/morphhdl/PackedParameterTests.scala": "073e29b145a02d579611591c010ed7a72788268ea876fcc508bbb7e66a2783ce",
+    "morphhdl/src/test/scala/morphhdl/ParameterMaskTests.scala": "8012e3a52b65b7407851fa4bab1e543149780f233d069999d9bc15372c74850c",
+    "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlCallbackEffectComponent.scala": "f28e49eb2c2295b8257c05f2ecb7e25b3c4ec6b7bd234be301e03e181cae5d74",
+    "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlDirectRecursiveComponent.scala": "ba6d1f2f8b7f2acb0fbdb42d79d3edcde77c50f6ec9a17e16c75c2f2c0fd4b6b",
+    "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlParameterSyntaxComponent.scala": "730e613027a026bbb69b50fe9ceded6db0283861ff42de1486ed38c0880546ef",
+    "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala": "75a24973e2ff5a46dade983e608ca47521e2cff8738fda6efcaf569821663c91",
+    "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponent.scala": "9c8a02c641e69a74b3535a27b28a13c3b3530abdd8322a928736a57f509363be",
+    "morphplugin/src/test/scala/morphhdl/compiler/InferredParameterSyntaxTests.scala": "d7c7badff17f887b6ff23690e241072b4c059faec9c6abc47f3d19d0081aa943",
+    "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlCallbackEffectTests.scala": "8d4b116356912e0384a164733fbf1ae47e476dea45574a2301ca4c9198789241",
+    "morphruntime/src/main/scala/spinal/core/ElabFormalParameter.scala": "816394d64b4211b865d7c895134e378a0a79b6ee7fb239816fb29c76cc663102",
+    "morphruntime/src/main/scala/spinal/core/ExternalFormalParameterRegistry.scala": "6d96a28a834b7821240665e1d2c832861d46146810ba6c9f70710f9441921ff4",
+    "morphruntime/src/main/scala/spinal/core/Param.scala": "ad2129da42a6a254a0e506d83b9726125df7eafc73a0015accac3e260df6731a",
+    "morphruntime/src/main/scala/spinal/core/RtlParam.scala": "e4fdd3dcd5c4e4c4928451f830b54df40087096ea5ef9566dd950178f27a4646"
+  },
+  "source_overlay_digest": "6b46de2ffa9ff98618766fa800eab0b11a6043a86c6039513c2e6d1ec7aba691",
+  "policy": "Targeted local checks only, per user; no CI or full qualification launched.",
+  "results": {
+    "scala_2_12": "49 plugin tests, 92 focused native/compiler/library tests, and one 64-capacity bridge/register pipeline regression pass on final source.",
+    "scala_2_13": "49 plugin tests pass; initial 88 native tests had one stale sibling rejection, replaced with genuine foreign internal ownership plus a positive sibling simulation. Corrected hierarchy tests pass; final parent expression/clock suite (5 tests) and 64-capacity pipeline regression pass.",
+    "source_guards": "typed-layering and production-retirement self-tests pass; retained catalog source and nine rejection controls pass. Native/current-source seals are generated after checkpoint commit.",
+    "application": "Production reset/synchronizer and direct Gray wrapper: 21 profiles across 16 commands pass generation/determinism/lint/strict Verilog-2001 simulation. Six tree fixture modes pass positive checks; eight negative cases pass after adapting two diagnostic strings to library messages.",
+    "unavailable": "Questa not used; pinned Icarus supplies behavioral checks."
+  },
+  "commands": {
+    "final_native_212": "sbt ++2.12.18 \"morph/testOnly morphhdl.InferredParameterTests morphhdl.PackedParameterTests morphhdl.ParameterMaskTests morphhdl.OptionalReductionPolicyTests morphhdl.HardTypeParameterGeometryTests morphhdl.OrdinaryChildClockGeometryTests morphhdl.NativeValueSizingTests morphhdl.TypedElaborationValueTests morphhdl.NativeHierarchyWidthBoundaryTests morphhdl.LightweightHierarchyCapacityTests morphhdl.ScalarFormalReuseTests\"",
+    "plugin": "sbt <scala-version> \"morphplugin/testOnly morphhdl.compiler.InferredParameterSyntaxTests morphhdl.compiler.MorphHdlCallbackEffectTests morphhdl.compiler.MorphHdlTypedElaborationControlComponentTests\"",
+    "pipeline": "sbt <scala-version> 'morph/testOnly morphhdl.LightweightBalancedTreeTests -- -z \"kind=register default=5 capacity=64\"'"
+  },
+  "tools": {
+    "iverilog -V": [
+      "Icarus Verilog version 14.0 (devel) (af348e2)",
+      "",
+      "Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)"
+    ],
+    "verilator --version": [
+      "Verilator 5.020 2024-01-01 rev (Debian 5.020-1)"
+    ],
+    "yosys -V": [
+      "Yosys 0.41 (git sha1 c1ad37779, g++ 13.3.0-6ubuntu2~24.04.1 -fPIC -Os)"
+    ],
+    "java -version": [
+      "openjdk version \"21.0.5\" 2024-10-15",
+      "OpenJDK Runtime Environment (build 21.0.5+11-Ubuntu-1ubuntu122.04)",
+      "OpenJDK 64-Bit Server VM (build 21.0.5+11-Ubuntu-1ubuntu122.04, mixed mode, sharing)"
+    ]
+  },
+  "logs": [
+    {
+      "path": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-parameter-api/expanded-roadmap-focused-final-212.log",
+      "sha256": "0c3dc87349f608b7ddf9ed4945b1ccd9bf26ff1a12ff78f48c5a4bbfa1d4ba07"
+    },
+    {
+      "path": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-parameter-api/expanded-roadmap-focused-213.log",
+      "sha256": "148866c8e732f69a19cd3c627f5c51db6ff8abf07d31f3ecfbf7ea91d15c9372"
+    },
+    {
+      "path": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-parameter-api/expanded-roadmap-corrected-213.log",
+      "sha256": "39daf545bece0ba0b2f7fda961e93a97912cc832407074d5a6ece7f073f02a39"
+    },
+    {
+      "path": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-parameter-api/parent-expression-geometry-213.log",
+      "sha256": "70b5e15d7ea7d94daaf440bf1bbde2226af3e641ba4b66b1c8df3cbc40a600a6"
+    },
+    {
+      "path": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-parameter-api/param-lexical-final-212.log",
+      "sha256": "99ec7e3e79eb2d21e01e92145bb12dc5a5f02be754abb852210040829e019090"
+    },
+    {
+      "path": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-parameter-api/expanded-layering-selftest.log",
+      "sha256": "e86c778d6ac72ee86444421d0ddb7c3ba0576eae7e2dfadf707d0ffa762a5757"
+    },
+    {
+      "path": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-parameter-api/expanded-retirement-selftest.log",
+      "sha256": "0d2e002a27b457fb2e5a5255e7b18d9ef74fd3ad67cf64971d7a758b066b46bb"
+    },
+    {
+      "path": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-parameter-api/application-library-tree.log",
+      "sha256": "09d174b2242a63bb695232dd33e309d93edd2ed2bcb339dd6e1d55c8d8969dfb"
+    },
+    {
+      "path": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-parameter-api/application-library-negative-recheck.log",
+      "sha256": "a14a22b66bd5069e73c011793cfc52658209cd4ed9db86c69b1feb342a2d73b2"
+    },
+    {
+      "path": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-parameter-api/application-param-cdc-2.log",
+      "sha256": "80950b00ca87886e2393bd42b6061020ffbbd2622a4b9e7f84dc278f2426a7b4"
+    }
+  ],
+  "remaining": [
+    "Correlated logarithmic mask shift proof/API remains open; current ordinary bounded shifts and concrete bridge-level masks pass.",
+    "Complete application pin/manifests and final expanded-roadmap reconciliation after remaining implementation."
+  ]
+}

@@ -44,6 +44,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       typedMatches: IdentityHashMap[Tree, java.lang.Boolean],
       typedGenerates: IdentityHashMap[Tree, java.lang.Boolean],
       typedRequires: IdentityHashMap[Tree, java.lang.Boolean],
+      canonicalPredefControls: IdentityHashMap[Tree, java.lang.Boolean],
       typedEqualities: IdentityHashMap[Tree, java.lang.Boolean],
       typedRanges: IdentityHashMap[Tree, java.lang.Boolean],
       scopedIfs: IdentityHashMap[Tree, java.lang.Boolean],
@@ -197,6 +198,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     val typedMatches = new IdentityHashMap[Tree, java.lang.Boolean]()
     val typedGenerates = new IdentityHashMap[Tree, java.lang.Boolean]()
     val typedRequires = new IdentityHashMap[Tree, java.lang.Boolean]()
+    val canonicalPredefControls = new IdentityHashMap[Tree, java.lang.Boolean]()
     val typedEqualities = new IdentityHashMap[Tree, java.lang.Boolean]()
     val typedRanges = new IdentityHashMap[Tree, java.lang.Boolean]()
     val scopedIfs = new IdentityHashMap[Tree, java.lang.Boolean]()
@@ -590,7 +592,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
               (receiverKind == ScopedIndexBinding && argumentKind == ScalaIntegerBinding) ||
               (receiverKind == ScalaIntegerBinding && argumentKind == ScopedIndexBinding) =>
             ScopedBooleanBinding
-          case "+" | "-" | "*" | "/" | "%"
+          case "+" | "-" | "*" | "/" | "%" | ">>" | "&"
               if receiverKind == TypedIntegerBinding && argumentIsInteger =>
             TypedIntegerBinding
           case "+" | "-" | "*" | "/" | "%"
@@ -1028,6 +1030,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
           super.traverse(original)
 
         case original @ Apply(fun, predicate :: _) if isPredefControl(fun) =>
+          mark(canonicalPredefControls, original)
           if (isTypedBoolean(predicate)) mark(typedRequires, original)
           super.traverse(original)
 
@@ -1107,6 +1110,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       typedMatches,
       typedGenerates,
       typedRequires,
+      canonicalPredefControls,
       typedEqualities,
       typedRanges,
       scopedIfs,
@@ -1114,6 +1118,12 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       helperEffects
     )
   }
+
+  /** Reuse the established lexical/import resolver for parameter constraints.
+    * Source spelling alone cannot authenticate an unqualified require call.
+    */
+  private[compiler] def canonicalPredefCalls(tree: Tree): IdentityHashMap[Tree, java.lang.Boolean] =
+    classify(tree).canonicalPredefControls
 
   private def helperMethod(name: String): Tree = {
     val root = Ident(termNames.ROOTPKG)

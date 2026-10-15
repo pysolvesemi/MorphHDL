@@ -304,7 +304,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
 
     val declarations = definitionParameters.zipWithIndex.map { case (parameter, index) =>
       val comma = if (index == definitionParameters.size - 1) "" else ","
-      s"${indent}  parameter integer ${parameter.name} = ${parameter.default}$comma"
+      s"${indent}  ${parameter.declaration}$comma"
     }
     (
       lines.take(start) ++
@@ -322,7 +322,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     val declarations = parameters.zipWithIndex
       .map { case (parameter, index) =>
         val comma = if (index == parameters.size - 1) "" else ","
-        s"  parameter integer ${parameter.name} = ${parameter.default}$comma"
+        s"  ${parameter.declaration}$comma"
       }
       .mkString("\n")
     s"module $definitionName #(\n$declarations\n) ("
@@ -1117,12 +1117,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       .asInstanceOf[IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]]
 
   private def sizedNativeValue(printer: ComponentEmitterVerilog, assignment: DataAssignmentStatement,
-      value: UInt, expression: ElaborationIntegerExpression): String = {
+      value: BitVector, expression: ElaborationIntegerExpression): String = {
     val component = printer.component
     val local = NativeLocalParameters.reference(component, expression)
     val direct = expression.parameters match {
       case Vector(parameter) if expression.verilog == parameter.name && expression.generateIndex.isEmpty =>
-        Some(parameter.name -> 32)
+        Some(parameter.name -> parameter.representation.map(_.width).getOrElse(32))
       case _ => None
     }
     val reference = local.map(name => name -> NativeLocalParameters.referenceWidth(component, expression).get)
@@ -1153,10 +1153,11 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       val text = width.map(_.verilog).getOrElse(value.getBitsWidth.toString)
       val minimum = width.map(_.minimum).getOrElse(BigInt(value.getBitsWidth))
       val maximum = width.map(_.maximum).getOrElse(BigInt(value.getBitsWidth))
+      val extension = if(value.isInstanceOf[SInt] && expression.minimum < 0) s"$name[${sourceWidth-1}]" else "1'b0"
       if (minimum == sourceWidth && maximum == sourceWidth) name
       else if (maximum <= sourceWidth) s"$name[($text)-1:0]"
-      else if (minimum >= sourceWidth) s"{{(($text)-$sourceWidth){1'b0}},$name}"
-      else s"{{((($text)>$sourceWidth)?(($text)-$sourceWidth):0){1'b0}},$name[((($text)<$sourceWidth)?($text):$sourceWidth)-1:0]}"
+      else if (minimum >= sourceWidth) s"{{(($text)-$sourceWidth){$extension}},$name}"
+      else s"{{((($text)>$sourceWidth)?(($text)-$sourceWidth):0){$extension}},$name[((($text)<$sourceWidth)?($text):$sourceWidth)-1:0]}"
     }.getOrElse("(" + expression.verilog + ")")
   }
 
@@ -1292,7 +1293,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
 
   private def validateRetainedValueAssignmentLineage(
       component: Component,
-      value: UInt,
+      value: BitVector,
       record: ExternalParameterizedValueRecord,
       liveAssignments: Vector[DataAssignmentStatement],
       claimedAssignments: IdentityHashMap[
@@ -1369,7 +1370,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
 
   private def validateRetainedValueProjection(
       component: Component,
-      value: UInt,
+      value: BitVector,
       record: ExternalParameterizedValueRecord
   ): Unit = {
     if (ElaborationProductDomain.isRetained(record.expression)) {
@@ -1390,9 +1391,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         NativePublicationWidth.validate(width, component, value, role + " carrier width")
         width.minimum
       }.getOrElse(BigInt(value.getBitsWidth))
-      if (minimum < 0) fail("SPINAL-PARAMETERIZED-VERILOG-VALUE-DOMAIN-UNSUPPORTED",
+      val signed = value.isInstanceOf[SInt]
+      if (!signed && minimum < 0) fail("SPINAL-PARAMETERIZED-VERILOG-VALUE-DOMAIN-UNSUPPORTED",
         s"$role reaches negative value $minimum in its live owner", source)
-      if (minimumWidth < 1 || BigInt(maximum.bitLength) > minimumWidth)
+      if (minimumWidth < 1 || BigInt(maximum.bitLength.max(minimum.bitLength) + (if(signed) 1 else 0)) > minimumWidth)
         fail("SPINAL-PARAMETERIZED-VERILOG-VALUE-WIDTH-INSUFFICIENT",
           s"$role reaches $maximum outside its live carrier minimum width $minimumWidth", source)
       return
@@ -1418,7 +1420,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       }
     evaluation.results
       .collectFirst {
-        case (rootValue, result) if result < 0 =>
+        case (rootValue, result) if !value.isInstanceOf[SInt] && result < 0 =>
           rootValue -> result
       }
       .foreach { case (rootValue, result) =>
@@ -1475,7 +1477,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     evaluation.results
       .collectFirst {
         case (rootValue, result) if widthsByRoot.get(rootValue).forall { width =>
-              width < 1 || BigInt(result.bitLength) > width
+              width < 1 || BigInt(result.bitLength + (if(value.isInstanceOf[SInt]) 1 else 0)) > width
             } =>
           rootValue -> (result -> widthsByRoot.get(rootValue))
       }
@@ -2646,7 +2648,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           )
         }
         if (
-          parameter.minimum < 0 || parameter.maximum < parameter.minimum ||
+          (parameter.minimum < 0 && !parameter.representation.exists(_.signed)) || parameter.maximum < parameter.minimum ||
           parameter.default < parameter.minimum || parameter.default > parameter.maximum ||
           parameter.maximum > BigInt(Int.MaxValue) ||
           (parameter.maximum > BigInt(pc.config.bitVectorWidthMax) && !hasCompactParameterOwner(parameter))

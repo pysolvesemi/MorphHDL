@@ -64,6 +64,7 @@ EXPECTED_RULES_SHA256 = (
     "0e16f1be25d033a0e90c36fc7f43544de89ac13a568c4f99b0e0abe0935cbe4b"
 )
 EXPECTED_PLUGIN_COMPONENTS = (
+    "MorphHdlParameterSyntaxComponent",
     "MorphHdlCallbackEffectComponent",
     "MorphHdlDirectRecursiveComponent",
     "MorphHdlAreaCollectionComponent",
@@ -278,7 +279,7 @@ def compile_contract(manifest: Mapping[str, Any]) -> Dict[str, Any]:
 
     components = manifest.get("expected_plugin_components")
     if components != list(EXPECTED_PLUGIN_COMPONENTS):
-        raise RetirementError("expected_plugin_components must be the six ordered reviewed components")
+        raise RetirementError("expected_plugin_components must be the seven ordered reviewed components")
     descriptor = clean_path(manifest.get("plugin_descriptor"), "plugin_descriptor")
 
     jar_prefixes = string_list(

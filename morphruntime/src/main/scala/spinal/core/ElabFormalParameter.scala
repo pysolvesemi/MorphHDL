@@ -21,7 +21,11 @@ object ElabFormalParameter {
     })
   }
   def apply(actual: ElabInt, name: String, minimum: BigInt = 1,
-      maximum: BigInt = 4096): ElabInt = {
+      maximum: BigInt = 4096): ElabInt =
+    declare(actual, name, minimum, maximum, None)
+
+  private[core] def declare(actual: ElabInt, name: String, minimum: BigInt,
+      maximum: BigInt, representation: Option[ElaborationPackedParameter]): ElabInt = {
     val owner = Option(Component.current).getOrElse {
       ParameterizedVerilogException.fail("SPINAL-ELAB-FORMAL-PARENT-MISSING",
         "a formal must be declared inside its owning Component", None)
@@ -31,7 +35,7 @@ object ElabFormalParameter {
         "a formal needs a non-null typed actual and a portable name", None)
     val expression = ElaborationPublicationValue.projected(actual, "native formal actual",
       "SPINAL-ELAB-FORMAL-ACTUAL-EXACT-DOMAIN-REQUIRED", requireProjectedExactExtrema = false)
-    if (minimum < 0 || maximum < minimum || maximum > Int.MaxValue ||
+    if ((minimum < 0 && !representation.exists(_.signed)) || maximum < minimum || maximum > Int.MaxValue ||
         expression.minimum < minimum || expression.maximum > maximum ||
         expression.default < minimum || expression.default > maximum || expression.generateIndex.nonEmpty)
       ParameterizedVerilogException.fail("SPINAL-ELAB-FORMAL-DOMAIN-INVALID",
@@ -43,7 +47,9 @@ object ElabFormalParameter {
     if (!state.names.add(name))
       ParameterizedVerilogException.fail("SPINAL-ELAB-FORMAL-NAME-DUPLICATE",
         s"formal '$name' is already declared on this Component", expression.sourceLocation)
-    val formal = ElaborationIntegerParameter(name, expression.default, minimum, maximum)
+    require(representation.forall(p => minimum >= p.minimum && maximum <= p.maximum),
+      "SPINAL-PARAM-REPRESENTATION-OVERFLOW: domain must fit its declared packed type")
+    val formal = ElaborationIntegerParameter(name, expression.default, minimum, maximum, representation)
     val definition = ElabInt.directParameter(formal, expression.sourceLocation)
     state.entries += ((formal,expression,expression.sourceLocation))
     definition

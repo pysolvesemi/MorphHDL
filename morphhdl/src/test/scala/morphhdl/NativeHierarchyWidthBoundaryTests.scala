@@ -277,20 +277,48 @@ endmodule
           val x=in Bits(16 bits); val y=out Bits(8 bits)
           val child=new GenericChild(ElabInt.literal(8))
           if(foreign) {
-            val sibling=new GenericChild(ElabInt.literal(8))
+            val sibling=new Component {
+              val x=in Bits(8 bits)
+              val internal=Bits(8 bits).dontSimplifyIt()
+              internal := x
+            }
             val carrier=Bits(8 bits).dontSimplifyIt()
             carrier := x(7 downto 0)
             sibling.x := carrier
-            child.x := sibling.y
+            child.x := sibling.internal
           } else child.x := x(7 downto 0)
           y := child.y
         }
       }
     }
-    assert(error.getMessage.contains("SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED"),error.getMessage)
+    val expected=if(foreign) "HIERARCHY VIOLATION" else "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED"
+    assert(error.getMessage.contains(expected),error.getMessage)
     val stream=Files.list(dir)
     try { import scala.collection.JavaConverters._; assert(!stream.iterator.asScala.exists(_.toString.endsWith(".v"))) }
     finally stream.close()
+  }
+
+  test("literal sibling ports remain legal without exposing foreign internal carriers") {
+    val dir=Files.createTempDirectory("literal-sibling-ports-")
+    MorphVerilog(SpinalConfig(targetDirectory=dir.toString,headerWithDate=false)) {
+      new Component {
+        setDefinitionName("LiteralSiblingTop")
+        val x=in Bits(16 bits);val y=out Bits(8 bits)
+        val first=new GenericChild(ElabInt.literal(8))
+        val second=new GenericChild(ElabInt.literal(8))
+        val carrier=Bits(ElabInt.literal(8) bits).dontSimplifyIt()
+        carrier:=x(7 downto 0)
+        first.x:=carrier;second.x:=first.y;y:=second.y
+      }
+    }
+    Files.write(dir.resolve("tb.v"),"""module tb;reg [15:0] x;wire [7:0] y;integer i;
+LiteralSiblingTop dut(.x(x),.y(y));
+initial begin for(i=0;i<256;i=i+1)begin x=i;#1;if(y!==x[7:0])$fatal;end
+x='bx;#1;if(y!==8'bx)$fatal;x='bz;#1;if(y!==8'bz)$fatal;$finish;end endmodule
+""".getBytes(UTF_8))
+    for(command<-Seq(Seq("iverilog","-g2001","-s","tb","-o","sim","LiteralSiblingTop.v","tb.v"),Seq("vvp","sim"))) {
+      val(code,log)=Increment66ToolEvidence.run(dir,command);assert(code==0,log)
+    }
   }
 
   for (fixed <- Seq(false,true)) test(s"symbolic Bits resize retains its width through cast and comparison fixed=$fixed") {

@@ -21,16 +21,21 @@ final class BalancedTree[T <: Data](elementType: HardType[T], capacity: Int,
   noIoPrefix()
   private val levels: Int = log2Up(capacity)
   private val hasMask = pipelineMaskActual != null
-  private val hasBridge = !(levelBridge eq BalancedTree.identityBridge[T])
+  private val hasBridge = BalancedTree.bridgeEnabled(levelBridge)
   private val needsLevel = hasMask || hasBridge
   require((initialCountActual != null) == needsLevel,
     "initial count is present exactly when a bridge or pipeline mask needs levels")
   require((widthActual != null) == (widthFactory != null),
     "a symbolic payload width requires its type factory")
-  val count: ElabInt = RtlParam.int("COUNT", countActual, 1, capacity)
-  val initialCount: ElabInt = RtlParam.optionalInt("INITIAL_COUNT", initialCountActual, 1, capacity, 1)
-  val mask: ElabInt = RtlParam.optionalInt("PIPELINE_MASK", pipelineMaskActual, 0, (1 << levels)-1, 0)
-  val width: ElabInt = RtlParam.optionalInt("DATA_WIDTH", widthActual, 1, 64, 1)
+  val count: Param[Int] = Param(countActual, "COUNT")
+  require(count >= 1 && count <= capacity)
+  val initialCount: Param[Int] = Param.optional(initialCountActual, 1, "INITIAL_COUNT")
+  require(initialCount >= 1 && initialCount <= capacity)
+  private val maskLimit: Int = (1 << levels)-1
+  val mask: Param[Int] = Param.optional(pipelineMaskActual, 0, "PIPELINE_MASK")
+  require(mask >= 0 && mask <= maskLimit)
+  val width: Param[Int] = Param.optional(widthActual, 1, "DATA_WIDTH")
+  require(width >= 1 && width <= 64)
   if (needsLevel) require(initialCount >= count)
   private val dataType = if (widthFactory == null) elementType else HardType(widthFactory(width))
   val io = new BalancedTree.Ports(
@@ -58,16 +63,13 @@ final class BalancedTree[T <: Data](elementType: HardType[T], capacity: Int,
               nextData(i) := registered
             } else nextData(i) := value
           }
-          if (!hasBridge && capacity <= 32) {
-            val selected: ElabBool = ((mask * count.log2Up.pow2 / initialCount.log2Up.pow2) % 2).elabEq(1)
-            pipeline(combined(i), selected)
-          } else {
+          {
             val currentLevel = initialCount.log2Up - count.log2Up
             for (level <- 0 until levels) {
               if (currentLevel == level) {
                 val bridged = dataType()
                 bridged := levelBridge(combined(i), level)
-                pipeline(bridged, ((mask / (1 << level)) % 2).elabEq(1))
+                pipeline(bridged, ((mask >> level) & 1).elabNe(0))
               }
             }
           }
@@ -86,8 +88,19 @@ final class BalancedTree[T <: Data](elementType: HardType[T], capacity: Int,
 }
 
 object BalancedTree {
-  private object IdentityBridge extends ((Data,Int) => Data) {
+  private trait BridgePolicy { def enabled: Boolean }
+  private object IdentityBridge extends ((Data,Int) => Data) with BridgePolicy {
+    val enabled = false
     def apply(value: Data, level: Int): Data = value
+  }
+  private final class SelectedBridge[T <: Data](@rtlHardwareCallback callback:(T,Int)=>T)
+      extends ((T,Int)=>T) with BridgePolicy {
+    val enabled = true
+    def apply(value:T, level:Int):T=callback(value,level)
+  }
+  private[lib] def bridgeEnabled(bridge: AnyRef): Boolean = bridge match {
+    case policy: BridgePolicy => policy.enabled
+    case _ => true // Legacy ordinary callbacks explicitly request a bridge.
   }
   def identityBridge[T <: Data]: (T,Int) => T =
     IdentityBridge.asInstanceOf[(T,Int) => T]
@@ -108,10 +121,14 @@ object BalancedTree {
         payloadWidth: ElabInt = null): BalancedTree[T] = {
       require(payloadWidth == null || widthFactory != null,
         "an explicit payload width requires defineWidth")
-      val needsLevel = pipelineMask != null || !(levelBridge eq identityBridge[T])
+      val needsLevel = pipelineMask != null || bridgeEnabled(levelBridge)
       new BalancedTree[T](elementType,capacity,count,if(needsLevel) count else null,
         pipelineMask,if(widthFactory==null) null else if(payloadWidth != null) payloadWidth
-        else ElabInt.literal(elementType().getBitsWidth),
+        else elementType() match {
+          case scalar:BitVector => ParameterizedWidth.expressionOf(scalar)
+            .map(ElabInt.fromExpression).getOrElse(ElabInt.literal(scalar.getBitsWidth))
+          case other => ElabInt.literal(other.getBitsWidth)
+        },
         moduleName,clockConfig,operation,levelBridge,widthFactory)
     }
 
@@ -176,9 +193,18 @@ object BalancedTree {
     a.getClass==b.getClass && a.flatten.map(v=>(v.getClass,v.getBitsWidth))==
       b.flatten.map(v=>(v.getClass,v.getBitsWidth))
 
+  private def nativeScalarFactory[T <: Data](prototype:T): ElabInt=>T = prototype match {
+      case value: BitVector if ParameterizedWidth.expressionOf(value).exists(_.parameters.nonEmpty) =>
+        if(value.getClass == classOf[UInt]) (w: ElabInt) => UInt(w bits).asInstanceOf[T]
+        else if(value.getClass == classOf[SInt]) (w: ElabInt) => SInt(w bits).asInstanceOf[T]
+        else if(value.getClass == classOf[Bits]) (w: ElabInt) => Bits(w bits).asInstanceOf[T]
+        else null
+      case _ => null
+    }
+
   def define[T <: Data](elementType: HardType[T],capacity: Int,moduleName: String)(
       @rtlHardwareCallback operation: (T,T) => T,@rtlHardwareCallback levelBridge: (T,Int) => T = identityBridge[T]): Operation[T] =
-    new Operation(elementType,capacity,moduleName,operation,levelBridge,null)
+    new Operation(elementType,capacity,moduleName,operation,levelBridge,nativeScalarFactory(elementType()))
 
   def defineWidth[T <: BitVector](@rtlHardwareCallback factory: ElabInt => T,width: Int,
       capacity: Int,moduleName: String)(@rtlHardwareCallback operation: (T,T) => T,
@@ -186,6 +212,39 @@ object BalancedTree {
     require(width>=1 && width<=64,"payload width must be in 1..64")
     new Operation(HardType(factory(ElabInt.literal(width))),capacity,moduleName,
       operation,levelBridge,factory)
+  }
+
+  /** Option-based entry point. None omits the mask formal; Some(0) retains
+    * an overridable zero-default mask. Bridge presence is explicit policy,
+    * independent of the callback implementation or its sampled result.
+    */
+  def reduce[T <: Data](inputs: Seq[T], moduleName: String,
+      pipelineMask: Option[Param[Int]] = None,
+      @rtlHardwareCallback levelBridge: Option[(T,Int)=>T] = None)(
+      @rtlHardwareCallback operation: (T,T)=>T): T = {
+    require(pipelineMask != null && levelBridge != null,
+      "optional reduction policies must use None rather than null")
+    require(!pipelineMask.contains(null) && !levelBridge.contains(null),
+      "optional reduction policies cannot contain null")
+    val bridge = levelBridge.map(callback => new SelectedBridge(callback):((T,Int)=>T))
+      .getOrElse(identityBridge[T])
+    reduceBalancedTree(inputs,moduleName,pipelineMask.orNull)(operation,bridge)
+  }
+
+  /** Shorthand for the common bridge-free Option policy; legacy ElabInt/null
+    * callers retain the existing overload. Use reduce for an optional bridge.
+    */
+  def reduceBalancedTree[T <: Data](inputs: Seq[T], moduleName: String,
+      pipelineMask: Option[ElabInt])(@rtlHardwareCallback operation:(T,T)=>T):T =
+    reduce(inputs,moduleName,pipelineMask)(operation)
+
+  // Disambiguate explicit legacy null against the Option overload.
+  def reduceBalancedTree[T <: Data](inputs: Seq[T], moduleName: String,
+      pipelineMask: Null)(@rtlHardwareCallback operation:(T,T)=>T,
+      @rtlHardwareCallback levelBridge: ((T,Int)=>T)*):T = {
+    require(levelBridge.size<=1, "at most one legacy level bridge is supported")
+    reduceBalancedTree(inputs,moduleName,null:ElabInt)(operation,
+      levelBridge.headOption.getOrElse(identityBridge[T]))
   }
 
   def reduceBalancedTree[T <: Data](inputs: Seq[T],moduleName: String,
@@ -196,14 +255,7 @@ object BalancedTree {
     val first=inputs(0)
     // Exact native scalar classes have a known symbolic type factory. Subclasses
     // and composites retain their authored type-factory contract.
-    val factory: ElabInt => T = first match {
-      case value: BitVector if ParameterizedWidth.expressionOf(value).exists(_.parameters.nonEmpty) =>
-        if(value.getClass == classOf[UInt]) (w: ElabInt) => UInt(w bits).asInstanceOf[T]
-        else if(value.getClass == classOf[SInt]) (w: ElabInt) => SInt(w bits).asInstanceOf[T]
-        else if(value.getClass == classOf[Bits]) (w: ElabInt) => Bits(w bits).asInstanceOf[T]
-        else null
-      case _ => null
-    }
+    val factory = nativeScalarFactory(first)
     new Operation(HardType(cloneOf(first)),scala.math.max(2,count.maximum.toInt),moduleName,
       operation,levelBridge,factory).reduceBalancedTree(inputs,pipelineMask)
   }

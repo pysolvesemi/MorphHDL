@@ -24,9 +24,9 @@ final case class ExternalParameterizedValueRecord(
 }
 
 private[core] final class ExternalParameterizedValueIdentityRef(
-    value: UInt,
-    queue: ReferenceQueue[UInt]
-) extends WeakReference[UInt](value, queue) {
+    value: BitVector,
+    queue: ReferenceQueue[BitVector]
+) extends WeakReference[BitVector](value, queue) {
   private val identityHash = System.identityHashCode(value)
 
   override def hashCode(): Int = identityHash
@@ -47,7 +47,7 @@ private[core] final class ExternalParameterizedValueIdentityRef(
   * from concrete literals, names, ports or module identities.
   */
 object ExternalParameterizedValueRegistry {
-  private val queue = new ReferenceQueue[UInt]()
+  private val queue = new ReferenceQueue[BitVector]()
   private val retained = mutable.HashMap.empty[
     ExternalParameterizedValueIdentityRef,
     ExternalParameterizedValueRecord
@@ -94,7 +94,7 @@ object ExternalParameterizedValueRegistry {
     * cross product.
     */
   private[core] def validateCarrierDomain(
-      value: UInt,
+      value: BitVector,
       expression: ElaborationIntegerExpression,
       sourceLocation: Option[String]
   ): Unit = {
@@ -105,7 +105,9 @@ object ExternalParameterizedValueRegistry {
 
     val source = sourceLocation.orElse(expression.sourceLocation)
     val valueDomain = exactValueDomain(expression)
-    if (expression.minimum < 0 || expression.maximum < expression.minimum) {
+    val signed = value.isInstanceOf[SInt]
+    def requiredBits(number:BigInt):BigInt = BigInt(number.bitLength + (if(signed) 1 else 0))
+    if ((!signed && expression.minimum < 0) || expression.maximum < expression.minimum) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-VALUE-DOMAIN-UNSUPPORTED",
         s"retained UInt expression '${expression.verilog}' has invalid unsigned domain [${expression.minimum}, ${expression.maximum}]",
@@ -116,7 +118,7 @@ object ExternalParameterizedValueRegistry {
     valueDomain.foreach { exact =>
       exact.evaluations
         .collectFirst {
-          case (rootValue, result) if result < 0 => rootValue -> result
+          case (rootValue, result) if !signed && result < 0 => rootValue -> result
         }
         .foreach { case (rootValue, result) =>
           fail(
@@ -155,7 +157,7 @@ object ExternalParameterizedValueRegistry {
         values.evaluations
           .collectFirst {
             case (rootValue, result) if widths.byRootValue.get(rootValue).forall { width =>
-                  width < 1 || BigInt(result.bitLength) > width
+                  width < 1 || requiredBits(result) > width
                 } =>
               rootValue -> (result -> widths.byRootValue.get(rootValue))
           }
@@ -170,7 +172,8 @@ object ExternalParameterizedValueRegistry {
         val maximumValue = valueDomain
           .flatMap(_.evaluations.map(_._2).reduceOption(_ max _))
           .getOrElse(expression.maximum)
-        val requiredWidth = BigInt(maximumValue.bitLength)
+        val minimumValue = valueDomain.flatMap(_.evaluations.map(_._2).reduceOption(_ min _)).getOrElse(expression.minimum)
+        val requiredWidth = requiredBits(maximumValue).max(requiredBits(minimumValue))
         if (requiredWidth > minimumWidth) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-VALUE-WIDTH-INSUFFICIENT",
@@ -181,12 +184,12 @@ object ExternalParameterizedValueRegistry {
     }
   }
 
-  def attach(
-      value: UInt,
+  def attach[T <: BitVector](
+      value: T,
       expression: ElaborationIntegerExpression,
       witness: BigInt,
       sourceLocation: Option[String]
-  ): UInt = synchronized {
+  ): T = synchronized {
     if (value == null)
       throw new IllegalArgumentException("parameterized UInt value must not be null")
     if (expression == null)
@@ -268,7 +271,7 @@ object ExternalParameterizedValueRegistry {
       left.witnessSource.exists(value => right.witnessSource.exists(_ eq value)) &&
       ElabInt.equivalentExpression(left.expression, right.expression)
 
-  def recordOf(value: UInt): Option[ExternalParameterizedValueRecord] = synchronized {
+  def recordOf(value: BitVector): Option[ExternalParameterizedValueRecord] = synchronized {
     if (value == null) None
     else {
       reap()
@@ -276,13 +279,13 @@ object ExternalParameterizedValueRegistry {
     }
   }
 
-  def valuesOf(component: Component): Vector[(UInt, ExternalParameterizedValueRecord)] = {
-    val values = ArrayBuffer.empty[(UInt, ExternalParameterizedValueRecord)]
+  def valuesOf(component: Component): Vector[(BitVector, ExternalParameterizedValueRecord)] = {
+    val values = ArrayBuffer.empty[(BitVector, ExternalParameterizedValueRecord)]
     component.dslBody.walkLeafStatements {
-      case value: UInt => recordOf(value).foreach(record => values += value -> record)
+      case value: BitVector => recordOf(value).foreach(record => values += value -> record)
       case _           =>
     }
-    val seen = new IdentityHashMap[UInt, java.lang.Boolean]()
+    val seen = new IdentityHashMap[BitVector, java.lang.Boolean]()
     values.toVector
       .filter { case (value, _) =>
         seen.put(value, java.lang.Boolean.TRUE) == null

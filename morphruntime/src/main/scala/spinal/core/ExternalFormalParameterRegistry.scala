@@ -1086,7 +1086,7 @@ object ExternalFormalParameterRegistry {
     }
     if (
       formal.default == null || formal.minimum == null ||
-      formal.maximum == null || formal.minimum < 0 ||
+      formal.maximum == null || (formal.minimum < 0 && !formal.representation.exists(_.signed)) ||
       formal.maximum < formal.minimum ||
       formal.default < formal.minimum || formal.default > formal.maximum ||
       !formal.default.isValidInt || formal.maximum > BigInt(Int.MaxValue)
@@ -1121,7 +1121,7 @@ object ExternalFormalParameterRegistry {
     if (
       actual.default != formal.default ||
       actual.minimum < formal.minimum || actual.maximum > formal.maximum ||
-      actual.minimum < 0 || actual.maximum < actual.minimum
+      (actual.minimum < 0 && !formal.representation.exists(_.signed)) || actual.maximum < actual.minimum
     ) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-FORMAL-ACTUAL-DOMAIN-UNSUPPORTED",

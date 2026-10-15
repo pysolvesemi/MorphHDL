@@ -51,6 +51,35 @@ object RtlParam {
     formal
   }
 
+  def inferredInt(name:String, actual:Int, minimum:BigInt, maximum:BigInt):ElabInt =
+    inferredInt(name,ElabInt.literal(actual),minimum,maximum)
+
+  def inferredInt(name:String, actual:ElabInt, minimum:BigInt, maximum:BigInt):ElabInt = {
+    require(minimum<=maximum && maximum-minimum+1<=ElaborationExactDomain.MaximumDomainSize,
+      "MORPHDL-PARAM-DOMAIN-UNPROVEN: authored constraints must establish a finite domain of at most 65536 values")
+    int(name,actual,minimum,maximum)
+  }
+
+  def packed(name: String, literal: BitVector, minimum: BigInt,
+      maximum: BigInt, kind: String): ElabInt =
+    packed(name, Param(literal), minimum, maximum, kind)
+
+  def packed(name: String, actual: ElabInt, minimum: BigInt,
+      maximum: BigInt, kind: String): ElabInt = {
+    require(actual != null, "SPINAL-PARAM-LITERAL-REQUIRED: packed actual is null")
+    val representation = actual.packedRepresentation.getOrElse(
+      throw new IllegalArgumentException("SPINAL-PARAM-REPRESENTATION-MISSING: forward a typed packed actual"))
+    require(representation.kind == kind,
+      "SPINAL-PARAM-REPRESENTATION-MISMATCH: packed formal and actual types differ")
+    val low = minimum.max(representation.minimum)
+    val high = maximum.min(representation.maximum)
+    require(low <= high && high - low + 1 <= ElaborationExactDomain.MaximumDomainSize,
+      "MORPHDL-PARAM-DOMAIN-UNPROVEN: packed representation needs a finite supported semantic domain; add require constraints")
+    val formal = ElabFormalParameter.declare(actual, name, low, high, Some(representation))
+    remember(formal, actual, active = true)
+    formal
+  }
+
   private def remember(formal: ElabInt, actual: ElabInt, active: Boolean): Unit = {
     val entries = Component.current.userCache.getOrElseUpdate(DeclarationKey,
       scala.collection.mutable.ArrayBuffer.empty[Declaration]).asInstanceOf[Declarations]
@@ -61,6 +90,28 @@ object RtlParam {
     require(authenticates(owner, formal, actual), "parameter declaration identity is missing")
     owner.userCache(DeclarationKey).asInstanceOf[Declarations].find(_.formal eq formal).get.active
   }
+
+  private def optionalActual(actual:Option[ElabInt]):ElabInt = {
+    require(actual != null && !actual.contains(null), "optional parameter actual must be None or Some(non-null)")
+    actual.orNull
+  }
+  def optional(name:String, actual:Option[ElabInt], minimum:BigInt, maximum:BigInt, absent:Int):ElabInt =
+    optional(name,optionalActual(actual),minimum,maximum,absent)
+  def optional(name:String, actual:ElabInt, minimum:BigInt, maximum:BigInt, absent:Int):ElabInt = {
+    require(minimum<=maximum && maximum-minimum+1<=ElaborationExactDomain.MaximumDomainSize,
+      "MORPHDL-PARAM-DOMAIN-UNPROVEN: optional parameter needs a finite legal domain")
+    optionalInt(name,actual,minimum,maximum,absent)
+  }
+  def recursiveOptionalBinding(formal:ElabInt, actual:Option[ElabInt]):(ElabInt,ElabInt) =
+    recursiveOptionalBinding(formal,optionalActual(actual))
+  def recursiveOptionalBinding(formal:ElabInt, actual:ElabInt):(ElabInt,ElabInt) = {
+    require(Component.current != null && authenticates(Component.current,formal,actual),
+      "recursive optional declaration identity is missing")
+    formal -> actual
+  }
+  def recursiveOptionalOverride(formal:ElabInt, actual:Option[ElabInt]):(ElabInt,ElabInt) =
+    formal -> optionalActual(actual)
+  def recursiveOptionalOverride(formal:ElabInt, actual:ElabInt):(ElabInt,ElabInt) = formal -> actual
 
   /** A null actual omits the HDL formal and returns an authenticated constant.
     * Explicit zero is an active parameter, distinct from omission. Recursion

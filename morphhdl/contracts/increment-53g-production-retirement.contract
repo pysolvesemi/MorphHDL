@@ -130,6 +130,7 @@
     }
   ],
   "expected_plugin_components": [
+    "MorphHdlParameterSyntaxComponent",
     "MorphHdlCallbackEffectComponent",
     "MorphHdlDirectRecursiveComponent",
     "MorphHdlAreaCollectionComponent",

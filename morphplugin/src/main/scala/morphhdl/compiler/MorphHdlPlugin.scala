@@ -10,6 +10,7 @@ final class MorphHdlPlugin(val global: Global) extends Plugin {
     "Typed MorphHDL source transformations for parameter-preserving elaboration"
   override val components: List[PluginComponent] =
     List(
+      new MorphHdlParameterSyntaxComponent(global),
       new MorphHdlCallbackEffectComponent(global),
       new MorphHdlDirectRecursiveComponent(global),
       new MorphHdlAreaCollectionComponent(global),

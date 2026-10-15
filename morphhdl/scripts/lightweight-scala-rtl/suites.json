@@ -330,6 +330,55 @@
       "suites": [
         "morphhdl.DescendingPriorityProcessTests"
       ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/InferredParameterTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.InferredParameterTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/PackedParameterTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.PackedParameterTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/ParameterMaskTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.ParameterMaskTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/OptionalReductionPolicyTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.OptionalReductionPolicyTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/HardTypeParameterGeometryTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.HardTypeParameterGeometryTests"
+      ]
+    },
+    {
+      "source": "morphplugin/src/test/scala/morphhdl/compiler/InferredParameterSyntaxTests.scala",
+      "module": "morphplugin",
+      "suites": [
+        "morphhdl.compiler.InferredParameterSyntaxTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/OrdinaryChildClockGeometryTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.OrdinaryChildClockGeometryTests"
+      ]
     }
   ]
 }

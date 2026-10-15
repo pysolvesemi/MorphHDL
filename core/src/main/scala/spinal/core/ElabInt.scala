@@ -14,6 +14,7 @@ final class ElabInt private[core] (
   private[core] def this(expression: ElaborationIntegerExpression) =
     this(expression, None)
   ElabInt.validateExpression(expression, "ElabInt")
+  private[core] var packedRepresentation: Option[ElaborationPackedParameter] = None
 
   private[spinal] def witness: Int = projectedExpression("ElabInt witness").default.toInt
   def minimum: BigInt = if (ElaborationProductDomain.isRetained(expression))
@@ -87,6 +88,21 @@ final class ElabInt private[core] (
   def /(that: Int): ElabInt = this / ElabInt.literal(that)
   def %(that: ElabInt): ElabInt = NativeLocalParameters.calculated(ElabInt.modulo(this, that), "%", this, that)
   def %(that: Int): ElabInt = this % ElabInt.literal(that)
+
+  /** Non-negative parameter shift. The existing authenticated division and
+    * power domains prove both operands; no Scala shift-count masking applies.
+    */
+  def >>(distance: ElabInt): ElabInt = this / distance.pow2
+  def >>(distance: Int): ElabInt = this >> ElabInt.literal(distance)
+
+  /** Select a contiguous low-bit mask (0, 1, 3, 7, ...).
+    * Other masks are rejected rather than evaluated using a parameter witness.
+    */
+  def &(mask: Int): ElabInt = {
+    require(mask >= 0 && (BigInt(mask) & (BigInt(mask) + 1)) == 0,
+      "SPINAL-ELAB-INT-MASK-UNSUPPORTED: expected a non-negative contiguous low-bit mask")
+    this % ElabInt.fromBigInt(BigInt(mask) + 1)
+  }
 
   /** Typed ceiling logarithm which retains this bounded expression. */
   def log2Up: ElabInt = NativeLocalParameters.calculated(ElabInt.log2UpValue(this), "log2Up", this)
@@ -1316,7 +1332,7 @@ object ElabInt {
     if (parameter == null)
       throw new IllegalArgumentException("direct ElabInt parameter must not be null")
     val root = parameter.declarationRoot
-    fromSingleRootExpressionTrusted(
+    val result = fromSingleRootExpressionTrusted(
       ElaborationIntegerExpression(
         verilog = parameter.name,
         default = parameter.default,
@@ -1330,6 +1346,8 @@ object ElabInt {
         .boundedValues(parameter.minimum, parameter.maximum)
         .map(value => value -> value)
     )
+    result.packedRepresentation = parameter.representation
+    result
   }
 
   private[spinal] def projectExpression(
@@ -2184,6 +2202,9 @@ object ElabInt {
           sourceLocation
         )
       }
+      if (parameter.representation == null || parameter.representation.exists(p =>
+          p == null || parameter.minimum < p.minimum || parameter.maximum > p.maximum))
+        fail("SPINAL-PARAM-REPRESENTATION-OVERFLOW", "parameter domain must fit its declared packed representation", sourceLocation)
       if (
         parameter.name == null ||
         !portableIdentifier.pattern.matcher(parameter.name).matches()

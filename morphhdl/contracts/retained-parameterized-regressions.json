@@ -1483,19 +1483,6 @@
         "neutral value helpers preserve collisions repeated values narrowing and widening"
       ],
       "morphhdl.NativeHierarchyWidthBoundaryTests": [
-        "an authored slice invalid in the child formal domain still rejects",
-        "fixed child input keeps its definition width across parent domains symbolic=false",
-        "fixed child input keeps its definition width across parent domains symbolic=true",
-        "literal actual does not authorize expression or foreign-owner input foreign=false",
-        "literal actual does not authorize expression or foreign-owner input foreign=true",
-        "literal explicit formals accept exact fixed internal wires width=16",
-        "literal explicit formals accept exact fixed internal wires width=8",
-        "literal internal carrier width mismatch remains rejected output=false",
-        "literal internal carrier width mismatch remains rejected output=true",
-        "literal wire admission does not authorize varying widths or sliced connections partial=false",
-        "literal wire admission does not authorize varying widths or sliced connections partial=true",
-        "symbolic Bits resize retains its width through cast and comparison fixed=false",
-        "symbolic Bits resize retains its width through cast and comparison fixed=true",
         "typed literal and symbolic boundaries share a child deterministically symbolic=false internal=false split=false",
         "typed literal and symbolic boundaries share a child deterministically symbolic=false internal=false split=true",
         "typed literal and symbolic boundaries share a child deterministically symbolic=false internal=true split=false",
@@ -1503,7 +1490,21 @@
         "typed literal and symbolic boundaries share a child deterministically symbolic=true internal=false split=false",
         "typed literal and symbolic boundaries share a child deterministically symbolic=true internal=false split=true",
         "typed literal and symbolic boundaries share a child deterministically symbolic=true internal=true split=false",
-        "typed literal and symbolic boundaries share a child deterministically symbolic=true internal=true split=true"
+        "typed literal and symbolic boundaries share a child deterministically symbolic=true internal=true split=true",
+        "fixed child input keeps its definition width across parent domains symbolic=false",
+        "fixed child input keeps its definition width across parent domains symbolic=true",
+        "an authored slice invalid in the child formal domain still rejects",
+        "literal explicit formals accept exact fixed internal wires width=8",
+        "literal explicit formals accept exact fixed internal wires width=16",
+        "literal wire admission does not authorize varying widths or sliced connections partial=false",
+        "literal wire admission does not authorize varying widths or sliced connections partial=true",
+        "literal internal carrier width mismatch remains rejected output=false",
+        "literal internal carrier width mismatch remains rejected output=true",
+        "literal actual does not authorize expression or foreign-owner input foreign=false",
+        "literal actual does not authorize expression or foreign-owner input foreign=true",
+        "literal sibling ports remain legal without exposing foreign internal carriers",
+        "symbolic Bits resize retains its width through cast and comparison fixed=false",
+        "symbolic Bits resize retains its width through cast and comparison fixed=true"
       ],
       "morphhdl.NativeLibraryMigrationFormalEquivalenceTests": [
         "formal witnesses independently cover all legal PIPE_MODE specializations",
@@ -3600,6 +3601,44 @@
         "unaligned and overflowing offsets do not acquire a false whole-word proof",
         "unaligned windows concatenate actual array bits across element boundaries",
         "whole-word expansion preserves unsigned and signed RHS extension"
+      ],
+      "morphhdl.InferredParameterTests": [
+        "Param declarations infer names and authored domains default=1 inverted=false",
+        "Param declarations infer names and authored domains default=1 inverted=true",
+        "Param declarations infer names and authored domains default=8 inverted=false",
+        "Param declarations infer names and authored domains default=8 inverted=true"
+      ],
+      "morphhdl.PackedParameterTests": [
+        "packed parameter types retain declared widths signedness and override values width=19",
+        "packed parameter types retain declared widths signedness and override values width=64",
+        "signed Int boundary parameters extend to wide hardware without unsigned reinterpretation",
+        "packed formals preserve independent actuals and shared definition representation",
+        "packed declarations reject contradictory types domains and overflow",
+        "packed defaults reject hardware sources and implicit literal sizing"
+      ],
+      "morphhdl.ParameterMaskTests": [
+        "readable parameter shifts and low masks retain override semantics",
+        "invalid shift domains and noncontiguous masks fail without witness truncation"
+      ],
+      "morphhdl.OptionalReductionPolicyTests": [
+        "optional reduction policy preserves omission and explicit presence mode=none",
+        "optional reduction policy preserves omission and explicit presence mode=zero",
+        "optional reduction policy preserves omission and explicit presence mode=bridge",
+        "optional reduction policy preserves omission and explicit presence mode=identity",
+        "optional reduction policy preserves omission and explicit presence mode=legacy-null",
+        "Some symbolic mask forwards overrides and retains reset and stall behavior"
+      ],
+      "morphhdl.HardTypeParameterGeometryTests": [
+        "HardType retains symbolic scalar geometry without widthFactory kind=uint",
+        "HardType retains symbolic scalar geometry without widthFactory kind=sint",
+        "HardType retains symbolic scalar geometry without widthFactory kind=bits"
+      ],
+      "morphhdl.OrdinaryChildClockGeometryTests": [
+        "ordinary child wiring preserves symbolic expressions and clock reset enable priority operation=cast",
+        "ordinary child wiring preserves symbolic expressions and clock reset enable priority operation=sum",
+        "ordinary child wiring preserves symbolic expressions and clock reset enable priority operation=choice",
+        "whole-width typed slices reject partial offsets and independent equal-witness geometry",
+        "direct arithmetic cannot borrow equal default widths from independent actuals"
       ]
     },
     "morphir": {
@@ -3704,25 +3743,27 @@
         "Area bridge retains a guarded literal backwards Vec index"
       ],
       "morphhdl.compiler.MorphHdlCallbackEffectTests": [
-        "callback helper effects retain exact identities across source files",
-        "captured immutable value does not replay its already evaluated initializer",
-        "immutable collection operations and same-named authored methods remain supported",
-        "immutable helpers and same-named unrelated methods retain their semantics",
-        "known host APIs reject array update",
-        "known host APIs reject buffer append",
-        "known host APIs reject console",
-        "known host APIs reject map update",
-        "known host APIs reject stream",
-        "ordinary callbacks remain compatible",
         "source-visible callback effects reject direct",
-        "source-visible callback effects reject forward",
-        "source-visible callback effects reject helper",
-        "source-visible callback effects reject local mutable",
         "source-visible callback effects reject qualified",
+        "source-visible callback effects reject helper",
+        "source-visible callback effects reject forward",
         "source-visible callback effects reject stored",
+        "source-visible callback effects reject local mutable",
         "source-visible callback effects reject throw",
+        "immutable helpers and same-named unrelated methods retain their semantics",
+        "optional callbacks retain stored closure effect checks",
+        "absent and pure optional callbacks retain ordinary behavior",
+        "ordinary callbacks remain compatible",
+        "captured immutable value does not replay its already evaluated initializer",
         "stored closure initializer is evaluated before capture",
-        "typed overload identity rejects only the called effectful helper"
+        "typed overload identity rejects only the called effectful helper",
+        "callback helper effects retain exact identities across source files",
+        "known host APIs reject buffer append",
+        "known host APIs reject map update",
+        "known host APIs reject array update",
+        "known host APIs reject console",
+        "known host APIs reject stream",
+        "immutable collection operations and same-named authored methods remain supported"
       ],
       "morphhdl.compiler.MorphHdlFrontendSymbolicEqualitySafetyComponentTests": [
         "does not intercept ordinary equality or symbolic receivers",
@@ -3751,6 +3792,19 @@
       "morphhdl.compiler.NativeSymbolicEqualitySafetyTests": [
         "inferred helper and qualified results cannot fall back to numeric Scala equality",
         "null checks explicit identity and unrelated host equality remain ordinary"
+      ],
+      "morphhdl.compiler.InferredParameterSyntaxTests": [
+        "ordinary and renamed imports support declared integer domains and explicit HDL names",
+        "constructor specialization limits and named constants establish real declared bounds",
+        "optional typed parameter declarations lower Option actuals with inferred bounds",
+        "unbounded and empty domains cannot borrow the default as a bound",
+        "conditional requirements and shadowed require cannot establish a declaration domain",
+        "foreign wildcard require does not grant domain evidence; qualified Predef remains available",
+        "a foreign Param factory retains ordinary Scala behavior",
+        "local and foreign parameter type spellings cannot borrow built-in authority",
+        "same-block foreign Param declarations override wildcard imports",
+        "foreign wildcard parameter factories retain their authored semantics",
+        "imports in sibling packages cannot authorize a foreign declaration"
       ]
     },
     "paramrtl": {
@@ -4232,7 +4286,7 @@
     "morphhdl/src/test/scala/morphhdl/NativeConstantShiftTests.scala": "7dd10a7bebfb5fdaf187f073fd49b9901b1a7c9c72515abb4f6fdb527500b958",
     "morphhdl/src/test/scala/morphhdl/NativeContextualUIntLiteralTests.scala": "5dad06a6cf2b6b2a828aa54821ed1ddb00060bbb3642fe8efb08a2e644421dc6",
     "morphhdl/src/test/scala/morphhdl/NativeHelperNamingTests.scala": "2729500dc9b3667221fc4a74c64713cfa8c9d3cabf3d1c91dfd4d2c8387584df",
-    "morphhdl/src/test/scala/morphhdl/NativeHierarchyWidthBoundaryTests.scala": "4e61126e2bea2a2d89ef486e1453ee897836a566896c5d9b83549ff842e78bdf",
+    "morphhdl/src/test/scala/morphhdl/NativeHierarchyWidthBoundaryTests.scala": "000b16f846dc8e3dde5060c04d6b36de9dfb75cef6f9088f19e087d80c0865b3",
     "morphhdl/src/test/scala/morphhdl/NativeLibraryMigrationFormalEquivalenceTests.scala": "f9ae7840d6bbab1f667939214a74bfce05f440d5e9ca04ba52517fbe2c85ef6a",
     "morphhdl/src/test/scala/morphhdl/NativeLibraryMigrationTests.scala": "3be4687d6b8dda5b268f62b2cfbe27953b80d4dbc40133508decb887f0baefd5",
     "morphhdl/src/test/scala/morphhdl/NativeLibraryReuseTests.scala": "94578322310ddfacadfaae1f2224a3ac3ec51b675059c156fc1610672141d310",
@@ -4466,7 +4520,7 @@
     "morphplugin/src/test/scala/morphhdl/compiler/DirectRecursiveSyntaxTests.scala": "583a6a612a15cfc4b80c1fa9a613314c4917c77db7ccadb35b60851c40d3815a",
     "morphplugin/src/test/scala/morphhdl/compiler/LightweightSyntaxBaselineTests.scala": "066b0e145e450fc8e488ae60713a75f3fdbcd8e8c02e2f9ea766ae37bf403a5b",
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlAreaCollectionComponentTests.scala": "27400d483cb4145d6412e0d8ccdc7cd43f3e5a988ed2203bc99110636bebee67",
-    "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlCallbackEffectTests.scala": "cbe7e0d0c00755cdd9ec99d6ca1db31c47279fcd335917ec967a55cc6368c572",
+    "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlCallbackEffectTests.scala": "8d4b116356912e0384a164733fbf1ae47e476dea45574a2301ca4c9198789241",
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlCompilerTestSupport.scala": "016f7a642f82aa53bc82e8dedd43f2b6796dabc48b6462a297ebe10aabbd97e6",
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlFrontendSymbolicEqualitySafetyComponentTests.scala": "61d8fb7fb5892ec9b48b3d74360204d432b030b52387bd4779d225d62a5ab34a",
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponentTests.scala": "3dc3d84549cfcfd48d9da00444babb522cdd8326f6811053cccd14085af7b5a0",
@@ -4493,6 +4547,13 @@
     "paramrtl/src/test/scala/morphhdl/paramrtl/SynchronousReadFirstSinglePortMemoryValidatorTests.scala": "4bbd9ed72d079e2d0eb731103b218efccb632bd0c86bce45be28010abf47cb7c",
     "paramrtl/src/test/scala/morphhdl/paramrtl/SynchronousRegisterValidatorTests.scala": "39f7eb5f8be72e3757d9be75d96a198100803d58fec0d191aec829543ef8d71b",
     "paramrtl/src/test/scala/morphhdl/paramrtl/SynchronousStreamFifoValidatorTests.scala": "69850c4e840385a6fd7e30282917c6e5ef32ee01a7926154e412b947165c4878",
-    "paramrtl/src/test/scala/morphhdl/paramrtl/SynchronousStreamM2sPipeValidatorTests.scala": "e0efa84d814108268a97ac378a51f537a024c4eec9bf9971063fa7440eb8ea12"
+    "paramrtl/src/test/scala/morphhdl/paramrtl/SynchronousStreamM2sPipeValidatorTests.scala": "e0efa84d814108268a97ac378a51f537a024c4eec9bf9971063fa7440eb8ea12",
+    "morphhdl/src/test/scala/morphhdl/InferredParameterTests.scala": "117011c0ad72512db4318cfcc84be30eb99a1d69e1fba5b93fe3b02b5a7c6f66",
+    "morphhdl/src/test/scala/morphhdl/PackedParameterTests.scala": "073e29b145a02d579611591c010ed7a72788268ea876fcc508bbb7e66a2783ce",
+    "morphhdl/src/test/scala/morphhdl/ParameterMaskTests.scala": "8012e3a52b65b7407851fa4bab1e543149780f233d069999d9bc15372c74850c",
+    "morphhdl/src/test/scala/morphhdl/OptionalReductionPolicyTests.scala": "748a95504740749b4f547da7b82a9310796b3b2e57082feba0bdcf5278905c72",
+    "morphhdl/src/test/scala/morphhdl/HardTypeParameterGeometryTests.scala": "36cdc02ded0a076f8f7ed9f6eb91cba3f7f546d2b2d5baa455976470013d0320",
+    "morphhdl/src/test/scala/morphhdl/OrdinaryChildClockGeometryTests.scala": "86d2815353554bc6d29020ad583243e4bc8d02bfbe8a899a880893b9499f3dc4",
+    "morphplugin/src/test/scala/morphhdl/compiler/InferredParameterSyntaxTests.scala": "d7c7badff17f887b6ff23690e241072b4c059faec9c6abc47f3d19d0081aa943"
   }
 }

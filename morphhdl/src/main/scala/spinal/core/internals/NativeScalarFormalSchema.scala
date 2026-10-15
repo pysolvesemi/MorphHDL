@@ -112,7 +112,7 @@ private[internals] object NativeScalarFormalSchema {
     val schemas = candidates.map(component => bindings(component).map { entry =>
       val binding = entry.binding
       (binding.formal.name, binding.formal.minimum, binding.formal.maximum,
-        binding.declarationKey, binding.ownerClassName)
+        binding.declarationKey, binding.ownerClassName, binding.formal.representation)
     }.sortBy(_._1))
     if (schemas.distinct.size > 1)
       ParameterizedVerilogException.fail("SPINAL-PARAMETERIZED-VERILOG-FORMAL-SCHEMA-CONFLICT",

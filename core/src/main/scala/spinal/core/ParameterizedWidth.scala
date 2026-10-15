@@ -17,12 +17,30 @@ final case class ElaborationIntegerParameter(
     name: String,
     default: BigInt,
     minimum: BigInt,
-    maximum: BigInt
+    maximum: BigInt,
+    representation: Option[ElaborationPackedParameter] = None
 ) {
+
+  private[spinal] def declaration: String = representation match {
+    case None => s"parameter integer $name = $default"
+    case Some(packed) =>
+      val signed = if (packed.signed) "signed " else ""
+      val number = s"${packed.width}'${if (packed.signed) "s" else ""}d${default.abs}"
+      s"parameter $signed[${packed.width - 1}:0] $name = ${if (default < 0) "-" else ""}$number"
+  }
 
   /** Stable identity for callers which retain this exact direct declaration. */
   private[spinal] lazy val declarationRoot: ElaborationIntegerParameterRoot =
     ElaborationIntegerParameterRoot.fresh(name)
+}
+
+/** Declared HDL representation, independent of the parameter's legal domain. */
+final case class ElaborationPackedParameter(kind: String, width: Int) {
+  require(Set("UInt", "Bits", "SInt")(kind) && width >= 1 && width <= 4096,
+    "SPINAL-PARAM-REPRESENTATION-INVALID: expected Bits/UInt/SInt with width 1..4096")
+  def signed: Boolean = kind == "SInt"
+  def minimum: BigInt = if (signed) -(BigInt(1) << (width - 1)) else BigInt(0)
+  def maximum: BigInt = (BigInt(1) << (width - (if (signed) 1 else 0))) - 1
 }
 
 /** Identity-bearing provenance for one declaration of an elaboration-time
