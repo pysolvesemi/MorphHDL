@@ -7,7 +7,7 @@ Application Scala, delivered RTL, cleanup and compiler pins remain unchanged.
 
 ## Current regression enrollment
 
-Compiled suite registration discovers 311 retained suites and 3,363 cases across
+Compiled suite registration discovers 311 retained suites and 3,369 cases across
 all retained projects. This is an inventory, not test execution. The two changed
 projects add 42 suites and remove none. All additions are enrolled in the
 lightweight workflow lanes. The cumulative source catalog authenticates 427
@@ -72,3 +72,49 @@ no frozen certificate is rewritten. The generated native manifest covers 77
 paths and 318 edits across seven roots. Local preservation, eight mutation
 rejections, typed overlay, retirement, layering and both StreamFifoCC boundary
 checks pass. These are preparation results, not remote qualification.
+
+
+### Fresh local candidate checks — 15 October 2026
+
+Compiler `a3274b97a2e27a8674f473571805e4ae8c6ef65f`, tree
+`60838fd1f88820d09376db5c50cfbe2dbdc025f8`, passes the complete enrolled
+lightweight set on Scala 2.12.18 and 2.13.12: 97 plugin cases plus 274 native
+cases per version. The runner authenticates the retained catalog, requires every
+registered case, rejects failed/skipped/missing reports and checks that source
+identity remains unchanged. Mill independently passes all 97 plugin cases on
+each version; this is not a fresh complete native Mill qualification claim.
+
+The unchanged Rust cleaner was built with locked offline dependencies into an
+isolated output directory. Each Scala version passes eleven library profiles in
+both default and activation-preserving cleanup modes: 22 profiles, deterministic
+repeated cleanup, independent four-state scoreboards, lint and synthesis. Four
+cleaned combinational SAT proofs and four inverted-property rejection controls
+also pass per Scala version. No application Scala, delivered RTL, cleaner source
+or compiler pin was changed. These are local development results, not remote CI.
+
+Exact commands, source/tool/input/output hashes and logs are retained beneath
+`/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/`:
+
+- `enrolled-a3274b97-{212,213}/results.json` and `tools/`;
+- `plugin-mill-a3274b97/results.json`;
+- `cleanup-a3274b97-{212,213}/results.json` and archived replay scripts;
+- `cleaned-formal-a3274b97-{212,213}/results.json`;
+- `cleanup-build-receipt.json`;
+- `provenance-a3274b97.json` (122 certificates, 34.4 seconds, zero historical programs executed);
+- `application-baseline-f1ebf40b/manifest.json` (read-only pre-migration archive,
+  80 application/build files and 870 delivery/test files; no fresh baseline
+  generation or qualification is claimed).
+
+The current CI enrollment installs the same authenticated simulator in affected
+full-suite jobs as well as the dedicated lightweight matrix. Existing jobs,
+matrices, test commands and timeouts are retained. The later full-CI phase must
+include MorphHDL baseline workflow **332279971** (`morphhdl-baseline.yml`) and
+MorphHDL Mill workflow **332476711** (`morphhdl-mill.yml`); they are not launched
+before the affected targeted gates pass. The native source/provenance producer
+**336665858** runs first, followed by the other affected targeted workflows.
+
+The local Git credential cannot publish workflow edits. The connected GitHub app
+successfully published the reviewed workflow bytes with automatic CI suppressed;
+normal merges preserve that publication ancestry. No changed successor is
+qualified by the local results above. Dispatch and receipts must identify the
+final published candidate explicitly. Hourly scheduling remains unavailable.

@@ -42,6 +42,11 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
+      - name: Install authenticated singleton-array simulator
+        uses: ./.github/actions/lightweight-simulator
+        with:
+          receipt-name: pinned-iverilog-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_attempt }}
+
       - name: Install pinned Mill bootstrap
         shell: bash
         run: |

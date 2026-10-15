@@ -5,9 +5,9 @@
   "working_directory": "/home/kartik/.local/state/morphhdl/worktrees/lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Local complete enrolled lightweight validation; remote publication blocked on workflow-write permission",
+  "phase": "Publishing complete reviewed candidate for targeted CI; local enrolled set passed both Scala versions",
   "completed_phases": [],
-  "remote_qualification": "PR196 remains b87e95c4; push of sealed 2ca9590685538425c1297798bc5806899ba4db10 rejected for missing workflow scope; no dispatch or monitor",
+  "remote_qualification": "Connected GitHub app published workflow checkpoint5050a05b70cf747248a31bd57fb18b2c616096bf; complete candidate merge/publication pending; no targeted/full run yet",
   "application_migration": "not started; requires qualified compiler",
   "implemented_pending_qualification": [
     "versioned semantics and read-only inventory of 86 requirements / 373 source files",
@@ -496,5 +496,21 @@
     ],
     "log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/callback-host-api-after.log",
     "scope": "Known host API effects by typed symbol identity; opaque purity remains open"
+  },
+  "local_validation_enrolled_a3274b97": {
+    "commit": "a3274b97a2e27a8674f473571805e4ae8c6ef65f",
+    "tree": "60838fd1f88820d09376db5c50cfbe2dbdc025f8",
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "sbt_plugin_cases_per_scala": 97,
+    "sbt_native_cases_per_scala": 274,
+    "mill_plugin_cases_per_scala": 97,
+    "cleanup_profiles_per_scala": 22,
+    "cleaned_formal_proofs_per_scala": 4,
+    "cleaned_formal_rejection_controls_per_scala": 4,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl",
+    "remote": "not qualified"
   }
 }
