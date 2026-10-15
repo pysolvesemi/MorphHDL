@@ -86,6 +86,10 @@
     },
     ".github/workflows/increment-62-wa08-source-overlay.yml": null,
     ".github/workflows/lane-when-expression-diagnostic.yml": null,
+    ".github/workflows/morphhdl-baseline.yml": {
+      "mode": "100644",
+      "sha256": "efe8792a36ace404c9a94a852cd7f9d40f50740971e6115aae3f1ac3d3bb085c"
+    },
     ".github/workflows/morphhdl-external-formalization.yml": {
       "mode": "100644",
       "sha256": "af165fa05aabca1bfedf23c67ce1275e0b4c960464980249fb08cfa83bf4c0d2"
@@ -119,11 +123,11 @@
     },
     "build.mill": {
       "mode": "100644",
-      "sha256": "a116d8bb4955d02dda9610623ef86bfb1ba698355823a29d708740810a20236c"
+      "sha256": "69d5fbd3ebf9b9da029edc49717de61785c03ddaab634c19a2286c7c46d6798d"
     },
     "build.sbt": {
       "mode": "100644",
-      "sha256": "cfa169327302ae686c3f5d80b13b46ca61764a51b85b12cff37b67d5e8141d6d"
+      "sha256": "6ed2291f254efac985732f83d1347cc78e0702e415cc31149d6f3e0ff7ff76e6"
     },
     "core/src/main/scala/spinal/core/BitVector.scala": {
       "mode": "100644",
@@ -364,7 +368,7 @@
     },
     "idslplugin/src/test/scala/spinal/idslplugin/DocumentationPluginTests.scala": {
       "mode": "100644",
-      "sha256": "0016bc43b545fbcbbd9dccd10e17aaac560e113dcc8debcdbc06b822be4d19fd"
+      "sha256": "c97bf54d169a85c6327a92651bff98008aebcaab8d404ce2f2a265ab5cbef9a5"
     },
     "lib/src/main/scala/spinal/lib/Counter.scala": {
       "mode": "100644",
