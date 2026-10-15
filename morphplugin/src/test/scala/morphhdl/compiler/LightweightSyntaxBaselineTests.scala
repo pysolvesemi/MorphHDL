@@ -33,6 +33,7 @@ class LightweightSyntaxBaselineTests extends AnyFunSuite {
       object ElabControl {
         def generateSymbolic[T](p: ElabBool, file: String, line: Int)(body: => T): T = body
           def localValue[T](value: T, name: String): T = value
+        def generateScoped(p: ElabScopedCondition, file: String, line: Int)(a: => Unit): Unit = ()
         def selectScoped[T](p: ElabScopedCondition, file: String, line: Int)(a: => T)(b: => T)(implicit unit: T =:= Unit): Unit = ()
         def selectSymbolic[T](p: ElabBool, file: String, line: Int)(a: => T)(b: => T): T = a
         def generateSymbolicChain(xs: Seq[(ElabBool, () => Unit, String, Int)], file: String, line: Int): Unit = ()

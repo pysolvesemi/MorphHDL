@@ -104,7 +104,7 @@ Direct `lanes(i)` access for the exact scoped loop index delegates through
 `ElabScopedIndex` to the retained finite selector. It does not grant authority to
 an index used after its loop ends. Positive-coefficient, nonnegative-offset affine reads use the existing affine
 proof; unit-coefficient shifted accesses use the existing subrange proof. Existing
-`i.affine(...)` stays available. Arbitrary affine writes are not newly authorized.
+`i.affine(...)` stays available. Exact complete affine write partitions are supported as described below; arbitrary affine writes remain rejected.
 
 
 ### Validated initial example
@@ -277,3 +277,28 @@ slot. Interface reconstruction uses the substituted slot's Boolean predicate.
 Boolean defaults, with COUNT overrides 1/2/3/5/7/8 and both Boolean overrides on
 each artifact. It includes singleton Z passthrough, randomized and one-hot inputs,
 compile/lint/synthesis checks and declaration-identity negatives.
+
+
+## Exact affine write partitions
+
+An ordinary loop can assign `lanes(2*i)` and, under `2*i+1 < count`,
+`lanes(2*i+1)`. Positive literal strides and nonnegative offsets use retained
+loop/guard identities. Every legal parameter value must cover the complete Vec
+exactly once. Three-way partitions are tested too. Proofs bind exact Vec leaves,
+selectors and assignment identities; later competing loops invalidate the proof.
+This is not permission to write via read-only previous-iteration views.
+
+Combinational and initialized register arrays retain the same partition. A loop
+inside native `when`/`otherwise` carries its enclosing runtime conditions into
+capture without absorbing neighboring state updates. Reset, hold, enable and
+attributes remain attached to the selected registers. Source-absent scoped else
+branches are distinguished from authored branches containing unsupported effects.
+
+Current limits: each native lane must have one stable alias owner throughout the
+legal domain; the new partition proof does not combine separate scalar-prefix
+writes or mixed affine/unit selectors. Existing unit-offset prefix/tail support
+is unchanged. New nested affine-parent writes are not authorized by this proof.
+Explicit rejection remains preferable to a witness-only coverage assumption.
+The cross-version simulation covers symbolic widths 1/8/32/36/64, count overrides
+1/2/3/5/7/8/15/16/17, reset/stalls and X/Z data. Runtime X/Z control equivalence
+is not claimed by these tests. Remote qualification remains pending.

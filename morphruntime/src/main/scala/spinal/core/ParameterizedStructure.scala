@@ -186,6 +186,7 @@ object ParameterizedStructure {
       val sourceLocation: Option[String],
       val affineRead: Option[ElabFiniteAffineVecRead] = None
   ) {
+    private[core] var affineWrite: Option[TypedLoopAffineWrites.Evidence] = None
     private[core] var coverageBridges = Vector.empty[TypedLoopVecBridges.Bridge]
     private[core] var unitRange: Option[TypedLoopVecRange] = None
     private[core] var registerStorage = Vector.empty[TypedLoopRegisterStorage.Template]
@@ -525,6 +526,38 @@ object ParameterizedStructure {
       proof.indices(0), Some(proof))
   }
 
+  /** Isolate newly captured assignments from an already-existing runtime when.
+    * Reuse exact condition identities and branch polarities, so claiming the new
+    * wrapper never relocates unrelated writes from the enclosing native scope.
+    */
+  private def withIsolatedRuntimeScope(component: Component)(body: => Unit): Unit = {
+    val original = DslScopeStack.get
+    if (original eq component.dslBody) body
+    else {
+      def path(scope: ScopeStatement): Vector[(WhenStatement, Boolean)] = {
+        if (scope eq component.dslBody) Vector.empty
+        else if (scope == null || (scope.component ne component))
+          fail("SPINAL-STRUCTURAL-RUNTIME-SCOPE-OWNER", "structural capture crossed its declaring component", None)
+        else scope.parentStatement match {
+          case statement: WhenStatement if (scope eq statement.whenTrue) || (scope eq statement.whenFalse) =>
+            path(statement.parentScope) :+ (statement -> (scope eq statement.whenTrue))
+          case _ => fail("SPINAL-STRUCTURAL-RUNTIME-SCOPE-UNSUPPORTED",
+            "a retained structural body inside a runtime scope currently requires native when/otherwise branches", None)
+        }
+      }
+      val enclosing = path(original)
+      val context = DslScopeStack.set(component.dslBody)
+      try {
+        enclosing.foreach { case (statement, positive) =>
+          val isolated = new WhenStatement(statement.cond)
+          DslScopeStack.get.append(isolated)
+          DslScopeStack.set(if (positive) isolated.whenTrue else isolated.whenFalse)
+        }
+        body
+      } finally context.restore()
+    }
+  }
+
   private def captureBlockWithOwnerRoot(
       component: Component,
       sourceLocation: Option[String],
@@ -578,7 +611,9 @@ object ParameterizedStructure {
 
     var accepted = false
     try {
-      try NativeSymbolicLegality.withScope(() => NativeStructuralLegality.currentOwner())(body)
+      try NativeSymbolicLegality.withScope(() => NativeStructuralLegality.currentOwner()) {
+        withIsolatedRuntimeScope(component)(body)
+      }
       finally {
         if (previousCapture eq null) activeCapture.remove()
         else activeCapture.set(previousCapture)
@@ -1072,7 +1107,7 @@ object ParameterizedStructure {
       "finite index value escaped the loop which issued its index", index.expression.sourceLocation)
   }
 
-  private[core] def captureFiniteIndexIf(index: ElabFiniteIndex, value: Int, role: String, emptyElse: Boolean = false)
+  private[core] def captureFiniteIndexIf(index: ElabFiniteIndex, value: Int, role: String, emptyElse: Boolean = false, emptyIf: Boolean = false)
       (ifTrue: => Unit)(ifFalse: => Unit): Unit = {
     requireActiveFiniteIndex(index)
     val state = activeCapture.get()
@@ -1103,7 +1138,8 @@ object ParameterizedStructure {
         case None => storage.activeFinitePredicates.remove(index.token)
       }
     }
-    val yes = capture(admitted intersect domain.whenTrue)(ifTrue)
+    val yes = if (emptyIf) ParameterizedStructuralSynthetic.emptyBlock(source)
+      else capture(admitted intersect domain.whenTrue)(ifTrue)
     val no = if (emptyElse) ParameterizedStructuralSynthetic.emptyBlock(source)
       else capture(admitted -- domain.whenTrue)(ifFalse)
     var label = role
@@ -1144,7 +1180,7 @@ object ParameterizedStructure {
   }
 
   private[core] def captureFiniteAffineIf(index: ElabFiniteIndex, coefficient: Int, offset: Int,
-      bound: ElabInt, role: String)(ifTrue: => Unit)(ifFalse: => Unit): Unit = {
+      bound: ElabInt, role: String, emptyTrue: Boolean = false, emptyFalse: Boolean = false)(ifTrue: => Unit)(ifFalse: => Unit): Unit = {
     requireActiveFiniteIndex(index)
     val state = activeCapture.get()
     val storage = storageOf(state.component)
@@ -1169,8 +1205,8 @@ object ParameterizedStructure {
         case None => storage.activeFiniteAffineGuards.remove(index.token)
       }
     }
-    val yes = capture(true)(ifTrue)
-    val no = capture(false)(ifFalse)
+    val yes = if (emptyTrue) ParameterizedStructuralSynthetic.emptyBlock(index.expression.sourceLocation) else capture(true)(ifTrue)
+    val no = if (emptyFalse) ParameterizedStructuralSynthetic.emptyBlock(index.expression.sourceLocation) else capture(false)(ifFalse)
     var label = role
     var suffix = 2
     while(storage.labels.contains(label+"_true") || storage.labels.contains(label+"_false")) {
@@ -3978,9 +4014,11 @@ object ParameterizedStructure {
       sourceLocation
     )
     TypedLoopVecRange.retain(loop, coverageCount.orElse(if (requireExactDomain) Some(ElabInt.fromExpression(normalizedCount)) else None))
+    TypedLoopAffineWrites.retain(component, loop)
     TypedLoopAssignmentCoverage.retain(component, loop, coverageCount)
     TypedLoopRegisterStorage.retain(component, loop)
     TypedLoopVecBridges.retain(component, loop)
+    TypedLoopAffineWrites.retainBridges(component, loop)
   }
 
   def beginPending(

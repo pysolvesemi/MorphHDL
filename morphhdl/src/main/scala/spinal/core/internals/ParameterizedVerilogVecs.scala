@@ -525,7 +525,8 @@ private[internals] object ParameterizedVerilogVecs {
       finiteIndexToken: Option[ElabFiniteIndexToken] = None,
       readOnly: Boolean = false,
       unitRange: Option[TypedLoopVecRange] = None,
-      staticIndex: Option[ElabInt] = None
+      staticIndex: Option[ElabInt] = None,
+      affineWrite: Option[TypedLoopAffineWrites.Evidence] = None
   ): String = {
     if (vector == null || selector == null) {
       fail(
@@ -552,7 +553,7 @@ private[internals] object ParameterizedVerilogVecs {
     val exactStatic = readOnly && staticIndex.exists(index =>
       (index.expression eq selector) && selector.generateIndex.isEmpty &&
         TypedVecStaticSelect.authorizes(vector, index))
-    val exactSelector = exactStatic || unitRange.exists(e => e.matches && (e.selection.vector eq vector) && (e.selection.index eq selector)) || (affineRead match {
+    val exactSelector = exactStatic || affineWrite.exists(_.authorizes(vector, selector)) || unitRange.exists(e => e.matches && (e.selection.vector eq vector) && (e.selection.index eq selector)) || (affineRead match {
       case Some(evidence) => readOnly && finiteIndexToken.exists(token => evidence.matches(vector, selector, token))
       case None =>
         selector.verilog == indexName && selector.parameters.isEmpty &&

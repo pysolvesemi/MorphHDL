@@ -33,6 +33,13 @@ object ElabControl {
     condition.capture("guard_l" + sourceLine)(unit(ifTrue))(unit(ifFalse))
   }
 
+  /** A missing source else is an authenticated empty alternative. The authored
+    * branch still goes through native capture and its side-effect checks. */
+  def generateScoped(condition: ElabScopedCondition, sourceFile: String, sourceLine: Int)(body: => Unit): Unit = {
+    require(condition != null, "scoped condition must not be null")
+    condition.capture("guard_l" + sourceLine, emptyFalse = true)(body)(())
+  }
+
   private val ElseIfMarkerPrefix = "else_if_"
   private object GeneratedIfOrdinalStorageKey
 

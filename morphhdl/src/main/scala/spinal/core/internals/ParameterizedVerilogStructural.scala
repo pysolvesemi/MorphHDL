@@ -614,7 +614,7 @@ private[internals] object ParameterizedVerilogStructural {
             // A bounds proof does not prove an inter-iteration dependency DAG.
             // Keep guarded pair/tail reads on separately driven input arrays;
             // the existing previous-index API owns same-loop dependency proofs.
-            if (evidence.guarded.nonEmpty) {
+            if (evidence.guarded.nonEmpty && selection.affineWrite.isEmpty) {
               def blocks(value: ParameterizedStructuralBlock): Vector[ParameterizedStructuralBlock] =
                 Vector(value) ++ value.regions.flatMap(_.blocks).flatMap(blocks)
               val owned = blocks(owner.body)
@@ -637,7 +637,9 @@ private[internals] object ParameterizedVerilogStructural {
               )
           }
         }
-        if (selection.affineRead.nonEmpty &&
+        if (selection.affineWrite.exists(!_.matches))
+          fail("SPINAL-TYPED-LOOP-AFFINE-WRITE-COVERAGE", "affine writer lost its exact union proof", selection.sourceLocation)
+        if (selection.affineRead.nonEmpty && selection.affineWrite.isEmpty &&
           (selection.finiteIndexToken.isEmpty || selection.result.flatten.exists(leaf =>
             block.assignments.exists(_.finalTarget eq leaf))))
           fail(
@@ -1725,9 +1727,11 @@ private[internals] object ParameterizedVerilogStructural {
         }
       }
       plan.block.vecIndices.filter(_.coverageBridges.nonEmpty).foreach { selection =>
-        if (!selection.unitRange.exists(_.coversTail))
+        if (!selection.unitRange.exists(_.coversTail) && !selection.affineWrite.exists(_.matches))
           fail("SPINAL-TYPED-LOOP-VEC-RANGE-MISMATCH", "Vec driver bridge lost its exact range", plan.block.sourceLocation)
         selection.coverageBridges.foreach { edge =>
+          if (selection.affineWrite.exists(e => !e.authorizesBridge(edge)))
+            fail("SPINAL-TYPED-LOOP-AFFINE-WRITE-COVERAGE", "affine bridge lost its exact lane owner", plan.block.sourceLocation)
           TypedLoopVecBridges.validate(edge, plan.block, liveStatements)
           val pattern = ("(?m)^\\s*assign\\s+" + Pattern.quote(edge.value.getName()) +
             "\\s*=\\s*" + Pattern.quote(edge.alias.getName()) + "\\s*;[ \\t]*$").r
@@ -4681,7 +4685,8 @@ private[internals] object ParameterizedVerilogStructural {
             selection.affineRead,
             selection.finiteIndexToken,
             readOnly = !writesAlias,
-            unitRange = selection.unitRange
+            unitRange = selection.unitRange,
+            affineWrite = selection.affineWrite
           )
           if (!writesAlias) {
             val uses = ("(?<![A-Za-z0-9_$])" + Pattern.quote(aliasName) +

@@ -121,12 +121,13 @@ final class ElabFiniteIndex private[core] (
   /** Generate-time affine comparison, with correlated parameter/iteration proof.
     * Both alternatives are structural hardware, not runtime mux branches.
     */
-  def whenAffineLessThan(coefficient: Int, offset: Int, bound: ElabInt, role: String)
+  def whenAffineLessThan(coefficient: Int, offset: Int, bound: ElabInt, role: String,
+      emptyTrue: Boolean = false, emptyFalse: Boolean = false)
       (ifTrue: => Unit)(ifFalse: => Unit): Unit = {
     require(coefficient > 0 && offset >= 0 && bound != null)
     if (!ParameterizedStructure.captureEnabled || expression.generateIndex.isEmpty) {
       if (BigInt(coefficient)*witness+offset < bound.witness) ifTrue else ifFalse
-    } else ParameterizedStructure.captureFiniteAffineIf(this,coefficient,offset,bound,role)(ifTrue)(ifFalse)
+    } else ParameterizedStructure.captureFiniteAffineIf(this,coefficient,offset,bound,role,emptyTrue,emptyFalse)(ifTrue)(ifFalse)
   }
 
   def onlyEqual(value: Int, role: String)(body: => Unit): Unit = {

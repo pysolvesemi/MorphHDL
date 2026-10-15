@@ -26,20 +26,23 @@ private[core] final class ElabFiniteAffineIndex(
     new ElabFiniteAffineIndex(index, Math.multiplyExact(coefficient, factor), Math.multiplyExact(offset, factor))
 
   def elabEq(value: Int): ElabScopedCondition = new ElabScopedCondition {
-    private[core] def capture(role: String)(ifTrue: => Unit)(ifFalse: => Unit): Unit = {
+    private[core] def capture(role: String, emptyTrue: Boolean, emptyFalse: Boolean)(ifTrue: => Unit)(ifFalse: => Unit): Unit = {
       if (ParameterizedStructure.captureEnabled && index.expression.generateIndex.nonEmpty)
         ParameterizedStructure.requireActiveFiniteIndex(index)
       val difference = BigInt(value) - offset
       if (difference < 0 || difference % coefficient != 0) ifFalse
-      else index.whenEqual((difference / coefficient).toInt, role)(ifTrue)(ifFalse)
+      else if (!ParameterizedStructure.captureEnabled || index.expression.generateIndex.isEmpty)
+        index.whenEqual((difference / coefficient).toInt, role)(ifTrue)(ifFalse)
+      else ParameterizedStructure.captureFiniteIndexIf(index, (difference / coefficient).toInt, role,
+        emptyElse = emptyFalse, emptyIf = emptyTrue)(ifTrue)(ifFalse)
     }
   }
 
   def <(bound: ElabInt): ElabScopedCondition = {
     require(bound != null, "scoped affine bound must not be null")
     new ElabScopedCondition {
-      private[core] def capture(role: String)(ifTrue: => Unit)(ifFalse: => Unit): Unit =
-        index.whenAffineLessThan(coefficient, offset, bound, role)(ifTrue)(ifFalse)
+      private[core] def capture(role: String, emptyTrue: Boolean, emptyFalse: Boolean)(ifTrue: => Unit)(ifFalse: => Unit): Unit =
+        index.whenAffineLessThan(coefficient, offset, bound, role, emptyTrue, emptyFalse)(ifTrue)(ifFalse)
     }
   }
 

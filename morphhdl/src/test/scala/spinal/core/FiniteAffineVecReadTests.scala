@@ -76,9 +76,9 @@ class FiniteAffineVecReadTests extends AnyFunSuite {
     reject(new Selection((depth + 1) / 2, depth, 2, 1), "SPINAL-ELAB-FINITE-AFFINE-DOMAIN-OUT-OF-RANGE")
   }
 
-  test("affine Vec selectors reject writes even when the pair count is safe") {
+  test("affine Vec selectors reject writes to input carriers even when the pair count is safe") {
     val depth = parameter("DEPTH", 4, 2, 8)
-    reject(new Selection(depth / 2, depth, 2, 0, write = true), "SPINAL-ELAB-FINITE-AFFINE-WRITE-UNSUPPORTED")
+    reject(new Selection(depth / 2, depth, 2, 0, write = true), "SPINAL-TYPED-LOOP-AFFINE-WRITE-COVERAGE")
   }
 
   test("affine Vec selectors reject zero or negative coefficients and offsets") {

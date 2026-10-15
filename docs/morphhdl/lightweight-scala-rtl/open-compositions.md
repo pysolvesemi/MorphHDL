@@ -21,7 +21,7 @@ extra output lanes.
 ## Remaining acceptance work
 
 The durable progress record and the frozen 86-item baseline remain authoritative
-for task scope. In particular, general affine writes, broader helper inference,
+for task scope. In particular, broader affine write compositions, helper inference,
 implicit recursive clock ports, callback-effect restrictions, cleanup/readability,
 current-source integrity enrollment, remote qualification and application migration
 are not closed by the local library tests. Statement-valued symbolic chains with no final else now have local cross-version

@@ -18,10 +18,10 @@ abstract class ElabScopedIndex private[core] () {
 /** A predicate whose authority belongs to one retained finite loop. */
 abstract class ElabScopedCondition private[core] () { self =>
   final def unary_! : ElabScopedCondition = new ElabScopedCondition {
-    private[core] def capture(role: String)(ifTrue: => Unit)(ifFalse: => Unit): Unit =
-      self.capture(role)(ifFalse)(ifTrue)
+    private[core] def capture(role: String, emptyTrue: Boolean, emptyFalse: Boolean)(ifTrue: => Unit)(ifFalse: => Unit): Unit =
+      self.capture(role, emptyFalse, emptyTrue)(ifFalse)(ifTrue)
   }
-  private[core] def capture(role: String)(ifTrue: => Unit)(ifFalse: => Unit): Unit
+  private[core] def capture(role: String, emptyTrue: Boolean = false, emptyFalse: Boolean = false)(ifTrue: => Unit)(ifFalse: => Unit): Unit
 }
 
 /** A symbolic word offset retains its original finite-loop index and stride.

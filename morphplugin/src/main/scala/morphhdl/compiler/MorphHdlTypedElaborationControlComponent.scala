@@ -1316,9 +1316,14 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       case original: Match if classified.typedMatches.containsKey(original) =>
         rewriteBooleanMatch(original)
       case original: If if classified.scopedIfs.containsKey(original) =>
-        Apply(Apply(Apply(helperMethod("selectScoped"),
-          List(transform(original.cond), Literal(Constant(sourceFile)), Literal(Constant(sourceLine(original))))),
-          List(staged(original.thenp))), List(staged(original.elsep))).setPos(original.pos)
+        val arguments = List(transform(original.cond), Literal(Constant(sourceFile)), Literal(Constant(sourceLine(original))))
+        original.elsep match {
+          case Literal(Constant(())) =>
+            Apply(Apply(helperMethod("generateScoped"), arguments), List(staged(original.thenp))).setPos(original.pos)
+          case _ =>
+            Apply(Apply(Apply(helperMethod("selectScoped"), arguments),
+              List(staged(original.thenp))), List(staged(original.elsep))).setPos(original.pos)
+        }
       case original: If if classified.typedIfs.containsKey(original) =>
         rewriteIf(original)
       case original @ Apply(Select(predicate, _), List(body))
