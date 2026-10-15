@@ -5,7 +5,7 @@
   "working_directory": "/home/kartik/.local/state/morphhdl/worktrees/lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Boolean recursive forwarding locally validated; remaining roadmap capabilities in development",
+  "phase": "Mill build cache and cross-version regressions locally validated; affine writes next",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -38,7 +38,8 @@
     "public reduction adapters forward authenticated native scalar Vec payload widths and optional pipeline masks",
     "single-expression local parameter helpers infer symbolic types through forward lexical calls with ordinary shadowing preserved",
     "direct parent-child scalar Vec boundaries adapt authenticated literal/narrow-domain capacities with exact driver receipts and formal identity mapping",
-    "Boolean recursive constructor formals retain exact declaration slots and named bindings without user integer conversions"
+    "Boolean recursive constructor formals retain exact declaration slots and named bindings without user integer conversions",
+    "Mill uses content-addressed tracked artifacts for both compiler plugins, matching SBT invalidation semantics"
   ],
   "local_logs": [
     "/tmp/lwr01-plugin-all.log",
@@ -200,5 +201,15 @@
       "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/boolean-recursion.log",
       "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/boolean-recursion-final.log"
     ]
+  },
+  "local_validation_mill": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "compiler_tests_per_scala": 7,
+    "native_tests_per_scala": 17,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/mill-validation",
+    "cache_checks": "stable artifact, changed artifact, tampered cache rejected"
   }
 }

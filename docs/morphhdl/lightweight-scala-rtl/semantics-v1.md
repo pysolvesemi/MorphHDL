@@ -205,8 +205,11 @@ The SBT build uses a content-addressed MorphHDL plugin path. Zinc must recompile
 plugin consumers when plugin bytes change; an unchanged artifact keeps the same
 option. `checkCompilerPluginCache` verifies stable options, changed-artifact
 invalidation and rejection of altered cached artifacts. This avoids counting
-stale transformed classes as tests of a new frontend. Mill validation remains
-separate and is not established by this SBT check.
+stale transformed classes as tests of a new frontend. Mill now uses the same
+content-addressing rule for both compiler plugins, returns a tracked `PathRef`,
+and has its own `checkCompilerPluginCache` target. Mill's local cross-version
+checks cover seven frontend and 17 native tests per version. SBT and Mill remain
+separate qualification paths; neither local result substitutes for remote CI.
 
 
 ## Explicit helper boundaries and range traversal

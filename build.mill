@@ -3,7 +3,7 @@
 package build
 
 import mill._, mill.api._, scalalib._, publish._
-import build.project.SpinalVersion
+import build.project.{CompilerPluginCache, SpinalVersion}
 
 trait SpinalModule extends SbtModule with CrossSbtModule { outer =>
   def scalatestVersion = "3.2.14"
@@ -77,7 +77,11 @@ trait IdslPlugin extends SpinalModule with SpinalPublishModule {
   override def artifactName = "spinalhdl-idsl-plugin"
   def moduleDeps = Seq(moduleRefs("idslpayload"))
   def mvnDeps = super.mvnDeps() ++ Seq(mvn"org.scala-lang:scala-compiler:${scalaVersion}")
-  def pluginOptions = Task { Seq(s"-Xplugin:${assembly().path}") }
+  def compilerPlugin = Task {
+    val option = CompilerPluginCache.option(assembly().path.toIO, Task.dest.toIO)
+    PathRef(os.Path(option.stripPrefix("-Xplugin:")))
+  }
+  def pluginOptions = Task { Seq(s"-Xplugin:${compilerPlugin().path}") }
 }
 
 object sim extends Cross[Sim](SpinalVersion.compilers){
@@ -117,7 +121,11 @@ trait MorphPlugin extends SpinalModule {
   override def mvnDeps = super.mvnDeps() ++ Seq(
     mvn"org.scala-lang:scala-compiler:${scalaVersion}"
   )
-  def pluginOptions = Task { Seq(s"-Xplugin:${assembly().path}") }
+  def compilerPlugin = Task {
+    val option = CompilerPluginCache.option(assembly().path.toIO, Task.dest.toIO)
+    PathRef(os.Path(option.stripPrefix("-Xplugin:")))
+  }
+  def pluginOptions = Task { Seq(s"-Xplugin:${compilerPlugin().path}") }
 }
 
 object morphruntime extends Cross[MorphRuntime](SpinalVersion.compilers) {
@@ -223,4 +231,22 @@ trait Tester extends SpinalModule with SpinalPublishModule {
   def scalacOptions = super.scalacOptions() ++ modulePluginOptions()
   def mvnDeps = super.mvnDeps() ++ Seq(mvn"org.scalatest::scalatest:${scalatestVersion}")
   def publishVersion = SpinalVersion.tester
+}
+
+def checkCompilerPluginCache = Task {
+  val artifact = Task.dest / "plugin.jar"
+  os.write.over(artifact, "first plugin")
+  val first = CompilerPluginCache.option(artifact.toIO, (Task.dest / "cache").toIO)
+  assert(CompilerPluginCache.option(artifact.toIO, (Task.dest / "cache").toIO) == first)
+  os.write.over(artifact, "second plugin")
+  val second = CompilerPluginCache.option(artifact.toIO, (Task.dest / "cache").toIO)
+  assert(first != second)
+  val prior = os.Path(first.stripPrefix("-Xplugin:"))
+  val current = os.Path(second.stripPrefix("-Xplugin:"))
+  assert(os.read(prior) == "first plugin")
+  os.write.over(current, "tampered plugin")
+  var rejected = false
+  try CompilerPluginCache.option(artifact.toIO, (Task.dest / "cache").toIO) catch { case _: IllegalArgumentException => rejected = true }
+  assert(rejected)
+  "stable, changed-artifact and tamper controls passed"
 }

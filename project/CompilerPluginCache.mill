@@ -1,0 +1,25 @@
+package build.project
+
+import java.io.File
+import java.nio.file.Files
+import java.security.MessageDigest
+
+/** Zinc compares compiler options, so a stable -Xplugin path can leave old
+  * transformed bytecode after a plugin edit. Put the exact artifact digest in
+  * that option without changing the published plugin JAR or compiler behavior.
+  */
+object CompilerPluginCache {
+  def option(artifact: File, cacheDirectory: File): String = synchronized {
+    val bytes = Files.readAllBytes(artifact.toPath)
+    val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
+      .map(byte => f"${byte & 0xff}%02x").mkString
+    val directory = cacheDirectory.toPath
+    Files.createDirectories(directory)
+    val cached = directory.resolve(artifact.getName.stripSuffix(".jar") + "-" + digest + ".jar")
+    require(!Files.isSymbolicLink(cached), "compiler plugin cache must not be a symbolic link")
+    if (!Files.exists(cached)) Files.write(cached, bytes)
+    require(java.util.Arrays.equals(Files.readAllBytes(cached), bytes),
+      "compiler plugin cache differs from the exact packaged artifact")
+    "-Xplugin:" + cached.toAbsolutePath.toString
+  }
+}
