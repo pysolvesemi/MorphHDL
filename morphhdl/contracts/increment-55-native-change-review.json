@@ -995,6 +995,17 @@
       ]
     },
     {
+      "path": "core/src/main/scala/spinal/core/NativeFormalWidthProjection.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Lightweight child-port width projection repair"
+      ],
+      "reason": "Resolve immediate child-port direct formal widths through sealed exact component/formal/actual identities for explicit width queries. Preserve child-local declarations and reject unrelated or unbound roots without witness or name substitution.",
+      "edits": [],
+      "baseline_path": null
+    },
+    {
       "path": "core/src/main/scala/spinal/core/NativeLocalParameters.scala",
       "change": "added",
       "classification": "typed-support-file",
@@ -5643,17 +5654,6 @@
           ]
         }
       ]
-    },
-    {
-      "path": "core/src/main/scala/spinal/core/NativeFormalWidthProjection.scala",
-      "change": "added",
-      "classification": "typed-support-file",
-      "introduced_by": [
-        "Lightweight child-port width projection repair"
-      ],
-      "reason": "Resolve immediate child-port direct formal widths through sealed exact component/formal/actual identities for explicit width queries. Preserve child-local declarations and reject unrelated or unbound roots without witness or name substitution.",
-      "edits": [],
-      "baseline_path": null
     }
   ]
 }
