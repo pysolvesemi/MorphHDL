@@ -5,7 +5,7 @@
   "working_directory": "/home/kartik/.local/state/morphhdl/worktrees/lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Hierarchy capacity adaptation locally validated; remaining roadmap capabilities in development",
+  "phase": "Boolean recursive forwarding locally validated; remaining roadmap capabilities in development",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -37,7 +37,8 @@
     "typed Vec direction factories preserve input/output directions across braces, short and fill syntaxes",
     "public reduction adapters forward authenticated native scalar Vec payload widths and optional pipeline masks",
     "single-expression local parameter helpers infer symbolic types through forward lexical calls with ordinary shadowing preserved",
-    "direct parent-child scalar Vec boundaries adapt authenticated literal/narrow-domain capacities with exact driver receipts and formal identity mapping"
+    "direct parent-child scalar Vec boundaries adapt authenticated literal/narrow-domain capacities with exact driver receipts and formal identity mapping",
+    "Boolean recursive constructor formals retain exact declaration slots and named bindings without user integer conversions"
   ],
   "local_logs": [
     "/tmp/lwr01-plugin-all.log",
@@ -186,5 +187,18 @@
     ],
     "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/hierarchy-recovery-final",
     "scope": "11 suites: positive hierarchy and sharing, tamper rejection, adapters, packed words, guarded publication and inherited hierarchy regressions"
+  },
+  "local_validation_boolean_recursion": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "compiler_tests_per_scala": 7,
+    "native_tests_per_scala": 19,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/boolean-recursion-final",
+    "logs": [
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/boolean-recursion.log",
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/boolean-recursion-final.log"
+    ]
   }
 }

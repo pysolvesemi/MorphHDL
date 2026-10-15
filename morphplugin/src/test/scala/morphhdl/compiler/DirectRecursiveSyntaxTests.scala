@@ -9,8 +9,12 @@ class DirectRecursiveSyntaxTests extends AnyFunSuite {
       final class rtlRecursive extends scala.annotation.StaticAnnotation
       class Component
       class Data
-      final class ElabInt
+      final class ElabInt { def elabEq(value: Int): ElabBool = new ElabBool }
+      final class ElabBool
       object RtlParam {
+        def bool(name: String, actual: ElabBool): ElabBool = actual
+        def recursiveBooleanBinding(f: ElabBool, a: ElabBool): (ElabInt, ElabInt) = (new ElabInt, new ElabInt)
+        def recursiveBooleanOverride(f: ElabBool, a: ElabBool): (ElabInt, ElabInt) = (new ElabInt, new ElabInt)
         def int(name: String, actual: ElabInt, lo: Int, hi: Int): ElabInt = actual
       }
       object ElabRecursiveComponent {
@@ -72,6 +76,24 @@ class DirectRecursiveSyntaxTests extends AnyFunSuite {
       val errors = compile(fixture(call), "InvalidNamedRecursive.scala")
       assert(errors.exists(_.message.contains("MORPHDL-DIRECT-RECURSION-UNSUPPORTED")), errors.mkString("\n"))
     }
+  }
+
+  test("Boolean recursive formals forward without integer conversion in source") {
+    val source = definitions + """
+      package booldirect {
+        import spinal.core._
+        class Ports(val flag: ElabBool) extends Data
+        @_root_.spinal.core.rtlRecursive
+        final class Tree(actual: ElabInt, flagActual: ElabBool) extends Component {
+          val count: ElabInt = RtlParam.int("COUNT", actual, 1, 8)
+          val flag: ElabBool = RtlParam.bool("FLAG", flagActual)
+          val io = new Ports(flag)
+          val next = new Tree(flagActual = flag, actual = count)
+        }
+      }
+    """
+    val errors = compile(source, "BooleanRecursive.scala")
+    assert(errors.isEmpty, errors.mkString("\n"))
   }
 
 }

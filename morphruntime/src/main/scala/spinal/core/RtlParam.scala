@@ -8,6 +8,32 @@ package spinal.core
   * Use an explicit ElabInt/ElabBool annotation for natural Scala control flow.
   */
 object RtlParam {
+  private object BooleanDeclarationKey
+  private case class BooleanDeclaration(formal: ElabBool, actual: ElabBool,
+      integerFormal: ElabInt, integerActual: ElabInt)
+  private type BooleanDeclarations = scala.collection.mutable.ArrayBuffer[BooleanDeclaration]
+
+  /** Compiler-owned bridge: authenticate the Boolean declaration before exposing
+    * its native integer slot. Equivalent expressions cannot borrow this identity.
+    */
+  def recursiveBooleanBinding(formal: ElabBool, actual: ElabBool): (ElabInt, ElabInt) = {
+    val owner = Component.current
+    require(owner != null, "recursive Boolean binding requires its declaring component")
+    val entry = owner.userCache.get(BooleanDeclarationKey).toSeq
+      .flatMap(_.asInstanceOf[BooleanDeclarations]).find(d => (d.formal eq formal) && (d.actual eq actual))
+      .getOrElse(throw new IllegalArgumentException("recursive Boolean declaration identity is missing"))
+    entry.integerFormal -> entry.integerActual
+  }
+
+  def recursiveBooleanOverride(formal: ElabBool, actual: ElabBool): (ElabInt, ElabInt) = {
+    val owner = Component.current
+    require(owner != null && actual != null, "recursive Boolean override requires a current owner and actual")
+    val entry = owner.userCache.get(BooleanDeclarationKey).toSeq
+      .flatMap(_.asInstanceOf[BooleanDeclarations]).find(_.formal eq formal)
+      .getOrElse(throw new IllegalArgumentException("recursive Boolean declaration identity is missing"))
+    entry.integerFormal -> actual.toElabInt
+  }
+
   private object DeclarationKey
   private case class Declaration(formal: ElabInt, actual: ElabInt, active: Boolean)
   private type Declarations = scala.collection.mutable.ArrayBuffer[Declaration]
@@ -59,6 +85,12 @@ object RtlParam {
 
   def bool(name: String, actual: ElabBool): ElabBool = {
     require(actual != null, "Boolean parameter actual must not be null")
-    ElabFormalParameter(actual.toElabInt, name, 0, 1).elabEq(1)
+    val integerActual = actual.toElabInt
+    val integerFormal = int(name, integerActual, 0, 1)
+    val formal = integerFormal.elabEq(1)
+    val entries = Component.current.userCache.getOrElseUpdate(BooleanDeclarationKey,
+      scala.collection.mutable.ArrayBuffer.empty[BooleanDeclaration]).asInstanceOf[BooleanDeclarations]
+    entries += BooleanDeclaration(formal, actual, integerFormal, integerActual)
+    formal
   }
 }

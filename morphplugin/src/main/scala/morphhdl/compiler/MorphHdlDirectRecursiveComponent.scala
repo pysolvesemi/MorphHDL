@@ -38,6 +38,9 @@ final class MorphHdlDirectRecursiveComponent(val global: Global) extends PluginC
     case Apply(Select(factory, method), List(_, Ident(actual: TermName), _, _, _))
         if method.decodedName.toString == "optionalInt" && path(factory).lastOption.contains("RtlParam") =>
       Some(value.name -> actual)
+    case Apply(Select(factory, method), List(_, Ident(actual: TermName)))
+        if method.decodedName.toString == "bool" && path(factory).lastOption.contains("RtlParam") =>
+      Some(value.name -> actual)
     case _ => None
   }
 
@@ -57,7 +60,7 @@ final class MorphHdlDirectRecursiveComponent(val global: Global) extends PluginC
     val ports = body.collect { case v: ValDef if v.name.decodedName.toString == "io" => v }
     val formals = body.collect { case v: ValDef if declaration(v).nonEmpty => v -> declaration(v).get }
     if (ports.size != 1 || formals.isEmpty || formals.exists(f => !names.contains(f._2._2))) {
-      reject(original, "declare one io value and integer RtlParam formals bound directly to constructor arguments")
+      reject(original, "declare one io value and integer/Boolean RtlParam formals bound directly to constructor arguments")
       return original
     }
     if (formals.map(_._2._2).distinct.size != formals.size ||
@@ -72,6 +75,18 @@ final class MorphHdlDirectRecursiveComponent(val global: Global) extends PluginC
     }
     val boundaryName = TermName(unitFreshName("recursiveBoundary"))
     val valuesName = TermName(unitFreshName("recursiveValues"))
+    val booleanFormals = formals.collect {
+      case (value, (formal, _)) if (value.rhs match {
+        case Apply(Select(_, method), _) => method.decodedName.toString == "bool"
+        case _ => false
+      }) => formal
+    }.toSet
+    def pair(formal: TermName, actual: Tree, declaration: Boolean): Tree =
+      if (booleanFormals(formal))
+        Apply(Select(core("RtlParam"), TermName(if (declaration) "recursiveBooleanBinding" else "recursiveBooleanOverride")),
+          List(Ident(formal), actual))
+      else Apply(Select(Select(Ident(termNames.ROOTPKG), TermName("scala")), TermName("Tuple2")),
+        List(Ident(formal), actual))
     val bindings = formals.map(_._2)
     val overridesByArgument = bindings.map { case (formal, actual) => actual -> formal }.toMap
     var selfEdges = 0
@@ -163,8 +178,7 @@ final class MorphHdlDirectRecursiveComponent(val global: Global) extends PluginC
               val pairs = ordered.flatMap { case (parameter, actual) =>
                 overridesByArgument.get(parameter) match {
                   case Some(formal) =>
-                    Some(Apply(Select(Select(Ident(termNames.ROOTPKG), TermName("scala")), TermName("Tuple2")),
-                      List(Ident(formal), transform(actual))))
+                    Some(pair(formal, transform(actual), declaration = false))
                   case None =>
                     actual match {
                       case Ident(n: TermName) if n == parameter =>
@@ -185,12 +199,12 @@ final class MorphHdlDirectRecursiveComponent(val global: Global) extends PluginC
     }
     val formalVector = Apply(Select(Select(Ident(termNames.ROOTPKG), TermName("scala")), TermName("Vector")),
       bindings.map { case (formal, actual) =>
-        Apply(Select(Select(Ident(termNames.ROOTPKG), TermName("scala")), TermName("Tuple2")),
-          List(Ident(formal), Ident(actual)))
+        pair(formal, Ident(actual), declaration = true)
       })
     val locals = bindings.zipWithIndex.map { case ((formal, _), index) =>
-      ValDef(Modifiers(), formal, coreType("ElabInt"),
-        Apply(Ident(valuesName), List(Literal(Constant(index)))))
+      val value = Apply(Ident(valuesName), List(Literal(Constant(index))))
+      ValDef(Modifiers(), formal, coreType(if (booleanFormals(formal)) "ElabBool" else "ElabInt"),
+        if (booleanFormals(formal)) Apply(Select(value, TermName("elabEq")), List(Literal(Constant(1)))) else value)
     }
     val valuesType = AppliedTypeTree(Select(Select(Ident(termNames.ROOTPKG), TermName("scala")), TypeName("Vector")),
       List(coreType("ElabInt")))

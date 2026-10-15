@@ -133,7 +133,7 @@ remaining composition, pipeline, recursion and migration evidence.
 ## Direct-constructor prototype (LWR-06, qualification pending)
 
 A final component annotated with `@_root_.spinal.core.rtlRecursive` can declare
-integer `RtlParam` formals and a single `io` Bundle, then construct itself directly
+integer/Boolean `RtlParam` formals and a single `io` Bundle, then construct itself directly
 inside a proven parameter branch. The frontend derives an interface constructor
 and exact formal bindings; it does not execute the recursive Scala constructor.
 Every native edge still undergoes decreasing-domain, ownership, port geometry
@@ -143,7 +143,7 @@ The current prototype requires one constructor argument list, formals declared
 before `io`, and every recursive constructor argument supplied explicitly.
 Positional and named bindings are supported; named bindings may be reordered.
 Duplicate, unknown, missing and positional-after-named bindings reject. Authored
-parameter expression evaluation order is retained. Integer formals map to distinct constructor arguments; other arguments
+parameter expression evaluation order is retained. Integer and Boolean formals map to distinct constructor arguments; other arguments
 must forward their exact unshadowed constructor binding. Changing an operation,
 payload factory or other specialization during recursion is rejected. Construction paths
 not rewritten by the frontend are rejected by an ancestry guard;
@@ -223,8 +223,9 @@ else for (i <- 0 until nextCount(count)) { /* typed body */ }
 
 The syntax pass uses the lexical return-type declaration, then ordinary Scala
 typing and native expression validation still apply. A shadowing host helper
-retains host semantics. Inferred helper return types, overloaded helpers and
-arbitrary qualified member calls need explicit typed result bindings at present;
+retains host semantics. Simple, non-overloaded single-expression helper returns are inferred through
+lexical calls, including forward helper calls. Overloaded helpers, block-valued
+helpers and arbitrary qualified member calls need explicit typed result bindings;
 no carrier meaning is guessed from a method name or argument subtree. This does
 not authorize side effects or cross-component captures.
 
@@ -259,3 +260,17 @@ Ordinary helpers that shadow a name, and metadata/host operations such as
 helpers still require an explicit typed intermediate or return annotation; there
 is no inference based merely on a subtree mentioning a parameter. Existing domain,
 index-escape and recursive-construction checks remain authoritative.
+
+## Boolean recursive bindings (local validation, remote pending)
+
+An `ElabBool` constructor actual declared with `RtlParam.bool` can be forwarded
+by a direct recursive call, including a named argument. The compiler authenticates
+the Boolean declaration and its exact constructor actual, then binds the retained
+0/1 integer formal. No user conversion to `ElabInt` is required. Equivalent-looking
+Boolean expressions cannot impersonate the declaration or borrow another owner's
+slot. Interface reconstruction uses the substituted slot's Boolean predicate.
+
+`LightweightBooleanRecursiveTests` checks source defaults COUNT=1/5 and both
+Boolean defaults, with COUNT overrides 1/2/3/5/7/8 and both Boolean overrides on
+each artifact. It includes singleton Z passthrough, randomized and one-hot inputs,
+compile/lint/synthesis checks and declaration-identity negatives.
