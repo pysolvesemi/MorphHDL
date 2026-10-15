@@ -5,7 +5,21 @@ package build
 import mill._, mill.api._, scalalib._, publish._
 import build.project.{CompilerPluginCache, SpinalVersion}
 
-trait SpinalModule extends SbtModule with CrossSbtModule { outer =>
+/** Mill 1.1 caches its derived fork PATH without tracking the caller's PATH.
+  * Model tool selection as an input so a newly installed/pinned simulator also
+  * reaches already-cached test modules. Preserve Mill's selected JDK first.
+  */
+trait NativeToolEnvironment extends JavaModule {
+  def nativeToolPath = Task.Input {
+    Task.env.find(_._1.equalsIgnoreCase("PATH")).map(_._2)
+  }
+  override def javaHomePathForkEnv: T[Map[String, String]] = Task {
+    val javaBin = (javaHome().fold(os.Path(sys.props("java.home")))(_.path) / "bin").toString
+    Map("PATH" -> (Seq(javaBin) ++ nativeToolPath().toSeq).mkString(java.io.File.pathSeparator))
+  }
+}
+
+trait SpinalModule extends SbtModule with CrossSbtModule with NativeToolEnvironment { outer =>
   def scalatestVersion = "3.2.14"
   def scalacOptions = super.scalacOptions() ++ Seq("-unchecked", "-Yrangepos", "-target:jvm-1.8")
   def javacOptions = super.javacOptions() ++ Seq("-source", "1.8", "-target", "1.8")
@@ -22,7 +36,7 @@ trait SpinalModule extends SbtModule with CrossSbtModule { outer =>
   def testModuleDeps: Seq[JavaModule] = Seq.empty
   def testScalaCompiler: Boolean = false
 
-  object test extends CrossSbtTests with TestModule.ScalaTest {
+  object test extends CrossSbtTests with TestModule.ScalaTest with NativeToolEnvironment {
     override def moduleDeps = super.moduleDeps ++ outer.testModuleDeps
     def mvnDeps = Seq(mvn"org.scalatest::scalatest::${scalatestVersion}") ++
       (if (outer.testScalaCompiler) Seq(mvn"org.scala-lang:scala-compiler:${scalaVersion}") else Seq.empty)

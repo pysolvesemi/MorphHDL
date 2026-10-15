@@ -147,3 +147,44 @@ or producing one; missing/stale receipt rejection remains mandatory.
 Fresh successor remote qualification remains required. Full CI, application
 migration and all roadmap completion boxes remain pending. No hourly monitor is
 active because a suitable scheduling capability is unavailable.
+
+### Local repair of targeted behavioral failures (15 October 2026)
+
+The retirement run 38725457946 on historical candidate
+`f0ee2a168c0dc35140e7197d6639ffd78264dd2b` exposed two balanced-reduction
+publication failures in both build systems and Scala versions. The pinned
+Icarus elaborator rejected stage-net selections before their declarations.
+The local pre-repair run of `spinal.core.internals.TypedBalancedReductionPublicationTests`
+and `spinal.core.internals.TypedBalancedReductionCompositeTests` reproduced
+both failures (26 passing, two failing cases). The emitter now places its
+owned module-stage declarations after the module header and before native
+consumers; nested reductions retain their exact lexical scope. Scalar,
+composite and widening-composite publication use the same placement rule.
+Operator bodies, register placement, signedness and topology are unchanged.
+
+The complete local Mill 2.12 run on `ea7d5ae74c8137295054ffe2da5d613347d63b2d`
+passed 97 plugin cases and 273 native cases, but failed one mixed-index case:
+Mill's cached fork PATH selected system Icarus 12 despite the runner selecting
+the pinned simulator. This is a failed run, not qualification. `build.mill` now
+tracks caller PATH with `Task.Input`, retaining the selected JDK first. The
+A/B/A regression changes PATH against the same cached outer/test module graph;
+it passes on Scala 2.12.18 and 2.13.12. The two focused mixed-index cases pass
+on Scala 2.12 with the corrected fork environment. Successor qualification is
+still required.
+
+Eight environment-gated formal/CDC cases were cancelled in the retirement
+unit-suite jobs. They are not passes. Their applicable proof runs are enrolled
+separately: primitive/Vec/StreamFifo proofs in the retirement/layering workflows,
+and library/Axi4/CDC proofs in Increment 59a's pinned proof jobs. Closure must
+verify those exact-head proof jobs, including mutation controls, independently
+of the unit-suite totals.
+
+The completed repair checks pass 66 selected balanced-reduction tests on each
+Scala version under SBT (including nested ownership, widening, register bridges
+and safety rejection). Mill 2.13 passes the 28 previously affected publication
+cases plus both mixed-index cases; Mill 2.12 passes both mixed-index cases.
+No selected case is cancelled or skipped. Logs and exact development-source
+hashes are retained in the external `balanced-path-repair.json` receipt. These
+are local repair results; remote qualification of the sealed successor remains
+pending. Layering, retirement, recursive-module mutation guards and the
+integration-seal mutation self-test also pass locally.
