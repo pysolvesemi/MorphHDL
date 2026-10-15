@@ -15,8 +15,8 @@ final class LightweightGuardedRegisters(mode: String) extends Component {
   val foreign=if(mode=="foreign") Reg(Bits(width bits)) init(0) else null
   for(i<-0 until count) {
     val bits=if(mode=="foreign") foreign else Reg(Bits(width bits)) init(0)
-    val signed=Reg(SInt(width bits)) init(0)
-    val flag=Reg(Bool()) init(False)
+    val signed=Reg(SInt(width bits)) init(if(mode=="nonzero") -1 else 0)
+    val flag=Reg(Bool()) init(if(mode=="nonzero") True else False)
     bits.addAttribute("keep")
     if(i+1<count) {
       bits := bits ^ source(i)
@@ -43,8 +43,9 @@ class LightweightGuardedRegisterTests extends AnyFunSuite {
     }
     dir
   }
-  for(packed<-Seq(false,true)) test(s"static register next-value joins preserve signed bits Boolean and feedback packed=$packed") {
-    val dir=generate(packed,"valid");val again=generate(packed,"valid")
+  for(packed<-Seq(false,true); nonzero<-Seq(false,true)) test(s"static register next-value joins preserve signed bits Boolean and feedback packed=$packed nonzero=$nonzero") {
+    val mode=if(nonzero) "nonzero" else "valid"
+    val dir=generate(packed,mode);val again=generate(packed,mode)
     val rtl=new String(Files.readAllBytes(dir.resolve("GuardedRegisters.v")),"UTF-8")
     assert(rtl==new String(Files.readAllBytes(again.resolve("GuardedRegisters.v")),"UTF-8"))
     assert(rtl.contains("keep"),rtl)
@@ -54,7 +55,7 @@ class LightweightGuardedRegisterTests extends AnyFunSuite {
 wire [N*W-1:0] actualBits,actualSigned;wire [N-1:0] actualFlags;
 reg [N*W-1:0] expectedBits,expectedSigned;reg [N-1:0] expectedFlags;integer i;
 GuardedRegisters #(.COUNT(N),.WIDTH(W)) dut(.source(data[N*W-1:0]),.bitsResult(actualBits),.signedResult(actualSigned),.flags(actualFlags),.clk(clk),.reset(reset));
-always @(posedge clk or posedge reset) if(reset) begin expectedBits=0;expectedSigned=0;expectedFlags=0;end else begin
+always @(posedge clk or posedge reset) if(reset) begin expectedBits=0;expectedSigned=${if(nonzero) "{N*W{1'b1}}" else "0"};expectedFlags=${if(nonzero) "{N{1'b1}}" else "0"};end else begin
 for(i=0;i<N;i=i+1) if(i+1<N) begin
 expectedBits[i*W+:W]=expectedBits[i*W+:W]^data[i*W+:W];
 expectedSigned[i*W+:W]=expectedSigned[i*W+:W]+data[i*W+:W];expectedFlags[i]=~expectedFlags[i];

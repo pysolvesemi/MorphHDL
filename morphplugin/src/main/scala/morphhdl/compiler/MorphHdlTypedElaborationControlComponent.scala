@@ -47,7 +47,8 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       typedEqualities: IdentityHashMap[Tree, java.lang.Boolean],
       typedRanges: IdentityHashMap[Tree, java.lang.Boolean],
       scopedIfs: IdentityHashMap[Tree, java.lang.Boolean],
-      hostMutations: IdentityHashMap[Tree, java.lang.Boolean]
+      hostMutations: IdentityHashMap[Tree, java.lang.Boolean],
+      helperEffects: IdentityHashMap[Tree, java.lang.Boolean]
   )
 
   private final case class WildcardMembers(
@@ -201,8 +202,13 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     val scopedIfs = new IdentityHashMap[Tree, java.lang.Boolean]()
     val hostMutations = new IdentityHashMap[Tree, java.lang.Boolean]()
 
+    val helperReferences = new IdentityHashMap[Tree, DefDef]()
+    val helperEffects = new IdentityHashMap[Tree, java.lang.Boolean]()
+    val methods = mutable.ArrayBuffer.empty[DefDef]
+
     final class LexicalScope {
       val terms = mutable.LinkedHashMap.empty[TermName, BindingKind]
+      val methods = mutable.LinkedHashMap.empty[TermName, DefDef]
       val mutableTerms = mutable.LinkedHashSet.empty[TermName]
       val callResults = mutable.LinkedHashMap.empty[TermName, BindingKind]
       val localTypes = mutable.LinkedHashMap.empty[TypeName, BindingKind]
@@ -216,6 +222,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     }
 
     var scopes = List(new LexicalScope)
+    var templates = List.empty[LexicalScope]
     var currentPackage = Vector.empty[String]
     val sourceWildcardProviders = currentRunWildcardProviders
     val sourceWildcardStableTerms = currentRunWildcardStableTerms
@@ -613,12 +620,14 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       else typeKind(value.tpt)
 
     def bind(value: ValDef): Unit = {
+      scopes.head.methods -= value.name
       scopes.head.terms.update(value.name, bindingKind(value))
       if (value.mods.hasFlag(Flag.MUTABLE)) scopes.head.mutableTerms += value.name
       else scopes.head.mutableTerms -= value.name
     }
 
     def bindOrdinary(name: TermName): Unit = {
+      scopes.head.methods -= name
       scopes.head.terms.update(name, OrdinaryBinding)
       scopes.head.mutableTerms -= name
     }
@@ -656,6 +665,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     def bindMethods(values: List[Tree]): Unit = {
       val unique = values.collect { case method: DefDef => method }.groupBy(_.name)
         .collect { case (_, List(method)) => method }.toVector
+      unique.foreach(method => scopes.head.methods(method.name) = method)
       // Only exact lexical bindings and recognized carrier expressions participate.
       // A bounded fixed point permits forward helpers without guessing recursive,
       // overloaded, qualified or metadata-returning method semantics.
@@ -840,12 +850,16 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
             // Recording every member also lets ordinary members shadow typed
             // constructor parameters or enclosing values deterministically.
             prepareScope(template.body)
-            template.parents.foreach(traverse)
-            traverse(template.self)
-            template.body.foreach(traverse)
+            templates = scopes.head :: templates
+            try {
+              template.parents.foreach(traverse)
+              traverse(template.self)
+              template.body.foreach(traverse)
+            } finally templates = templates.tail
           }
 
         case definition: DefDef =>
+          methods += definition
           withScope {
             definition.tparams.foreach(parameter => bindTypeOrdinary(parameter.name))
             definition.vparamss.flatten.foreach(bind)
@@ -872,7 +886,9 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
           withScope {
             prebindTypes(block.stats)
             block.stats.foreach {
-              case definition: ValDef => bindOrdinary(definition.name)
+              case definition: ValDef =>
+                bindOrdinary(definition.name)
+                if (definition.mods.hasFlag(Flag.MUTABLE)) scopes.head.mutableTerms += definition.name
               case definition: DefDef => bindOrdinary(definition.name)
               case definition: ModuleDef => bindOrdinary(definition.name)
               case _ =>
@@ -945,6 +961,18 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
           mark(hostMutations, original)
           super.traverse(original)
 
+        case original @ Apply(Select(Select(This(owner), name: TermName), operator), _)
+            if owner == typeNames.EMPTY && decoded(operator).endsWith("=") &&
+              !Set("==", "!=", "<=", ">=", ":=")(decoded(operator)) &&
+              templates.headOption.exists(_.mutableTerms(name)) =>
+          mark(hostMutations, original)
+          super.traverse(original)
+
+        case reference @ Select(This(owner), name: TermName) if owner == typeNames.EMPTY =>
+          templates.headOption.flatMap(_.methods.get(name))
+            .foreach(method => helperReferences.put(reference, method))
+          super.traverse(reference)
+
         case original: Match =>
           if (isTypedBoolean(original.selector)) mark(typedMatches, original)
           super.traverse(original)
@@ -982,11 +1010,58 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
             )
           super.traverse(original)
 
+        case reference @ Ident(name: TermName) =>
+          scopes.collectFirst { case scope if scope.terms.contains(name) => scope.methods.get(name) }
+            .flatten.foreach(method => helperReferences.put(reference, method))
+          super.traverse(current)
+
         case _ => super.traverse(current)
       }
     }
 
     Classifier.traverse(tree)
+    // Exact lexical method identities only: no spelling-based purity guesses for
+    // qualified, overloaded or external methods. Nested definitions contribute
+    // only when referenced, while forward calls participate in the fixed point.
+    val unsafe = new IdentityHashMap[DefDef, java.lang.Boolean]()
+    val dependencies = new IdentityHashMap[DefDef, Vector[DefDef]]()
+    methods.foreach { method =>
+      val calls = mutable.ArrayBuffer.empty[DefDef]
+      object Effects extends Traverser {
+        override def traverse(current: Tree): Unit = current match {
+          case _: DefDef =>
+          case _: ClassDef =>
+          case _: ModuleDef =>
+          case _: Assign | _: Return | _: Throw =>
+            unsafe.put(method, java.lang.Boolean.TRUE)
+            super.traverse(current)
+          case value: ValDef if value.mods.hasFlag(Flag.MUTABLE) =>
+            unsafe.put(method, java.lang.Boolean.TRUE)
+            super.traverse(current)
+          case other =>
+            if (hostMutations.containsKey(other)) unsafe.put(method, java.lang.Boolean.TRUE)
+            Option(helperReferences.get(other)).foreach(calls += _)
+            super.traverse(current)
+        }
+      }
+      Effects.traverse(method.rhs)
+      dependencies.put(method, calls.toVector)
+    }
+    var changed = true
+    while (changed) {
+      changed = false
+      methods.foreach { method =>
+        if (!unsafe.containsKey(method) && dependencies.get(method).exists(unsafe.containsKey)) {
+          unsafe.put(method, java.lang.Boolean.TRUE)
+          changed = true
+        }
+      }
+    }
+    val references = helperReferences.entrySet().iterator()
+    while (references.hasNext) {
+      val entry = references.next()
+      if (unsafe.containsKey(entry.getValue)) helperEffects.put(entry.getKey, java.lang.Boolean.TRUE)
+    }
     ClassifiedTrees(
       typedIfs,
       typedMatches,
@@ -995,7 +1070,8 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       typedEqualities,
       typedRanges,
       scopedIfs,
-      hostMutations
+      hostMutations,
+      helperEffects
     )
   }
 
@@ -1340,6 +1416,8 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
         rejectStagedEffect(original, "mutable host declaration")
       case original if checkedEffectDepth > 0 && classified.hostMutations.containsKey(original) =>
         rejectStagedEffect(original, "compound host assignment")
+      case original if checkedEffectDepth > 0 && classified.helperEffects.containsKey(original) =>
+        rejectStagedEffect(original, "lexical helper with a host effect")
       case original: Block if stagedDepth > 0 =>
         val statements = original.stats.map {
           case value: ValDef if !value.mods.hasFlag(Flag.MUTABLE) &&

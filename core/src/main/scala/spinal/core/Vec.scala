@@ -337,7 +337,10 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
   private[core] def vecTransposed: ArrayBuffer[ArrayBuffer[BaseType]] = {
     if (vecTransposedCache == null) {
       vecTransposedCache = new ArrayBuffer[ArrayBuffer[BaseType]]()
-      val size = dataType().flatten.size
+      // Transpose the exact existing native carriers. Constructing another
+      // dataType merely to count leaves allocates unused nested Vec declarations
+      // with retained formal identities when the element itself is an aggregate.
+      val size = vec.head.flatten.size
 
       for (i <- 0 until size)
         vecTransposedCache += ArrayBuffer[BaseType]()

@@ -5,7 +5,7 @@
   "working_directory": "/home/kartik/.local/state/morphhdl/worktrees/lightweight-scala-rtl",
   "branch": "work/lightweight-scala-rtl",
   "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
-  "phase": "Direct staged-effect diagnostics and explicit weak naming repaired locally; helper effects and mixed indices next",
+  "phase": "Helper effects and mixed hardware/scoped reads pass local cross-version checks; decoded writes and remaining roadmap closure next",
   "completed_phases": [],
   "remote_qualification": "not launched; no new candidate published",
   "application_migration": "not started; requires qualified compiler",
@@ -286,5 +286,30 @@
       "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/staged-effects-fifo-repaired",
       "scope": "native StreamFifo/StreamFifoCC and concrete compatibility plus explicit strong/weak staged local names; original three naming failures retained in staged-effects-fifo.log"
     }
+  },
+  "local_validation_helper_effects": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "compiler_tests_per_scala": 71,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/helper-this-effects.log",
+    "scope": "exact lexical helper call graph and unqualified-this field/method ownership, with shadowing; callback/external-helper purity remains open"
+  },
+  "mixed_index_development": {
+    "source_fix": "Vec transposition counts exact existing leaves instead of allocating unused nested typed storage",
+    "local_validation": {
+      "scala_versions": [
+        "2.12.18",
+        "2.13.12"
+      ],
+      "tests_per_scala": 55,
+      "suites": 9,
+      "scope": "mixed reads with invalid and XZ selectors, zero/nonzero initialized register joins, nested write identity controls, reductions, parameters, inferred helpers and names",
+      "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/helper-mixed-final",
+      "formal": "Each layout has three positive two-state flat-reference SAT profiles and one corrupted-reference rejection; separate reset/feedback induction remains in guarded-register tests"
+    },
+    "simulator_commit": "af348e2a468d3e58bf2aa10a5ae97734b59e48ea",
+    "remaining": "CI simulator enrollment and fresh exact-final-head qualification; system Icarus12 singleton unpacked alias failure retained"
   }
 }

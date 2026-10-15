@@ -356,11 +356,35 @@ inside an ordinary checked body does not clear that body's effect boundary.
 Runtime escape and transaction-rollback tests use explicit capture APIs so the
 underlying defenses remain tested independently of frontend rejection.
 
-This is not a proof of arbitrary helper or callback purity. Transitive effects,
-qualified mutable receivers, collection mutation and I/O need additional analysis
-before the broader effect acceptance item can close.
+Unique unqualified lexical helpers retain exact definition identities. Known
+host effects propagate through their call graph, including forward calls and
+parameterless references; a staged reference to an effectful helper is rejected.
+Nearest lexical bindings determine identity, so a same-named pure local helper
+is not confused with an effectful outer method. Unqualified `this` references
+resolve against the exact enclosing template, independently of local shadowing.
+Concrete calls remain unchanged.
+
+This is not a proof of arbitrary helper or callback purity. Other qualified mutable
+receivers, overloaded/external helpers, collection mutation and I/O need
+additional analysis before the broader effect acceptance item can close.
 
 Compiler-supplied staged local names preserve explicit weak `setName` requests,
 as well as strong names and `keep` attributes. This fallback does not replace
 native naming priorities for ordinary reflected component fields. FIFO width
 assertions and behavioral regressions cover the weak-name compatibility path.
+
+## Mixed hardware and scoped array reads (qualification pending)
+
+`source(row)(j)` admits a hardware UInt row and a scoped finite-loop column
+without converting either coordinate into the other kind. Existing nested Vec
+carriers supply the native transpose shape; counting leaves must not allocate
+an unused typed Vec. The selected row retains signed element geometry and its
+ordinary finite column selection. Known out-of-range hardware rows select the
+last row, matching the retained native read policy; unknown row selectors produce
+unknown data. This is distinct from static selector domain rejection.
+
+Both layouts have local cross-version simulation, lint, synthesis and independent
+two-state SAT evidence, including a rejected corrupt reference. The signed and
+Boolean guarded-register fixtures also cover nonzero resets. See `toolchain.md`
+for the pinned simulator needed by the singleton unpacked-array case. Mixed
+hardware/scoped decoded writes remain a separate, unclosed composition.

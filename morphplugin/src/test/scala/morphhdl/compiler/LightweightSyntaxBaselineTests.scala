@@ -353,4 +353,95 @@ class LightweightSyntaxBaselineTests extends AnyFunSuite {
     assert(nested.exists(_.message.contains("MORPHDL-STAGED-HOST-EFFECT-UNSUPPORTED")),nested.mkString("\n"))
   }
 
+  test("staged lexical helper effects propagate through forward calls and parameterless references") {
+    for (body <- Seq(
+      "def first(): Unit = second(); def second(): Unit = { host += 1 }; for(i <- 0 until count) first()",
+      "def first: Unit = second; def second: Unit = { host = 2 }; if(count > 1) first",
+      "def first(): Unit = { throw new IllegalArgumentException }; if(count > 1) first()",
+      "def first(): Unit = { return }; for(i <- 0 until count) first()",
+      "def first(): Unit = { var local = 0; local += 1 }; if(count > 1) first()"
+    )) {
+      val errors = compile(definitions + s"""
+        package helpereffects {
+          import spinal.core._
+          object Probe { def run(count: ElabInt): Unit = { var host=0; $body } }
+        }
+      """, "HelperEffects.scala")
+      assert(errors.exists(_.message.contains("MORPHDL-STAGED-HOST-EFFECT-UNSUPPORTED")), errors.mkString("\n"))
+    }
+  }
+
+  test("helper effects preserve nearest lexical identity and concrete calls") {
+    val errors = compile(definitions + """
+      package helpercontrols {
+        import spinal.core._
+        object Probe {
+          var host=0
+          def effect(): Unit = { host += 1 }
+          def run(count: ElabInt): Unit = {
+            effect()
+            def pure(): Unit = ()
+            for(i <- 0 until count) {
+              def effect(): Unit = pure()
+              effect()
+            }
+          }
+        }
+      }
+    """, "HelperControls.scala")
+    assert(errors.isEmpty, errors.mkString("\n"))
+  }
+
+  test("forward local mutable declarations retain effect identity inside staged helpers") {
+    val errors = compile(definitions + """
+      package forwardmutation {
+        import spinal.core._
+        object Probe {
+          def run(count: ElabInt): Unit = {
+            def mutate(): Unit = { for(i <- 0 until count) host += 1 }
+            var host=0
+            mutate()
+          }
+        }
+      }
+    """, "ForwardMutation.scala")
+    assert(errors.exists(_.message.contains("MORPHDL-STAGED-HOST-EFFECT-UNSUPPORTED")), errors.mkString("\n"))
+  }
+
+  test("this-qualified effects retain template identity through local shadowing") {
+    for(body<-Seq(
+      "for(i <- 0 until count) { val state=new Hardware; this.state += 1 }",
+      "if(count > 1) this.mutate()",
+      "if(count > 1) { def mutate(): Unit=(); this.mutate() }"
+    )) {
+      val errors=compile(definitions+s"""
+        package thiseffects {
+          import spinal.core._
+          class Hardware { def +=(v: Int): Unit=() }
+          class Probe {
+            var state=0
+            def mutate(): Unit={ this.state += 1 }
+            def run(count: ElabInt): Unit={ $body }
+          }
+        }
+      ""","ThisEffects.scala")
+      assert(errors.exists(_.message.contains("MORPHDL-STAGED-HOST-EFFECT-UNSUPPORTED")),errors.mkString("\n"))
+    }
+    val positive=compile(definitions+"""
+      package thiscontrols {
+        import spinal.core._
+        class Hardware { def +=(v: Int): Unit=() }
+        class Probe {
+          val state=new Hardware
+          def pure(): Unit=()
+          def run(count: ElabInt): Unit={
+            var state=0
+            for(i <- 0 until count) { this.state += 1; this.pure() }
+          }
+        }
+      }
+    ""","ThisControls.scala")
+    assert(positive.isEmpty,positive.mkString("\n"))
+  }
+
 }
