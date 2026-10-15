@@ -188,3 +188,21 @@ hashes are retained in the external `balanced-path-repair.json` receipt. These
 are local repair results; remote qualification of the sealed successor remains
 pending. Layering, retirement, recursive-module mutation guards and the
 integration-seal mutation self-test also pass locally.
+
+### Workflow graph repair after dispatch rejection (15 October 2026)
+
+Candidate `6796f91c23bdf657a4afb225c1cbabed2b5522c0` passed source/provenance
+run 38732910506. Six behavioral workflows started. The dispatcher then received
+HTTP 422 for Increment 59a. Local actionlint 1.7.12 identified its dangling
+`strict-tools` dependency: earlier retirement editing had removed the job header,
+leaving the proof steps inside `focused-recursion`. The separate job is restored
+byte-for-byte in parsed configuration from integration target `db54d01e`, with
+both Scala lanes, its original timeout, proof commands and artifact retention.
+No gate is removed from closure.
+
+Three non-matrix source jobs also used `matrix.scala` in artifact names; they now
+use the same effective literal `source` name. All 17 enrolled targeted/full-CI
+workflow definitions pass actionlint locally. The source gate now runs the same
+validation using a release archive pinned by SHA-256 before producing provenance.
+Existing source tests, matrices and behavioral commands remain mandatory.
+The six prior-head runs remain intact; they cannot qualify this repaired source.
