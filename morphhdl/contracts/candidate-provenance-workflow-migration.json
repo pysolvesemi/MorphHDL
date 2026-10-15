@@ -67,7 +67,7 @@
     },
     ".github/workflows/increment-59f-callback-graphs.yml": {
       "before_sha256": "c4f54300f94d4644c9c49bd68c365523137bbf5c74c8bd89628adf5825c4ad67",
-      "after_sha256": "f37f6b44097ccad2337c038e82eb621344e7453c1354858f85008a9ce176d04f",
+      "after_sha256": "f3af2fe52cdf4e0e3253f5a6e48d57804a2e1b527104147f0a1035ad98138c97",
       "patches": [
         {
           "before": "\npermissions:\n  contents: read\n\nconcurrency:\n  group: increment-59f-callback-graphs-${{ github.ref }}\n",
@@ -76,6 +76,10 @@
         {
           "before": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Preserve exact-head evidence and audit native boundaries\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          output=\"$GITHUB_WORKSPACE/target/increment-59f-callback-graphs\"\n          mkdir -p \"$output/bootstrap\"\n",
           "after": "          fetch-depth: 0\n          submodules: recursive\n          persist-credentials: false\n      - name: Consume authenticated candidate provenance\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py\n      - name: Preserve exact-head evidence and audit native boundaries\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          output=\"$GITHUB_WORKSPACE/target/increment-59f-callback-graphs\"\n          mkdir -p \"$output/bootstrap\"\n"
+        },
+        {
+          "before": "          name: integrated-source-increment-59f-callback-graphs-${{ matrix.scala || 'source' }}-${{ github.run_attempt }}\n",
+          "after": "          name: integrated-source-increment-59f-callback-graphs-source-${{ github.run_attempt }}\n"
         }
       ]
     },
@@ -103,7 +107,7 @@
     },
     ".github/workflows/increment-59h-nested-owners.yml": {
       "before_sha256": "0f2f6e3a1649e2f67070ff0b6020192b0f6cb7de345b419bdb8da6a7f8c8e38c",
-      "after_sha256": "a66f928cd8b2c1989d0616213d02cdca23dfefb524eb9b942f5fde48f06a6670",
+      "after_sha256": "344c0cf8706891dd54ed1c780cee2be9152df13c959c69388fbfa81c244e723c",
       "patches": [
         {
           "before": "\npermissions:\n  contents: read\n\nconcurrency:\n  group: increment-59h-nested-owners-${{ github.ref }}\n",
@@ -116,6 +120,10 @@
         {
           "before": "              'TypedBalancedReductionNestedOwnerTests': 18,\n",
           "after": "              'TypedBalancedReductionNestedOwnerTests': 19,\n"
+        },
+        {
+          "before": "          name: integrated-source-increment-59h-nested-owners-source-${{ matrix.scala || 'source' }}-${{ github.run_attempt }}\n",
+          "after": "          name: integrated-source-increment-59h-nested-owners-source-source-${{ github.run_attempt }}\n"
         }
       ]
     },
@@ -219,15 +227,19 @@
     },
     ".github/workflows/morphhdl-native-source-guard.yml": {
       "before_sha256": "2d56e9e23c9af9a112732ad780cf6857d76a34a46c2f39f4c641732d5b419bb3",
-      "after_sha256": "f4c437482d3aa970d86b3a64f000bdd934771eec539ac0dd8fcfb94e80d85fc0",
+      "after_sha256": "e4b10316ce64908d826ec7c779a84b37b7eb43fe33c6db214be4697f0200a8ae",
       "patches": [
         {
           "before": "        with:\n          ref: ${{ github.event.pull_request.head.sha || github.sha }}\n          fetch-depth: 0\n      - name: Syntax-check and self-test the exact native boundary\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          python3 morphhdl/scripts/test-parameterized-inherited-audit.py\n          python3 morphhdl/scripts/test-increment-59i-inherited-audit-budgets.py\n          python3 morphhdl/scripts/test-audit-git-batch.py\n          test -x morphhdl/scripts/check-native-streamfifocc-boundary.sh\n",
-          "after": "        with:\n          ref: ${{ github.event.pull_request.head.sha || github.sha }}\n          fetch-depth: 0\n      - name: Authenticate candidate provenance once\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py --produce\n      - name: Syntax-check and self-test the exact native boundary\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          python3 morphhdl/scripts/check-retained-parameterized-regressions.py --self-test\n          python3 morphhdl/scripts/test-parameterized-inherited-audit.py\n          python3 morphhdl/scripts/test-candidate-provenance.py\n          python3 morphhdl/scripts/test-candidate-provenance-ci.py\n          python3 morphhdl/scripts/test-increment-59i-inherited-audit-budgets.py\n          python3 morphhdl/scripts/test-audit-git-batch.py\n          test -x morphhdl/scripts/check-native-streamfifocc-boundary.sh\n"
+          "after": "        with:\n          ref: ${{ github.event.pull_request.head.sha || github.sha }}\n          fetch-depth: 0\n      - name: Validate enrolled qualification workflow definitions\n        shell: bash\n        run: bash morphhdl/scripts/lightweight-scala-rtl/check-workflows.sh\n      - name: Authenticate candidate provenance once\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: python3 morphhdl/scripts/candidate_provenance_ci.py --produce\n      - name: Syntax-check and self-test the exact native boundary\n        shell: bash\n        run: |\n          set -euo pipefail\n          python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test\n          python3 morphhdl/scripts/check-retained-parameterized-regressions.py --self-test\n          python3 morphhdl/scripts/test-parameterized-inherited-audit.py\n          python3 morphhdl/scripts/test-candidate-provenance.py\n          python3 morphhdl/scripts/test-candidate-provenance-ci.py\n          python3 morphhdl/scripts/test-increment-59i-inherited-audit-budgets.py\n          python3 morphhdl/scripts/test-audit-git-batch.py\n          test -x morphhdl/scripts/check-native-streamfifocc-boundary.sh\n"
         },
         {
           "before": "          path: target/parameterized-inherited-audits\n          if-no-files-found: error\n          retention-days: 30\n",
           "after": "          path: target/parameterized-inherited-audits\n          if-no-files-found: error\n          retention-days: 30\n      - name: Retain authenticated candidate provenance\n        uses: actions/upload-artifact@v4\n        with:\n          name: candidate-provenance-${{ env.MORPHHDL_PROVENANCE_HEAD }}-${{ github.run_attempt }}\n          path: target/parameterized-inherited-audits/candidate-provenance/receipt.json\n          if-no-files-found: error\n          retention-days: 30\n"
+        },
+        {
+          "before": "          name: integrated-source-morphhdl-native-source-guard-guard-${{ matrix.scala || 'source' }}-${{ github.run_attempt }}\n",
+          "after": "          name: integrated-source-morphhdl-native-source-guard-guard-source-${{ github.run_attempt }}\n"
         }
       ]
     }

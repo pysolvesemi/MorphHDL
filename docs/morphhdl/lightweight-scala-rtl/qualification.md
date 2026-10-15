@@ -206,3 +206,10 @@ workflow definitions pass actionlint locally. The source gate now runs the same
 validation using a release archive pinned by SHA-256 before producing provenance.
 Existing source tests, matrices and behavioral commands remain mandatory.
 The six prior-head runs remain intact; they cannot qualify this repaired source.
+
+The first restored-graph source run (38735247608, candidate `8859adf02`) passed
+workflow validation and provenance production, then correctly rejected three
+workflow bytes against the unchanged migration manifest. The manifest now records
+the exact artifact-name substitutions and added validation step; its reversal
+still reproduces the frozen baseline. All six migration tests, including
+missing/duplicate/modified-hunk rejection, pass. Historical evidence is unchanged.
