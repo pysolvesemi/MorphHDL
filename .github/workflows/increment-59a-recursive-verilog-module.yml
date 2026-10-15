@@ -8,6 +8,7 @@ on:
   pull_request:
     branches:
       - parameterized-verilog
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -44,7 +45,11 @@ jobs:
           base=''
           workflow=.github/workflows/increment-59a-recursive-verilog-module.yml
 
-          if [[ "$EVENT_NAME" == pull_request ]]; then
+          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+            git fetch --no-tags origin parameterized-verilog
+            base="$(git merge-base HEAD origin/parameterized-verilog)"
+            run=true
+          elif [[ "$EVENT_NAME" == pull_request ]]; then
             if ! git cat-file -e "$PR_BASE:$workflow" 2>/dev/null; then
               base="$PR_BASE"
               run=true
