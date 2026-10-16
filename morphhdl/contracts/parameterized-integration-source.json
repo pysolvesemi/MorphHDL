@@ -120,7 +120,7 @@
     },
     ".github/workflows/morphhdl-external-structural-process.yml": {
       "mode": "100644",
-      "sha256": "9ccc4924a995be853e16263e85104ef722d5f2f590b4626d87995356ddd6ed88"
+      "sha256": "77aae3d7d1e260928c4daf4785f130e01d36d68618addce9063e2c47e5be6a08"
     },
     ".github/workflows/morphhdl-external-symbolic-width.yml": {
       "mode": "100644",
