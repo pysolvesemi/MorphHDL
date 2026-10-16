@@ -2,9 +2,24 @@ package spinal.core
 
 /** Syntax adapter only: all bounds, guard and lineage proofs remain native. */
 private[core] final class ElabFiniteAffineIndex(
-    index: ElabFiniteIndex, coefficient: Int, offset: Int) extends ElabScopedIndex {
+    private[core] val index: ElabFiniteIndex, private[core] val coefficient: Int, private[core] val offset: Int) extends ElabScopedIndex {
   require(index != null && coefficient > 0 && offset >= 0,
     "scoped affine selectors require a positive coefficient and nonnegative offset")
+
+  def downto(low: ElabScopedIndex): ElabScopedRange = {
+    val bottom = low match {
+      case value: ElabFiniteIndex => new ElabFiniteAffineIndex(value, 1, 0)
+      case value: ElabFiniteAffineIndex => value
+      case _ => throw new IllegalArgumentException("SPINAL-SCOPED-RANGE-IDENTITY: unsupported lower bound")
+    }
+    require((bottom.index eq index) && bottom.coefficient == coefficient && offset >= bottom.offset,
+      "SPINAL-SCOPED-RANGE-IDENTITY: bounds require the same loop and stride, with positive width")
+    val width = Math.addExact(Math.subtractExact(offset,bottom.offset),1)
+    new ElabScopedRange {
+      private[core] def select(source: Bits): Bits = TypedFinitePackedAccess.range(index,source,
+        ElabInt.literal(coefficient),ElabInt.literal(bottom.offset),ElabInt.literal(width))
+    }
+  }
 
   private[core] def runtimeUInt: UInt = {
     require(BigInt(coefficient) * index.expression.maximum + offset <= BigInt(Int.MaxValue),
@@ -18,25 +33,17 @@ private[core] final class ElabFiniteAffineIndex(
       return source(Math.addExact(Math.multiplyExact(index.witness, coefficient), offset))
     ParameterizedStructure.requireActiveFiniteIndex(index)
     require(source.component eq Component.current, "SPINAL-SCOPED-BIT-OWNER-MISMATCH: source must belong to the loop component")
-    val width=NativeWidthProvenance.widthOf(source).getOrElse(
+    NativeWidthProvenance.widthOf(source).getOrElse(
       throw new IllegalArgumentException("SPINAL-SCOPED-BIT-WIDTH-MISSING: source has no authenticated geometry"))
-    val view=Vec(Bool(),ElabInt.fromExpression(width))
-    view.assignFromBits(source)
-    select(view)
+    TypedFinitePackedAccess.bit(index, source, coefficient, offset)
   }
 
-  private def requireWordOffset(): Unit =
-    if (offset != 0) ParameterizedVerilogException.fail("SPINAL-SCOPED-WORD-OFFSET-UNSUPPORTED",
-      "ordinary packed word access currently requires an unshifted index times its stride", index.expression.sourceLocation)
+  private[core] def selectPacked(source: Bits, width: BitCount): Bits =
+    TypedFinitePackedAccess.range(index, source, ElabInt.literal(coefficient),
+      ElabInt.literal(offset), ElabInt.literal(width.value))
 
-  private[core] def selectPacked(source: Bits, width: BitCount): Bits = {
-    requireWordOffset()
-    index.packed(source, coefficient, width)
-  }
-  def *(width: ElabInt): ElabScopedWordOffset = {
-    requireWordOffset()
-    new ElabFiniteWordOffset(index, width * coefficient)
-  }
+  def *(width: ElabInt): ElabScopedWordOffset =
+    new ElabFiniteWordOffset(index, width * coefficient, width * offset)
 
   def +(amount: Int): ElabScopedIndex =
     new ElabFiniteAffineIndex(index, coefficient, Math.addExact(offset, amount))

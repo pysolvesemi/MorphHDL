@@ -729,7 +729,7 @@ class ComponentEmitterVerilog(
               val notes = new StringBuilder
               emitRegionNotes(s, notes, "  ")
               logics ++= RtlDocumentation.envelope(component, s, notes.toString)
-              logics ++= s"  assign ${verilogBase.emitAssignmentTarget(this, s).getOrElse(emitAssignedExpression(s.target))} = ${emitAssignmentSource(s)};${emitLocation(s)}\n"
+              logics ++= s"  assign ${verilogBase.emitAssignmentTarget(this, s).getOrElse(emitAssignedExpression(s.target))} = ${emitAssignmentSource(s)};${emitLocation(s)}${verilogBase.emitContinuousStatementSuffix(this, s)}\n"
             }
         }
       case _ =>

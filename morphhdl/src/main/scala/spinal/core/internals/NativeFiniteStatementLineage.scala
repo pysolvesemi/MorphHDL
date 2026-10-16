@@ -20,9 +20,10 @@ private[internals] object NativeFiniteStatementLineage {
       printer.component.userCache(ReferenceKey) = refs
     }
   }
-  def wrapper(component: Component, name: String): Option[Expression] =
+  def wrappers(component: Component): Vector[(Expression, String)] =
     component.userCache.get(WrapperKey).toVector.flatMap(_.asInstanceOf[Vector[(Expression, String)]])
-      .find(_._2 == name).map(_._1)
+  def wrapper(component: Component, name: String): Option[Expression] =
+    wrappers(component).find(_._2 == name).map(_._1)
   def referenceName(component: Component, source: BaseType): String =
     component.userCache.get(ReferenceKey).flatMap(value => Option(value
       .asInstanceOf[java.util.IdentityHashMap[BaseType, String]].get(source))).getOrElse(source.getName())

@@ -100,6 +100,7 @@ final class ElabFiniteIndex private[core] (
     private[core] val count: ElaborationIntegerExpression,
     private[core] val token: ElabFiniteIndexToken
 ) extends ElabScopedIndex {
+  def downto(low: ElabScopedIndex): ElabScopedRange = new ElabFiniteAffineIndex(this, 1, 0).downto(low)
   private[core] def selectBit(source: Bits): Bool = bit(source)
   private[core] def selectPacked(source: Bits, width: BitCount): Bits = packed(source, 1, width)
   def *(width: ElabInt): ElabScopedWordOffset = new ElabFiniteWordOffset(this, width)
@@ -164,18 +165,7 @@ final class ElabFiniteIndex private[core] (
   def packed(source: Bits, stride: ElabInt, width: ParameterizedBitCount): Bits =
     TypedFinitePackedAccess(this, source, stride, width)
 
-  def bit(source: Bits): Bool = {
-    val selected = packed(source, 1, 1 bits)
-    val result = selected.asBool
-    result.compositeAssign = new Assignable {
-      protected def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)(implicit location: Location): Unit = {
-        require(kind == DataAssign && (target eq result), "finite bit assignment must be whole-leaf data")
-        selected := that.asInstanceOf[Bool].asBits
-      }
-      def getRealSourceNoRec: BaseType = source
-    }
-    result
-  }
+  def bit(source: Bits): Bool = TypedFinitePackedAccess.bit(this, source, 1, 0)
 
   def at[T <: Data](source: Vec[T]): T = apply(source)
   def at(source: Bits): Bool = bit(source)

@@ -242,6 +242,7 @@ class Bits extends BitVector with DataPrimitives[Bits] with BaseTypePrimitives[B
     }
   }
 
+  def apply(range: ElabScopedRange): Bits = range.select(this)
   def apply(offset: ElabScopedIndex, bitCount: BitCount): Bits = offset.selectPacked(this, bitCount)
   def apply(offset: ElabScopedWordOffset, bitCount: ParameterizedBitCount): Bits = offset.selectPacked(this, bitCount)
 

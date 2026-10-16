@@ -48,6 +48,10 @@ object MorphHdlEmitterParameterNames {
               .orElse(spinal.core.TypedFinitePackedAccess.target(printer.component, assignment, value => printer.emitReference(value, false))).orElse(NativeBoundedProcessEmitter.target(printer, assignment))
               .orElse(NativeConditionalProcessEmitter.target(printer, assignment))
           }
+          override def continuousStatementSuffix(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): String =
+            if (spinal.core.TypedFinitePackedAccess.writes(printer.component).exists(_.assignment eq assignment))
+              NativeFiniteStatementLineage.suffix(printer.component, assignment)
+            else ""
           override def statementSuffix(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): String =
             NativeFiniteStatementLineage.suffix(printer.component, assignment)
           override def retainCombinationalProcess(printer: ComponentEmitterVerilog,

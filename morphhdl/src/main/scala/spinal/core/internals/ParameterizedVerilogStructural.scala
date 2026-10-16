@@ -185,7 +185,7 @@ private[internals] object ParameterizedVerilogStructural {
       .filter(_.dir == in)
       .flatMap(port => Option(port.getName()))
       .toSet
-    val retainedModuleCarriers = uncapturedModuleCarriers(component, allBlocks)
+    val retainedModuleCarriers = uncapturedModuleCarriers(component, allBlocks, lines)
     val scalarOperatorReplay = resolveScalarOperatorReplay(
       component,
       allBlocks,
@@ -1057,6 +1057,10 @@ private[internals] object ParameterizedVerilogStructural {
         tokens == Vector(sourceNames.head, "&&", sourceNames(1))
       case _: Operator.Bool.Equal if sourceNames.size == 2 =>
         tokens == Vector(sourceNames.head, "==", sourceNames(1))
+      case _: Operator.BitVector.Equal if sourceNames.size == 2 =>
+        tokens == Vector(sourceNames.head, "==", sourceNames(1))
+      case _: Operator.BitVector.NotEqual if sourceNames.size == 2 =>
+        tokens == Vector(sourceNames.head, "!=", sourceNames(1))
       case _: Operator.Bool.NotEqual if sourceNames.size == 2 =>
         tokens == Vector(sourceNames.head, "!=", sourceNames(1))
       case _: Operator.Bool.Or if sourceNames.size == 2 =>
@@ -1072,7 +1076,7 @@ private[internals] object ParameterizedVerilogStructural {
     * names are used only after the identity proof to locate emitted statements.
     */
   private def uncapturedModuleCarriers(component: Component,
-      blocks: Vector[ParameterizedStructuralBlock]): Set[String] = {
+      blocks: Vector[ParameterizedStructuralBlock], lines: Vector[String]): Set[String] = {
     val captured = new IdentityHashMap[Expression, java.lang.Boolean]()
     blocks.foreach { block =>
       (block.declarations ++ block.assignments.map(_.finalTarget) ++
@@ -1088,10 +1092,14 @@ private[internals] object ParameterizedVerilogStructural {
       TypedLoopRegisterStorage.validate(template, block, live)
       template.lanes.foreach(lane => relocatedState.put(lane.value, java.lang.Boolean.TRUE))
     }}
+    // These exact packed targets already have an authenticated complete driver
+    // and a retained module declaration. Their references are module-visible;
+    // this does not move or confer ownership of their generate-loop drivers.
+    val publishedPacked = TypedFinitePackedAccess.moduleDeclarations(component, blocks)
     val checking = new IdentityHashMap[Expression, java.lang.Boolean]()
     val memo = new IdentityHashMap[Expression, java.lang.Boolean]()
     def independent(value: Expression): Boolean = {
-      if (value != null && relocatedState.containsKey(value)) return true
+      if (value != null && (relocatedState.containsKey(value) || publishedPacked.exists(_ eq value))) return true
       // An exact interface declaration is visible at module scope even when
       // its drivers are selected by structural alternatives. Availability of
       // this reference does not confer ownership of any of those drivers.
@@ -1151,6 +1159,30 @@ private[internals] object ParameterizedVerilogStructural {
       child.getOrdredNodeIo.filter(port => port.isOutput && independent(port)).foreach { port =>
         Option(NativeFiniteStatementLineage.referenceName(component, port)).filter(_.nonEmpty).foreach(result += _)
       }
+    }
+    // Native expression wrappers have no BaseType declaration. Retain only
+    // exact scalar Boolean operators on live, independent module operands.
+    // The emitter registry authenticates identity; replay checks emitted edges.
+    val wrappers = NativeFiniteStatementLineage.wrappers(component)
+    wrappers.foreach {
+      case (operator: Operator, name) if wrappers.count(_._2 == name) == 1 =>
+        val operands = ArrayBuffer.empty[Expression]
+        operator.foreachExpression(operands += _)
+        val sources = operands.collect {
+          case value: BaseType if (value.component eq component) &&
+              live.containsKey(value) && independent(value) => value
+        }.toVector
+        if (sources.nonEmpty && sources.size == operands.size) {
+          val declarations = lines.filter(line => standaloneDeclarationName(line).contains(name))
+          val drivers = lines.flatMap(line => DirectContinuousAssignment
+            .findFirstMatchIn(stripLineComment(line).trim)
+            .filter(m => m.group(1) == name && Option(m.group(2)).forall(_.trim.isEmpty)))
+          val names = sources.map(NativeFiniteStatementLineage.referenceName(component, _))
+          if (declarations.size == 1 && declarationIsScalar(declarations.head) &&
+              drivers.size == 1 && exactScalarOperatorReplay(drivers.head.group(3), operator, names))
+            result += name
+        }
+      case _ =>
     }
     result.toSet
   }
@@ -1432,9 +1464,9 @@ private[internals] object ParameterizedVerilogStructural {
           !retainedModuleMemoryDeclarationLines(index) &&
           !promotedScalarLines(index) &&
           !standaloneDeclarationName(line).exists(retainedModuleCarriers) &&
-          !DirectContinuousAssignment.findFirstMatchIn(line.trim).exists(m => retainedModuleCarriers(m.group(1)))
+          !DirectContinuousAssignment.findFirstMatchIn(stripLineComment(line).trim).exists(m => retainedModuleCarriers(m.group(1)))
         ) {
-          val trimmed = line.trim
+          val trimmed = stripLineComment(line).trim
           val declaration = isDeclarationLine(trimmed)
           val mentionsInternal = trackedInternalNames.exists(name => containsName(line, name))
           val mentionsSlice = fixedSlicePatterns.exists(_.matcher(line).find())
@@ -4499,16 +4531,34 @@ private[internals] object ParameterizedVerilogStructural {
         .mkString("\n")
       val writes = blockAssignments.filter(value => (value ne slice.assignment) &&
         ParameterizedProcess.matchesTargetSlice(value, slice))
-      if (writes.isEmpty) withRead
+      // Finite packed writes are already emitted symbolically by the native
+      // emitter, with an exact assignment marker. A second read proxy of the
+      // same slice must not try to lower that write a second time by geometry.
+      val (nativeWrites, witnessWrites) = writes.partition(value =>
+        TypedFinitePackedAccess.writes(component).exists(_.assignment eq value))
+      if (nativeWrites.nonEmpty) {
+        val emittedLines = withRead.split("\n", -1).toVector
+        val edges = NativeFiniteStatementLineage.survivingLineAssignments(component, emittedLines)
+        nativeWrites.foreach { value =>
+          val target = TypedFinitePackedAccess.target(component, value,
+            v => NativeFiniteStatementLineage.referenceName(component, v)).get
+          val exact = edges.toVector.filter(_._2 eq value)
+          val lhs = ("^[ \t]*(?:assign[ \t]+)?" + Pattern.quote(target) + "[ \t]*(?:<=|=)").r
+          if (exact.size != 1 || lhs.findFirstIn(emittedLines(exact.head._1)).isEmpty)
+            fail("SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SLICE-WRITE-MISMATCH",
+              s"finite packed write '$target' lost its exact symbolic emission edge (found ${exact.size} assignment identities)", slice.sourceLocation)
+        }
+      }
+      if (witnessWrites.isEmpty) withRead
       else {
         // The typed source-slice proxy and each actual packed write are
         // separate native assignments. Lower the proven LHS occurrences too;
         // changing only the proxy's RHS would repeat the witness byte.
         val lhs = ("(?m)^([ \\t]*(?:assign[ \\t]+)?)" + source +
           "\\s*\\[\\s*" + high + "\\s*:\\s*" + low + "\\s*\\](\\s*(?:<=|=))").r
-        if (lhs.findAllMatchIn(withRead).size != writes.size)
+        if (lhs.findAllMatchIn(withRead).size != witnessWrites.size)
           fail("SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SLICE-WRITE-MISMATCH",
-            s"typed packed slice writes expected ${writes.size} exact native target occurrences, found ${lhs.findAllMatchIn(withRead).size}", slice.sourceLocation)
+            s"typed packed slice writes expected ${witnessWrites.size} exact native target occurrences, found ${lhs.findAllMatchIn(withRead).size}", slice.sourceLocation)
         val withWrites = lhs.replaceAllIn(withRead, found =>
           Matcher.quoteReplacement(found.group(1) + replacement + found.group(2)))
         val readByBody = blockAssignments.exists(value => (value ne slice.assignment) &&

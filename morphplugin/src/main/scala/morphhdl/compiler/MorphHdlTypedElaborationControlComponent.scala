@@ -31,6 +31,8 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global, ordinar
   private case object ScopedIndexBinding extends BindingKind
   private case object ScopedBooleanBinding extends BindingKind
   private case object ScalaIntegerBinding extends BindingKind
+  private case object HostCollectionBinding extends BindingKind
+  private case object HostPatchedBitsBinding extends BindingKind
   private case object OrdinaryBinding extends BindingKind
 
   private val coreCarrierKinds: Map[String, BindingKind] = Map(
@@ -212,6 +214,8 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global, ordinar
       val terms = mutable.LinkedHashMap.empty[TermName, BindingKind]
       val methods = mutable.LinkedHashMap.empty[TermName, DefDef]
       val mutableTerms = mutable.LinkedHashSet.empty[TermName]
+      val hostCoupledTerms = mutable.LinkedHashSet.empty[TermName]
+      val hostPatchedTerms = mutable.LinkedHashSet.empty[TermName]
       val callResults = mutable.LinkedHashMap.empty[TermName, BindingKind]
       val localTypes = mutable.LinkedHashMap.empty[TypeName, BindingKind]
       val explicitTypes =
@@ -541,7 +545,56 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global, ordinar
       * `width.parameters.nonEmpty` and `Seq(width).nonEmpty` are ordinary
       * Scala values.
       */
+    // This classification only opts OUT of automatic capture. It never grants
+    // symbolic authority or changes the collection's ordinary Scala semantics.
+    def collectionFactory(tree: Tree): Boolean = tree match {
+      case Ident(name) => Set("Array", "Seq", "Vector", "List")(decoded(name))
+      case Select(owner, name) if Set("fill", "tabulate", "apply")(decoded(name)) => collectionFactory(owner)
+      case Apply(fun, _) => collectionFactory(fun)
+      case TypeApply(fun, _) => collectionFactory(fun)
+      case _ => false
+    }
+
+    def uninitializedRegisterCollection(tree: Tree, requireUninitialized: Boolean = true): Boolean = {
+      def factory(t: Tree): Boolean = t match {
+        case Ident(n) => decoded(n) == "Vec"
+        case Select(owner, _) => factory(owner)
+        case Apply(fun, _) => factory(fun)
+        case TypeApply(fun, _) => factory(fun)
+        case If(_, yes, no) => factory(yes) || factory(no)
+        case Block(_, result) => factory(result)
+        case _ => false
+      }
+      if (!factory(tree)) return false
+      var vector = false; var register = false; var initialized = false
+      object Scan extends Traverser {
+        override def traverse(t: Tree): Unit = {
+          t match {
+            case Ident(name) if decoded(name) == "Vec" => vector = true
+            case Ident(name) if decoded(name) == "Reg" => register = true
+            case Select(_, name) if decoded(name) == "init" => initialized = true
+            case _ =>
+          }
+          super.traverse(t)
+        }
+      }
+      Scan.traverse(tree)
+      vector && register && (!requireUninitialized || !initialized)
+    }
+
     def expressionKind(current: Tree): BindingKind = current match {
+      // Vec(existing scalars...) is a view of independently owned signals,
+      // not an authored aggregate interface. Keep ordinary traversal in Scala;
+      // automatic capture must not turn child scalar ports into a Vec port.
+      case Apply(Ident(name), arguments) if decoded(name) == "Vec" && arguments.size >= 2 &&
+          arguments.forall { case _: Ident | _: Select => true; case _ => false } &&
+          !isTypedInteger(arguments.last) && expressionKind(arguments.last) != ScalaIntegerBinding => HostCollectionBinding
+      case tree if uninitializedRegisterCollection(tree) => HostCollectionBinding
+      case Apply(fun, _) if collectionFactory(fun) => HostCollectionBinding
+      case Apply(Select(receiver, op), _) if expressionKind(receiver) == HostCollectionBinding &&
+          Set("map", "flatMap", "filter", "take", "drop", "zip", "zipWithIndex")(decoded(op)) => HostCollectionBinding
+      case Select(receiver, op) if expressionKind(receiver) == HostCollectionBinding &&
+          Set("zipWithIndex", "toSeq", "toVector", "toArray")(decoded(op)) => HostCollectionBinding
       case Block(statements, result) if statements.forall {
           case value: ValDef => !value.mods.hasFlag(Flag.MUTABLE)
           case _: Import | _: TypeDef => true
@@ -649,7 +702,9 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global, ordinar
     }
 
     def bindingKind(value: ValDef): BindingKind =
-      if (value.tpt == null || value.tpt.isEmpty) expressionKind(value.rhs)
+      if (scopes.head.hostPatchedTerms(value.name)) HostPatchedBitsBinding
+      else if (scopes.head.hostCoupledTerms(value.name) || expressionKind(value.rhs) == HostCollectionBinding) HostCollectionBinding
+      else if (value.tpt == null || value.tpt.isEmpty) expressionKind(value.rhs)
       else typeKind(value.tpt)
 
     def bind(value: ValDef): Unit = {
@@ -760,7 +815,27 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global, ordinar
       }
     }
 
+    def markPatchedPackedTopology(values: List[Tree]): Unit = {
+      val packed = values.collect {
+        case v: ValDef if (v.rhs match {
+          case Apply(Ident(n), _) => decoded(n) == "Bits"
+          case _ => false
+        }) => v.name
+      }.toSet
+      object ScalarPatches extends Traverser {
+        override def traverse(tree: Tree): Unit = tree match {
+          case Apply(Select(_, op), _) if decoded(op) == "foreach" =>
+          case Apply(Select(Apply(Ident(name: TermName), _), op), _) if decoded(op) == ":=" && packed(name) =>
+            scopes.head.hostPatchedTerms += name
+          case _: DefDef | _: ClassDef | _: ModuleDef =>
+          case _ => super.traverse(tree)
+        }
+      }
+      values.foreach(ScalarPatches.traverse)
+    }
+
     def prepareScope(values: List[Tree]): Unit = {
+      markPatchedPackedTopology(values)
       prebindTypes(values)
       // Package/object qualifiers and Predef names can themselves be
       // shadowed by members visible throughout this scope. Record those names
@@ -894,6 +969,46 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global, ordinar
             templates = (templateOwner -> scopes.head) :: templates
             try {
               prepareScope(template.body)
+              // A register array shared with a host collection loop must keep
+              // all its ordinary writers in the same host topology. Capturing
+              // only its reset loop would relocate storage away from the other
+              // writers and destroy their native priority.
+              val registerArrays = template.body.collect {
+                case v: ValDef if uninitializedRegisterCollection(v.rhs, false) => v.name
+              }.toSet
+              object CoupledLoops extends Traverser {
+                override def traverse(tree: Tree): Unit = tree match {
+                  case Apply(Select(_, op), List(body: Function)) if decoded(op) == "foreach" =>
+                    var host = false
+                    val targets = mutable.LinkedHashSet.empty[TermName]
+                    object Uses extends Traverser {
+                      override def traverse(t: Tree): Unit = {
+                        t match {
+                          case Apply(receiver, _) if expressionKind(receiver) == HostCollectionBinding => host = true
+                          case Apply(Select(target, assign), _) if decoded(assign) == ":=" =>
+                            def root(t: Tree): Option[TermName] = t match {
+                              case Ident(n: TermName) => Some(n)
+                              case Apply(f, _) => root(f)
+                              case Select(f, _) => root(f)
+                              case _ => None
+                            }
+                            root(target).filter(registerArrays).foreach(targets += _)
+                          case _ =>
+                        }
+                        super.traverse(t)
+                      }
+                    }
+                    Uses.traverse(body.body)
+                    if (host) targets.foreach { n =>
+                      scopes.head.hostCoupledTerms += n
+                      scopes.head.terms.update(n, HostCollectionBinding)
+                    }
+                    super.traverse(tree)
+                  case _: ClassDef | _: ModuleDef | _: DefDef =>
+                  case _ => super.traverse(tree)
+                }
+              }
+              template.body.foreach(CoupledLoops.traverse)
               template.parents.foreach(traverse)
               traverse(template.self)
               template.body.foreach(traverse)
@@ -926,6 +1041,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global, ordinar
 
         case block: Block =>
           withScope {
+            markPatchedPackedTopology(block.stats)
             prebindTypes(block.stats)
             block.stats.foreach {
               case definition: ValDef =>
@@ -989,11 +1105,66 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global, ordinar
               constantBoundShape(left) && constantBoundShape(right)
             case _ => false
           })
+          val localNames = mutable.LinkedHashSet.empty[TermName]
+          object Locals extends Traverser {
+            override def traverse(t: Tree): Unit = t match {
+              case v: ValDef => localNames += v.name; super.traverse(t)
+              case _: DefDef | _: ClassDef | _: ModuleDef =>
+              case _ => super.traverse(t)
+            }
+          }
+          Locals.traverse(body.body)
+          var sharedScalarWriter = false
+          val shiftedWriters = mutable.Map.empty[TermName, Int]
+          var hostTopology = false
+          object HostTopology extends Traverser {
+            override def traverse(t: Tree): Unit = t match {
+              case Apply(Select(target, op), _) if decoded(op) == ":=" =>
+                // Multiple writes to a shifted carrier form an ordered
+                // lookahead recurrence. Preserve host topology until its
+                // aliases can share one authenticated conditional writer.
+                target match {
+                  case Apply(Ident(array: TermName), List(Apply(Select(Ident(index), arithmetic), List(Literal(Constant(offset: Int))))))
+                      if body.vparams.exists(_.name == index) && Set("+", "-")(decoded(arithmetic)) && offset != 0 =>
+                    val writes = shiftedWriters.getOrElse(array, 0) + 1
+                    shiftedWriters.update(array, writes)
+                    if (writes > 1) sharedScalarWriter = true
+                  case _ =>
+                }
+                var local = false
+                object TargetUses extends Traverser {
+                  override def traverse(t: Tree): Unit = t match {
+                    case Ident(n: TermName) if localNames(n) || body.vparams.exists(_.name == n) => local = true
+                    case _ => super.traverse(t)
+                  }
+                }
+                TargetUses.traverse(target)
+                if (!local) sharedScalarWriter = true
+                super.traverse(t)
+              case Apply(receiver, _) if expressionKind(receiver) == HostCollectionBinding => hostTopology = true
+              case Apply(receiver, _) if expressionKind(receiver) == HostPatchedBitsBinding => sharedScalarWriter = true
+              case Apply(Select(_, op), _) if decoded(op) == "withFilter" => hostTopology = true
+              case Apply(Select(_, op), arguments) if decoded(op) == "setName" && arguments.exists { argument =>
+                var dependent = false
+                object IndexUse extends Traverser {
+                  override def traverse(t: Tree): Unit = t match {
+                    case Ident(name) if body.vparams.exists(_.name == name) => dependent = true
+                    case _ => super.traverse(t)
+                  }
+                }
+                IndexUse.traverse(argument); dependent
+              } => hostTopology = true
+              case _ => super.traverse(t)
+            }
+          }
+          HostTopology.traverse(body.body)
+          if (isTypedInteger(end) && hostTopology)
+            reporter.error(original.pos,"MORPHDL-TYPED-RANGE-HOST-TOPOLOGY: explicitly retained loops cannot index host collections or use filtered host traversal; use a native Vec or a separate host loop")
           val ordinaryHardware = start match {
             case Literal(Constant(0)) => true
             case _ => false
           }
-          if (isTypedInteger(end) || (ordinaryLoops() && ordinaryHardware && hardwareBody(body.body) &&
+          if (isTypedInteger(end) || (ordinaryLoops() && ordinaryHardware && !hostTopology && !sharedScalarWriter && hardwareBody(body.body) &&
               constantBoundShape(end))) {
             typedRanges.put(original, java.lang.Boolean.valueOf(isTypedInteger(end)))
             traverse(end)

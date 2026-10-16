@@ -7,6 +7,7 @@ class OrdinaryLoopSyntaxTests extends AnyFunSuite {
   private val definitions = """
 package spinal.core {
   class rtlHardwareCallback extends scala.annotation.StaticAnnotation
+  class ElabInt
   class ElabFiniteIndex
   object ElabControl { def localValue[T](v:T,name:String):T=v }
   object ElabFiniteRange {
@@ -39,4 +40,44 @@ package probe {
   test("ordinary host loops keep Scala index semantics") {
     assert(check("object C {val values=scala.collection.mutable.ArrayBuffer[Int]();for(i<-0 until 4)values+=i}").isEmpty)
   }
+  test("host collections retain Int indices without disabling independent supported loops") {
+    val errors=check("""class C {
+      val values=Array.fill(4)(new Wire)
+      val outputs=new Wires
+      for(i<-0 until 4) values(i):=true
+      for(i<-0 until 4) outputs(i):=true
+    }""")
+    assert(errors.isEmpty,errors.mkString("\n"))
+  }
+  test("Seq transformations retain host collection indexing") {
+    val errors=check("""class C {
+      val values=Seq(1,2,3).zipWithIndex.map { case (n,i)=>new Wire }
+      for(i<-0 until 3) values(i):=true
+    }""")
+    assert(errors.isEmpty,errors.mkString("\n"))
+  }
+  test("Vec views of existing scalar ports retain host ownership") {
+    val errors=check("""object Vec {def apply(values:Wire*):Seq[Wire]=values}
+      class C {val a=new Wire;val b=new Wire;val values=Vec(a,b)
+        for(i<-0 until 2) values(i):=true
+      }""")
+    assert(errors.isEmpty,errors.mkString("\n"))
+  }
+  test("nested filtered inclusive topology remains host elaboration") {
+    val errors=check("""class C {
+      val values=Array.fill(4)(new Wire)
+      for(j<-0 until 4) {
+        for(n<-0 to 3 if j+n<4) values(j+n):=true
+      }
+    }""")
+    assert(errors.isEmpty,errors.mkString("\n"))
+  }
+
+  test("explicitly retained bound rejects host collection topology with a specific diagnostic") {
+    val errors=check("""class C {val count:ElabInt=new ElabInt;val values=Array.fill(4)(new Wire)
+      for(i<-0 until count) values(i):=true
+    }""")
+    assert(errors.exists(_.message.contains("TYPED-RANGE-HOST-TOPOLOGY")),errors.mkString("\n"))
+  }
+
 }

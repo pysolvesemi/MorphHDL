@@ -5188,7 +5188,7 @@ private[internals] object ParameterizedVerilogVecs {
       if (assignment == null || live.get(assignment) == null) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-VEC-ASSIGNMENT-EVIDENCE-STALE",
-          s"$role retained an assignment identity that is no longer live in the owning component",
+          s"$role retained an assignment identity that is no longer live in the owning component: target=${Option(assignment).map(_.finalTarget.toString).getOrElse("<null>")}",
           sourceLocation
         )
       }

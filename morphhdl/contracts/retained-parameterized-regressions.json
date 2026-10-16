@@ -1717,12 +1717,26 @@
         "optional reduction policy preserves omission and explicit presence mode=legacy-null",
         "Some symbolic mask forwards overrides and retains reset and stall behavior"
       ],
+      "morphhdl.OrdinaryAffineLoopTests": [
+        "ordinary affine ranges retain symbolic geometry subwords and Bool-valued guards",
+        "disjoint partial word targets cover every bit without hiding gaps",
+        "partial affine ranges reject missing",
+        "partial affine ranges reject bounds",
+        "partial affine ranges reject negative",
+        "partial affine ranges reject reversed",
+        "symbolic subword bounds are checked beyond the default width",
+        "Bool-valued scoped branches reject effects register=false",
+        "Bool-valued scoped branches reject effects register=true"
+      ],
       "morphhdl.OrdinaryChildClockGeometryTests": [
         "ordinary child wiring preserves symbolic expressions and clock reset enable priority operation=cast",
         "ordinary child wiring preserves symbolic expressions and clock reset enable priority operation=sum",
         "ordinary child wiring preserves symbolic expressions and clock reset enable priority operation=choice",
         "whole-width typed slices reject partial offsets and independent equal-witness geometry",
         "direct arithmetic cannot borrow equal default widths from independent actuals"
+      ],
+      "morphhdl.OrdinaryHostTopologyTests": [
+        "host collections and filtered topology coexist with retained ordinary loops"
       ],
       "morphhdl.OrdinaryLoopCornerTests": [
         "packed word defaults and array copy packed=false inclusive=false",
@@ -3987,7 +4001,12 @@
         "reject unsupported bound var bytes:Int=4",
         "reject unsupported bound def bytes:Int=4",
         "reject host effect in retained statement loop",
-        "ordinary host loops keep Scala index semantics"
+        "ordinary host loops keep Scala index semantics",
+        "host collections retain Int indices without disabling independent supported loops",
+        "Seq transformations retain host collection indexing",
+        "Vec views of existing scalar ports retain host ownership",
+        "nested filtered inclusive topology remains host elaboration",
+        "explicitly retained bound rejects host collection topology with a specific diagnostic"
       ],
       "morphhdl.compiler.ParameterHdlNameTests": [
         "normalize parameter declaration path num_bytes",
@@ -4505,7 +4524,9 @@
     "morphhdl/src/test/scala/morphhdl/NaturalSymbolicConditionalTests.scala": "7effda58bcee90a3092ba30ac2a574e4234f4d4bb5a2d0d9f9d9583783a81cca",
     "morphhdl/src/test/scala/morphhdl/NestedConfigurationParameterTests.scala": "adc29c9ad6c757150e2a269e96b31ccdb084ca3cad7a1d0ebd5b27f4c8cf8172",
     "morphhdl/src/test/scala/morphhdl/OptionalReductionPolicyTests.scala": "3864806ba5799794a3e29abdf30b0885650394c1fd8a675453d54eb1f5456819",
+    "morphhdl/src/test/scala/morphhdl/OrdinaryAffineLoopTests.scala": "687b9154ffc1cceb1c85bedf896b1b0ce89e1988d7d07024d2e217ee0c93c0ab",
     "morphhdl/src/test/scala/morphhdl/OrdinaryChildClockGeometryTests.scala": "86d2815353554bc6d29020ad583243e4bc8d02bfbe8a899a880893b9499f3dc4",
+    "morphhdl/src/test/scala/morphhdl/OrdinaryHostTopologyTests.scala": "3e36e9cb400183ce3a8aab4ab6c424028b7b4633278cfe1da83335252c32cb56",
     "morphhdl/src/test/scala/morphhdl/OrdinaryLoopCornerTests.scala": "bde1aaad3157ee8a3919a552b2d0ded4547d4358b08e4e72b53d471f0d050aad",
     "morphhdl/src/test/scala/morphhdl/OrdinaryStatementLoopTests.scala": "754278197a201967433ce23cfc6d0fda3d429933857854cf61b7ccdfd0323f5e",
     "morphhdl/src/test/scala/morphhdl/PackedParameterTests.scala": "073e29b145a02d579611591c010ed7a72788268ea876fcc508bbb7e66a2783ce",
@@ -4743,7 +4764,7 @@
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlFrontendSymbolicEqualitySafetyComponentTests.scala": "61d8fb7fb5892ec9b48b3d74360204d432b030b52387bd4779d225d62a5ab34a",
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponentTests.scala": "3dc3d84549cfcfd48d9da00444babb522cdd8326f6811053cccd14085af7b5a0",
     "morphplugin/src/test/scala/morphhdl/compiler/NativeSymbolicEqualitySafetyTests.scala": "0595a578953516bf7d8c036515f7d3bb2a6534347a0acb20a9075bca6e096ca5",
-    "morphplugin/src/test/scala/morphhdl/compiler/OrdinaryLoopSyntaxTests.scala": "91735677c8e803f99f80c831fe28aca5d51fd06ffda40e4002bdff2b064ddfa1",
+    "morphplugin/src/test/scala/morphhdl/compiler/OrdinaryLoopSyntaxTests.scala": "a5d684075792b702992d17cd04b52121324e0529e01d4aba6426acd578ab5b8c",
     "morphplugin/src/test/scala/morphhdl/compiler/ParameterHdlNameTests.scala": "669e6244b0bfa3e773ca3a234a30c44b38786cfab291f4b66bb747cc380b08b6",
     "paramrtl/src/test/scala/morphhdl/paramrtl/AddressWidthExpressionTests.scala": "b194d35db36483b350c998a39c22e0932b758ca603fc9f06d3b571cd016de4d8",
     "paramrtl/src/test/scala/morphhdl/paramrtl/AsynchronousEnabledRegisterValidatorTests.scala": "b3b9ed7d77d4d5031a47a1dbebaec496b5f2434a3ae9db6472dd7c511c70a5de",

@@ -2648,7 +2648,7 @@ class PhaseCheck_noRegisterAsLatch() extends PhaseCheck{
           case s : DataAssignmentStatement =>
             s.target match {
               case bt: BaseType => assignedBits.add(bt.getBitsWidth - 1, 0)
-              case e: BitVectorAssignmentExpression =>  assignedBits.add(e.getMaxAssignedBits)
+              case e: BitVectorAssignmentExpression =>  e.getMaxAssignedRanges.foreach(assignedBits.add)
             }
           case _ =>
         }
@@ -2789,10 +2789,9 @@ class PhaseCheck_noLatchNoOverride(pc: PhaseContext) extends PhaseCheck {
 
                 case e: BitVectorAssignmentExpression =>
                   val bt = e.finalTarget
-                  val assignedRange = e.getMinAssignedBits
                   val rangeBits = new AssignedBits(bt.getBitsWidth)
-                  rangeBits.add(assignedRange)
-                  val isEffectivelyFull = (assignedRange.hi == bt.getBitsWidth - 1) && (assignedRange.lo == 0)
+                  e.getMinAssignedRanges.foreach(rangeBits.add)
+                  val isEffectivelyFull = rangeBits.isFull
                   // Process, noting if it's effectively a full assignment, but crucially,
                   // the *origin* is still a full assignment if isEffectivelyFull is true.
                   processAssignment(bt, rangeBits, isEffectivelyFull, location)

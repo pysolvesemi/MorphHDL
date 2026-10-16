@@ -30,11 +30,11 @@ object ElabControl {
     value
   }
 
-  /** Scoped finite guards currently join statement-valued branches only. */
+  /** Scoped finite guards join statements or authenticated Bool-valued branches. */
   def selectScoped[T](condition: ElabScopedCondition, sourceFile: String, sourceLine: Int)
-      (ifTrue: => T)(ifFalse: => T)(implicit unit: T =:= Unit): Unit = {
+      (ifTrue: => T)(ifFalse: => T)(implicit result: ElabScopedBranchResult[T]): T = {
     require(condition != null, "scoped condition must not be null")
-    condition.capture(AutomaticGenerateLabels.conditionalRole(Component.current, "guard_l" + sourceLine))(unit(ifTrue))(unit(ifFalse))
+    result(condition, AutomaticGenerateLabels.conditionalRole(Component.current, "guard_l" + sourceLine))(ifTrue)(ifFalse)
   }
 
   /** A missing source else is an authenticated empty alternative. The authored
@@ -399,4 +399,58 @@ object ElabControl {
 
   private def fail(code: String, detail: String, source: String): Nothing =
     ParameterizedVerilogException.fail(code, detail, Some(source))
+}
+
+/** Result kinds whose branch ownership can be captured without a host witness. */
+sealed trait ElabScopedBranchResult[T] {
+  def apply(condition: ElabScopedCondition, role: String)(yes: => T)(no: => T): T
+}
+object ElabScopedBranchResult {
+  implicit object Statement extends ElabScopedBranchResult[Unit] {
+    def apply(condition: ElabScopedCondition, role: String)(yes: => Unit)(no: => Unit): Unit =
+      condition.capture(role)(yes)(no)
+  }
+  implicit object BooleanSignal extends ElabScopedBranchResult[Bool] {
+    def apply(condition: ElabScopedCondition, role: String)(yes: => Bool)(no: => Bool): Bool = {
+      // This is a combinational expression, not a conditionally updated
+      // storage element. Its consumers retain the enclosing runtime guard.
+      val context = DslScopeStack.set(Component.current.dslBody)
+      try {
+        val result = Bool()
+        def expression(body: => Bool): Bool = {
+          val component = Component.current
+          val declarations = new java.util.IdentityHashMap[BaseType, java.lang.Boolean]()
+          val statements = new java.util.IdentityHashMap[spinal.core.internals.Statement, java.lang.Boolean]()
+          component.dslBody.walkStatements(s => statements.put(s, java.lang.Boolean.TRUE))
+          val assignments = new java.util.IdentityHashMap[spinal.core.internals.DataAssignmentStatement, java.lang.Boolean]()
+          component.dslBody.walkStatements {
+            case value: BaseType => declarations.put(value, java.lang.Boolean.TRUE)
+            case assignment: spinal.core.internals.DataAssignmentStatement => assignments.put(assignment, java.lang.Boolean.TRUE)
+            case _ =>
+          }
+          val children = component.children.toVector
+          val value = body
+          if (component.children.toVector != children)
+            ParameterizedVerilogException.fail("SPINAL-SCOPED-BOOLEAN-RESULT-EFFECT",
+              "a scoped Bool expression cannot instantiate child components")
+          component.dslBody.walkStatements {
+            case signal: BaseType if signal.isReg && !declarations.containsKey(signal) =>
+              ParameterizedVerilogException.fail("SPINAL-SCOPED-BOOLEAN-RESULT-EFFECT",
+                "a scoped Bool expression cannot introduce registers")
+            case statement if !statements.containsKey(statement) && (statement.isInstanceOf[Mem[_]] || statement.isInstanceOf[MemPortStatement]) =>
+              ParameterizedVerilogException.fail("SPINAL-SCOPED-BOOLEAN-RESULT-EFFECT",
+                "a scoped Bool expression cannot introduce memory operations")
+            case assignment: spinal.core.internals.DataAssignmentStatement if !assignments.containsKey(assignment) &&
+                (declarations.containsKey(assignment.finalTarget) || (assignment.finalTarget.component ne component)) =>
+              ParameterizedVerilogException.fail("SPINAL-SCOPED-BOOLEAN-RESULT-EFFECT",
+                "a scoped Bool expression may construct local logic but cannot write an existing or foreign signal")
+            case _ =>
+          }
+          value
+        }
+        condition.capture(role) { result := expression(yes) } { result := expression(no) }
+        result
+      } finally context.restore()
+    }
+  }
 }

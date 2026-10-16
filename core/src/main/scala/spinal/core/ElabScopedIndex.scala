@@ -15,6 +15,8 @@ abstract class ElabScopedIndex private[core] () {
   private[core] def selectBit(source: Bits): Bool
   private[core] def selectPacked(source: Bits, width: BitCount): Bits
   def *(width: ElabInt): ElabScopedWordOffset
+  def downto(low: ElabScopedIndex): ElabScopedRange
+  def -(offset: Int): ElabScopedIndex = this + Math.negateExact(offset)
   def +(offset: Int): ElabScopedIndex
   def *(coefficient: Int): ElabScopedIndex
   def elabEq(value: Int): ElabScopedCondition
@@ -35,6 +37,14 @@ abstract class ElabScopedCondition private[core] () { self =>
 /** A symbolic word offset retains its original finite-loop index and stride.
   * It is not a host integer or a runtime hardware address.
   */
+abstract class ElabScopedRange private[core] () {
+  private[core] def select(source: Bits): Bits
+}
+
 abstract class ElabScopedWordOffset private[core] () {
+  def +(offset: ElabInt): ElabScopedWordOffset
+  final def +(offset: Int): ElabScopedWordOffset = this + ElabInt.literal(offset)
+  final def -(offset: Int): ElabScopedWordOffset = this + ElabInt.literal(Math.negateExact(offset))
+  def downto(low: ElabScopedWordOffset): ElabScopedRange
   private[core] def selectPacked(source: Bits, width: ParameterizedBitCount): Bits
 }

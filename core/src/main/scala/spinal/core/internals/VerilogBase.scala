@@ -116,6 +116,7 @@ object VerilogBase {
     def binaryOperand(printer: ComponentEmitterVerilog, expression: BinaryOperator, slot: Int): Option[String] = None
     def source(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String]
     def target(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] = None
+    def continuousStatementSuffix(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): String = ""
     def statementSuffix(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): String = ""
     def retainCombinationalProcess(printer: ComponentEmitterVerilog,
         statements: Vector[LeafStatement]): Boolean = false
@@ -250,6 +251,15 @@ trait VerilogBase extends VhdlVerilogBase{
       case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>
         owner.assignmentPublication.synchronous(printer,clock,scope,hasInit,init,data,render)
       case _ => None
+    }
+  }
+  private[spinal] final def emitContinuousStatementSuffix(printer: ComponentEmitterVerilog,
+      assignment: AssignmentStatement): String = {
+    require(printer.usesVerilogBase(this), "continuous lineage must belong to this native emitter")
+    this match {
+      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>
+        owner.assignmentPublication.continuousStatementSuffix(printer, assignment)
+      case _ => ""
     }
   }
   private[spinal] final def emitStatementSuffix(printer: ComponentEmitterVerilog,
