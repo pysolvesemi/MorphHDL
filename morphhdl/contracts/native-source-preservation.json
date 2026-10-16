@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "5cb8d8a76ab7524e0daad9c30805fa6c4c7397c2"
+      "approved_tree": "ced94ffe9f55ff01c43f956fcf39759b80624aa1"
     },
     {
       "path": "idslpayload/src/main",
@@ -311,9 +311,10 @@
         "Increment 55: audit concrete compatibility",
         "Increment 59i: combined recursive widening, captures and native saturation geometry",
         "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition",
-        "LWR-13\u201316: constructor formals and scoped port/index compositions"
+        "LWR-13\u201316: constructor formals and scoped port/index compositions",
+        "LWR-26: ordinary affine range and host-topology compatibility"
       ],
-      "reason": "Retain typed width construction and resize overloads, and mechanically propagate the exact source width through the unchanged native asBits assignment; ordinary concrete arithmetic and width inference remain authoritative. Lightweight roadmap: Delegate scoped packed slices to authenticated index and stride interfaces without extracting witnesses. LWR-13\u201316: Delegate ordinary scoped Bits bit reads to the authenticated ElabScopedIndex selector without extracting a witness or creating a hardware UInt index.",
+      "reason": "Retain typed width construction and resize overloads, and mechanically propagate the exact source width through the unchanged native asBits assignment; ordinary concrete arithmetic and width inference remain authoritative. Lightweight roadmap: Delegate scoped packed slices to authenticated index and stride interfaces without extracting witnesses. LWR-13\u201316: Delegate ordinary scoped Bits bit reads to the authenticated ElabScopedIndex selector without extracting a witness or creating a hardware UInt index. LWR-26: Add an authenticated scoped-range overload delegated to the retained finite packed selector, preserving existing Bits access semantics.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/Bits.scala",
         "mode": "100644",
@@ -323,8 +324,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/Bits.scala",
         "mode": "100644",
-        "blob": "ff858837ab3471c53b325ec28cb88fd39b7a4e54",
-        "sha256": "32b81df3efb5132474a7393e380df7f85f1055586dc9ef58eed7969160af6399"
+        "blob": "7b15a8a4b160458c653a829dbb7496e51369de12",
+        "sha256": "1c498df7bbc4f6980e52515fe6efc2c192e870511bf9abfa93ac01f0775fd754"
       },
       "edits": [
         {
@@ -397,10 +398,10 @@
           ]
         },
         {
-          "id": "lightweight-bits-3",
-          "kind": "overload",
-          "owner": "native Bits authoring boundary",
-          "reason": "Delegate scoped packed slices to authenticated index and stride interfaces without extracting witnesses. Delegate scoped bit access to the authenticated index without hardware conversion or witness extraction.",
+          "id": "lwr26-bits-4",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/Bits.scala",
+          "reason": "Add an authenticated scoped-range overload delegated to the retained finite packed selector, preserving existing Bits access semantics.",
           "baseline_span": {
             "start": 9059,
             "end": 9059,
@@ -408,18 +409,13 @@
           },
           "approved_span": {
             "start": 9615,
-            "end": 9903,
-            "sha256": "71f18abda3e86d3f45f0a736817df2a54ecc8f43b83b2979f8502a98e7d06215"
+            "end": 9966,
+            "sha256": "81804041e9afaa6084a4cb1937069f51b656434b152697017875cdf37f64431c"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "\n  def apply(offset: ElabScopedIndex, bitCount: BitCount): Bits = offset.selectPacked(this, bitCount)\n  def apply(offset: ElabScopedWordOffset, bitCount: ParameterizedBitCount): Bits = offset.selectPacked(this, bitCount)\n",
-              "count": 1
-            },
-            {
-              "side": "approved",
-              "text": "  def apply(bitId: ElabScopedIndex): Bool = bitId.selectBit(this)\n",
+              "text": "\n  def apply(range: ElabScopedRange): Bits = range.select(this)\n  def apply(offset: ElabScopedIndex, bitCount: BitCount): Bits = offset.selectPacked(this, bitCount)\n  def apply(offset: ElabScopedWordOffset, bitCount: ParameterizedBitCount): Bits = offset.selectPacked(this, bitCount)\n\n  def apply(bitId: ElabScopedIndex): Bool = bitId.selectBit(this)\n",
               "count": 1
             }
           ]
@@ -788,15 +784,16 @@
       "introduced_by": [
         "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition",
         "LWR-13\u201316: constructor formals and scoped port/index compositions",
-        "LWR-22\u201324: ordinary loops, immutable configuration formals and late synchronous grouping"
+        "LWR-22\u201324: ordinary loops, immutable configuration formals and late synchronous grouping",
+        "LWR-26: ordinary affine range and host-topology compatibility"
       ],
-      "reason": "Dependency-neutral scoped index, predicate and word-offset interfaces retain lexical authority and typed stride geometry. Lightweight roadmap: Dependency-neutral scoped index, predicate and word-offset interfaces retain lexical authority and typed stride geometry. LWR-13\u201316: Add a package-owned bit-selection delegation point implemented by retained finite indices, preserving the core/runtime dependency boundary. LWR-22\u201324: Provide the dependency-neutral scoped-index unsigned value adapter with explicit whole-domain width checks; keep selection ownership in the typed runtime.",
+      "reason": "Dependency-neutral scoped index, predicate and word-offset interfaces retain lexical authority and typed stride geometry. Lightweight roadmap: Dependency-neutral scoped index, predicate and word-offset interfaces retain lexical authority and typed stride geometry. LWR-13\u201316: Add a package-owned bit-selection delegation point implemented by retained finite indices, preserving the core/runtime dependency boundary. LWR-22\u201324: Provide the dependency-neutral scoped-index unsigned value adapter with explicit whole-domain width checks; keep selection ownership in the typed runtime. LWR-26: Expose dependency-neutral affine ranges, checked integer subtraction and symbolic offsets without extracting index witnesses.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElabScopedIndex.scala",
         "mode": "100644",
-        "blob": "733c56a05adb968edb3d45266f754a827ada3f95",
-        "sha256": "1af2abc5201edd484d13bd614cddfdaf4eabd7ec86ac35e1709a3ff73fb6a761"
+        "blob": "bd77bc8d4629c346c39277ab1e92cf06c4c5f81a",
+        "sha256": "eb4cad5c3bb06991dbd1744b5c8ac1c7d3600ba478e92453b6482a1081f45039"
       },
       "edits": []
     },
@@ -3663,9 +3660,10 @@
         "Default enum debug string suppression",
         "CA-028: authenticated retained Area collection publication",
         "CA-049: complete guarded static packed assignment publication",
-        "LWR-22\u201324: ordinary loops, immutable configuration formals and late synchronous grouping"
+        "LWR-22\u201324: ordinary loops, immutable configuration formals and late synchronous grouping",
+        "LWR-26: ordinary affine range and host-topology compatibility"
       ],
-      "reason": "Retain native symbolic-legality publication and the generation-scoped signed declaration, cast, literal, resize and unsigned-transport callbacks. The typed expression planner controls optional wrapper suppression; every mandatory wrapper present before depth cutting remains, and CDC-WIRE-01 suppresses new depth wrappers only when complete expansion and all receiving widths are proven. Approved unsigned expression slices use a deterministic Verilog-2001 function with the full authoritative source input width and exact constant result range, preserving truncation and four-state semantics. Helper and argument names are allocated in the same namespace after reserving component/width parameter identities, and functions are cached by symbolic width and range. Signed/unknown or otherwise unproven expressions and the ordinary backend keep inherited emission. Qualification repair reserves declaration-local width names without composing finished branch domains, and passes the exact emitter owner when preserving a retained unsigned wrapper's authoritative logical range. All old public wrapper entry points and ordinary backend behavior remain intact. Emit dependency-ordered typed local parameters through the native localparams buffer after the parameterized backend prepares exact live uses. Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative. Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. CA-005 adds explicit native ANSI-port context while preserving body declaration behavior. Include actual ANSI context and parameter-aware unsigned native temporary/operand publication. Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative. Route BOOT initial assignments through the existing default-disabled owner-bound source publication hook, retaining the exact init statement; preserve ordinary literal emission when the hook returns no replacement. CA-023 preserves child-owned symbolic memory geometry before native identity comparison using optional exact-owner hooks. Enum report formatting follows the existing native enum-string setting and falls back to numeric encoding when disabled. CA-049: retain one exact native serialization of authenticated complete static packed processes, including constant-only bodies. The opt-in policy defaults false, validates the exact emitter and statement inventory, and requires every retained assignment to become a continuous driver before publication. Ordinary native constant-function emission is unchanged. LWR-22\u201324: Expose native synchronous rendering through an optional authenticated publication callback; preserve the original renderer as the default and replay authority.",
+      "reason": "Retain native symbolic-legality publication and the generation-scoped signed declaration, cast, literal, resize and unsigned-transport callbacks. The typed expression planner controls optional wrapper suppression; every mandatory wrapper present before depth cutting remains, and CDC-WIRE-01 suppresses new depth wrappers only when complete expansion and all receiving widths are proven. Approved unsigned expression slices use a deterministic Verilog-2001 function with the full authoritative source input width and exact constant result range, preserving truncation and four-state semantics. Helper and argument names are allocated in the same namespace after reserving component/width parameter identities, and functions are cached by symbolic width and range. Signed/unknown or otherwise unproven expressions and the ordinary backend keep inherited emission. Qualification repair reserves declaration-local width names without composing finished branch domains, and passes the exact emitter owner when preserving a retained unsigned wrapper's authoritative logical range. All old public wrapper entry points and ordinary backend behavior remain intact. Emit dependency-ordered typed local parameters through the native localparams buffer after the parameterized backend prepares exact live uses. Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative. Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. CA-005 adds explicit native ANSI-port context while preserving body declaration behavior. Include actual ANSI context and parameter-aware unsigned native temporary/operand publication. Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative. Route BOOT initial assignments through the existing default-disabled owner-bound source publication hook, retaining the exact init statement; preserve ordinary literal emission when the hook returns no replacement. CA-023 preserves child-owned symbolic memory geometry before native identity comparison using optional exact-owner hooks. Enum report formatting follows the existing native enum-string setting and falls back to numeric encoding when disabled. CA-049: retain one exact native serialization of authenticated complete static packed processes, including constant-only bodies. The opt-in policy defaults false, validates the exact emitter and statement inventory, and requires every retained assignment to become a continuous driver before publication. Ordinary native constant-function emission is unchanged. LWR-22\u201324: Expose native synchronous rendering through an optional authenticated publication callback; preserve the original renderer as the default and replay authority. LWR-26: Forward an optional continuous-assignment publication suffix hook, preserving exact finite-write lineage through optimization without changing ordinary native output.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
@@ -3675,8 +3673,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
-        "blob": "4f5c875820612f5e2ec0334b6ad69aedf9ee0cc2",
-        "sha256": "ce7ef916ee3e4ae8efbb024403134bd76fdc55cbffabd5d2d6c44deb39f66c5c"
+        "blob": "553b2be982c8c6af91024f3600fd52c2eb5228c0",
+        "sha256": "df37867f77072120af78ef27e6d6095299bb45b5152dbc263bbf9fa1a554633f"
       },
       "edits": [
         {
@@ -4127,29 +4125,24 @@
           ]
         },
         {
-          "id": "componentemitterverilog-comments-11",
+          "id": "lwr26-componentemitterverilog-20",
           "kind": "backend-isolation",
-          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
-          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact. CA-028: reviewed opt-in exact native assignment target/lineage handoff; no-policy native output is unchanged. Structural legality remains owned and checked in MorphHDL.",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Forward an optional continuous-assignment publication suffix hook, preserving exact finite-write lineage through optimization without changing ordinary native output.",
           "baseline_span": {
             "start": 28611,
-            "end": 28696,
-            "sha256": "369efa00c5989155acb6d6ac0d999968afdc67914916ce33ab929fa559047f48"
+            "end": 28714,
+            "sha256": "fed88ea4276bf9817be28a2ac942d9dcf75523f0f3a3ca427f4aa29c43079ef3"
           },
           "approved_span": {
             "start": 30462,
-            "end": 30770,
-            "sha256": "dfd72f631e53b1425e2c50e9262afaba6ccb909e5d82dbf6a8bb3c30b5ac6c66"
+            "end": 30841,
+            "sha256": "f1680bc6e7c2c8a686fa2eda84384de08ff564d2fed3a6532b7ae714f0ce8698"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "AssignmentSource(s",
-              "count": 1
-            },
-            {
-              "side": "approved",
-              "text": "verilogBase.emitAssignmentTarget(this, s).getOrElse(emitAssignedExpression(s.target))",
+              "text": "val notes = new StringBuilder\n              emitRegionNotes(s, notes, \"  \")\n              logics ++= RtlDocumentation.envelope(component, s, notes.toString)\n              logics ++= s\"  assign ${verilogBase.emitAssignmentTarget(this, s).getOrElse(emitAssignedExpression(s.target))} = ${emitAssignmentSource(s)};${emitLocation(s)}${verilogBase.emitContinuousStatementSuffix(this, ",
               "count": 1
             }
           ]
@@ -4165,8 +4158,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 31028,
-            "end": 31121,
+            "start": 31081,
+            "end": 31174,
             "sha256": "95b57b5b6f86ce7df1179be9cbc7f26770f1ba724e202977bc8ecbb17405bafb"
           },
           "required_exact_text": [
@@ -4188,8 +4181,8 @@
             "sha256": "427fc1d018836ecb79319064cdfd846a47932f57f9b49526858c5a95631d78fe"
           },
           "approved_span": {
-            "start": 31217,
-            "end": 31360,
+            "start": 31270,
+            "end": 31413,
             "sha256": "3fb57b9a9ac37cc7841ce977b6d7dbcc4cfc14f8244fff484e42fb5e30a13afa"
           },
           "required_exact_text": [
@@ -4211,8 +4204,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 31751,
-            "end": 31759,
+            "start": 31804,
+            "end": 31812,
             "sha256": "c803710302d5769d8fcd51958c516ff27f2a3c5ad9373c348d1d180c04a74624"
           },
           "required_exact_text": [
@@ -4234,8 +4227,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 32720,
-            "end": 32728,
+            "start": 32773,
+            "end": 32781,
             "sha256": "c803710302d5769d8fcd51958c516ff27f2a3c5ad9373c348d1d180c04a74624"
           },
           "required_exact_text": [
@@ -4257,8 +4250,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 33637,
-            "end": 33680,
+            "start": 33690,
+            "end": 33733,
             "sha256": "1794ecaa1c3a1eef7b39e6b6f5be5733901984a97cb93f96ea7198c9f73d24ec"
           },
           "required_exact_text": [
@@ -4280,8 +4273,8 @@
             "sha256": "01a2089c40a92f3b297f39a78a68717b51f6cd7891d2ef73202b322264aa1546"
           },
           "approved_span": {
-            "start": 33773,
-            "end": 33999,
+            "start": 33826,
+            "end": 34052,
             "sha256": "88de62fb2343ad2e2fb539986b5e4b07cb80a375814ee0398366cefabd35c191"
           },
           "required_exact_text": [
@@ -4308,8 +4301,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 34713,
-            "end": 34745,
+            "start": 34766,
+            "end": 34798,
             "sha256": "5ed9c53493ff8a0cd206862b672b27ebe2812b9604fcf0163ccbcb7113198f03"
           },
           "required_exact_text": [
@@ -4331,8 +4324,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 35157,
-            "end": 35189,
+            "start": 35210,
+            "end": 35242,
             "sha256": "5ed9c53493ff8a0cd206862b672b27ebe2812b9604fcf0163ccbcb7113198f03"
           },
           "required_exact_text": [
@@ -4354,8 +4347,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 38363,
-            "end": 38744,
+            "start": 38416,
+            "end": 38797,
             "sha256": "dcf9157377ec34fda03e2dd9bfd8938003f9d11fe017123e073865e09378482c"
           },
           "required_exact_text": [
@@ -4382,8 +4375,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 38813,
-            "end": 39057,
+            "start": 38866,
+            "end": 39110,
             "sha256": "2882c877c3467137bda71d615172edbcd8a738871335f64221cdda2a57fd1fde"
           },
           "required_exact_text": [
@@ -4405,8 +4398,8 @@
             "sha256": "d75a074b03d426e310a7f1def1943ebcdc14835b161f8a472a237f374855decd"
           },
           "approved_span": {
-            "start": 39142,
-            "end": 39151,
+            "start": 39195,
+            "end": 39204,
             "sha256": "596d40a4ed24c02a31b19d6e633f46f64304a672b40f793d8c6deab868beb0e2"
           },
           "required_exact_text": [
@@ -4428,8 +4421,8 @@
             "sha256": "d75a074b03d426e310a7f1def1943ebcdc14835b161f8a472a237f374855decd"
           },
           "approved_span": {
-            "start": 39585,
-            "end": 39594,
+            "start": 39638,
+            "end": 39647,
             "sha256": "596d40a4ed24c02a31b19d6e633f46f64304a672b40f793d8c6deab868beb0e2"
           },
           "required_exact_text": [
@@ -4451,8 +4444,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 39925,
-            "end": 39980,
+            "start": 39978,
+            "end": 40033,
             "sha256": "6042b1972c4d763f5fd04c89b6a83c71df291ea0e06c5bbb99ae3c12c3f886a1"
           },
           "required_exact_text": [
@@ -4474,8 +4467,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 43106,
-            "end": 43182,
+            "start": 43159,
+            "end": 43235,
             "sha256": "f671cdd69a92da60879a9557acffbcdb5e06944433bfdc67901dea138f375ea7"
           },
           "required_exact_text": [
@@ -4497,8 +4490,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 46469,
-            "end": 46508,
+            "start": 46522,
+            "end": 46561,
             "sha256": "0197ec1f122bfde6c08bae644032794aef7080ee2d50aabc73de0077e7939912"
           },
           "required_exact_text": [
@@ -4520,8 +4513,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 46952,
-            "end": 47001,
+            "start": 47005,
+            "end": 47054,
             "sha256": "0b4b7b080f1784c7096c7df53a3807748655700db4664a0612abf4ab49a41042"
           },
           "required_exact_text": [
@@ -4543,8 +4536,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 48819,
-            "end": 48825,
+            "start": 48872,
+            "end": 48878,
             "sha256": "0cba10bc1f335de9d4e1eac6c4f7aa62e523aa54144b9482ffddc09d32a279cf"
           },
           "required_exact_text": [
@@ -4566,8 +4559,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 50717,
-            "end": 50723,
+            "start": 50770,
+            "end": 50776,
             "sha256": "0cba10bc1f335de9d4e1eac6c4f7aa62e523aa54144b9482ffddc09d32a279cf"
           },
           "required_exact_text": [
@@ -4589,8 +4582,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 51149,
-            "end": 51207,
+            "start": 51202,
+            "end": 51260,
             "sha256": "eba8edacc4c1d2dabaedc3bd41b2d03ae7f1397f6998e33d6d4fb45473394834"
           },
           "required_exact_text": [
@@ -4612,8 +4605,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 51969,
-            "end": 51999,
+            "start": 52022,
+            "end": 52052,
             "sha256": "2f76cb5530fec66aa067821b521e1d4220de0bba6c058aef734c5dd4dad22b48"
           },
           "required_exact_text": [
@@ -4635,8 +4628,8 @@
             "sha256": "bcc1ae295e0226637c244b5841cd5caa43896af4545f00b72ae5d9479a1554e3"
           },
           "approved_span": {
-            "start": 52318,
-            "end": 52444,
+            "start": 52371,
+            "end": 52497,
             "sha256": "85fec5dd172d5b13dfe77d34a4cf3f5cb9d50976039962296ca6425d2ec17b46"
           },
           "required_exact_text": [
@@ -4658,8 +4651,8 @@
             "sha256": "69af64d494ef07db908023094ede88292d99c677154c0e4e513476dd95abfcd5"
           },
           "approved_span": {
-            "start": 57880,
-            "end": 58306,
+            "start": 57933,
+            "end": 58359,
             "sha256": "922a4e40562347a20cb4bf09f0846c78f3140482556bf3791e72362c6de3df54"
           },
           "required_exact_text": [
@@ -4681,8 +4674,8 @@
             "sha256": "224f2e0625b2bc43531b17b127daf159ae9fd4063570519957dab3e45aca5a5e"
           },
           "approved_span": {
-            "start": 76676,
-            "end": 77410,
+            "start": 76729,
+            "end": 77463,
             "sha256": "5b1cb27397675b20ebaf1e0f2141d817f2f3820e520db1d789449eb793beed39"
           },
           "required_exact_text": [
@@ -4704,8 +4697,8 @@
             "sha256": "ca47fea6d8fe4bc58f1df50ee7561d0d009b5392895796780e725c8fe9027e70"
           },
           "approved_span": {
-            "start": 77512,
-            "end": 77590,
+            "start": 77565,
+            "end": 77643,
             "sha256": "2081c0d75cf652f45b4fe49b37a2b8d4063bafa35ee2fde26cbfb9129c5c19d5"
           },
           "required_exact_text": [
@@ -4727,8 +4720,8 @@
             "sha256": "5ab9cf83395528e05ec149d6439e8d00a22eb4da89d5e53c19ba9269c966e10b"
           },
           "approved_span": {
-            "start": 77696,
-            "end": 77731,
+            "start": 77749,
+            "end": 77784,
             "sha256": "326bf2045ad9d01e74b5f534adf9fd5b5029b0b8b8d14a0d4083c47e0229a7ad"
           },
           "required_exact_text": [
@@ -4750,8 +4743,8 @@
             "sha256": "89bc1fe93bb1cc8830095ff2a7a90cd0867955fef57f6b6d00f0afdc5de52bd1"
           },
           "approved_span": {
-            "start": 78259,
-            "end": 78294,
+            "start": 78312,
+            "end": 78347,
             "sha256": "e9ebbfd545de2822adbac4c549192adaca12ddcf7fb2e402b382df26c3cf81ca"
           },
           "required_exact_text": [
@@ -4773,8 +4766,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 78914,
-            "end": 78965,
+            "start": 78967,
+            "end": 79018,
             "sha256": "610b6a0d6cab0ce9fc13c6efcd9a54bd25c0b5c24be5f6d734715b0118fc9573"
           },
           "required_exact_text": [
@@ -4796,8 +4789,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 79367,
-            "end": 79422,
+            "start": 79420,
+            "end": 79475,
             "sha256": "af29fb703f43eb5753c8ab99b789e07fce193db9044e4004beacab8820d2da1a"
           },
           "required_exact_text": [
@@ -4819,8 +4812,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 80456,
-            "end": 80519,
+            "start": 80509,
+            "end": 80572,
             "sha256": "6883a57b205d14f99fda4bb6fb61a0b54cb6b2e1cc3bc38d6281dca30b10738f"
           },
           "required_exact_text": [
@@ -4842,8 +4835,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 80583,
-            "end": 80590,
+            "start": 80636,
+            "end": 80643,
             "sha256": "a7e394f7029082eb74696a89f0aa7eb78b10270ba0714adf19d82856a8636f04"
           },
           "required_exact_text": [
@@ -4865,8 +4858,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 80660,
-            "end": 80667,
+            "start": 80713,
+            "end": 80720,
             "sha256": "a7e394f7029082eb74696a89f0aa7eb78b10270ba0714adf19d82856a8636f04"
           },
           "required_exact_text": [
@@ -4888,8 +4881,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 83224,
-            "end": 83284,
+            "start": 83277,
+            "end": 83337,
             "sha256": "f020273bb7525f0220e1be119610447feaaafda59154e2ee21fb712d2f6992aa"
           },
           "required_exact_text": [
@@ -5005,6 +4998,52 @@
       ]
     },
     {
+      "path": "core/src/main/scala/spinal/core/internals/Expression.scala",
+      "change": "modified",
+      "classification": "backend-isolation-hook",
+      "introduced_by": [
+        "LWR-26: exact disjoint assignment coverage"
+      ],
+      "reason": "Allow native assignment expressions to report disjoint assigned intervals; existing expressions retain their original single-range defaults.",
+      "baseline": {
+        "path": "core/src/main/scala/spinal/core/internals/Expression.scala",
+        "mode": "100644",
+        "blob": "980c88c817fdc186ae21972bcb007f82a5d41187",
+        "sha256": "300aef618d5e7ea68772d455524899681a6d5bd33bad5f8b3d7b52ac8aa2e1dd"
+      },
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/internals/Expression.scala",
+        "mode": "100644",
+        "blob": "e93a278fd801378bc7a362c949f88e50c9083bc9",
+        "sha256": "143249430a067158f0c1ca3b1e322471249397bb00bcb62cb8f204b97e1234de"
+      },
+      "edits": [
+        {
+          "id": "lwr26-expression-1",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.AssignmentExpression",
+          "reason": "Allow native assignment expressions to report disjoint assigned intervals; existing expressions retain their original single-range defaults.",
+          "baseline_span": {
+            "start": 69368,
+            "end": 69368,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 69368,
+            "end": 69661,
+            "sha256": "1443730949bc5fad08dcf54eb280c97309ccaceb328df5d2cf5029ae1f0561fd"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Retained affine loops may assign several disjoint native bit intervals.\n  // Existing expressions keep their original single-range semantics.\n  def getMinAssignedRanges: Seq[AssignedRange] = Seq(getMinAssignedBits)\n  def getMaxAssignedRanges: Seq[AssignedRange] = Seq(getMaxAssignedBits)\n",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
       "path": "core/src/main/scala/spinal/core/internals/NativeEnumExpressionAuthority.scala",
       "change": "added",
       "classification": "typed-support-file",
@@ -5047,9 +5086,10 @@
         "Increment 57a: typed StreamFifoCC architecture",
         "Increment 60g: scheduler-owned registration lifecycle",
         "Increment 66: native parameter and RTL readability extensions",
-        "CA-003 exact native literal-clone lineage"
+        "CA-003 exact native literal-clone lineage",
+        "LWR-26: ordinary affine range and host-topology compatibility"
       ],
-      "reason": "Preserve structured parameterized-Verilog diagnostics across the inherited Verilog elaboration retry boundary. Expose read-only per-context execution state before any phase runs without altering native phase order or behavior. Mechanically copy immutable named-constant reference tokens through ordinary anonymous carrier propagation and validate exact named-key disjointness before native parallel-case emission. Never fold a symbolic default witness or alter ordinary literal propagation and coverage checks.",
+      "reason": "Preserve structured parameterized-Verilog diagnostics across the inherited Verilog elaboration retry boundary. Expose read-only per-context execution state before any phase runs without altering native phase order or behavior. Mechanically copy immutable named-constant reference tokens through ordinary anonymous carrier propagation and validate exact named-key disjointness before native parallel-case emission. Never fold a symbolic default witness or alter ordinary literal propagation and coverage checks. LWR-26: Consume exact disjoint intervals in native driver, latch and overlap checking rather than filling gaps with a bounding interval.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
         "mode": "100644",
@@ -5059,8 +5099,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
         "mode": "100644",
-        "blob": "e8a299b4303923fef19f12b1b198fb6ece0756cd",
-        "sha256": "4dcc4406ca623c42e021d645b2da6c30665ab26a88e540dadb9d11412db5974f"
+        "blob": "ebe4aa4d7878ac386fa1e79ff43a9f75acb82da8",
+        "sha256": "884583fb765563c650a695a3c8ce405f7ec4c5b1da46d6f43072d91c0b245a3a"
       },
       "edits": [
         {
@@ -5161,6 +5201,75 @@
           ]
         },
         {
+          "id": "lwr26-phase-5",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/Phase.scala",
+          "reason": "Consume exact disjoint intervals in native driver, latch and overlap checking rather than filling gaps with a bounding interval.",
+          "baseline_span": {
+            "start": 103811,
+            "end": 103848,
+            "sha256": "cbce589afefc9cb5f1cb45e67cda46396a5b4f4bfc856c57e9b5d5a88f78642f"
+          },
+          "approved_span": {
+            "start": 104378,
+            "end": 104425,
+            "sha256": "a574450e952952beb7f9997e168c26be897c3220091d9549badcdd5c8b3f5b57"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "e.getMaxAssignedRanges.foreach(assignedBits.add",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lwr26-phase-6",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/Phase.scala",
+          "reason": "Consume exact disjoint intervals in native driver, latch and overlap checking rather than filling gaps with a bounding interval.",
+          "baseline_span": {
+            "start": 110614,
+            "end": 110673,
+            "sha256": "39919ce66a89317e2ca281f5870b7110f7b22975020fb082da08ae1757054977"
+          },
+          "approved_span": {
+            "start": 111191,
+            "end": 111191,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "required_exact_text": [
+            {
+              "side": "baseline",
+              "text": "                  val assignedRange = e.getMinAssignedBits\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lwr26-phase-7",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/Phase.scala",
+          "reason": "Consume exact disjoint intervals in native driver, latch and overlap checking rather than filling gaps with a bounding interval.",
+          "baseline_span": {
+            "start": 110759,
+            "end": 110898,
+            "sha256": "bafbc59eecc52376fadb372f7904e53895aaffb0b532d7c3a6f620f81533893c"
+          },
+          "approved_span": {
+            "start": 111277,
+            "end": 111381,
+            "sha256": "a4feb9b0b4ec3ca6405b745c0d842bd51605086c3ec4ce48686a53a7d89a7c74"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "e.getMinAssignedRanges.foreach(rangeBits.add)\n                  val isEffectivelyFull = rangeBits.isFull",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "spinal-verilog-parameterized-exception-01",
           "kind": "platform-integration",
           "owner": "spinal.core.internals.SpinalVerilogBoot.apply retry boundary",
@@ -5171,8 +5280,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 137478,
-            "end": 137541,
+            "start": 137394,
+            "end": 137457,
             "sha256": "3ffd3c3e02b062888955ce16b876cff12d26e738bbd612c9988d71285271c8a1"
           },
           "required_exact_text": [
@@ -5422,9 +5531,10 @@
         "CA-023: authenticated memory and synchronous read geometry before native canonical grouping",
         "CA-028: authenticated retained Area collection publication",
         "CA-049: complete guarded static packed assignment publication",
-        "LWR-22\u201324: ordinary loops, immutable configuration formals and late synchronous grouping"
+        "LWR-22\u201324: ordinary loops, immutable configuration formals and late synchronous grouping",
+        "LWR-26: ordinary affine range and host-topology compatibility"
       ],
-      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results. CDC-WIRE-01 qualification preserves the historical two-argument wrapper method and adds an internal owner-checked overload for retained unsigned symbolic carriers. The default backend remains on inherited concrete emission; signed declaration policy ranges retain precedence, with no new state in the historical interface. Add a default-disabled exact-occurrence scalar range callback so the native printer can reference module-local typed constants without changing ordinary concrete emission. Add owner-checked optional assignment/source/target/scope callbacks with storage confined to DeclarationPolicyOwner. Keep the historical interface stateless, preserve existing declaration and signedness hooks, and retain default native printing when no policy applies. CA-005 adds explicit native ANSI-port context while preserving body declaration behavior. Include actual ANSI context and parameter-aware unsigned native temporary/operand publication. Extend the existing optional owner-bound publication policy with concrete default methods for native conditions, ranges, operands, constant shifts and BlackBox generics. Validate exact emitter/instance association identity, retain historical public wrapper entry points and avoid new abstract VerilogBase accessors. CA-023 preserves child-owned symbolic memory geometry before native identity comparison using optional exact-owner hooks. CA-049: retain one exact native serialization of authenticated complete static packed processes, including constant-only bodies. The opt-in policy defaults false, validates the exact emitter and statement inventory, and requires every retained assignment to become a continuous driver before publication. Ordinary native constant-function emission is unchanged. LWR-22\u201324: Add an owning-printer-authenticated synchronous publication hook for the late exact-edge process grouping pass.",
+      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results. CDC-WIRE-01 qualification preserves the historical two-argument wrapper method and adds an internal owner-checked overload for retained unsigned symbolic carriers. The default backend remains on inherited concrete emission; signed declaration policy ranges retain precedence, with no new state in the historical interface. Add a default-disabled exact-occurrence scalar range callback so the native printer can reference module-local typed constants without changing ordinary concrete emission. Add owner-checked optional assignment/source/target/scope callbacks with storage confined to DeclarationPolicyOwner. Keep the historical interface stateless, preserve existing declaration and signedness hooks, and retain default native printing when no policy applies. CA-005 adds explicit native ANSI-port context while preserving body declaration behavior. Include actual ANSI context and parameter-aware unsigned native temporary/operand publication. Extend the existing optional owner-bound publication policy with concrete default methods for native conditions, ranges, operands, constant shifts and BlackBox generics. Validate exact emitter/instance association identity, retain historical public wrapper entry points and avoid new abstract VerilogBase accessors. CA-023 preserves child-owned symbolic memory geometry before native identity comparison using optional exact-owner hooks. CA-049: retain one exact native serialization of authenticated complete static packed processes, including constant-only bodies. The opt-in policy defaults false, validates the exact emitter and statement inventory, and requires every retained assignment to become a continuous driver before publication. Ordinary native constant-function emission is unchanged. LWR-22\u201324: Add an owning-printer-authenticated synchronous publication hook for the late exact-edge process grouping pass. LWR-26: Expose an optional emitter-owned continuous-assignment suffix callback, defaulting to no output; MorphHDL uses it only for exact registered finite packed writes.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
         "mode": "100644",
@@ -5434,15 +5544,15 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
         "mode": "100644",
-        "blob": "a4a8171caa1598d4de1e97519b0cb517e4c255b6",
-        "sha256": "f5c7aa1636f15f979c3479996f036bfbd50ad8660f22af04d84d4952aa5ce4de"
+        "blob": "6b15db6f0abfc7a27116f2de4d30bc6de6dddd4f",
+        "sha256": "6eda68ffbe712590b706f257fdf7713cb1affb2446ea303406a0a4c392156536"
       },
       "edits": [
         {
-          "id": "lwr22-24-verilogbase-1",
+          "id": "lwr26-verilogbase-1",
           "kind": "backend-isolation",
           "owner": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
-          "reason": "Add an owning-printer-authenticated synchronous publication hook for the late exact-edge process grouping pass.",
+          "reason": "Expose an optional emitter-owned continuous-assignment suffix callback, defaulting to no output; MorphHDL uses it only for exact registered finite packed writes.",
           "baseline_span": {
             "start": 1997,
             "end": 1997,
@@ -5450,36 +5560,36 @@
           },
           "approved_span": {
             "start": 1997,
-            "end": 7954,
-            "sha256": "8be4271c1d09061fd54828bbc127fb2a98f907f48c1c7f8f15530d4a2921840a"
+            "end": 8068,
+            "sha256": "5083ec3ad0475981bbf50ef377dbf8252cbce503e45c06cc9dfd1d17d0e3db70"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "/** The native printer owns declaration occurrences. No occurrence contains an\n  * emitted identifier, source location or a guessed concrete-width type.\n  */\nobject VerilogBase {\n  sealed trait DeclarationRole\n  case object ScalarDeclaration extends DeclarationRole\n  case object FunctionResultDeclaration extends DeclarationRole\n  case object ExpressionWrapper extends DeclarationRole\n  case object MemoryElementDeclaration extends DeclarationRole\n\n  final class DeclarationOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val subject: AnyRef,\n      val role: DeclarationRole,\n      val ansiPort: Boolean = false\n  )\n\n  /** Native cast site and the exact object that emitExpression will print.\n    * The reference classification comes from the real native wrapper plan,\n    * never from the resulting Verilog text or a caller-provided signed flag.\n    */\n  final class SignedCastOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val parent: Expression,\n      val slot: Int,\n      val operand: Expression\n  ) {\n    def component: Component = printer.component\n    def isSignedLiteral: Boolean = operand match {\n      case literal: BitVectorLiteral => emitter.literalIsSigned(literal)\n      case _ => false\n    }\n    def referenceRole: Option[DeclarationRole] = {\n      if (printer.wrappedExpressionToName.contains(operand)) Some(ExpressionWrapper)\n      else operand match {\n        case value: BaseType if (value.component eq component) && !value.isSuffix &&\n            !printer.referencesOverrides.contains(value) => Some(ScalarDeclaration)\n        case _ => None\n      }\n    }\n  }\n\n  final class SignedLiteralOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val literal: BitVectorLiteral\n  )\n\n  final class SignedResizeOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val resize: Resize\n  ) {\n    def inputReferenceRole: Option[DeclarationRole] =\n      new SignedCastOccurrence(emitter, printer, resize, 0, resize.input).referenceRole\n    def inputText: String = printer.emitExpression(resize.input)\n  }\n\n  /** Exact native assignment callback for authenticated parameter publication.\n    * Concrete emission has no bound policy and keeps its historical path.\n    */\n  trait AssignmentPublicationPolicy {\n    def synchronous(printer: ComponentEmitterVerilog, clock: ClockDomain, scope: ScopeStatement,\n        hasInit: Boolean, init: Vector[LeafStatement], data: Vector[LeafStatement],\n        render: (Vector[LeafStatement], Vector[LeafStatement]) => String): Option[String] = None\n    def constantShift(printer: ComponentEmitterVerilog,\n        expression: Operator.BitVector.ShiftRightByInt): Option[String] = None\n    def blackBoxGeneric(printer: ComponentEmitterVerilog, blackBox: BlackBox,\n        association: (String, Any)): Option[String] = None\n    def memoryGeometry(printer: ComponentEmitterVerilog, memory: Mem[_]): Option[(String, String)] = None\n    def condition(printer: ComponentEmitterVerilog, statement: WhenStatement): Option[String] = None\n    def wrapperRange(printer: ComponentEmitterVerilog, expression: Expression): Option[String] = None\n    def binaryOperand(printer: ComponentEmitterVerilog, expression: BinaryOperator, slot: Int): Option[String] = None\n    def source(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String]\n    def target(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] = None\n    def statementSuffix(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): String = \"\"\n    def retainCombinationalProcess(printer: ComponentEmitterVerilog,\n        statements: Vector[LeafStatement]): Boolean = false\n    def scope(printer: ComponentEmitterVerilog, tree: TreeStatement, scope: ScopeStatement,\n        output: StringBuilder, indentation: String, body: String => Int): Option[Int] = None\n  }\n\n  /** Optional storage owned by the concrete emitter, not by the historical\n    * VerilogBase interface. A field in that interface would add abstract JVM\n    * accessors and break already-compiled implementations. The strong reference\n    * lives exactly as long as its owner; no global or thread-local registry is\n    * involved, even when a policy itself retains the emitter.\n    */\n  private[spinal] trait DeclarationPolicyOwner { self: VerilogBase =>\n    @volatile private var boundPolicy: DeclarationPolicy = null\n    @volatile private var assignmentPolicy: AssignmentPublicationPolicy = null\n    private[VerilogBase] final def assignmentPublication: AssignmentPublicationPolicy = assignmentPolicy\n    private[VerilogBase] final def installAssignmentPublication(policy: AssignmentPublicationPolicy): Unit = synchronized {\n      require(policy != null && assignmentPolicy == null, \"assignment publication must be bound exactly once\")\n      assignmentPolicy = policy\n    }\n\n    private[VerilogBase] final def currentDeclarationPolicy: DeclarationPolicy = boundPolicy\n\n    private[VerilogBase] final def installDeclarationPolicy(policy: DeclarationPolicy): Unit = synchronized {\n      require(policy != null && boundPolicy == null,\n        \"a Verilog declaration policy must be non-null and bound exactly once\")\n      boundPolicy = policy\n    }\n  }\n\n  trait DeclarationPolicy {\n    def signed(occurrence: DeclarationOccurrence): Boolean\n    def wrapperRange(occurrence: DeclarationOccurrence): Option[String]\n    def unsignedTransport(expression: Expression): Boolean\n    def elideSignedCast(occurrence: SignedCastOccurrence): Boolean = false\n    def signedLiteral(occurrence: SignedLiteralOccurrence): Boolean = false\n    def signedResize(occurrence: SignedResizeOccurrence): Option[String] = None\n    def functionRange(occurrence: DeclarationOccurrence): Option[String] = None\n    def scalarRange(occurrence: DeclarationOccurrence): Option[String] = None\n  }\n}\n\n",
+              "text": "/** The native printer owns declaration occurrences. No occurrence contains an\n  * emitted identifier, source location or a guessed concrete-width type.\n  */\nobject VerilogBase {\n  sealed trait DeclarationRole\n  case object ScalarDeclaration extends DeclarationRole\n  case object FunctionResultDeclaration extends DeclarationRole\n  case object ExpressionWrapper extends DeclarationRole\n  case object MemoryElementDeclaration extends DeclarationRole\n\n  final class DeclarationOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val subject: AnyRef,\n      val role: DeclarationRole,\n      val ansiPort: Boolean = false\n  )\n\n  /** Native cast site and the exact object that emitExpression will print.\n    * The reference classification comes from the real native wrapper plan,\n    * never from the resulting Verilog text or a caller-provided signed flag.\n    */\n  final class SignedCastOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val parent: Expression,\n      val slot: Int,\n      val operand: Expression\n  ) {\n    def component: Component = printer.component\n    def isSignedLiteral: Boolean = operand match {\n      case literal: BitVectorLiteral => emitter.literalIsSigned(literal)\n      case _ => false\n    }\n    def referenceRole: Option[DeclarationRole] = {\n      if (printer.wrappedExpressionToName.contains(operand)) Some(ExpressionWrapper)\n      else operand match {\n        case value: BaseType if (value.component eq component) && !value.isSuffix &&\n            !printer.referencesOverrides.contains(value) => Some(ScalarDeclaration)\n        case _ => None\n      }\n    }\n  }\n\n  final class SignedLiteralOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val literal: BitVectorLiteral\n  )\n\n  final class SignedResizeOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val resize: Resize\n  ) {\n    def inputReferenceRole: Option[DeclarationRole] =\n      new SignedCastOccurrence(emitter, printer, resize, 0, resize.input).referenceRole\n    def inputText: String = printer.emitExpression(resize.input)\n  }\n\n  /** Exact native assignment callback for authenticated parameter publication.\n    * Concrete emission has no bound policy and keeps its historical path.\n    */\n  trait AssignmentPublicationPolicy {\n    def synchronous(printer: ComponentEmitterVerilog, clock: ClockDomain, scope: ScopeStatement,\n        hasInit: Boolean, init: Vector[LeafStatement], data: Vector[LeafStatement],\n        render: (Vector[LeafStatement], Vector[LeafStatement]) => String): Option[String] = None\n    def constantShift(printer: ComponentEmitterVerilog,\n        expression: Operator.BitVector.ShiftRightByInt): Option[String] = None\n    def blackBoxGeneric(printer: ComponentEmitterVerilog, blackBox: BlackBox,\n        association: (String, Any)): Option[String] = None\n    def memoryGeometry(printer: ComponentEmitterVerilog, memory: Mem[_]): Option[(String, String)] = None\n    def condition(printer: ComponentEmitterVerilog, statement: WhenStatement): Option[String] = None\n    def wrapperRange(printer: ComponentEmitterVerilog, expression: Expression): Option[String] = None\n    def binaryOperand(printer: ComponentEmitterVerilog, expression: BinaryOperator, slot: Int): Option[String] = None\n    def source(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String]\n    def target(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] = None\n    def continuousStatementSuffix(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): String = \"\"\n    def statementSuffix(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): String = \"\"\n    def retainCombinationalProcess(printer: ComponentEmitterVerilog,\n        statements: Vector[LeafStatement]): Boolean = false\n    def scope(printer: ComponentEmitterVerilog, tree: TreeStatement, scope: ScopeStatement,\n        output: StringBuilder, indentation: String, body: String => Int): Option[Int] = None\n  }\n\n  /** Optional storage owned by the concrete emitter, not by the historical\n    * VerilogBase interface. A field in that interface would add abstract JVM\n    * accessors and break already-compiled implementations. The strong reference\n    * lives exactly as long as its owner; no global or thread-local registry is\n    * involved, even when a policy itself retains the emitter.\n    */\n  private[spinal] trait DeclarationPolicyOwner { self: VerilogBase =>\n    @volatile private var boundPolicy: DeclarationPolicy = null\n    @volatile private var assignmentPolicy: AssignmentPublicationPolicy = null\n    private[VerilogBase] final def assignmentPublication: AssignmentPublicationPolicy = assignmentPolicy\n    private[VerilogBase] final def installAssignmentPublication(policy: AssignmentPublicationPolicy): Unit = synchronized {\n      require(policy != null && assignmentPolicy == null, \"assignment publication must be bound exactly once\")\n      assignmentPolicy = policy\n    }\n\n    private[VerilogBase] final def currentDeclarationPolicy: DeclarationPolicy = boundPolicy\n\n    private[VerilogBase] final def installDeclarationPolicy(policy: DeclarationPolicy): Unit = synchronized {\n      require(policy != null && boundPolicy == null,\n        \"a Verilog declaration policy must be non-null and bound exactly once\")\n      boundPolicy = policy\n    }\n  }\n\n  trait DeclarationPolicy {\n    def signed(occurrence: DeclarationOccurrence): Boolean\n    def wrapperRange(occurrence: DeclarationOccurrence): Option[String]\n    def unsignedTransport(expression: Expression): Boolean\n    def elideSignedCast(occurrence: SignedCastOccurrence): Boolean = false\n    def signedLiteral(occurrence: SignedLiteralOccurrence): Boolean = false\n    def signedResize(occurrence: SignedResizeOccurrence): Option[String] = None\n    def functionRange(occurrence: DeclarationOccurrence): Option[String] = None\n    def scalarRange(occurrence: DeclarationOccurrence): Option[String] = None\n  }\n}\n\n",
               "count": 1
             }
           ]
         },
         {
-          "id": "lwr22-24-verilogbase-2",
+          "id": "lwr26-verilogbase-2",
           "kind": "backend-isolation",
           "owner": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
-          "reason": "Add an owning-printer-authenticated synchronous publication hook for the late exact-edge process grouping pass.",
+          "reason": "Expose an optional emitter-owned continuous-assignment suffix callback, defaulting to no output; MorphHDL uses it only for exact registered finite packed writes.",
           "baseline_span": {
             "start": 2040,
             "end": 2040,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 7997,
-            "end": 15800,
-            "sha256": "ada50d6279f26526a3a2b18adc4b0cd51216e0fd7df1df5b9b598a93fba30ccc"
+            "start": 8111,
+            "end": 16369,
+            "sha256": "38db3f76b341b31bbb8172bd7bdc6e6435a7f7f887d110080f26f781b79fc16c"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "  import VerilogBase._\n\n  // Concrete default accessors keep old VerilogBase implementations stateless\n  // and unsigned. Only an explicitly policy-capable emitter owns a policy slot.\n  private def declarationPolicy: DeclarationPolicy = this match {\n    case owner: DeclarationPolicyOwner => owner.currentDeclarationPolicy\n    case _ => null\n  }\n\n  private def declarationPolicy_=(policy: DeclarationPolicy): Unit = this match {\n    case owner: DeclarationPolicyOwner => owner.installDeclarationPolicy(policy)\n    case _ => throw new IllegalArgumentException(\n      \"binding a Verilog declaration policy requires DeclarationPolicyOwner\")\n  }\n\n  /** One generation-local opt-in; an ordinary native emitter has no policy. */\n  private[spinal] final def bindDeclarationPolicy(policy: DeclarationPolicy): Unit = {\n    require(policy != null && declarationPolicy == null,\n      \"a Verilog declaration policy must be non-null and bound exactly once\")\n    declarationPolicy = policy\n  }\n\n  private[spinal] final def bindAssignmentPublication(policy: AssignmentPublicationPolicy): Unit = this match {\n    case owner: DeclarationPolicyOwner => owner.installAssignmentPublication(policy)\n    case _ => throw new IllegalArgumentException(\"assignment publication requires a policy-capable emitter\")\n  }\n\n  private[spinal] final def emitNativeConstantShift(printer: ComponentEmitterVerilog,\n      expression: Operator.BitVector.ShiftRightByInt): Option[String] = {\n    require(printer.usesVerilogBase(this), \"constant shift must use its exact native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner => Option(owner.assignmentPublication)\n        .flatMap(_.constantShift(printer, expression))\n      case _ => None\n    }\n  }\n  private[spinal] final def emitNativeBinaryOperand(printer: ComponentEmitterVerilog,\n      expression: BinaryOperator, slot: Int): Option[String] = this match {\n    case owner: DeclarationPolicyOwner =>\n      Option(owner.assignmentPublication).flatMap(_.binaryOperand(printer, expression, slot))\n    case _ => None\n  }\n  private[spinal] final def emitNativeBlackBoxGeneric(printer: ComponentEmitterVerilog,\n      blackBox: BlackBox, association: (String, Any)): Option[String] = {\n    require(printer.usesVerilogBase(this) && (blackBox.parent eq printer.component) &&\n      blackBox.genericElements.exists(_ eq association), \"generic must be its exact native instance association\")\n    this match {\n      case owner: DeclarationPolicyOwner => Option(owner.assignmentPublication)\n        .flatMap(_.blackBoxGeneric(printer, blackBox, association))\n      case _ => None\n    }\n  }\n  private[spinal] final def emitNativeWhenCondition(printer: ComponentEmitterVerilog,\n      statement: WhenStatement): Option[String] = {\n    require(printer.usesVerilogBase(this), \"condition must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner =>\n        Option(owner.assignmentPublication).flatMap(_.condition(printer, statement))\n      case _ => None\n    }\n  }\n  private[spinal] final def emitAssignmentSource(printer: ComponentEmitterVerilog,\n      assignment: AssignmentStatement): Option[String] = {\n    require(printer.usesVerilogBase(this), \"assignment must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.source(printer, assignment)\n      case _ => None\n    }\n  }\n\n  private[spinal] final def emitAssignmentTarget(printer: ComponentEmitterVerilog,\n      assignment: AssignmentStatement): Option[String] = {\n    require(printer.usesVerilogBase(this), \"assignment must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.target(printer, assignment)\n      case _ => None\n    }\n  }\n\n  private[spinal] final def emitSynchronousPublication(printer: ComponentEmitterVerilog,\n      clock: ClockDomain, scope: ScopeStatement, hasInit: Boolean,\n      init: Vector[LeafStatement], data: Vector[LeafStatement],\n      render: (Vector[LeafStatement], Vector[LeafStatement]) => String): Option[String] = {\n    require(printer.usesVerilogBase(this), \"synchronous publication must belong to its native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.synchronous(printer,clock,scope,hasInit,init,data,render)\n      case _ => None\n    }\n  }\n  private[spinal] final def emitStatementSuffix(printer: ComponentEmitterVerilog,\n      assignment: AssignmentStatement): String = {\n    require(printer.usesVerilogBase(this), \"assignment lineage must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.statementSuffix(printer, assignment)\n      case _ => \"\"\n    }\n  }\n  private[spinal] final def retainCombinationalProcess(printer: ComponentEmitterVerilog,\n      statements: Vector[LeafStatement]): Boolean = {\n    require(printer.usesVerilogBase(this), \"process must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.retainCombinationalProcess(printer, statements)\n      case _ => false\n    }\n  }\n  private[spinal] final def emitPublicationScope(printer: ComponentEmitterVerilog,\n      tree: TreeStatement, scope: ScopeStatement, output: StringBuilder,\n      indentation: String, body: String => Int): Option[Int] = {\n    require(printer.usesVerilogBase(this), \"scope must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.scope(printer, tree, scope, output, indentation, body)\n      case _ => None\n    }\n  }\n\n  private[spinal] final def hasDeclarationPolicy: Boolean = declarationPolicy != null\n\n  private[spinal] final def needsUnsignedTransport(expression: Expression): Boolean =\n    declarationPolicy != null && declarationPolicy.unsignedTransport(expression)\n\n  private[spinal] final def canElideSignedCast(printer: ComponentEmitterVerilog,\n      parent: Expression, slot: Int, operand: Expression): Boolean = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed cast occurrence must belong to this native emitter\")\n    declarationPolicy != null && declarationPolicy.elideSignedCast(\n      new SignedCastOccurrence(this, printer, parent, slot, operand))\n  }\n\n  private[spinal] final def literalIsSigned(literal: BitVectorLiteral): Boolean =\n    declarationPolicy != null && declarationPolicy.signedLiteral(new SignedLiteralOccurrence(this, literal))\n\n  private[spinal] final def emitSignedResize(printer: ComponentEmitterVerilog,\n      resize: Resize): Option[String] = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed resize occurrence must belong to this native emitter\")\n    if (declarationPolicy == null) None\n    else declarationPolicy.signedResize(new SignedResizeOccurrence(this, printer, resize))\n  }\n\n  private def declarationPrefix(subject: AnyRef, role: DeclarationRole): String =\n    if (declarationPolicy != null && declarationPolicy.signed(\n        new DeclarationOccurrence(this, subject, role))) \"signed \" else \"\"\n\n  private def emitWrapperType(e: Expression): String = {\n    if (declarationPolicy == null) return emitType(e)\n    val nativeType = emitUnqualifiedType(e)\n    val section = {\n      val occurrence = new DeclarationOccurrence(this, e, ExpressionWrapper)\n      declarationPolicy.wrapperRange(occurrence).getOrElse(nativeType)\n    }\n    declarationPrefix(e, ExpressionWrapper) + section\n  }\n\n",
+              "text": "  import VerilogBase._\n\n  // Concrete default accessors keep old VerilogBase implementations stateless\n  // and unsigned. Only an explicitly policy-capable emitter owns a policy slot.\n  private def declarationPolicy: DeclarationPolicy = this match {\n    case owner: DeclarationPolicyOwner => owner.currentDeclarationPolicy\n    case _ => null\n  }\n\n  private def declarationPolicy_=(policy: DeclarationPolicy): Unit = this match {\n    case owner: DeclarationPolicyOwner => owner.installDeclarationPolicy(policy)\n    case _ => throw new IllegalArgumentException(\n      \"binding a Verilog declaration policy requires DeclarationPolicyOwner\")\n  }\n\n  /** One generation-local opt-in; an ordinary native emitter has no policy. */\n  private[spinal] final def bindDeclarationPolicy(policy: DeclarationPolicy): Unit = {\n    require(policy != null && declarationPolicy == null,\n      \"a Verilog declaration policy must be non-null and bound exactly once\")\n    declarationPolicy = policy\n  }\n\n  private[spinal] final def bindAssignmentPublication(policy: AssignmentPublicationPolicy): Unit = this match {\n    case owner: DeclarationPolicyOwner => owner.installAssignmentPublication(policy)\n    case _ => throw new IllegalArgumentException(\"assignment publication requires a policy-capable emitter\")\n  }\n\n  private[spinal] final def emitNativeConstantShift(printer: ComponentEmitterVerilog,\n      expression: Operator.BitVector.ShiftRightByInt): Option[String] = {\n    require(printer.usesVerilogBase(this), \"constant shift must use its exact native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner => Option(owner.assignmentPublication)\n        .flatMap(_.constantShift(printer, expression))\n      case _ => None\n    }\n  }\n  private[spinal] final def emitNativeBinaryOperand(printer: ComponentEmitterVerilog,\n      expression: BinaryOperator, slot: Int): Option[String] = this match {\n    case owner: DeclarationPolicyOwner =>\n      Option(owner.assignmentPublication).flatMap(_.binaryOperand(printer, expression, slot))\n    case _ => None\n  }\n  private[spinal] final def emitNativeBlackBoxGeneric(printer: ComponentEmitterVerilog,\n      blackBox: BlackBox, association: (String, Any)): Option[String] = {\n    require(printer.usesVerilogBase(this) && (blackBox.parent eq printer.component) &&\n      blackBox.genericElements.exists(_ eq association), \"generic must be its exact native instance association\")\n    this match {\n      case owner: DeclarationPolicyOwner => Option(owner.assignmentPublication)\n        .flatMap(_.blackBoxGeneric(printer, blackBox, association))\n      case _ => None\n    }\n  }\n  private[spinal] final def emitNativeWhenCondition(printer: ComponentEmitterVerilog,\n      statement: WhenStatement): Option[String] = {\n    require(printer.usesVerilogBase(this), \"condition must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner =>\n        Option(owner.assignmentPublication).flatMap(_.condition(printer, statement))\n      case _ => None\n    }\n  }\n  private[spinal] final def emitAssignmentSource(printer: ComponentEmitterVerilog,\n      assignment: AssignmentStatement): Option[String] = {\n    require(printer.usesVerilogBase(this), \"assignment must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.source(printer, assignment)\n      case _ => None\n    }\n  }\n\n  private[spinal] final def emitAssignmentTarget(printer: ComponentEmitterVerilog,\n      assignment: AssignmentStatement): Option[String] = {\n    require(printer.usesVerilogBase(this), \"assignment must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.target(printer, assignment)\n      case _ => None\n    }\n  }\n\n  private[spinal] final def emitSynchronousPublication(printer: ComponentEmitterVerilog,\n      clock: ClockDomain, scope: ScopeStatement, hasInit: Boolean,\n      init: Vector[LeafStatement], data: Vector[LeafStatement],\n      render: (Vector[LeafStatement], Vector[LeafStatement]) => String): Option[String] = {\n    require(printer.usesVerilogBase(this), \"synchronous publication must belong to its native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.synchronous(printer,clock,scope,hasInit,init,data,render)\n      case _ => None\n    }\n  }\n  private[spinal] final def emitContinuousStatementSuffix(printer: ComponentEmitterVerilog,\n      assignment: AssignmentStatement): String = {\n    require(printer.usesVerilogBase(this), \"continuous lineage must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.continuousStatementSuffix(printer, assignment)\n      case _ => \"\"\n    }\n  }\n  private[spinal] final def emitStatementSuffix(printer: ComponentEmitterVerilog,\n      assignment: AssignmentStatement): String = {\n    require(printer.usesVerilogBase(this), \"assignment lineage must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.statementSuffix(printer, assignment)\n      case _ => \"\"\n    }\n  }\n  private[spinal] final def retainCombinationalProcess(printer: ComponentEmitterVerilog,\n      statements: Vector[LeafStatement]): Boolean = {\n    require(printer.usesVerilogBase(this), \"process must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.retainCombinationalProcess(printer, statements)\n      case _ => false\n    }\n  }\n  private[spinal] final def emitPublicationScope(printer: ComponentEmitterVerilog,\n      tree: TreeStatement, scope: ScopeStatement, output: StringBuilder,\n      indentation: String, body: String => Int): Option[Int] = {\n    require(printer.usesVerilogBase(this), \"scope must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.scope(printer, tree, scope, output, indentation, body)\n      case _ => None\n    }\n  }\n\n  private[spinal] final def hasDeclarationPolicy: Boolean = declarationPolicy != null\n\n  private[spinal] final def needsUnsignedTransport(expression: Expression): Boolean =\n    declarationPolicy != null && declarationPolicy.unsignedTransport(expression)\n\n  private[spinal] final def canElideSignedCast(printer: ComponentEmitterVerilog,\n      parent: Expression, slot: Int, operand: Expression): Boolean = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed cast occurrence must belong to this native emitter\")\n    declarationPolicy != null && declarationPolicy.elideSignedCast(\n      new SignedCastOccurrence(this, printer, parent, slot, operand))\n  }\n\n  private[spinal] final def literalIsSigned(literal: BitVectorLiteral): Boolean =\n    declarationPolicy != null && declarationPolicy.signedLiteral(new SignedLiteralOccurrence(this, literal))\n\n  private[spinal] final def emitSignedResize(printer: ComponentEmitterVerilog,\n      resize: Resize): Option[String] = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed resize occurrence must belong to this native emitter\")\n    if (declarationPolicy == null) None\n    else declarationPolicy.signedResize(new SignedResizeOccurrence(this, printer, resize))\n  }\n\n  private def declarationPrefix(subject: AnyRef, role: DeclarationRole): String =\n    if (declarationPolicy != null && declarationPolicy.signed(\n        new DeclarationOccurrence(this, subject, role))) \"signed \" else \"\"\n\n  private def emitWrapperType(e: Expression): String = {\n    if (declarationPolicy == null) return emitType(e)\n    val nativeType = emitUnqualifiedType(e)\n    val section = {\n      val occurrence = new DeclarationOccurrence(this, e, ExpressionWrapper)\n      declarationPolicy.wrapperRange(occurrence).getOrElse(nativeType)\n    }\n    declarationPrefix(e, ExpressionWrapper) + section\n  }\n\n",
               "count": 1
             }
           ]
@@ -5495,8 +5605,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 16254,
-            "end": 16261,
+            "start": 16823,
+            "end": 16830,
             "sha256": "6245d2f0ea7a1d0460fbe86cbd208ad1d7d58d086f001ee42242e3e4499569c9"
           },
           "required_exact_text": [
@@ -5518,8 +5628,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 16400,
-            "end": 18327,
+            "start": 16969,
+            "end": 18896,
             "sha256": "432099b3508f1aaef1f64f32ac7fde45ecf28c6bba0d3f143c6441d1f8169877"
           },
           "required_exact_text": [
@@ -5546,8 +5656,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 18502,
-            "end": 18509,
+            "start": 19071,
+            "end": 19078,
             "sha256": "6245d2f0ea7a1d0460fbe86cbd208ad1d7d58d086f001ee42242e3e4499569c9"
           },
           "required_exact_text": [
@@ -5569,8 +5679,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 22216,
-            "end": 23246,
+            "start": 22785,
+            "end": 23815,
             "sha256": "56319951196214167718350f3b81e8b46370dc04e5b875817b361068543d1603"
           },
           "required_exact_text": [
@@ -5592,8 +5702,8 @@
             "sha256": "fa2bfa4f5ea95c799ebe96586a5315bb97aa17fd79c39ce7d33a6422dca7bb9b"
           },
           "approved_span": {
-            "start": 23936,
-            "end": 24118,
+            "start": 24505,
+            "end": 24687,
             "sha256": "31edf5ff0fe4d85d963b486b8f0ca15d3788400ac28b11334541e3fb299dac49"
           },
           "required_exact_text": [
