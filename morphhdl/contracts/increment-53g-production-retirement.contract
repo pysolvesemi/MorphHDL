@@ -136,7 +136,8 @@
     "MorphHdlAreaCollectionComponent",
     "MorphHdlTypedElaborationControlComponent",
     "MorphHdlNaturalSymbolicConditionalComponent",
-    "MorphHdlFrontendSymbolicEqualitySafetyComponent"
+    "MorphHdlFrontendSymbolicEqualitySafetyComponent",
+    "MorphHdlConstantLoopBoundsComponent"
   ],
   "plugin_descriptor": "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala",
   "forbidden_jar_class_prefixes": [
