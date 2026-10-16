@@ -206,21 +206,13 @@
           "id": "lightweight-bits-3",
           "kind": "overload",
           "owner": "native Bits authoring boundary",
-          "reason": "Delegate scoped packed slices to authenticated index and stride interfaces without extracting witnesses.",
+          "reason": "Delegate scoped packed slices to authenticated index and stride interfaces without extracting witnesses. Delegate scoped bit access to the authenticated index without hardware conversion or witness extraction.",
           "required_exact_text": [
             {
               "side": "approved",
               "text": "\n  def apply(offset: ElabScopedIndex, bitCount: BitCount): Bits = offset.selectPacked(this, bitCount)\n  def apply(offset: ElabScopedWordOffset, bitCount: ParameterizedBitCount): Bits = offset.selectPacked(this, bitCount)\n",
               "count": 1
-            }
-          ]
-        },
-        {
-          "id": "lightweight-bits-scoped-bit",
-          "kind": "overload",
-          "owner": "spinal.core.Bits.apply(ElabScopedIndex)",
-          "reason": "Delegate scoped bit access to the authenticated index without hardware conversion or witness extraction.",
-          "required_exact_text": [
+            },
             {
               "side": "approved",
               "text": "  def apply(bitId: ElabScopedIndex): Bool = bitId.selectBit(this)\n",
