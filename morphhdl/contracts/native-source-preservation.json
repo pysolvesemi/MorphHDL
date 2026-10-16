@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "7844254d72f9f394fc79938d7f25cb772775342e"
+      "approved_tree": "4747000cbb1ffa7360416149847c4ab84d4691b5"
     },
     {
       "path": "idslpayload/src/main",
@@ -27,7 +27,7 @@
     {
       "path": "lib/src/main",
       "baseline_tree": "76cd20a58e83ff73404632aec84bb03f2dd4dea9",
-      "approved_tree": "de629eb783d67517e2c4ba4ecb95b0fffe3b7c4e"
+      "approved_tree": "2ab45bbc4a6305524e4628446bed1f3d8bbc4a0b"
     },
     {
       "path": "scalaplugin/src/main",
@@ -310,9 +310,10 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 55: audit concrete compatibility",
         "Increment 59i: combined recursive widening, captures and native saturation geometry",
-        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition",
+        "LWR-13\u201316: constructor formals and scoped port/index compositions"
       ],
-      "reason": "Retain typed width construction and resize overloads, and mechanically propagate the exact source width through the unchanged native asBits assignment; ordinary concrete arithmetic and width inference remain authoritative. Lightweight roadmap: Delegate scoped packed slices to authenticated index and stride interfaces without extracting witnesses.",
+      "reason": "Retain typed width construction and resize overloads, and mechanically propagate the exact source width through the unchanged native asBits assignment; ordinary concrete arithmetic and width inference remain authoritative. Lightweight roadmap: Delegate scoped packed slices to authenticated index and stride interfaces without extracting witnesses. LWR-13\u201316: Delegate ordinary scoped Bits bit reads to the authenticated ElabScopedIndex selector without extracting a witness or creating a hardware UInt index.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/Bits.scala",
         "mode": "100644",
@@ -322,8 +323,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/Bits.scala",
         "mode": "100644",
-        "blob": "06af8dc069d65274b5967b6c660054e00ab6adf4",
-        "sha256": "5715bfa15af61ddb9461490991f30eeee22e817f038d66608488b49dc49e9197"
+        "blob": "ff858837ab3471c53b325ec28cb88fd39b7a4e54",
+        "sha256": "32b81df3efb5132474a7393e380df7f85f1055586dc9ef58eed7969160af6399"
       },
       "edits": [
         {
@@ -399,7 +400,7 @@
           "id": "lightweight-bits-3",
           "kind": "overload",
           "owner": "native Bits authoring boundary",
-          "reason": "Delegate scoped packed slices to authenticated index and stride interfaces without extracting witnesses.",
+          "reason": "Delegate scoped packed slices to authenticated index and stride interfaces without extracting witnesses. Delegate scoped bit access to the authenticated index without hardware conversion or witness extraction.",
           "baseline_span": {
             "start": 9059,
             "end": 9059,
@@ -407,13 +408,18 @@
           },
           "approved_span": {
             "start": 9615,
-            "end": 9836,
-            "sha256": "ffd72483f8b3e1ac95b992460f4959a7ab3406f33822cda33c09c569fb581fad"
+            "end": 9903,
+            "sha256": "71f18abda3e86d3f45f0a736817df2a54ecc8f43b83b2979f8502a98e7d06215"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "\n  def apply(offset: ElabScopedIndex, bitCount: BitCount): Bits = offset.selectPacked(this, bitCount)\n  def apply(offset: ElabScopedWordOffset, bitCount: ParameterizedBitCount): Bits = offset.selectPacked(this, bitCount)\n",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "  def apply(bitId: ElabScopedIndex): Bool = bitId.selectBit(this)\n",
               "count": 1
             }
           ]
@@ -780,15 +786,16 @@
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
-        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition",
+        "LWR-13\u201316: constructor formals and scoped port/index compositions"
       ],
-      "reason": "Dependency-neutral scoped index, predicate and word-offset interfaces retain lexical authority and typed stride geometry. Lightweight roadmap: Dependency-neutral scoped index, predicate and word-offset interfaces retain lexical authority and typed stride geometry.",
+      "reason": "Dependency-neutral scoped index, predicate and word-offset interfaces retain lexical authority and typed stride geometry. Lightweight roadmap: Dependency-neutral scoped index, predicate and word-offset interfaces retain lexical authority and typed stride geometry. LWR-13\u201316: Add a package-owned bit-selection delegation point implemented by retained finite indices, preserving the core/runtime dependency boundary.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElabScopedIndex.scala",
         "mode": "100644",
-        "blob": "0b78061ebeb0cf9940c34edb60d266583bbf1d97",
-        "sha256": "cf64429a32e01366361017c566e46adbfce5ccdbb00b65df1d1a7bfb87eefe37"
+        "blob": "a570970e388c6b48aa3b92990707d649d6dc7342",
+        "sha256": "22f045734391b913b779cb9c5312d6b584311e07fb49f7f1b5aded957be4a29e"
       },
       "edits": []
     },
@@ -1822,15 +1829,16 @@
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
-        "Lightweight child-port width projection repair"
+        "Lightweight child-port width projection repair",
+        "LWR-13\u201316: constructor formals and scoped port/index compositions"
       ],
-      "reason": "Resolve immediate child-port direct formal widths through sealed exact component/formal/actual identities for explicit width queries. Preserve child-local declarations and reject unrelated or unbound roots without witness or name substitution.",
+      "reason": "Resolve immediate child-port direct formal widths through sealed exact component/formal/actual identities for explicit width queries. Preserve child-local declarations and reject unrelated or unbound roots without witness or name substitution. LWR-13\u201316: Expose exact projection into a specified parent scope for native clone and publication sites; preserve immediate-child formal and actual declaration identities.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/NativeFormalWidthProjection.scala",
         "mode": "100644",
-        "blob": "44ad864f5f01c3f2de7e932ceff45caf243a7bd9",
-        "sha256": "151bfd1639e42872178af9ebb531974648892cd922fc290b12f82030ce710a79"
+        "blob": "ab480560595b7863cf3f25ff03d904b8d77581c5",
+        "sha256": "719ff8cf2f73b60aa780c0901b9c738f1aff35c959e679bcf1573fd9a9813003"
       },
       "edits": []
     },
@@ -1905,15 +1913,16 @@
         "Increment 59i: combined recursive widening, captures and native saturation geometry",
         "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup",
         "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI",
-        "Enum-condition repair: resolved native enum packed-width authority"
+        "Enum-condition repair: resolved native enum packed-width authority",
+        "LWR-13\u201316: constructor formals and scoped port/index compositions"
       ],
-      "reason": "Retain immutable native width provenance through construction, casts, resize, widening, mux, source-relative saturation ranges/results and all-ones literals. Freshness compares complete width functions and exact root/domain identities, including under narrowed singleton domains; native operators and inference remain authoritative. After existing copyCloneMetadata completes at the actual native cloneOf seam, notify the invocation-local Vec zero observer of that exact source/result pair; metadata copying alone cannot create clone ancestry or enable zero construction. Derive width provenance from exact native scalar IR and transfer it at construction/clone/mux seams; retain exact-node msb evidence while preserving the original native operators, memory representation and concrete width inference. Delegate clone geometry validation to the recursive authored-layout checker before transferring exact scalar or Vec metadata. CDC-WIRE-01 derives exact symbolic result width for Bool-valued expressions, fixed and variable shifts, and ranged access using the existing typed width authority. Shift amounts remain self-determined; no concrete construction witness substitutes for a symbolic width domain. Qualification adds an explicit optional late-evidence query without changing construction-time widthOf behavior. Only SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION and SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED indicate unavailable optional proof and retain the original graph; malformed metadata and every unrelated compiler error still propagate. Resolved enum values derive width only from the exact native enum definition and encoding authority; unresolved or anticipated encodings remain unrepresented. No width, branch, projection or parameter authority is invented.",
+      "reason": "Retain immutable native width provenance through construction, casts, resize, widening, mux, source-relative saturation ranges/results and all-ones literals. Freshness compares complete width functions and exact root/domain identities, including under narrowed singleton domains; native operators and inference remain authoritative. After existing copyCloneMetadata completes at the actual native cloneOf seam, notify the invocation-local Vec zero observer of that exact source/result pair; metadata copying alone cannot create clone ancestry or enable zero construction. Derive width provenance from exact native scalar IR and transfer it at construction/clone/mux seams; retain exact-node msb evidence while preserving the original native operators, memory representation and concrete width inference. Delegate clone geometry validation to the recursive authored-layout checker before transferring exact scalar or Vec metadata. CDC-WIRE-01 derives exact symbolic result width for Bool-valued expressions, fixed and variable shifts, and ranged access using the existing typed width authority. Shift amounts remain self-determined; no concrete construction witness substitutes for a symbolic width domain. Qualification adds an explicit optional late-evidence query without changing construction-time widthOf behavior. Only SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION and SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED indicate unavailable optional proof and retain the original graph; malformed metadata and every unrelated compiler error still propagate. Resolved enum values derive width only from the exact native enum definition and encoding authority; unresolved or anticipated encodings remain unrepresented. No width, branch, projection or parameter authority is invented. LWR-13\u201316: Project child formal widths before native scalar inference. Derive conditional/mux geometry only from proved full-leaf source widths; partial assignments supply no such proof and native latch/driver checks remain authoritative.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/NativeWidthProvenance.scala",
         "mode": "100644",
-        "blob": "aed9e7b14d3c27f117b9edef3db63c9836e45ae2",
-        "sha256": "37584cc33d23d1b3fef03e8f8a1edb215398cf957d932ce86f0b494bbeb4ddc6"
+        "blob": "268fee0866d628a8839692702b0784e3658d3c96",
+        "sha256": "c9718c0f398ee4d6a421f582dcf188445f970fee3ad898ad6ef41b14ae862e51"
       },
       "edits": []
     },
@@ -2047,15 +2056,16 @@
         "Increment 59f: certified callback graphs and captured inputs",
         "Increment 64: typed native derived local parameters",
         "Increment 66: native parameter and RTL readability extensions",
-        "Increment 59i: combined recursive widening, captures and native saturation geometry"
+        "Increment 59i: combined recursive widening, captures and native saturation geometry",
+        "LWR-13\u201316: constructor formals and scoped port/index compositions"
       ],
-      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the historical deprecated factory aliases. Preserve recursive authored clone layout before copying metadata, retain exact native graph-derived scalar widths, and update fresh mux clone metadata only after the full native maximum-width proof. Retain private calculation and trusted projection-origin metadata on exact expression objects; public case-class copies deliberately inherit neither field. Add an internal typed-local owner marker to exact expression presentation metadata, preventing foreign constant dependencies without granting or changing width/domain authority. Integrated 59i: Retain exact typed width/resize/formal metadata while preserving native construction. A private fresh-clone transaction snapshots the original registry entry plus fixed, observed and inferred native widths, clears only unused clone construction observations, and restores exact state without reprojection on rejection; general getWidth and inference behavior remain unchanged.",
+      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the historical deprecated factory aliases. Preserve recursive authored clone layout before copying metadata, retain exact native graph-derived scalar widths, and update fresh mux clone metadata only after the full native maximum-width proof. Retain private calculation and trusted projection-origin metadata on exact expression objects; public case-class copies deliberately inherit neither field. Add an internal typed-local owner marker to exact expression presentation metadata, preventing foreign constant dependencies without granting or changing width/domain authority. Integrated 59i: Retain exact typed width/resize/formal metadata while preserving native construction. A private fresh-clone transaction snapshots the original registry entry plus fixed, observed and inferred native widths, clears only unused clone construction observations, and restores exact state without reprojection on rejection; general getWidth and inference behavior remain unchanged. LWR-13\u201316: Project exact child-port clone metadata into its owning parent rather than copying foreign formal declarations, preserving symbolic actuals and authenticated literal widths.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
         "mode": "100644",
-        "blob": "79dca402d5507521de19ad4f93203668cd7fac66",
-        "sha256": "9fb6bb5ec97b8439e5ff94ec971bb90d72825738a7fe16f618c320364a41a74e"
+        "blob": "aca7827c32960eaa1960d3334e1d60ae367e3837",
+        "sha256": "c4db44a46b97bd3d8833030a4441a64b028299249b51883857c0be1535063d93"
       },
       "edits": []
     },
@@ -5809,15 +5819,16 @@
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
-        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition",
+        "LWR-13\u201316: constructor formals and scoped port/index compositions"
       ],
-      "reason": "Provide an explicit opt-in adjacent-pair recursive library component with odd-tail, level bridge, symbolic payload and selected-register contracts; do not replace existing Vec.reduceBalancedTree. Lightweight roadmap: Provide an explicit opt-in adjacent-pair recursive library component with odd-tail, level bridge, symbolic payload and selected-register contracts; do not replace existing Vec.reduceBalancedTree.",
+      "reason": "Provide an explicit opt-in adjacent-pair recursive library component with odd-tail, level bridge, symbolic payload and selected-register contracts; do not replace existing Vec.reduceBalancedTree. Lightweight roadmap: Provide an explicit opt-in adjacent-pair recursive library component with odd-tail, level bridge, symbolic payload and selected-register contracts; do not replace existing Vec.reduceBalancedTree. LWR-13\u201316: Use a constructor-owned COUNT formal with the existing Scala countActual named argument and compatibility count accessor; preserve reduction topology, odd tails and bridge/register placement.",
       "baseline": null,
       "approved": {
         "path": "lib/src/main/scala/spinal/lib/BalancedTree.scala",
         "mode": "100644",
-        "blob": "b6349a87ed0f00821b6383e9c5cd7a4250695fdf",
-        "sha256": "2dddafb74d93de347c2dcfd0a377f4bb72eb015d1c715f72668d35e9973435c2"
+        "blob": "79e4ca7b8b7b27a3ce9f96ab57578cff01c0b79b",
+        "sha256": "660f0b059cdd7041e338c4a07713b2648c09b318ea93962323279e092744a1a4"
       },
       "edits": []
     },
