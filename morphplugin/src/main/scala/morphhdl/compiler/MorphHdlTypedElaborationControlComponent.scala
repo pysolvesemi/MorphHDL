@@ -1447,8 +1447,8 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
         Apply(Select(transform(end), TermName("$plus")), List(Literal(Constant(1))))
       else transform(end)
       val core = Select(Select(Ident(termNames.ROOTPKG), TermName("spinal")), TermName("core"))
-      val method = Select(Select(core, TermName("ElabFiniteRange")), TermName("foreach"))
-      Apply(Apply(method, List(count, Literal(Constant("loop_l" + sourceLine(original))))),
+      val method = Select(Select(core, TermName("ElabFiniteRange")), TermName("foreachDefault"))
+      Apply(Apply(method, List(count)),
         List(staged(body))).setPos(original.pos)
     }
 

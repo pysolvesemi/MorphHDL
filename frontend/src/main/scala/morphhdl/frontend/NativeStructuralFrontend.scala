@@ -31,7 +31,10 @@ private[frontend] object NativeStructuralFrontend {
         range.origin
       )
     }
-    val names = range.names.getOrElse(HdlRange.generatedNames(range.origin))
+    val names = range.names.getOrElse {
+      val pair = ExternalAnalyzedStructuralPublisher.automaticRangeNames(component)
+      GenerateNames(pair._1, pair._2)
+    }
 
     if (ParameterizedStructure.captureEnabled) {
       val publicationIdentity = new Object
@@ -59,7 +62,8 @@ private[frontend] object NativeStructuralFrontend {
         publicationIdentity,
         names.label,
         names.index,
-        Some(range.origin.rendered)
+        Some(range.origin.rendered),
+        automaticLabel = range.names.isEmpty
       ) {
         withGenerateIndices(Map(names.index -> facts)) {
           val one = HdlInt.literalAt(BigInt(1), range.origin)

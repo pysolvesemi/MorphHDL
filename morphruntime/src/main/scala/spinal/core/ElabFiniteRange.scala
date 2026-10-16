@@ -585,10 +585,14 @@ object ElabFiniteRange {
         .map(_.asInstanceOf[Storage].countOnes.toVector)
         .getOrElse(Vector.empty)
 
-  def foreach(
-      count: ElabInt,
-      role: String
-  )(body: ElabFiniteIndex => Unit): Unit = {
+  def foreachDefault(count: ElabInt)(body: ElabFiniteIndex => Unit): Unit =
+    foreachImpl(count, "GEN", automaticLabel = true)(body)
+
+  def foreach(count: ElabInt, role: String)(body: ElabFiniteIndex => Unit): Unit =
+    foreachImpl(count, role, automaticLabel = false)(body)
+
+  private def foreachImpl(count: ElabInt, role: String, automaticLabel: Boolean)
+      (body: ElabFiniteIndex => Unit): Unit = {
     if (count == null)
       throw new IllegalArgumentException("typed finite count must not be null")
     if (body == null)
@@ -685,6 +689,7 @@ object ElabFiniteRange {
         ParameterizedStructure.bindFiniteIndexToken(indexToken)
         body(new ElabFiniteIndex(indexExpression, expression, indexToken))
       }
+      if (automaticLabel) AutomaticGenerateLabels.retain(component, block)
       ParameterizedStructure.registerExactFor(component, names._1, names._2,
         expression, block, indexToken, expression.sourceLocation)
       return
@@ -705,6 +710,7 @@ object ElabFiniteRange {
       ParameterizedStructure.bindFiniteIndexToken(indexToken)
       body(new ElabFiniteIndex(indexExpression, expression, indexToken))
     }
+    if (automaticLabel) AutomaticGenerateLabels.retain(component, block)
     ParameterizedStructure.registerExactFor(
       component,
       names._1,

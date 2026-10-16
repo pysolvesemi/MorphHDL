@@ -185,13 +185,17 @@ final class ExternalAnalyzedStructuralPredicate private[core] (
   * carrier identities before invoking its one corresponding sink.
   */
 object ExternalAnalyzedStructuralPublisher {
+  def automaticRangeNames(component: Component): (String, String) =
+    AutomaticGenerateLabels.fresh(component)
+
   def captureProcessRange(
       analyzed: AnalyzedStructuralInteger,
       component: Component,
       operationIdentity: AnyRef,
       label: String,
       indexName: String,
-      sourceLocation: Option[String]
+      sourceLocation: Option[String],
+      automaticLabel: Boolean = false
   )(body: => Unit): Unit = {
     requireReference(analyzed, "analyzed process-range wrapper", sourceLocation)
     requireReference(component, "process-range component", sourceLocation)
@@ -206,7 +210,8 @@ object ExternalAnalyzedStructuralPublisher {
       indexName,
       count,
       sourceLocation,
-      () => countSource.asInstanceOf[morphhdl.frontend.HdlInt].asElabInt
+      () => countSource.asInstanceOf[morphhdl.frontend.HdlInt].asElabInt,
+      automaticLabel
     )(body)
   }
 

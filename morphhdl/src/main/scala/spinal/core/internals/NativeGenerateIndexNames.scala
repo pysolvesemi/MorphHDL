@@ -15,13 +15,37 @@ private[internals] object NativeGenerateIndexNames {
         case loop: ParameterizedStructure.StructuralFor => Vector(loop)
         case _ => Vector.empty
       }) ++ region.blocks.flatMap(_.regions).flatMap(loops)
-    val automatic = regions.flatMap(loops).filter(loop => loop.finiteIndexToken
+    val allLoops = regions.flatMap(loops)
+    val defaultLabels = allLoops.filter(loop => AutomaticGenerateLabels.owns(component, loop.body))
+    val identifier = "[A-Za-z_][A-Za-z0-9_$]*".r
+    val originalLines = verilog.split("\n", -1).toVector
+    val labelNames = mutable.LinkedHashMap.empty[String, String]
+    val internalLabels = defaultLabels.map(_.label).toSet
+    if (internalLabels.size != defaultLabels.size)
+      ParameterizedVerilogException.fail("SPINAL-GENERATE-LABEL-IDENTITY-MISMATCH",
+        "default generate labels lost their unique captured identities", None)
+    val labelReserved = mutable.HashSet.empty[String]
+    ParameterizedVerilogVecs.mapReferenceCode(originalLines) { code =>
+      labelReserved ++= identifier.findAllIn(code).filterNot(internalLabels)
+      code
+    }
+    var ordinal = 0
+    defaultLabels.foreach { loop =>
+      var name = ""
+      do { ordinal += 1; name = s"g_GEN_$ordinal" } while (labelReserved(name))
+      labelNames(loop.label) = name
+      labelReserved += name
+    }
+    val labeled = ParameterizedVerilogVecs.mapReferenceCode(originalLines) { code =>
+      identifier.replaceAllIn(code, token => java.util.regex.Matcher.quoteReplacement(
+        labelNames.getOrElse(token.matched, token.matched)))
+    }.mkString("\n")
+    val automatic = allLoops.filter(loop => loop.finiteIndexToken
       .flatMap(ElabFiniteRange.automaticIndexName(component, _)).contains(loop.indexName))
-    if (automatic.isEmpty) return verilog
+    if (automatic.isEmpty) return labeled
     val internalNames = automatic.map(_.indexName).toSet
     require(internalNames.size == automatic.size, "automatic loops must retain distinct internal selector identities")
-    val lines = verilog.split("\n", -1).toVector
-    val identifier = "[A-Za-z_][A-Za-z0-9_$]*".r
+    val lines = labeled.split("\n", -1).toVector
     val reserved = mutable.HashSet.empty[String]
     ParameterizedVerilogVecs.mapReferenceCode(lines) { code =>
       reserved ++= identifier.findAllIn(code).filterNot(internalNames)

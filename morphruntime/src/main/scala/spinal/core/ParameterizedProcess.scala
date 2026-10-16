@@ -47,7 +47,8 @@ object ParameterizedProcess {
       val indexName: String,
       val count: ElaborationIntegerExpression,
       val countProof: () => ElabInt,
-      val sourceLocation: Option[String]
+      val sourceLocation: Option[String],
+      val automaticLabel: Boolean
   ) {
     var selection: Option[(WhenStatement, UInt, Bool, Expression)] = None
     val slices = ArrayBuffer.empty[ParameterizedStructure.StructuralSlice]
@@ -91,7 +92,8 @@ object ParameterizedProcess {
       indexName: String,
       count: ElaborationIntegerExpression,
       sourceLocation: Option[String],
-      countProof: () => ElabInt = null
+      countProof: () => ElabInt = null,
+      automaticLabel: Boolean = false
   )(body: => Unit): Unit =
     captureRangeImpl(
       component,
@@ -100,7 +102,8 @@ object ParameterizedProcess {
       count,
       sourceLocation,
       requireExactDomain = false,
-      countProof = countProof
+      countProof = countProof,
+      automaticLabel = automaticLabel
     )(body)
 
   private def captureRangeImpl(
@@ -110,7 +113,8 @@ object ParameterizedProcess {
       count: ElaborationIntegerExpression,
       sourceLocation: Option[String],
       requireExactDomain: Boolean,
-      countProof: () => ElabInt = null
+      countProof: () => ElabInt = null,
+      automaticLabel: Boolean = false
   )(body: => Unit): Unit = {
     if (component eq null) {
       fail(
@@ -141,7 +145,7 @@ object ParameterizedProcess {
 
     val beforeStatements = originalScope.statementIterable.toVector
     val beforeChildren = component.children.toVector
-    val state = new CaptureState(component, indexName, count, countProof, sourceLocation)
+    val state = new CaptureState(component, indexName, count, countProof, sourceLocation, automaticLabel)
     activeCapture.set(state)
 
     var bodyCompleted = false
@@ -563,6 +567,7 @@ object ParameterizedProcess {
         sourceLocation
       )
       RtlDocumentation.captureGeneratedBody(block, statements)
+      if (state.automaticLabel) AutomaticGenerateLabels.retain(component, block)
       if (requireExactDomain)
         ParameterizedStructure.registerExactFor(
           component,

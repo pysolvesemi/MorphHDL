@@ -28,7 +28,7 @@ class LightweightSyntaxBaselineTests extends AnyFunSuite {
         def elabNe(n: Int): ElabScopedCondition = new ElabScopedCondition
       }
       object ElabFiniteRange {
-        def foreach(count: ElabInt, role: String)(body: ElabFiniteIndex => Unit): Unit = ()
+        def foreachDefault(count: ElabInt)(body: ElabFiniteIndex => Unit): Unit = ()
       }
       object ElabControl {
         def generateSymbolic[T](p: ElabBool, file: String, line: Int)(body: => T): T = body

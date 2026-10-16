@@ -227,6 +227,22 @@ private[spinal] final case class ParameterizedVecStaticWrite(
     literalSource: Option[Expression],
     scopePath: Vector[(spinal.core.internals.ScopeStatement, spinal.core.internals.TreeStatement)]
 ) extends ParameterizedVecOperation {
+  // A native constant bit target is mutable; retaining just its object identity
+  // would not detect a later change of bit number or underlying carrier.
+  private val constantBit = target match {
+    case bit: spinal.core.internals.BitAssignmentFixed if bit.out eq selected =>
+      val minimumWidth = ParameterizedWidth.expressionOf(bit.out).map(_.minimum)
+        .getOrElse(BigInt(bit.out.getWidth))
+      Some((bit, bit.out, bit.bitId, minimumWidth))
+    case _ => None
+  }
+  private[spinal] def acceptsTarget: Boolean = (assignment.target eq target) &&
+    ((target eq selected) || constantBit.exists { case (bit, out, index, minimumWidth) =>
+      (bit.out eq out) && (out eq selected) && bit.bitId == index &&
+        index >= 0 && BigInt(index) < minimumWidth
+    })
+  private[spinal] def constantBitIndex: Option[Int] =
+    constantBit.filter(_ => acceptsTarget).map(_._3)
   private[core] var normalizedLiteral: Expression = null
   private[spinal] def acceptsSource(value: Expression): Boolean =
     (value eq source) || literalSource.exists(_ eq value) || (value eq normalizedLiteral)

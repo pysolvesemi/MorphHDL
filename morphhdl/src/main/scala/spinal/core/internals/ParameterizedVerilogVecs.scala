@@ -134,6 +134,19 @@ private[internals] object ParameterizedVerilogVecs {
       s"$name[${parenthesize(base)} +: ${render(shape.elementLeaves(leafIndex).width)}]"
     }
 
+    def constantBit(elementIndex: Int, leafIndex: Int, bit: Int): String = {
+      projection.foreach { projected =>
+        val mapping = projected.origin.leaves.find(value => value.elementIndex == elementIndex && value.elementLeafIndex == leafIndex).get
+        return projected.root.constantBit(mapping.rootElementIndex, mapping.rootElementLeafIndex, bit)
+      }
+      val field = geometry.fieldForLeaf(leafIndex)
+      val coordinates = elementIndex.toString +: geometry.leafCoordinates(leafIndex).map(_.toString)
+      val base = if (layout.nonEmpty) geometry.fieldOffset(field, coordinates)
+        else geometry.packedOffset(field, coordinates)
+      val target = if (layout.nonEmpty) field.name else name
+      s"$target[($base) + $bit]"
+    }
+
     def dynamicSlice(
         address: String,
         leafIndex: Int,
@@ -2262,6 +2275,27 @@ private[internals] object ParameterizedVerilogVecs {
           // Independent event cells regain their exact native declarations
           // below, including signedness and procedural drivers. They need no
           // read-only reconstruction alias during packed transport.
+          val bitWrites = authoredStaticWrites(ParameterizedVec.operationsOf(plan.vector))
+            .filter(write => (write.selected eq leaf.value) && write.constantBitIndex.nonEmpty &&
+              !claimedAssignments.containsKey(write.assignment))
+          bitWrites.foreach { write =>
+            val index = write.constantBitIndex.get
+            val emitted = NativeFiniteStatementLineage.survivingLineAssignments(component, lines)
+              .toVector.filter(_._2 eq write.assignment)
+            if (emitted.size != 1)
+              fail("SPINAL-PARAMETERIZED-VERILOG-VEC-STATIC-BIT-LINEAGE-MISMATCH",
+                "constant bit write requires exactly one authenticated emitted assignment", write.sourceLocation)
+            val line = emitted.head._1
+            val lhs = ("^(\\s*)" + java.util.regex.Pattern.quote(leaf.name) +
+              "\\[" + index + "\\](\\s*(?:<=|=).*)$").r
+            lines(line) match {
+              case lhs(indent, rest) =>
+                lines = lines.updated(line, indent + plan.constantBit(write.elementIndex, write.elementLeafIndex, index) + rest)
+              case _ => fail("SPINAL-PARAMETERIZED-VERILOG-VEC-STATIC-BIT-LINEAGE-MISMATCH",
+                "constant bit write changed its native emitted target", write.sourceLocation)
+            }
+            claimedAssignments.put(write.assignment, java.lang.Boolean.TRUE)
+          }
           if (isSignedLeaf(leaf.shape) && !needsIndependentCellEvents(plan)) {
             if (!nativeReadSignedness.containsKey(leaf.value))
               fail("SPINAL-PARAMETERIZED-VERILOG-VEC-SIGNED-DECLARATION-MISSING",
@@ -4654,6 +4688,11 @@ private[internals] object ParameterizedVerilogVecs {
         fail("SPINAL-PARAMETERIZED-VERILOG-VEC-STATIC-WRITE-LAYOUT-MISMATCH",
           s"static write of Vec '${plan.name}' has a different native procedural assignment kind", write.sourceLocation)
       }
+      // This consolidation path owns whole scalar assignments. Partial native
+      // writes remain in their original processes; do not widen them here.
+      if (write.target ne write.selected)
+        fail("SPINAL-PARAMETERIZED-VERILOG-VEC-STATIC-WRITE-LAYOUT-MISMATCH",
+          "whole-array assignment consolidation does not support partial scalar overrides", write.sourceLocation)
       val statement = s"${plan.constantSlice(write.elementIndex, write.elementLeafIndex)} ${value.operator} ${value.rhs};"
       Event(operations.indexWhere(_ eq write), Vector(write.assignment), Vector(value), Vector(write.enclosingConditions),
         guardedStatement(write.enclosingConditions, statement, write.sourceLocation))
@@ -4907,7 +4946,7 @@ private[internals] object ParameterizedVerilogVecs {
     if (write.elementIndex < 0 || BigInt(write.elementIndex) >= minimum ||
         !exactLeaf.exists(leaf => leaf.value eq write.selected) ||
         (write.assignment.finalTarget ne write.selected) ||
-        (write.target ne write.selected) || (write.assignment.target ne write.target) ||
+        !write.acceptsTarget ||
         !write.acceptsSource(write.assignment.source)) {
       fail("SPINAL-PARAMETERIZED-VERILOG-VEC-STATIC-WRITE-EVIDENCE-MISMATCH",
         s"static write of Vec '${plan.name}' changed its exact whole-scalar native target, source or domain-valid element (index=${write.elementIndex}, captured=${write.source}, live=${write.assignment.source}, literal=${write.literalSource})", write.sourceLocation)

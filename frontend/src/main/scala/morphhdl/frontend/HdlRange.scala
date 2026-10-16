@@ -34,22 +34,6 @@ private[frontend] object HdlRange {
   def apply(start: Int, end: HdlInt, origin: SourceOrigin): HdlRange =
     new HdlRange(start, end, names = None, origin)
 
-  def generatedNames(origin: SourceOrigin): GenerateNames = {
-    val normalized = origin.file.replace('\\', '/')
-    val fileName = normalized.substring(normalized.lastIndexOf('/') + 1)
-    val stem = fileName.lastIndexOf('.') match {
-      case index if index > 0 => fileName.substring(0, index)
-      case _                  => fileName
-    }
-    val safeStem = stem.replaceAll("[^A-Za-z0-9_]", "_") match {
-      case value if value.nonEmpty && value.charAt(0).isDigit => s"_$value"
-      case value if value.nonEmpty                            => value
-      case _                                                  => "source"
-    }
-    val suffix = s"${safeStem}_l${origin.line}"
-    GenerateNames(s"g_generate_$suffix", s"gen_index_$suffix")
-  }
-
   def requireIdentifier(value: String, role: String, origin: SourceOrigin): Unit =
     if (value == null || !Identifier.pattern.matcher(value).matches()) {
       FrontendException.failAt(

@@ -52,6 +52,10 @@ private[internals] object NativeFiniteStatementLineage {
 
   private def captured(component: Component, assignment: AssignmentStatement): Boolean =
     TypedFinitePackedAccess.writes(component).exists(_.assignment eq assignment) ||
+      ParameterizedVec.vectorsOf(component).exists(vector => ParameterizedVec.operationsOf(vector).exists {
+        case write: ParameterizedVecStaticWrite => (write.assignment eq assignment) && write.constantBitIndex.nonEmpty
+        case _ => false
+      }) ||
       ParameterizedStructure.regionsOf(component).flatMap(ParameterizedStructure.allBlocks)
         .exists(_.assignments.exists(_ eq assignment))
 
