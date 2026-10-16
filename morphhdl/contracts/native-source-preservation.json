@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "bd9a4dd42dafb84b071dc45adf225f42cdcdb63d"
+      "approved_tree": "cce0f240231f4328c452de2872e7bd35fc38f450"
     },
     {
       "path": "idslpayload/src/main",
@@ -22,7 +22,7 @@
     {
       "path": "idslplugin/src/main",
       "baseline_tree": "1e863053179f6fcc246f86d3e3af1a3ae260f20b",
-      "approved_tree": "2c8bb56400d2a2b200ec13794542b18b934fa6f9"
+      "approved_tree": "a930e68dfef53bffd015710b8539c4fa2584b4ec"
     },
     {
       "path": "lib/src/main",
@@ -2076,13 +2076,13 @@
       "introduced_by": [
         "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
       ],
-      "reason": "Define optional typed documentation metadata, configuration, identity-preserving APIs, exception-safe regions, declaration publication and exact relocation envelopes. Decode optional source coordinates in the metadata owner while preserving valid and malformed location behavior; the canonical producer consumes typed coordinates without parsing source text. Store region notes in elaboration-owned identity metadata with concrete default accessors, preserving binary compatibility of existing Statement implementations and empty scope construction outside elaboration. LWR-17: route automatically captured parent aliases of exact immediate-child output identities to the instance use-site; preserve child-authored and explicit port documentation and reusable child signatures. Ignore automatic aliases to foreign inputs rather than mutating their declaration metadata.",
+      "reason": "Define optional typed documentation metadata, configuration, identity-preserving APIs, exception-safe regions, declaration publication and exact relocation envelopes. Decode optional source coordinates in the metadata owner while preserving valid and malformed location behavior; the canonical producer consumes typed coordinates without parsing source text. Store region notes in elaboration-owned identity metadata with concrete default accessors, preserving binary compatibility of existing Statement implementations and empty scope construction outside elaboration. LWR-17: route automatically captured parent aliases of exact immediate-child output identities to the instance use-site; preserve child-authored and explicit port documentation and reusable child signatures. Ignore automatic aliases to foreign inputs rather than mutating their declaration metadata. LWR-18: require explicit leading RTL: source markers, normalize block stars, preserve attachment boundaries and typed ownership, and suppress legacy unmarked automatic metadata while retaining explicit APIs and old runtime call compatibility.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/RtlDocumentation.scala",
         "mode": "100644",
-        "blob": "df9df95d7b9cea05f847007645f11a669d732a0a",
-        "sha256": "02332303665dc85e82d7cc859260ea708492975a3e1511afb948adcece576a04"
+        "blob": "f73f93376732c21ec1ed53378b15c1770aa5b75f",
+        "sha256": "5bc43b475c746157eb58f70037cd756fe7f113ab2f22b98e797c06fa1d74d21a"
       },
       "edits": []
     },
@@ -5724,13 +5724,13 @@
       "introduced_by": [
         "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
       ],
-      "reason": "Translate supported annotations and exact hardware DSL call comments to typed identity-preserving runtime metadata calls. Recognize frontend-owned hardware control regions through a generic payload annotation; retain core control identities without lower-layer frontend package references.",
+      "reason": "Translate supported annotations and exact hardware DSL call comments to typed identity-preserving runtime metadata calls. Recognize frontend-owned hardware control regions through a generic payload annotation; retain core control identities without lower-layer frontend package references. LWR-18: require explicit leading RTL: source markers, normalize block stars, preserve attachment boundaries and typed ownership, and suppress legacy unmarked automatic metadata while retaining explicit APIs and old runtime call compatibility.",
       "baseline": null,
       "approved": {
         "path": "idslplugin/src/main/scala/spinal/idslplugin/components/DocumentationTransformer.scala",
         "mode": "100644",
-        "blob": "b777ee714c4a538dc76ef15fcdf7ead3aec1609f",
-        "sha256": "1b15b87d7d8c2452e245d228166f40aaef5e8f73fbdd139a083a24b05461ce70"
+        "blob": "35d971e3bb405e9b47023b575f51a70e5c914c73",
+        "sha256": "75932e047adc7884623628eb08a9511ba59403b34ce58509b95f176265078f04"
       },
       "edits": []
     },
@@ -5741,13 +5741,13 @@
       "introduced_by": [
         "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
       ],
-      "reason": "Lex Scala comments with quoted literal and nested-block handling; determine attachment only at explicit lexical boundaries.",
+      "reason": "Lex Scala comments with quoted literal and nested-block handling; determine attachment only at explicit lexical boundaries. LWR-18: require explicit leading RTL: source markers, normalize block stars, preserve attachment boundaries and typed ownership, and suppress legacy unmarked automatic metadata while retaining explicit APIs and old runtime call compatibility.",
       "baseline": null,
       "approved": {
         "path": "idslplugin/src/main/scala/spinal/idslplugin/components/SourceDocumentation.scala",
         "mode": "100644",
-        "blob": "09e1aa7fba917e9a14bc6b1d36cc215ab168c00b",
-        "sha256": "4f404a761cdeef704a3d831cddacbb66846b11866874c64de1bd064c56065d03"
+        "blob": "1ffda6e289bbf00d88dd2a1e3213e8ee653de6b2",
+        "sha256": "3cba267648d35ac80c4f13b866f7484ca110f346136ec997611af1e9ab9585ce"
       },
       "edits": []
     },
@@ -5758,13 +5758,13 @@
       "introduced_by": [
         "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
       ],
-      "reason": "Capture declaration comments with compiler source ranges before namer and embed annotations with ambiguity and missing-range diagnostics.",
+      "reason": "Capture declaration comments with compiler source ranges before namer and embed annotations with ambiguity and missing-range diagnostics. LWR-18: require explicit leading RTL: source markers, normalize block stars, preserve attachment boundaries and typed ownership, and suppress legacy unmarked automatic metadata while retaining explicit APIs and old runtime call compatibility.",
       "baseline": null,
       "approved": {
         "path": "idslplugin/src/main/scala/spinal/idslplugin/components/SourceDocumentationTransformer.scala",
         "mode": "100644",
-        "blob": "f70035c8688b091c86816a6b8e6e9749ab747d54",
-        "sha256": "c7c6c1119b1af9397bed6ef7cbbba1b3913e6c6bd828a20229cf0a44ef60556a"
+        "blob": "9cb9c88f86e1c86a614e1a3de857a2dfe91616b9",
+        "sha256": "323d406ec5fd95f357dae248bdece3d62f276a75e763d2878a088e715f724b85"
       },
       "edits": []
     },
