@@ -4298,7 +4298,7 @@
     "morphhdl/src/test/scala/morphhdl/CaseRoutingContractFixture.scala": "d023ec2012ae83d4a7cbe98ade300da2c638de567261c4f3d859cb2721bd4c03",
     "morphhdl/src/test/scala/morphhdl/ClockedFormalForwardingTests.scala": "297f2dcc3fd20df8f9c8da85cb647fb54b5a8dd2c91c4b4ec207289a0d34b6e1",
     "morphhdl/src/test/scala/morphhdl/CombinationalEventDependencyTests.scala": "8ee4779056a6360a9a312e80bfbe98767abeea0d4620d645e0a04c9ccd5ddfe8",
-    "morphhdl/src/test/scala/morphhdl/CompactGenerateLabelTests.scala": "a39b326512c0c0f2ac0b74e7199efed37582e3f134aeddd39fab59dc1d05969d",
+    "morphhdl/src/test/scala/morphhdl/CompactGenerateLabelTests.scala": "aa1077f5191aa2c00fc45d3b3762f2717990ec6f3ff2df1a41f52b036781cf63",
     "morphhdl/src/test/scala/morphhdl/CompactReductionExampleTests.scala": "15e5999a710469e78e23a7c6d9823edd5e97b383810cc748e6db904c7bb28463",
     "morphhdl/src/test/scala/morphhdl/ComparisonRoutingContractFixture.scala": "3c97bad965df0b5939bcf30bbf5a4da1776ab2e92ffe2cec852f8bb1ba7e4a0d",
     "morphhdl/src/test/scala/morphhdl/ConditionalForwardingContractFixture.scala": "17e178ecd03bad24bdddbe29c98d376be7f51b95eea47b633006dd6d0ceb1b7e",

@@ -3,6 +3,7 @@ package morphhdl
 import java.nio.file.Files
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
+import _root_.spinal.core.ElabInt
 import spinal.lib._
 import morphhdl.frontend.{HdlInt,HdlIntRangeStart,StructuralVecOps}
 
