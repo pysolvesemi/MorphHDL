@@ -227,7 +227,7 @@
     },
     "core/src/main/scala/spinal/core/RtlDocumentation.scala": {
       "mode": "100644",
-      "sha256": "a39be301d7f09b3f3d86db526e902b3652edd83d76beab3baf999e804353bbc3"
+      "sha256": "02332303665dc85e82d7cc859260ea708492975a3e1511afb948adcece576a04"
     },
     "core/src/main/scala/spinal/core/Trait.scala": {
       "mode": "100644",
@@ -377,6 +377,14 @@
     "docs/morphhdl/lightweight-scala-rtl/parameter-declarations.md": {
       "mode": "100644",
       "sha256": "734c0620f977f74a67eb7eb52cfe46fca970f685a262b2d06f07b11b00268486"
+    },
+    "docs/morphhdl/lightweight-scala-rtl/parent-comment-ownership-receipt.json": {
+      "mode": "100644",
+      "sha256": "0428c8b964f1d4972b82943d2a9abf4d444c9f64fa005f67dbfeb0d528dd06ad"
+    },
+    "docs/morphhdl/lightweight-scala-rtl/parent-comment-ownership.md": {
+      "mode": "100644",
+      "sha256": "7cca5186184a3446b0e18c300a2e36c86db5368696dfa2818dbceb8c10095e16"
     },
     "docs/morphhdl/lightweight-scala-rtl/port-compositions.md": {
       "mode": "100644",
@@ -838,7 +846,7 @@
     },
     "morphhdl/contracts/increment-55-native-change-review.json": {
       "mode": "100644",
-      "sha256": "ca38118a2b33206442e8516785ec1652ead1858c0d522cb900b3fbbd3051f070"
+      "sha256": "c3159aed9ed93552cae13fbd92658cd62db86e27b7ba6efd804a683518e62b56"
     },
     "morphhdl/contracts/increment-58-retirement.contract": {
       "mode": "100644",
@@ -866,11 +874,11 @@
     },
     "morphhdl/contracts/native-source-preservation.json": {
       "mode": "100644",
-      "sha256": "31efbc4147e01050153f8530169f3f6f6e6ae3706f89ddb72a4306ea28b9efd7"
+      "sha256": "737ae84b2952b5e58b47ca64a24b7dbddea4a6372bd8ec4e82047136e92917ce"
     },
     "morphhdl/contracts/retained-parameterized-regressions.json": {
       "mode": "100644",
-      "sha256": "9ef2a7821813bd67b7c874f0d45e0ce5d0f315d1fb0f80b28b6ef4fde2d78334"
+      "sha256": "3d4894ee9c8711f8b28df77bb8e62d857a26e498737ee23b962343ebe55dad2a"
     },
     "morphhdl/examples/contracts/symbolic_data_shapes.v": {
       "mode": "100644",
@@ -966,7 +974,7 @@
     },
     "morphhdl/scripts/check-retained-parameterized-regressions.py": {
       "mode": "100644",
-      "sha256": "b06afff4cd68dcb58c5d9b1a441ebfe59bfd36722a649c1f2e07cb46a4c6669d"
+      "sha256": "56d6146ca68f2bc8bc508019ebf7536995df7cf7157b8523341c2e0bd5fea414"
     },
     "morphhdl/scripts/check-symbolic-recursive-width.py": {
       "mode": "100644",
@@ -1612,7 +1620,7 @@
     },
     "morphhdl/src/test/scala/morphhdl/RtlDocumentationTests.scala": {
       "mode": "100644",
-      "sha256": "909e94cb5f1765bacbf9bd9cc7f725e2db9ec78a6ecab56a0d373421e6ec8315"
+      "sha256": "7382ddef926e2624f4f69520abb93b25587ce401acabc0d23252397038e83af6"
     },
     "morphhdl/src/test/scala/morphhdl/ScalarFormalReuseTests.scala": {
       "mode": "100644",
