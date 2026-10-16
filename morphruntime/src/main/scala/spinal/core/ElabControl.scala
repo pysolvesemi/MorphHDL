@@ -34,14 +34,14 @@ object ElabControl {
   def selectScoped[T](condition: ElabScopedCondition, sourceFile: String, sourceLine: Int)
       (ifTrue: => T)(ifFalse: => T)(implicit unit: T =:= Unit): Unit = {
     require(condition != null, "scoped condition must not be null")
-    condition.capture("guard_l" + sourceLine)(unit(ifTrue))(unit(ifFalse))
+    condition.capture(AutomaticGenerateLabels.conditionalRole(Component.current, "guard_l" + sourceLine))(unit(ifTrue))(unit(ifFalse))
   }
 
   /** A missing source else is an authenticated empty alternative. The authored
     * branch still goes through native capture and its side-effect checks. */
   def generateScoped(condition: ElabScopedCondition, sourceFile: String, sourceLine: Int)(body: => Unit): Unit = {
     require(condition != null, "scoped condition must not be null")
-    condition.capture("guard_l" + sourceLine, emptyFalse = true)(body)(())
+    condition.capture(AutomaticGenerateLabels.conditionalRole(Component.current, "guard_l" + sourceLine), emptyFalse = true)(body)(())
   }
 
   private val ElseIfMarkerPrefix = "else_if_"
@@ -284,6 +284,7 @@ object ElabControl {
       ()
     }
     val base = nextGeneratedIfBase(component, sourceFile, sourceLine)
+    AutomaticGenerateLabels.retain(component, trueBlock)
     ParameterizedStructure.registerIf(
       pending,
       projectedCondition,
@@ -327,6 +328,7 @@ object ElabControl {
     )
     val falseBlock = ParameterizedStructuralSynthetic.emptyBlock(source)
     val base = nextGeneratedIfBase(component, sourceFile, sourceLine)
+    AutomaticGenerateLabels.retain(component, trueBlock)
     ParameterizedStructure.registerIf(
       pending,
       projectedCondition,

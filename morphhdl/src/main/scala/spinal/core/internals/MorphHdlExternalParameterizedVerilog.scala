@@ -290,7 +290,7 @@ object MorphHdlExternalParameterizedVerilog {
             TypedBalancedReductionBackend.rewrite(component, withExpressions, pc, canonicalOf), pc)
           // Array dimensions are published after ordinary expression lowering.
           // Lower their retained arithmetic through the same portable helper.
-          ExternalParameterizedVerilogNativeFallback.lowerRetainedIntegerHelpers(NativeLateSequentialMerge.publish(component, withArrays), component.definitionName)
+          ExternalParameterizedVerilogNativeFallback.lowerRetainedIntegerHelpers(NativeBranchOutputForwarding.publish(component, NativeLateSequentialMerge.publish(component, withArrays)), component.definitionName)
         }
         val documented = NativeFiniteStatementLineage.finish(component, RtlDocumentation.finishPublication(component, RtlDocumentation.publish(rewritten, ParameterizedVerilogVecs.documentationBindings(component, pc))))
         val named = NativeGenerateIndexNames.publish(component, NativeAreaLocalNames.publish(component, documented, pc))

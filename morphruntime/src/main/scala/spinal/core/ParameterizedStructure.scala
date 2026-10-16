@@ -1214,6 +1214,7 @@ object ParameterizedStructure {
       label = role + "_" + suffix
       suffix += 1
     }
+    AutomaticGenerateLabels.retainConditional(state.component, role, yes)
     registerIf(pending, condition, label + "_true", label + "_false", yes, no, source, Some(domain))
   }
 
@@ -1278,6 +1279,7 @@ object ParameterizedStructure {
     while(storage.labels.contains(label+"_true") || storage.labels.contains(label+"_false")) {
       label = role+"_"+suffix; suffix += 1
     }
+    AutomaticGenerateLabels.retainConditional(state.component, role, yes)
     registerIf(pending, proof.condition, label+"_true", label+"_false", yes, no,
       index.expression.sourceLocation, Some(proof.domain))
   }

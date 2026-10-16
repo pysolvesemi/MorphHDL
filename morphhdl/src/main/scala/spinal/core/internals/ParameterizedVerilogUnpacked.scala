@@ -31,7 +31,8 @@ private[internals] object ParameterizedVerilogUnpacked {
 
   def rewrite(source: String, shapes: Vector[ArrayShape],
       directPackedDestinations: Map[String, PackedDestination] = Map.empty,
-      directPackedSources: Map[String, Set[String]] = Map.empty): String = {
+      directPackedSources: Map[String, Set[String]] = Map.empty,
+      packingLoops: Map[String, (String, String)] = Map.empty): String = {
     if (shapes.isEmpty) return source
     val used = mutable.HashSet.empty[String] ++ "[A-Za-z_][A-Za-z0-9_$]*".r.findAllIn(source)
     def allocate(stem: String): String = {
@@ -49,6 +50,14 @@ private[internals] object ParameterizedVerilogUnpacked {
     val wiring = mutable.LinkedHashMap.empty[String, Vector[String]]
     val seen = mutable.HashSet.empty[String]
     val arrayDeclarations = mutable.Map.empty[String, String]
+    // Only native nets can use an asynchronously packed view in a procedural
+    // read. Registers may have been updated by blocking assignments in that
+    // same activation and must retain the direct-memory helper below.
+    val netArrays = shapes.filter { shape =>
+      val declaration = ("(?m)^\\s*(?:\\(\\*.*?\\*\\)\\s*)?wire(?:\\s+signed)?\\s+\\[.*\\]\\s+" +
+        Pattern.quote(shape.name) + "\\s*;\\s*$").r
+      declaration.findAllIn(source).size == 1
+    }.map(_.name).toSet
     def function(shape: ArrayShape, width: String): String =
       functions.getOrElseUpdate(shape.name -> width, allocate(shape.name + "_read"))
 
@@ -86,6 +95,10 @@ private[internals] object ParameterizedVerilogUnpacked {
             }
             direct match {
               case Some(value) => out.append(value)
+              case None if netArrays(shape.name) && normalized(offset) == "0" &&
+                  normalized(selection.width) == normalized(shape.total) =>
+                usedViews += shape.name
+                out.append(views(shape.name))
               case None if continuous =>
                 usedViews += shape.name
                 out.append(s"${views(shape.name)}[($offset) +: ${selection.width}]")
@@ -258,28 +271,27 @@ private[internals] object ParameterizedVerilogUnpacked {
     // certified array declaration's lexical owner, including generate branches.
     // The allocated view declaration is emitted above beside that exact array;
     // it is not a name guessed from an unrelated source identifier.
-    val additions = shapes.filter(shape => usedViews(shape.name) &&
-      !directPackedDestinations.get(shape.name).exists(_.loop.nonEmpty)).map { shape =>
+    val fusedLoops = packingLoops ++ directPackedDestinations.flatMap { case (name, dest) => dest.loop.map(name -> _) }
+    val additions = shapes.filter(shape => usedViews(shape.name)).map { shape =>
       val declaration = if (directPackedDestinations.contains(shape.name))
         keptOutput.filter(line => line == arrayDeclarations(shape.name) ||
           line == directPackedDestinations(shape.name).declaration).takeRight(1).map(_.trim)
       else Vector(s"wire [(${shape.total})-1:0] ${views(shape.name)};")
       require(declaration.size == 1, "direct word packing lost its exact array declaration")
       declaration.head ->
-        (helpers.filter(_._1 == shape.name).flatMap(_._2) ++ wiring(shape.name))
+        (helpers.filter(_._1 == shape.name).flatMap(_._2) ++
+          (if (fusedLoops.contains(shape.name)) Vector.empty else wiring(shape.name)))
     }.toMap
     require(keptOutput.exists(_.trim == "endmodule"), "unpacked Vec publication requires a module boundary")
     additions.keys.foreach(line => require(keptOutput.count(_.trim == line) == 1,
       "unpacked Vec packing bridge lost its exact owner declaration"))
-    val fused = directPackedDestinations.toVector.flatMap { case (array, destination) =>
-      destination.loop.map { case (label, index) =>
+    val fused = fusedLoops.toVector.filter(x => usedViews(x._1)).map { case (array, (label, index)) =>
         val shape = byName(array)
         val headers = keptOutput.filter(line => line.trim.startsWith(s"for ($index = 0;") &&
           line.trim.endsWith(s"begin : $label"))
         require(headers.size == 1, "word packing lost its authenticated finite-loop header")
         val offset = s"($index * (${shape.width}))"
-        headers.head -> s"  assign ${destination.name}[$offset +: ${shape.width}] = ${shape.element(offset)};"
-      }
+        headers.head -> s"  assign ${views(array)}[$offset +: ${shape.width}] = ${shape.element(offset)};"
     }.groupBy(_._1).map { case (header, assignments) => header -> assignments.map(_._2) }
     keptOutput.flatMap(line => Vector(line) ++ additions.getOrElse(line.trim, Vector.empty) ++
       fused.getOrElse(line, Vector.empty)).mkString("\n")

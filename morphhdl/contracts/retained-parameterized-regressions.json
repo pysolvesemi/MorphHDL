@@ -618,6 +618,17 @@
         "recursive safety rejects wrongPort without accepting a parameterized candidate",
         "recursive safety rejects wrongWidth without accepting a parameterized candidate"
       ],
+      "morphhdl.BranchForwardingNegativeTests": [
+        "a narrower signed child result retains its extension and forwarding boundary",
+        "a competing unconditional assignment is still rejected"
+      ],
+      "morphhdl.BranchWiringSafetyTests": [
+        "branch forwarding respects boundary and process semantics plain",
+        "branch forwarding respects boundary and process semantics keep",
+        "branch forwarding respects boundary and process semantics doc",
+        "branch forwarding respects boundary and process semantics priority",
+        "branch forwarding respects boundary and process semantics signed"
+      ],
       "morphhdl.CapturedAssignmentNormalizationTests": [
         "Vec-cloned drivers retain one owner for raw-control dominance",
         "a child-first cached driver is promoted to its consuming ancestor",
@@ -1102,9 +1113,9 @@
         "library adjacent subtraction and odd-tail bridge formal COUNT=8"
       ],
       "morphhdl.LightweightBalancedSafetyTests": [
-        "a callback cannot capture a foreign parent signal",
         "a symbolic payload factory cannot substitute a fixed witness width",
-        "a widening callback cannot silently change the reduction payload"
+        "a widening callback cannot silently change the reduction payload",
+        "a callback cannot capture a foreign parent signal"
       ],
       "morphhdl.LightweightBalancedSymbolicAdapterTests": [
         "public adapter symbolic geometry kind=bits pipeline=false default=1",
@@ -1688,8 +1699,8 @@
       ],
       "morphhdl.NaturalSymbolicConditionalTests": [
         "natural else-if emits one source-ordered structural chain",
-        "natural symbolic conditionals allow custom generate block labels",
         "nested explicit symbolic conditionals retain legal nested generate structure",
+        "natural symbolic conditionals allow custom generate block labels",
         "non-final chained predicates reject a false-label override",
         "ordinary Scala Boolean conditionals remain ordinary Scala control flow"
       ],
@@ -1862,6 +1873,14 @@
         "ordered coverage N-minus-one operators and logarithmic depth hold across boundaries",
         "the concrete generic callback is not restricted to hardware data",
         "two elements invoke one operator and bridge at level zero"
+      ],
+      "morphhdl.ReductionWiringTests": [
+        "symbolic reduction wiring preserves adjacent pairs sum default=1",
+        "symbolic reduction wiring preserves adjacent pairs sum default=7",
+        "symbolic reduction wiring preserves adjacent pairs or default=1",
+        "symbolic reduction wiring preserves adjacent pairs or default=7",
+        "symbolic reduction wiring preserves adjacent pairs subtract default=1",
+        "symbolic reduction wiring preserves adjacent pairs subtract default=7"
       ],
       "morphhdl.RtlDocumentationTests": [
         "fluent scalar documentation preserves all non-comment tokens",
@@ -2192,17 +2211,17 @@
         "legacy named and omitted constructor arguments still elaborate"
       ],
       "morphhdl.StructuralGenerateControlTests": [
-        "Scala-only generate bodies fail explicitly instead of silently specializing",
-        "generate-index Vec selection covers every admitted static element",
-        "inclusive to ranges retain an end-plus-one generate bound",
         "ordinary until loops lower declarations slices connections and child instances into one generate-for",
+        "inclusive to ranges retain an end-plus-one generate bound",
+        "generate-index Vec selection covers every admitted static element",
         "parameter-controlled generate-if and generate-case retain ordinary branch hardware",
-        "rootless public structural carriers preserve shared declaration objects",
-        "rootless public structural carriers reject independent declarations",
-        "structural count and case carriers preserve one shared root",
-        "structural count and case carriers reject independent same-name roots",
-        "typed structural predicates from one exact root emit one parameter",
         "typed structural predicates reject independent same-name roots across regions",
+        "typed structural predicates from one exact root emit one parameter",
+        "structural count and case carriers reject independent same-name roots",
+        "structural count and case carriers preserve one shared root",
+        "rootless public structural carriers reject independent declarations",
+        "rootless public structural carriers preserve shared declaration objects",
+        "Scala-only generate bodies fail explicitly instead of silently specializing",
         "unfinished structural conditionals fail with a stable continuation diagnostic"
       ],
       "morphhdl.StructuralSwitchRegisterTests": [
@@ -3749,16 +3768,17 @@
       ],
       "spinal.core.internals.UnpackedDirectReadTests": [
         "aligned dynamic multi-element reads concatenate array elements and preserve invalid addresses",
-        "aligned dynamic predicate coordinates remain opaque without read helpers",
-        "constant sum offsets fold to whole non-power-of-two words and coordinates",
+        "unaligned windows concatenate actual array bits across element boundaries",
         "direct procedural reads observe blocking writes in the same activation",
         "multidimensional whole reads retain low-element-first packing without helpers",
-        "symbolic aligned sums cancel only the exact word factor without freezing dimensions",
         "symbolic continuous reads slice the packed view without read functions",
         "symbolic procedural reads retain direct-memory helpers for blocking ordering",
+        "constant sum offsets fold to whole non-power-of-two words and coordinates",
+        "symbolic aligned sums cancel only the exact word factor without freezing dimensions",
         "unaligned and overflowing offsets do not acquire a false whole-word proof",
-        "unaligned windows concatenate actual array bits across element boundaries",
-        "whole-word expansion preserves unsigned and signed RHS extension"
+        "aligned dynamic predicate coordinates remain opaque without read helpers",
+        "whole-word expansion preserves unsigned and signed RHS extension",
+        "symbolic whole net reads use the packed view while partial reads retain sensitivity"
       ]
     },
     "morphir": {
@@ -4373,6 +4393,8 @@
     "morphhdl/src/test/scala/morphhdl/BoundedProcessOperationTests.scala": "bba238500015766afbcab644fd79623f03be823505892ee705d8fe58a0982ed3",
     "morphhdl/src/test/scala/morphhdl/BoundedRecursivePowerTests.scala": "fc20395f2d5d7eab911b84cf20f0bf3ef577606db4e8b7af068d8850921a87ad",
     "morphhdl/src/test/scala/morphhdl/BoundedRecursiveSafetyTests.scala": "3989759c35e1824fd813514869700a590edfe7710beed95fe5ff46181dfb6f3f",
+    "morphhdl/src/test/scala/morphhdl/BranchForwardingNegativeTests.scala": "f39345db69b74d540c7ac8c2cf4063787fb6cb0be090eeb4a0db7d5c480abf11",
+    "morphhdl/src/test/scala/morphhdl/BranchWiringSafetyTests.scala": "ab3326a30005792520d0a5bc0c2fc3f85a134c0f8436bde6bd23990db4984334",
     "morphhdl/src/test/scala/morphhdl/CanonicalSchemaDiagnosticTests.scala": "c5b3fe6c27d1a963a20fa925d7e61b33bdb9860817903e6c4125488cb83783a6",
     "morphhdl/src/test/scala/morphhdl/CapturedAssignmentNormalizationTests.scala": "178f28a885fd7e861f49b48f214358166c59f253f3dd56f15e4f224e67167f01",
     "morphhdl/src/test/scala/morphhdl/CapturedDomainWidthEquivalenceTests.scala": "79a1cea0b20645caa365d7c8b16b5aeeb669e5d8c68685aa2c6ade017aaf4979",
@@ -4499,6 +4521,7 @@
     "morphhdl/src/test/scala/morphhdl/RecursiveConfigurationParameterTests.scala": "d4d51a5efad17c6b45321ab173e43c7dc6dbb739052748cdeaa16860fa74b6e6",
     "morphhdl/src/test/scala/morphhdl/RecursiveUnsignedSumTests.scala": "0eeed78a711da5437406118203b09373d1bb1e1481d465d9a7c9dfb04541bdbc",
     "morphhdl/src/test/scala/morphhdl/ReduceBalancedTreeNativeContractTests.scala": "7ed02fcf5d40a383a13added7696622df6084a2e2b208967255576e82b981f4b",
+    "morphhdl/src/test/scala/morphhdl/ReductionWiringTests.scala": "63da90c8da72b4c579b8782ed49c373921dc799e4eb2d5dc5d32586f860b0ac9",
     "morphhdl/src/test/scala/morphhdl/RepositoryTestResources.scala": "6c7951371f5b09e65bc6a3a59440eb5b5fafa12c682f905f552a20022f70abbc",
     "morphhdl/src/test/scala/morphhdl/RtlDocumentationTests.scala": "4e11699ea3f8fe684f82bcde3c4d59f66e855741b0c1e935685856b078a1767e",
     "morphhdl/src/test/scala/morphhdl/RuntimeMuxContractFixture.scala": "0db2014836a7c603af006ef34bdc9ca1571e94ea75c69aeaf9fe8e50d20a4939",
@@ -4705,7 +4728,7 @@
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionWideningArtifactWriter.scala": "d1eaffde9174f3c756ff8b6c4e614c06fdfaedda289000b405cc5aa005561a74",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionWideningPublicationTests.scala": "35022da5fca2cf139bd43e052b9bc22fa89ed3c99f539c840af9717003a25cfa",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionWidthTransferTests.scala": "2ab8c23de803670985b69bde2991deb83e4567f6ea2d86ac754d8fb741499267",
-    "morphhdl/src/test/scala/spinal/core/internals/UnpackedDirectReadTests.scala": "bda53a54ca497e2ad62736f717be4cb97e25e0bc6f864b40246753cba40e6059",
+    "morphhdl/src/test/scala/spinal/core/internals/UnpackedDirectReadTests.scala": "39589dc7a3545a6b1e9ab36c293d0c70caf8801eb64e427ef9d603301662280b",
     "morphhdl/src/test/scala/spinal/lib/CounterSingleAuthorityParityTests.scala": "9eedbe0f3ce7a457d4c79ab2c9fc3aa1cb02c932436bc76d30d8ada2ca6780f5",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala": "24b185c3ef7939be404500704e955d598c2493ee7c3a1f737d0cf16267d9c362",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrV1Spec.scala": "835224bc5028bc192976dd96e08906add489d4824d328397466a7e4dd7f31493",

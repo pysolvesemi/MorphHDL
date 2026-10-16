@@ -199,4 +199,28 @@ initial begin x=-1; #1; if(y!==24'hffffff) $fatal;
 x=8'bz; #1; if(y!==24'bz) $fatal; $finish; end endmodule""", lint=false)
   }
 
+  test("symbolic whole net reads use the packed view while partial reads retain sensitivity") {
+    val rtl = rewrite("""module Top #(parameter DEPTH=3)(input [8*DEPTH-1:0] x, input [7:0] offset,
+output reg [8*DEPTH-1:0] y, output reg [8*(DEPTH-1)-1:0] partial);
+  wire [8*DEPTH-1:0] storage;
+  assign storage = x;
+  always @* begin
+    y = storage;
+    partial = storage[offset +: 8*(DEPTH-1)];
+  end
+endmodule""", Vector("DEPTH"))
+    assert(rtl.contains("y = storage_packed_view;"),rtl)
+    assert(rtl.contains("function") && rtl.contains("read_dependency"),rtl)
+    check(rtl, """module tb;
+reg [39:0] x; reg [7:0] offset; wire [39:0] y; wire [31:0] partial;
+Top #(.DEPTH(5)) dut(x,offset,y,partial);
+integer i;
+initial begin offset=0;
+for(i=0;i<20;i=i+1) begin x={$random,$random}; offset=i%10; #1;
+if(y!==x || partial!==x[offset+:32]) $fatal; end
+offset=0; x='bx; #1; if(y!==40'bx || partial!==32'bx) $fatal;
+x='bz; #1; if(y!==40'bz || partial!==32'bz) $fatal;
+$finish; end endmodule""", lint=false)
+  }
+
 }

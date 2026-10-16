@@ -16,12 +16,22 @@ private[internals] object NativeGenerateIndexNames {
         case _ => Vector.empty
       }) ++ region.blocks.flatMap(_.regions).flatMap(loops)
     val allLoops = regions.flatMap(loops)
-    val defaultLabels = allLoops.filter(loop => AutomaticGenerateLabels.owns(component, loop.body))
+    def labels(region: ParameterizedStructure.StructuralRegion): Vector[Vector[String]] = {
+      val own = region match {
+        case loop: ParameterizedStructure.StructuralFor if AutomaticGenerateLabels.owns(component, loop.body) =>
+          Vector(Vector(loop.label))
+        case branch: ParameterizedStructure.StructuralIf if AutomaticGenerateLabels.owns(component, branch.whenTrue) =>
+          Vector(Vector(branch.whenTrueLabel, branch.whenFalseLabel))
+        case _ => Vector.empty
+      }
+      own ++ region.blocks.flatMap(_.regions).flatMap(labels)
+    }
+    val defaultLabels = regions.flatMap(labels)
     val identifier = "[A-Za-z_][A-Za-z0-9_$]*".r
     val originalLines = verilog.split("\n", -1).toVector
     val labelNames = mutable.LinkedHashMap.empty[String, String]
-    val internalLabels = defaultLabels.map(_.label).toSet
-    if (internalLabels.size != defaultLabels.size)
+    val internalLabels = defaultLabels.flatten.toSet
+    if (internalLabels.size != defaultLabels.flatten.size)
       ParameterizedVerilogException.fail("SPINAL-GENERATE-LABEL-IDENTITY-MISMATCH",
         "default generate labels lost their unique captured identities", None)
     val labelReserved = mutable.HashSet.empty[String]
@@ -30,11 +40,16 @@ private[internals] object NativeGenerateIndexNames {
       code
     }
     var ordinal = 0
-    defaultLabels.foreach { loop =>
-      var name = ""
-      do { ordinal += 1; name = s"g_GEN_$ordinal" } while (labelReserved(name))
-      labelNames(loop.label) = name
-      labelReserved += name
+    defaultLabels.foreach { group =>
+      var names = Vector.empty[String]
+      do {
+        ordinal += 1
+        val base = s"g_GEN_$ordinal"
+        names = if (group.size == 1) Vector(base) else Vector(base + "_TRUE", base + "_FALSE")
+      } while (names.exists(labelReserved) || labelReserved(s"g_GEN_$ordinal"))
+      group.zip(names).foreach { case (original, published) => labelNames(original) = published }
+      labelReserved ++= names
+      labelReserved += s"g_GEN_$ordinal"
     }
     val labeled = ParameterizedVerilogVecs.mapReferenceCode(originalLines) { code =>
       identifier.replaceAllIn(code, token => java.util.regex.Matcher.quoteReplacement(

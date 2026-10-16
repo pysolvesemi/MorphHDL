@@ -615,8 +615,14 @@ private[internals] object ParameterizedVerilogVecs {
         }
       }
     }
+    val affineZero = ("^\\(([1-9][0-9]*) \\* " + Pattern.quote(indexName) + " \\+ 0\\)$").r
     val selectorText = staticIndex.flatMap(_ => NativeLocalParameters.reference(vector.component, selector))
-      .getOrElse(selector.verilog)
+      .getOrElse(selector.verilog match {
+        // The exact selector identity/domain was authenticated above. This is
+        // an integer affine identity, not an optimization of hardware values.
+        case affineZero(coefficient) if selector.generateIndex.nonEmpty => s"($coefficient * $indexName)"
+        case text => text
+      })
     structuralNestedSlice(vector, selector, leafIndex, sourceLocation, readOnly).foreach { slice =>
       return if (readOnly && isSignedLeaf(shape.elementLeaves(leafIndex))) s"$$signed($slice)" else slice
     }
@@ -2750,7 +2756,26 @@ private[internals] object ParameterizedVerilogVecs {
       }.flatten.toSet
       plan.name -> names
     }.toMap
-    ParameterizedVerilogUnpacked.rewrite(packedSource, arrays, destinations, directSources)
+    // Join a generated packing view only to an exact retained loop in the
+    // Vec declaration's own scope. Bounds alone do not authorize relocation.
+    val packingLoops = scala.collection.mutable.Map.empty[String, (String, String)]
+    def visitPacking(regions: Vector[ParameterizedStructure.StructuralRegion],
+        declarations: Vector[BaseType]): Unit = {
+      plans.filter(p => !p.hasNestedDimensions && p.layout.isEmpty &&
+        p.leaves.nonEmpty && p.leaves.forall(leaf => declarations.exists(_ eq leaf.value))).foreach { plan =>
+        val candidates = regions.collect {
+          case loop: ParameterizedStructure.StructuralFor if loop.finiteIndexToken.nonEmpty &&
+              ElabInt.equivalentExpression(loop.count, plan.shape.depth) &&
+              ParameterizedStructure.allBlocks(loop).flatMap(_.vecIndices).exists(selection =>
+                (selection.vector eq plan.vector) && selection.finiteIndexToken == loop.finiteIndexToken &&
+                TypedLoopVecRange.unitOffset(selection.index, loop.indexName).contains(0)) => loop
+        }
+        if (candidates.size == 1) packingLoops(plan.name) = candidates.head.label -> candidates.head.indexName
+      }
+      regions.foreach(_.blocks.foreach(block => visitPacking(block.regions, block.declarations)))
+    }
+    visitPacking(ParameterizedStructure.regionsOf(component), Vector.empty)
+    ParameterizedVerilogUnpacked.rewrite(packedSource, arrays, destinations, directSources, packingLoops.toMap)
   }
 
   private def operationAssignmentEvidence(operation: ParameterizedVecOperation): Vector[DataAssignmentStatement] = operation match {

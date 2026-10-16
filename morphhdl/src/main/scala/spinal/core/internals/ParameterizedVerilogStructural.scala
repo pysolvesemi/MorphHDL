@@ -4142,17 +4142,8 @@ private[internals] object ParameterizedVerilogStructural {
             blockingWhole.findFirstMatchIn(line).nonEmpty
           )
         }
-        val vecLeaves = ParameterizedVec.retainedVectorsOf(component).flatMap(_.asInstanceOf[Data].flatten)
-        val typedVecFamily = flat && fragmentAssignments.flatMap(_._2).forall { line =>
-          val name = blockingWhole.findFirstMatchIn(line).get.group(1)
-          vecLeaves.exists(leaf => NativeFiniteStatementLineage.referenceName(component, leaf) == name)
-        }
-        val packedFamily = processAssignments.nonEmpty &&
-          processAssignments.forall(a => TypedStructuralPackedCoverage.owns(component,a))
         val continuousFamily = if (
-          flat && (finiteFamily || typedVecFamily || packedFamily || fragmentAssignments.exists { case (_, statements) =>
-            statements.forall(line => verilogLiteral(blockingWhole.findFirstMatchIn(line).get.group(2)).nonEmpty)
-          }) &&
+          flat &&
           (normalized.head == "always @* begin" ||
             (normalized.head.matches("always @\\([^()]*\\) begin") &&
               "\\b(?:posedge|negedge)\\b".r.findFirstIn(normalized.head).isEmpty))
