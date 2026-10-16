@@ -74,7 +74,7 @@ object NativeWidthProvenance {
     case value: EnumEncoded =>
       NativeEnumExpressionAuthority.resolve(value).flatMap(authority => constant(authority.width))
     case data: BitVector =>
-      ParameterizedWidth.expressionOf(data) match {
+      ParameterizedWidth.expressionOf(data).map(NativeFormalWidthProjection.inCurrentScope(data, _)) match {
         case some @ Some(value) if value.exactDomain.nonEmpty => some
         case Some(value) if value.parameters.isEmpty => Some(value)
         case Some(value) if ElaborationWidthAuthority.isAuthoritative(value) => Some(value)
@@ -86,6 +86,19 @@ object NativeWidthProvenance {
             widthOf(assignment.source)
           case _ => None
         }
+        case None if data.isComb =>
+          val drivers = ArrayBuffer.empty[Expression]
+          var completeLeaves = true
+          data.foreachStatements {
+            case assignment: DataAssignmentStatement if (assignment.target eq data) &&
+                (assignment.finalTarget eq data) => drivers += assignment.source
+            case _ => completeLeaves = false
+          }
+          // Native inferred width is the maximum of full-leaf source widths,
+          // including switch/case and conditional drivers. This proves only
+          // geometry; native latch and competing-driver validation still own
+          // coverage and priority. Partial writes have no such proof.
+          if (completeLeaves && drivers.nonEmpty) maximum(drivers.toVector) else None
         case None => None
       }
     case value: BitVectorLiteral => fillWidthOf(value).orElse(constant(value.getWidth))

@@ -5,6 +5,7 @@ package spinal.core
   */
 abstract class ElabScopedIndex private[core] () {
   private[core] def select[T <: Data](vector: Vec[T]): T
+  private[core] def selectBit(source: Bits): Bool
   private[core] def selectPacked(source: Bits, width: BitCount): Bits
   def *(width: ElabInt): ElabScopedWordOffset
   def +(offset: Int): ElabScopedIndex

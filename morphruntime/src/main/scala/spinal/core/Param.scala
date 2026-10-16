@@ -7,6 +7,12 @@ package spinal.core
 @scala.annotation.compileTimeOnly("Param[T] requires the MorphHDL compiler plugin")
 sealed trait Param[T]
 object Param {
+  /** Forward an optional constructor formal with its exact declared presence.
+    * The effective value in the component body is zero when absent.
+    */
+  def forwardOptional(formal:ElabInt):Option[ElabInt]=RtlParam.forwardOptional(formal)
+  def isPresent(formal:ElabInt):Boolean=forwardOptional(formal).isDefined
+
   @scala.annotation.compileTimeOnly("Param.optional requires a typed Param[Int] declaration and finite require constraints")
   def optional(actual:Option[ElabInt], absent:Int, name:String = ""):ElabInt =
     throw new UnsupportedOperationException("Param.optional must be lowered by the compiler plugin")
@@ -35,7 +41,7 @@ object Param {
       case _ => other = true
     }
     require(!other && sources.size == 1 && !sources.head.hasPoison() && sources.head.hasSpecifiedBitCount && sources.head.getWidth > 0,
-      "SPINAL-PARAM-LITERAL-REQUIRED: packed defaults need one explicitly sized known literal")
+      s"SPINAL-PARAM-LITERAL-REQUIRED: packed defaults need one explicitly sized known literal (${value.getClass.getSimpleName}, sources=${sources.size}, other=$other)")
     val kind = value match {
       case _: UInt => "UInt"
       case _: SInt => "SInt"

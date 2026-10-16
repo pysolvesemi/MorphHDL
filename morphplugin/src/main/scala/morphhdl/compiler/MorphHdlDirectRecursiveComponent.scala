@@ -31,19 +31,15 @@ final class MorphHdlDirectRecursiveComponent(val global: Global) extends PluginC
   private def reject(tree: Tree, detail: String): Unit =
     reporter.error(tree.pos, "MORPHDL-DIRECT-RECURSION-UNSUPPORTED: " + detail)
 
+  private def actualName(tree:Tree):Option[TermName]=tree match {
+    case Ident(n:TermName)=>Some(n)
+    case Select(Ident(n:TermName),name) if name.decodedName.toString=="value"=>Some(n)
+    case _=>None
+  }
   private def declaration(value: ValDef): Option[(TermName, TermName)] = value.rhs match {
-    case Apply(Select(factory, method), List(_, Ident(actual: TermName), _, _))
-        if Set("int","inferredInt")(method.decodedName.toString) && path(factory).lastOption.contains("RtlParam") =>
-      Some(value.name -> actual)
-    case Apply(Select(factory, method), List(_, Ident(actual: TermName), _, _, _))
-        if method.decodedName.toString == "packed" && path(factory).lastOption.contains("RtlParam") =>
-      Some(value.name -> actual)
-    case Apply(Select(factory, method), List(_, Ident(actual: TermName), _, _, _))
-        if Set("optionalInt","optional")(method.decodedName.toString) && path(factory).lastOption.contains("RtlParam") =>
-      Some(value.name -> actual)
-    case Apply(Select(factory, method), List(_, Ident(actual: TermName)))
-        if method.decodedName.toString == "bool" && path(factory).lastOption.contains("RtlParam") =>
-      Some(value.name -> actual)
+    case Apply(Select(factory, method), args) if path(factory).lastOption.contains("RtlParam") &&
+        Set("int","inferredInt","packed","optionalInt","optional","bool")(method.decodedName.toString) && args.size>=2 =>
+      actualName(args(1)).map(value.name -> _)
     case _ => None
   }
 
@@ -78,6 +74,21 @@ final class MorphHdlDirectRecursiveComponent(val global: Global) extends PluginC
     }
     val boundaryName = TermName(unitFreshName("recursiveBoundary"))
     val valuesName = TermName(unitFreshName("recursiveValues"))
+    val constructorWrappers = parameters.flatMap { parameter =>
+      val name=path(parameter.tpt).filterNot(n=>n=="_root_" || n=="<root>")
+      if(name.take(3)==List("spinal","core","ConstructorParam") && name.size==4 &&
+          Set("Integer","BooleanValue","Packed","OptionalInteger")(name.last))
+        Some(parameter.name -> (name.last match {
+          case "Integer"=>"integer";case "BooleanValue"=>"boolean"
+          case "Packed"=>"packed";case "OptionalInteger"=>"optional"
+        })) else None
+    }.toMap
+    formals.foreach { case (value,(_,actual))=>value.rhs match {
+      case Apply(_,args) if args(1).isInstanceOf[Select] && !constructorWrappers.contains(actual)=>
+        reject(value,"constructor value extraction requires an authenticated ConstructorParam boundary")
+      case _=>
+    }}
+    val conversions=formals.flatMap {case (_, (formal,actual))=>constructorWrappers.get(actual).map(formal -> _)}.toMap
     val booleanFormals = formals.collect {
       case (value, (formal, _)) if (value.rhs match {
         case Apply(Select(_, method), _) => method.decodedName.toString == "bool"
@@ -90,7 +101,9 @@ final class MorphHdlDirectRecursiveComponent(val global: Global) extends PluginC
         case _=>false
       })=>formal
     }.toSet
-    def pair(formal: TermName, actual: Tree, declaration: Boolean): Tree =
+    def pair(formal: TermName, raw: Tree, declaration: Boolean): Tree = {
+      val actual=conversions.get(formal).map(method=>Apply(Select(core("ConstructorParam"),TermName(method)),List(raw))).getOrElse(raw)
+
       if (booleanFormals(formal))
         Apply(Select(core("RtlParam"), TermName(if (declaration) "recursiveBooleanBinding" else "recursiveBooleanOverride")),
           List(Ident(formal), actual))
@@ -99,6 +112,7 @@ final class MorphHdlDirectRecursiveComponent(val global: Global) extends PluginC
           List(Ident(formal),actual))
       else Apply(Select(Select(Ident(termNames.ROOTPKG), TermName("scala")), TermName("Tuple2")),
         List(Ident(formal), actual))
+    }
     val bindings = formals.map(_._2)
     val overridesByArgument = bindings.map { case (formal, actual) => actual -> formal }.toMap
     var selfEdges = 0

@@ -386,6 +386,27 @@
       "suites": [
         "morphhdl.CompactReductionExampleTests"
       ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/ConstructorParameterTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.ConstructorParameterTests"
+      ]
+    },
+    {
+      "source": "morphhdl/src/test/scala/morphhdl/LightweightPortCompositionTests.scala",
+      "module": "morph",
+      "suites": [
+        "morphhdl.LightweightPortCompositionTests"
+      ]
+    },
+    {
+      "source": "morphplugin/src/test/scala/morphhdl/compiler/ConstructorParameterSyntaxTests.scala",
+      "module": "morphplugin",
+      "suites": [
+        "morphhdl.compiler.ConstructorParameterSyntaxTests"
+      ]
     }
   ]
 }

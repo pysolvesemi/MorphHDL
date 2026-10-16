@@ -6,6 +6,20 @@ import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
 
 class NativeHierarchyWidthBoundaryTests extends AnyFunSuite {
+  private def checkLiteralSlice(dir: java.nio.file.Path, top: String): Unit = {
+    val bench=s"""module tb;reg [15:0] x;wire [7:0] y;integer i;
+$top dut(.x(x),.y(y));
+initial begin for(i=0;i<100;i=i+1)begin x=$$random;#1;if(y!==x[7:0])$$fatal;end
+x='bx;#1;if(y!==x[7:0])$$fatal;x='bz;#1;if(y!==x[7:0])$$fatal;$$finish;end endmodule
+"""
+    Files.write(dir.resolve("tb.v"),bench.getBytes(UTF_8))
+    Seq(Seq("iverilog","-g2001","-s","tb","-o","sim",s"$top.v","tb.v"),Seq("vvp","sim"),
+      Seq("verilator","--lint-only","--language","1364-2001","-DSYNTHESIS","-Wno-fatal",s"$top.v")).foreach { command =>
+      val (code,log)=Increment66ToolEvidence.run(dir,command)
+      assert(code==0,s"$command failed in $dir\n$log")
+    }
+  }
+
   private class GenericChild(actual: ElabInt) extends Component {
     @dontName val width=morphhdl.frontend.formalParam(actual,"WIDTH",1,64)
     val x=in Bits(width bits)
@@ -213,11 +227,11 @@ endmodule
     }
   }
 
-  for (partial <- Seq(false,true)) test(s"literal wire admission does not authorize varying widths or sliced connections partial=$partial") {
+  for (partial <- Seq(false,true)) test(s"literal boundary rejects varying widths and supports proved output slices partial=$partial") {
     val dir=Files.createTempDirectory("native-invalid-internal-")
-    val error=intercept[MorphVerilogException] {
-      MorphVerilog(SpinalConfig(targetDirectory=dir.toString,headerWithDate=false)) {
+    def generate() = MorphVerilog(SpinalConfig(targetDirectory=dir.toString,headerWithDate=false)) {
         new Component {
+          setDefinitionName("LiteralOutputSlice")
           @dontName val width=if(partial) ElabInt.literal(16) else morphhdl.frontend.HdlInt.param("PARENT_WIDTH",16,8,32).asElabInt
           val x=in Bits(16 bits)
           val y=out Bits((if(partial) 8 else 16) bits)
@@ -233,13 +247,16 @@ endmodule
           }
         }
       }
+    if(partial) {
+      generate()
+      checkLiteralSlice(dir,"LiteralOutputSlice")
+    } else {
+      val error=intercept[MorphVerilogException]{generate()}
+      assert(error.getMessage.contains("SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED"),error.getMessage)
+      val stream=Files.list(dir)
+      try { import scala.collection.JavaConverters._; assert(!stream.iterator.asScala.exists(_.toString.endsWith(".v"))) }
+      finally stream.close()
     }
-    val code=if(partial) "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED"
-      else "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED"
-    assert(error.getMessage.contains(code),error.getMessage)
-    val stream=Files.list(dir)
-    try { import scala.collection.JavaConverters._; assert(!stream.iterator.asScala.exists(_.toString.endsWith(".v"))) }
-    finally stream.close()
   }
 
   for (output <- Seq(false,true)) test(s"literal internal carrier width mismatch remains rejected output=$output") {
@@ -269,11 +286,11 @@ endmodule
     finally stream.close()
   }
 
-  for (foreign <- Seq(false,true)) test(s"literal actual does not authorize expression or foreign-owner input foreign=$foreign") {
+  for (foreign <- Seq(false,true)) test(s"literal input slice is proved while foreign-owner input rejects foreign=$foreign") {
     val dir=Files.createTempDirectory("native-invalid-binding-owner-")
-    val error=intercept[MorphVerilogException] {
-      MorphVerilog(SpinalConfig(targetDirectory=dir.toString,headerWithDate=false)) {
+    def generate() = MorphVerilog(SpinalConfig(targetDirectory=dir.toString,headerWithDate=false)) {
         new Component {
+          setDefinitionName("LiteralInputSlice")
           val x=in Bits(16 bits); val y=out Bits(8 bits)
           val child=new GenericChild(ElabInt.literal(8))
           if(foreign) {
@@ -290,12 +307,16 @@ endmodule
           y := child.y
         }
       }
+    if(!foreign) {
+      generate()
+      checkLiteralSlice(dir,"LiteralInputSlice")
+    } else {
+      val error=intercept[MorphVerilogException]{generate()}
+      assert(error.getMessage.contains("HIERARCHY VIOLATION"),error.getMessage)
+      val stream=Files.list(dir)
+      try { import scala.collection.JavaConverters._; assert(!stream.iterator.asScala.exists(_.toString.endsWith(".v"))) }
+      finally stream.close()
     }
-    val expected=if(foreign) "HIERARCHY VIOLATION" else "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED"
-    assert(error.getMessage.contains(expected),error.getMessage)
-    val stream=Files.list(dir)
-    try { import scala.collection.JavaConverters._; assert(!stream.iterator.asScala.exists(_.toString.endsWith(".v"))) }
-    finally stream.close()
   }
 
   test("literal sibling ports remain legal without exposing foreign internal carriers") {

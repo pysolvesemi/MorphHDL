@@ -100,6 +100,7 @@ final class ElabFiniteIndex private[core] (
     private[core] val count: ElaborationIntegerExpression,
     private[core] val token: ElabFiniteIndexToken
 ) extends ElabScopedIndex {
+  private[core] def selectBit(source: Bits): Bool = bit(source)
   private[core] def selectPacked(source: Bits, width: BitCount): Bits = packed(source, 1, width)
   def *(width: ElabInt): ElabScopedWordOffset = new ElabFiniteWordOffset(this, width)
   private[core] override def select[T <: Data](vector: Vec[T]): T =
@@ -202,7 +203,7 @@ final class ElabFiniteIndex private[core] (
 
   def equal(source: UInt): Bool = source === uint((expression.maximum.bitLength max 1) bits)
 
-  private def witness: Int = {
+  private[core] def witness: Int = {
     if (!expression.default.isValidInt) {
       ParameterizedVerilogException.fail(
         "SPINAL-ELAB-FINITE-INDEX-WITNESS-OUT-OF-RANGE",

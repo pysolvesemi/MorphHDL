@@ -893,7 +893,14 @@ object ParameterizedWidth {
     if (from == null || to == null)
       throw new IllegalArgumentException("symbolic-width copy requires non-null leaves")
     metadataOf(from) match {
-      case Some(metadata) => retain(to, metadata)
+      case Some(metadata) =>
+        val projected = metadata.expression.map(NativeFormalWidthProjection.inScope(to.component, from, _))
+        if (metadata.expression.nonEmpty && (projected.get ne metadata.expression.get)) {
+          // A parent-owned native clone is an instance connection carrier.
+          // Copy the authenticated actual geometry, never its child's formal.
+          // Literal actuals need no symbolic registry entry.
+          retainNativeWidth(to, projected.get)
+        } else retain(to, metadata)
       case None => NativeWidthProvenance.widthOf(from).foreach(retainNativeWidth(to, _))
     }
   }

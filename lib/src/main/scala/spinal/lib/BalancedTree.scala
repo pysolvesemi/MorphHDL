@@ -10,7 +10,7 @@ import scala.collection.Seq
   */
 @_root_.spinal.core.rtlRecursive
 final class BalancedTree[T <: Data](elementType: HardType[T], capacity: Int,
-    countActual: ElabInt, initialCountActual: ElabInt, pipelineMaskActual: ElabInt,
+    @rtlParamName("COUNT") countActual: Param[Int], initialCountActual: ElabInt, pipelineMaskActual: ElabInt,
     widthActual: ElabInt, moduleName: String, clockConfig: ClockDomainConfig,
     @rtlHardwareCallback operation: (T,T) => T, @rtlHardwareCallback levelBridge: (T,Int) => T, @rtlHardwareCallback widthFactory: ElabInt => T)
     extends Component {
@@ -27,8 +27,8 @@ final class BalancedTree[T <: Data](elementType: HardType[T], capacity: Int,
     "initial count is present exactly when a bridge or pipeline mask needs levels")
   require((widthActual != null) == (widthFactory != null),
     "a symbolic payload width requires its type factory")
-  val count: Param[Int] = Param(countActual, "COUNT")
-  require(count >= 1 && count <= capacity)
+  require(countActual >= 1 && countActual <= capacity)
+  def count: ElabInt = countActual // Compatibility accessor; no second HDL formal.
   val initialCount: Param[Int] = Param.optional(initialCountActual, 1, "INITIAL_COUNT")
   require(initialCount >= 1 && initialCount <= capacity)
   private val maskLimit: Int = (1 << levels)-1
@@ -36,10 +36,10 @@ final class BalancedTree[T <: Data](elementType: HardType[T], capacity: Int,
   require(mask >= 0 && mask <= maskLimit)
   val width: Param[Int] = Param.optional(widthActual, 1, "DATA_WIDTH")
   require(width >= 1 && width <= 64)
-  if (needsLevel) require(initialCount >= count)
+  if (needsLevel) require(initialCount >= countActual)
   private val dataType = if (widthFactory == null) elementType else HardType(widthFactory(width))
   val io = new BalancedTree.Ports(
-    if (widthFactory == null) elementType else HardType(widthFactory(width)), count)
+    if (widthFactory == null) elementType else HardType(widthFactory(width)), countActual)
   if (widthFactory != null) require(io.result.isInstanceOf[BitVector] &&
     ParameterizedWidth.expressionOf(io.result.asInstanceOf[BaseType]).exists(expression =>
       ElabInt.fromExpression(expression).elabEq(width).isAlwaysTrue),
@@ -47,13 +47,13 @@ final class BalancedTree[T <: Data](elementType: HardType[T], capacity: Int,
   private val domain = ClockDomain(io.clk, reset=io.reset, softReset=io.softReset,
     clockEnable=io.enable, config=clockConfig)
   val logic = new ClockingArea(domain) {
-    if (count == 1) io.result := io.terms(0)
+    if (countActual == 1) io.result := io.terms(0)
     else {
-      val nextCount = (count + 1) / 2
+      val nextCount = (countActual + 1) / 2
       val combined = Vec(dataType(), nextCount)
       val nextData = if (!needsLevel) combined else Vec(dataType(), nextCount)
       for (i <- 0 until nextCount) {
-        if (2*i+1 < count) combined(i) := operation(io.terms(2*i), io.terms(2*i+1))
+        if (2*i+1 < countActual) combined(i) := operation(io.terms(2*i), io.terms(2*i+1))
         else combined(i) := io.terms(2*i)
         if (needsLevel) {
           def pipeline(value: T, selected: ElabBool): Unit = {
@@ -64,7 +64,7 @@ final class BalancedTree[T <: Data](elementType: HardType[T], capacity: Int,
             } else nextData(i) := value
           }
           {
-            val currentLevel = initialCount.log2Up - count.log2Up
+            val currentLevel = initialCount.log2Up - countActual.log2Up
             for (level <- 0 until levels) {
               if (currentLevel == level) {
                 val bridged = dataType()

@@ -2187,10 +2187,48 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
             )
           )
         } else {
-          fail(
-            "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED",
-            s"$context uses a sliced, indexed or partial child-input assignment; direct full packed connections are required"
-          )
+          val concreteWidth = port match {
+            case bits: BitVector if allowConcreteInternal && bits.isFixedWidth &&
+                ParameterizedWidth.expressionOf(bits).forall(_.parameters.isEmpty) =>
+              val width = bits.getBitsWidth
+              val ranges = assignments.filter(a => (a.finalTarget eq port) &&
+                (a.parentScope eq parent.dslBody)).flatMap { a => a.target match {
+                case target if target eq port => Vector(0 -> width)
+                case bit: BitAssignmentFixed if (bit.out eq port) && bit.bitId >= 0 && bit.bitId < width =>
+                  Vector(bit.bitId -> (bit.bitId + 1))
+                case slice: RangedAssignmentFixed if (slice.out eq port) &&
+                    slice.lo >= 0 && slice.hi >= slice.lo && slice.hi < width => Vector(slice.lo -> (slice.hi + 1))
+                case _ => Vector.empty
+              }}.sortBy(_._1)
+              var covered = 0
+              ranges.foreach { case (lo, end) => if (lo <= covered) covered = math.max(covered, end) }
+              if (width > 0 && covered == width) Some(width) else None
+            case _ => None
+          }
+          val selectedWidth = (concreteWidth, assignment.target) match {
+            case (Some(width), bit: BitAssignmentFixed) if (bit.out eq port) &&
+                bit.bitId >= 0 && bit.bitId < width => Some(1)
+            case (Some(width), slice: RangedAssignmentFixed) if (slice.out eq port) &&
+                slice.lo >= 0 && slice.hi >= slice.lo && slice.hi < width => Some(slice.getWidth)
+            case _ => None
+          }
+          selectedWidth match {
+            case Some(width) =>
+              val source = bindingOf(parent, assignment.source, context,
+                allowConcreteInternal = true, fixedFormalActual = None, allowFixedTransforms = true)
+              if (source.minimum != width || source.maximum != width)
+                fail("SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PARTIAL-INPUT-WIDTH-MISMATCH",
+                  s"$context partial source width '${source.render}' is not exactly $width throughout its domain")
+              // Exact unconditional native assignments cover this fixed
+              // child port, including split defaults. Native processes retain assignment
+              // order, coverage, overlap and direction checks; no driver moves.
+              Vector(LiteralBinding(concreteWidth.get))
+            case None =>
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED",
+                s"$context partial child-input assignment requires proved fixed bounds and complete unconditional parent coverage"
+              )
+          }
         }
       }
     } else if (port.isOutput) {
@@ -2239,6 +2277,18 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
               fixedFormalActual
             )
           )
+        } else if ((assignment.finalTarget.component == parent ||
+            (assignment.finalTarget.isInput && !assignment.finalTarget.isInOut &&
+              assignment.finalTarget.component != null && (assignment.finalTarget.component.parent eq parent))) &&
+            (port.component eq child) && port.isOutput && !port.isInOut &&
+            (allowConcreteInternal || NativeWidthFormalSchema.portBinding(port).nonEmpty)) {
+          // A read of an output inside a parent expression does not constrain
+          // the output to the expression RESULT width. Native emission owns the
+          // child connection net; the exact port/formal owns its geometry.
+          // Native direction, driver and expression-width checks still apply.
+          Vector(NativeWidthFormalSchema.portBinding(port)
+            .map(entry => ExpressionBinding(entry.binding.actual): BindingExpr)
+            .getOrElse(LiteralBinding(port.getBitsWidth)))
         } else {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED",
@@ -2256,23 +2306,41 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
 
   /** Width-preserving native scalar expression trees may feed a child directly.
     * Every operand must remain in the parent, and width evidence comes from the
-    * native operator transfer rules. Fixed extracts and resizes are deliberately
-    * excluded: their witness dimensions cannot stand in for symbolic geometry.
+    * native operator transfer rules. Fixed extracts additionally prove their
+    * complete bounds against the source domain; a default width is not proof.
+    * Unauthenticated resize boundaries remain outside this path.
     */
-  private def parentScalarExpressionWidth(parent: Component, expression: Expression): Option[ElaborationIntegerExpression] = {
+  private def parentScalarExpressionWidth(parent: Component, expression: Expression, allowFixedTransforms: Boolean = false): Option[ElaborationIntegerExpression] = {
     val seen = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()
+    def sourceWidth(source: Expression): Option[ElaborationIntegerExpression] =
+      NativeWidthProvenance.widthOf(source).map { expression => source match {
+        case leaf: BaseType => NativeFormalWidthProjection.inScope(parent, leaf, expression)
+        case _ => expression
+      }}
     def knownOperator(value: Expression): Boolean = value match {
-      case _: Operator.BitVector.Add | _: Operator.BitVector.Sub |
+      case resize: Resize if allowFixedTransforms && resize.size > 0 => true
+      case _: Operator.BitVector.ShiftLeftByIntFixedWidth if allowFixedTransforms => true
+      case slice: BitVectorRangedAccessFixed =>
+        slice.lo >= 0 && slice.hi >= slice.lo && sourceWidth(slice.source).exists(_.minimum > slice.hi)
+      case bit: BitVectorBitAccessFixed =>
+        bit.bitId >= 0 && sourceWidth(bit.source).exists(_.minimum > bit.bitId)
+      case _: Operator.Bits.Cat | _: Operator.BitVector.Add | _: Operator.BitVector.Sub |
            _: Operator.BitVector.And | _: Operator.BitVector.Or | _: Operator.BitVector.Xor |
            _: Operator.Bits.Not | _: Operator.UInt.Not | _: Operator.SInt.Not |
-           _: BinaryMultiplexerWidthable => true
+           _: BinaryMultiplexerWidthable |
+           _: Operator.Bool.And | _: Operator.Bool.Or | _: Operator.Bool.Xor |
+           _: Operator.Bool.Not | _: Operator.Bool.Equal | _: Operator.Bool.NotEqual |
+           _: Operator.BitVector.Equal | _: Operator.BitVector.NotEqual |
+           _: Operator.UInt.Smaller | _: Operator.UInt.SmallerOrEqual |
+           _: Operator.SInt.Smaller | _: Operator.SInt.SmallerOrEqual => true
       case _ => false
     }
     def owned(value: Expression): Boolean = {
       if (value == null || seen.containsKey(value)) return false
       seen.put(value, true)
       val result = value match {
-        case leaf: BaseType => leaf.component eq parent
+        case leaf: BaseType => (leaf.component eq parent) ||
+          (leaf.isOutput && !leaf.isInOut && leaf.component != null && (leaf.component.parent eq parent))
         case literal: BitVectorLiteral => literal.hasSpecifiedBitCount
         case _: BoolLiteral => true
         case cast if directPackedCarrier(cast) ne cast => owned(directPackedCarrier(cast))
@@ -2293,19 +2361,34 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       expression: Expression,
       context: String,
       allowConcreteInternal: Boolean,
-      fixedFormalActual: Option[BigInt]
+      fixedFormalActual: Option[BigInt],
+      allowFixedTransforms: Boolean = false
   ): BindingExpr = expression match {
     case cast if directPackedCarrier(cast) ne cast =>
-      bindingOf(parent, directPackedCarrier(cast), context, allowConcreteInternal, fixedFormalActual)
+      bindingOf(parent, directPackedCarrier(cast), context, allowConcreteInternal, fixedFormalActual, allowFixedTransforms)
+    case slice: RangedAssignmentFixed if allowConcreteInternal &&
+        (slice.out.component eq parent) && slice.lo >= 0 && slice.hi >= slice.lo &&
+        NativeWidthProvenance.widthOf(slice.out).exists(_.minimum > slice.hi) =>
+      // The exact parent target owns this packed range. Its proved size is
+      // independent of the full destination width; native assignment checks
+      // retain disjointness, direction and competing-driver authority.
+      LiteralBinding(slice.getWidth)
     case _: BitAssignmentFixed if allowConcreteInternal =>
       LiteralBinding(1)
     case _: BitVectorBitAccessFixed if allowConcreteInternal =>
       LiteralBinding(1)
+    case literal: BitVectorLiteral if literal.hasSpecifiedBitCount && literal.getWidth > 0 &&
+        (allowConcreteInternal || fixedFormalActual.contains(BigInt(literal.getWidth))) =>
+      LiteralBinding(literal.getWidth)
     case _: BoolLiteral => LiteralBinding(1)
     case value: Bool => LiteralBinding(1)
     case value: BitVector if value.isOutput && (value.component.parent eq parent) &&
         NativeWidthFormalSchema.portBinding(value).nonEmpty =>
       ExpressionBinding(NativeWidthFormalSchema.portBinding(value).get.binding.actual)
+    case value: BitVector if allowConcreteInternal && value.isOutput && !value.isInOut &&
+        value.component != null && (value.component.parent eq parent) &&
+        ParameterizedWidth.expressionOf(value).forall(_.parameters.isEmpty) && value.isFixedWidth =>
+      LiteralBinding(value.getBitsWidth)
     case value: BitVector if value.component == parent =>
       ExternalParameterizedHierarchyResizeWidth.expressionOf(parent, value) match {
         case Some(expression) => ExpressionBinding(expression)
@@ -2320,12 +2403,12 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       }
     case value: BaseType if value.component == parent =>
       LiteralBinding(value.getBitsWidth)
-    case value if parentScalarExpressionWidth(parent, value).nonEmpty =>
-      ExpressionBinding(parentScalarExpressionWidth(parent, value).get)
+    case value if parentScalarExpressionWidth(parent, value, allowFixedTransforms).nonEmpty =>
+      ExpressionBinding(parentScalarExpressionWidth(parent, value, allowFixedTransforms).get)
     case _ =>
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED",
-        s"$context lacks a direct packed carrier or authenticated parent scalar expression"
+        s"$context lacks a direct packed carrier or authenticated parent scalar expression (${expression.getClass.getSimpleName}: $expression)"
       )
   }
 

@@ -16,8 +16,12 @@ private[spinal] object NativeFormalWidthProjection {
   }
 
   def inCurrentScope(port: BaseType, width: ElaborationIntegerExpression): ElaborationIntegerExpression = {
+    inScope(Component.current, port, width)
+  }
+
+  def inScope(scope: Component, port: BaseType, width: ElaborationIntegerExpression): ElaborationIntegerExpression = {
     val owner = port.component
-    if (owner == null || Component.current == null || (owner.parent ne Component.current) || !port.isIo)
+    if (owner == null || scope == null || (owner.parent ne scope) || !port.isIo)
       return width
     val entries = owner.userCache.get(Key).map(_.asInstanceOf[Bindings]).getOrElse(Vector.empty)
     entries.collectFirst {

@@ -210,15 +210,11 @@ private[internals] object ParameterizedVerilogStructural {
         .filter(binding => usedFormalRoots.exists(_ eq binding.formal.declarationRoot))
         .flatMap(_.actual.parameters)
     }
+    // Use the same authenticated inventory as final native publication. A
+    // declaration retained through a typed local or recursive binding must not
+    // disappear from the structural header merely because its predicate folds.
     val parameters = mergeParameters(
-      childActualParameters ++
-        ExternalParameterizedHierarchyResizeWidth.parametersOf(component) ++
-        ParameterizedMemory.parametersOf(component) ++
-        ExternalParameterizedValueRegistry.parametersOf(component) ++
-        ParameterizedVerilogVecs.parametersOf(component) ++
-        ParameterizedStructure.parametersOf(component) ++
-        ParameterizedProcess.parametersOf(component) ++
-        NativeSymbolicLegality.parametersOf(component)
+      childActualParameters ++ MorphHdlExternalParameterizedVerilog.componentParameters(component)
     )
     validateParameters(component, parameters, portNames, pc)
 
@@ -621,10 +617,24 @@ private[internals] object ParameterizedVerilogStructural {
               val carriers = selection.vector.vec.toVector.flatMap(_.asInstanceOf[Data].flatten)
               val aliases = owned.flatMap(_.vecIndices).filter(_.vector eq selection.vector)
                 .flatMap(_.result.flatten)
-              if (owned.flatMap(_.assignments).exists(a =>
-                  (carriers ++ aliases).exists(_ eq a.finalTarget)))
+              val writes = owned.flatMap(_.assignments).filter(a =>
+                (carriers ++ aliases).exists(_ eq a.finalTarget))
+              // An authenticated unpacking of a module input is a read-only
+              // view, not a cross-iteration recurrence. Its exact bulk-write
+              // edges are validated by Vec publication; additional writes or
+              // loop-produced sources do not acquire this exception.
+              val independentView = ParameterizedVec.operationsOf(selection.vector).collect {
+                case packed: ParameterizedVecPackedAssignment => packed
+              } match {
+                case Vector(packed) => packed.source.isInput &&
+                  (packed.source.component eq component) &&
+                  !owned.exists(_.declarations.exists(_ eq packed.source)) &&
+                  writes.forall(a => packed.assignments.exists(_ eq a))
+                case _ => false
+              }
+              if (writes.nonEmpty && !independentView)
                 fail("SPINAL-ELAB-FINITE-GUARDED-DEPENDENCY-UNSUPPORTED",
-                  "guarded affine bounds do not authorize reading an array written by the same loop; use a separately driven source array",
+                  s"guarded affine bounds do not authorize reading an array written by the same loop; use a separately driven source array (writes=${writes.map(a=>a.finalTarget.getName()).mkString(",")}; operations=${ParameterizedVec.operationsOf(selection.vector).map(_.getClass.getSimpleName).mkString(",")})",
                   selection.sourceLocation)
             }
             if (!evidence.matches(selection.vector, selection.index, token, Some(owner.count)) ||
@@ -5325,7 +5335,7 @@ private[internals] object ParameterizedVerilogStructural {
       val existingNames = lines
         .slice(moduleIndex + 1, close)
         .flatMap { line =>
-          val pattern = "\\bparameter\\s+integer\\s+([A-Za-z_][A-Za-z0-9_]*)".r
+          val pattern = "\\bparameter\\s+(?:integer\\s+|(?:signed\\s+)?\\[[^]]+\\]\\s+)([A-Za-z_][A-Za-z0-9_]*)".r
           pattern.findFirstMatchIn(line).map(_.group(1))
         }
         .toSet

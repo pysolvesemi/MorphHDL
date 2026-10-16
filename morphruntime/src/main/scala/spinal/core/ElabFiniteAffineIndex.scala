@@ -6,6 +6,18 @@ private[core] final class ElabFiniteAffineIndex(
   require(index != null && coefficient > 0 && offset >= 0,
     "scoped affine selectors require a positive coefficient and nonnegative offset")
 
+  private[core] def selectBit(source: Bits): Bool = {
+    if (!ParameterizedStructure.captureEnabled || index.expression.generateIndex.isEmpty)
+      return source(Math.addExact(Math.multiplyExact(index.witness, coefficient), offset))
+    ParameterizedStructure.requireActiveFiniteIndex(index)
+    require(source.component eq Component.current, "SPINAL-SCOPED-BIT-OWNER-MISMATCH: source must belong to the loop component")
+    val width=NativeWidthProvenance.widthOf(source).getOrElse(
+      throw new IllegalArgumentException("SPINAL-SCOPED-BIT-WIDTH-MISSING: source has no authenticated geometry"))
+    val view=Vec(Bool(),ElabInt.fromExpression(width))
+    view.assignFromBits(source)
+    select(view)
+  }
+
   private def requireWordOffset(): Unit =
     if (offset != 0) ParameterizedVerilogException.fail("SPINAL-SCOPED-WORD-OFFSET-UNSUPPORTED",
       "ordinary packed word access currently requires an unshifted index times its stride", index.expression.sourceLocation)

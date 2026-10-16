@@ -41,9 +41,14 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
         (tree: Tree) => calls.containsKey(tree)
       }
       var names = Set.empty[String]
+      var componentNames = Set.empty[String]
+      var rtlParamNames = Set.empty[String]
+      val rtlFactories = new java.util.IdentityHashMap[Tree, java.lang.Boolean]()
+      val components = new java.util.IdentityHashMap[Tree, java.lang.Boolean]()
+      val copiedRequires = new java.util.IdentityHashMap[Tree, java.lang.Boolean]()
       var blocked = Set.empty[String]
       var ambiguous = Set.empty[String]
-      var typeNames = Map("Int" -> "Int", "Boolean" -> "Boolean")
+      var typeNames = Map("Int" -> "Int", "Boolean" -> "Boolean", "Option" -> "Option")
       val recognizedKinds = new java.util.IdentityHashMap[Tree,String]()
       def defined(t: Tree): Option[String] = t match {
         case d: MemberDef => Some(d.name.decodedName.toString)
@@ -73,7 +78,7 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
             val primary=if(provider.isModule)provider.moduleClass.info else provider.info
             val pkg=primary.packageObject
             val infos=if(pkg==NoSymbol)List(primary)else List(primary,pkg.moduleClass.info)
-            val tracked=names++typeNames.keySet++Set("Param","UInt","Bits","SInt")
+            val tracked=names++componentNames++rtlParamNames++typeNames.keySet++Set("Param","RtlParam","Component","UInt","Bits","SInt","rtlParamName")
             Some(tracked.filter(n=>infos.exists(i=>i.nonPrivateMember(TermName(n))!=NoSymbol || i.nonPrivateMember(TypeName(n))!=NoSymbol)))
           }
         } catch { case scala.util.control.NonFatal(_)=>None }
@@ -81,23 +86,31 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
       object Resolve extends Traverser {
         def scope(stats: List[Tree])(body: => Unit): Unit = {
           val saved = names
+          val savedComponents = componentNames
+          val savedRtl = rtlParamNames
           val savedBlocked = blocked
           val savedAmbiguous = ambiguous
           val savedTypes = typeNames
           val declared = stats.flatMap(defined).toSet
           names --= declared
+          componentNames --= declared
+          rtlParamNames --= declared
           blocked ++= declared
           typeNames --= stats.collect {case d:ClassDef=>d.name.decodedName.toString;case d:TypeDef=>d.name.decodedName.toString}
-          try body finally { names=saved; blocked=savedBlocked; ambiguous=savedAmbiguous; typeNames=savedTypes }
+          try body finally { names=saved; componentNames=savedComponents; rtlParamNames=savedRtl; blocked=savedBlocked; ambiguous=savedAmbiguous; typeNames=savedTypes }
         }
         def stats(trees: List[Tree]): Unit = trees.foreach(traverse)
         override def traverse(t: Tree): Unit = {
           val p=path(t).filterNot(n=>n=="_root_" || n=="<root>")
           val rooted=path(t).headOption.exists(n=>n=="_root_" || n=="<root>")
           val nativeKind=if(p.size==1)typeNames.get(p.head)
-            else if(p.size==3 && p.take(2)==List("spinal","core") && (rooted || !blocked("spinal")) && Set("UInt","Bits","SInt")(p.last))Some(p.last)
-            else if(p.size==2 && p.head=="scala" && (rooted || !blocked("scala")) && Set("Int","Boolean")(p.last))Some(p.last)
+            else if(p.size==3 && p.take(2)==List("spinal","core") && (rooted || !blocked("spinal")) && Set("UInt","Bits","SInt","rtlParamName")(p.last))Some(p.last)
+            else if(p.size==2 && p.head=="scala" && (rooted || !blocked("scala")) && Set("Int","Boolean","Option")(p.last))Some(p.last)
             else None
+          if((p==List("spinal","core","Component") && (rooted || !blocked("spinal"))) ||
+              (p.size==1 && componentNames(p.head))) components.put(t,true)
+          if((p==List("spinal","core","RtlParam") && (rooted || !blocked("spinal"))) ||
+              (p.size==1 && rtlParamNames(p.head))) rtlFactories.put(t,true)
           nativeKind.foreach(k=>recognizedKinds.put(t,k))
           if((p==List("spinal","core","Param") && (rooted || !blocked("spinal"))) ||
               (p.size==1 && names(p.head))) recognized.put(t,true)
@@ -118,21 +131,29 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
                 val to=Option(selector.rename).map(_.decodedName.toString).getOrElse(from)
                 if(isCore && from=="_") {
                   val hidden=selectors.map(_.name.decodedName.toString).toSet
+                  if(!hidden("Component") && !blocked("Component") && !ambiguous("Component"))componentNames += "Component"
+                  if(!hidden("RtlParam") && !blocked("RtlParam") && !ambiguous("RtlParam"))rtlParamNames += "RtlParam"
                   if(!hidden("Param") && !blocked("Param") && !ambiguous("Param"))names += "Param"
-                  for(k<-Seq("UInt","Bits","SInt") if !hidden(k) && !blocked(k) && !ambiguous(k))typeNames += k->k
+                  for(k<-Seq("UInt","Bits","SInt","rtlParamName") if !hidden(k) && !blocked(k) && !ambiguous(k))typeNames += k->k
                 }
                 else if(from=="_") {
                   val hidden=selectors.map(_.name.decodedName.toString).toSet
-                  val conflicts=wildcardExports(q).getOrElse(names++typeNames.keySet++Set("Param","UInt","Bits","SInt")) -- hidden
+                  val conflicts=wildcardExports(q).getOrElse(names++componentNames++rtlParamNames++typeNames.keySet++Set("Param","RtlParam","Component","UInt","Bits","SInt","rtlParamName")) -- hidden
                   ambiguous ++= conflicts
                   names --= conflicts
+                  componentNames --= conflicts
+                  rtlParamNames --= conflicts
                   typeNames --= conflicts
                 } else if(from!="_") {
                   names -= to
+                  componentNames -= to
+                  rtlParamNames -= to
                   typeNames -= to
+                  if(isCore && from=="Component" && to!="_" && !blocked(to))componentNames += to
+                  if(isCore && from=="RtlParam" && to!="_" && !blocked(to))rtlParamNames += to
                   if(isCore && from=="Param" && to!="_" && !blocked(to)) names += to
-                  if(isCore && Set("UInt","Bits","SInt")(from) && to!="_" && !blocked(to))typeNames += to->from
-                  if(path(q).filterNot(_=="_root_")==List("scala") && Set("Int","Boolean")(from) && to!="_" && !blocked(to))typeNames += to->from
+                  if(isCore && Set("UInt","Bits","SInt","rtlParamName")(from) && to!="_" && !blocked(to))typeNames += to->from
+                  if(path(q).filterNot(_=="_root_")==List("scala") && Set("Int","Boolean","Option")(from) && to!="_" && !blocked(to))typeNames += to->from
                 }
               }
             case _ => super.traverse(t)
@@ -150,6 +171,13 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
         case Apply(Select(factory,n),args) if isParam(factory) && Set("apply","optional")(n.decodedName.toString) => Some(args)
         case _=>None
       }
+      def optionalKind(t:Tree):Option[String]=t match {
+        case AppliedTypeTree(option,List(inner)) if Option(recognizedKinds.get(option)).contains("Option") => kind(inner)
+        case _=>None
+      }
+      def parameterType(t:Tree):Option[(String,Boolean)] = kind(t).map(_ -> false).orElse(optionalKind(t).map(_ -> true))
+      def wrapper(k:String,optional:Boolean):Tree = Select(core("ConstructorParam"),TypeName(
+        if(optional) "OptionalInteger" else if(k=="Boolean") "BooleanValue" else if(k=="Int") "Integer" else "Packed"))
       object Rewrite extends Transformer {
         private var bounds=Map.empty[String,(BigInt,BigInt)]
         private var dynamicBounds=Map.empty[String,(Vector[Tree],Vector[Tree])]
@@ -165,6 +193,113 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
           List(combine(lo,lower,"max"),combine(hi,upper,"min"))
         }
         override def transform(t:Tree):Tree=t match {
+          case cls:ClassDef if cls.impl.parents.exists(p=>components.containsKey(p)) =>
+            val ctors=cls.impl.body.collect {case d:DefDef if d.name==termNames.CONSTRUCTOR=>d}
+            val forwarded=cls.impl.body.collect {case v:ValDef =>
+              val actual = if(kind(v.tpt).nonEmpty) arguments(v.rhs).flatMap(_.headOption) else None
+              actual.orElse(v.rhs match {
+                case Apply(Select(factory,method),args) if rtlFactories.containsKey(factory) &&
+                    Set("int","inferredInt","packed","bool","optional","optionalInt")(method.decodedName.toString) && args.size>=2 =>
+                  Some(args(1))
+                case _=>None
+              }).collect {case Ident(n)=>n}
+            }.flatten.toSet
+            val params=ctors.headOption.toList.flatMap(_.vparamss.flatten)
+            val owned=params.filter(p=>parameterType(p.tpt).nonEmpty && !forwarded(p.name))
+            if(owned.isEmpty) super.transform(t)
+            else if(ctors.size!=1 || ctors.head.vparamss.size!=1 || owned.exists(p=>p.mods.hasFlag(Flag.IMPLICIT))) {
+              reporter.error(cls.pos,"MORPHDL-CONSTRUCTOR-PARAM-UNSUPPORTED: use one non-implicit primary constructor parameter list")
+              super.transform(t)
+            } else {
+              val fields=cls.impl.body.collect {case v:ValDef if v.mods.hasFlag(Flag.PARAMACCESSOR)=>v}
+              val unsupported=fields.filter(f=>owned.exists(_.name==f.name) &&
+                (f.mods.hasFlag(Flag.MUTABLE) || !f.mods.hasFlag(Flag.LOCAL)))
+              if(unsupported.nonEmpty) reporter.error(unsupported.head.pos,
+                "MORPHDL-CONSTRUCTOR-PARAM-UNSUPPORTED: use plain immutable constructor arguments, not val/var accessors")
+              val mapping=owned.map(p=>p.name -> TermName(unit.fresh.newName("parameter_"+p.name.decodedName.toString+"_"))).toMap
+              val ownedByName=owned.map(p=>p.name->p).toMap
+              object Rename extends Transformer {
+                private var hidden=Set.empty[Name]
+                private var untouched:Tree=EmptyTree
+                private var nestedOwners=Set.empty[String]
+                private def ownerScope[A](name:Name)(body: => A):A={
+                  val saved=nestedOwners;nestedOwners+=name.decodedName.toString
+                  try body finally nestedOwners=saved
+                }
+                private def scoped[A](names:Set[Name])(body: => A):A={val saved=hidden;hidden++=names;try body finally hidden=saved}
+                override def transform(tree:Tree):Tree={
+                  val result=tree match {
+                    case same if same eq untouched=>same
+                    case Ident(n) if mapping.contains(n.toTermName) && !hidden(n)=>Ident(mapping(n.toTermName)).setPos(tree.pos)
+                    case Select(th:This,n) if mapping.contains(n.toTermName) &&
+                        ((th.qual==global.typeNames.EMPTY && nestedOwners.isEmpty) ||
+                          (th.qual==cls.name && !nestedOwners(th.qual.decodedName.toString)))=>
+                      Select(th,mapping(n.toTermName)).setPos(tree.pos)
+                    case d:DefDef=>scoped(d.vparamss.flatten.map(_.name:Name).toSet++d.tparams.map(_.name:Name)) {super.transform(tree)}
+                    case c:CaseDef=>
+                      val bound=scala.collection.mutable.HashSet.empty[Name]
+                      object PatternNames extends Traverser {override def traverse(t:Tree):Unit=t match {
+                        case b:Bind=>bound+=b.name;super.traverse(t)
+                        case _=>super.traverse(t)
+                      }}
+                      PatternNames.traverse(c.pat)
+                      scoped(bound.toSet){super.transform(tree)}
+                    case f:Function=>scoped(f.vparams.map(_.name:Name).toSet){super.transform(tree)}
+                    case b:Block=>scoped(b.stats.collect {case m:MemberDef=>m.name:Name}.toSet){super.transform(tree)}
+                    case c:ClassDef=>ownerScope(c.name){scoped(c.impl.body.collect{case m:MemberDef=>m.name:Name}.toSet){super.transform(tree)}}
+                    case m:ModuleDef=>ownerScope(m.name){scoped(m.impl.body.collect{case d:MemberDef=>d.name:Name}.toSet){super.transform(tree)}}
+                    // Named-argument labels are not variable reads.
+                    case a if Set("AssignOrNamedArg","NamedArg")(a.productPrefix)=>
+                      val parts=a.children
+                      if(parts.size==2) {
+                        val saved=untouched;untouched=parts.head
+                        try super.transform(tree) finally untouched=saved
+                      } else super.transform(tree)
+                    case _=>super.transform(tree)
+                  }
+                  if(builtinRequire(tree))copiedRequires.put(result,true)
+                  result
+                }
+              }
+              val declarations=owned.map { p=>
+                val (k,optional)=parameterType(p.tpt).get
+                if(optional && k!="Int")reporter.error(p.pos,"MORPHDL-CONSTRUCTOR-PARAM-UNSUPPORTED: optional constructor parameters support Param[Int]")
+                val scalarType=if(optional)p.tpt.asInstanceOf[AppliedTypeTree].args.head else p.tpt
+                val factory=core("Param")
+                recognized.put(factory,true)
+                val annotations=p.mods.annotations.collect {
+                  case Apply(Select(New(tpt),_),args)
+                    if Option(recognizedKinds.get(tpt)).contains("rtlParamName")=>args
+                }
+                val overrides=annotations.collect {
+                  case List(value @ Literal(Constant(name:String))) if name.matches("[A-Za-z_][A-Za-z0-9_]*")=>value
+                }
+                if(annotations.size!=overrides.size || overrides.size>1)
+                  reporter.error(p.pos,"MORPHDL-CONSTRUCTOR-PARAM-NAME: use one portable literal HDL-name override")
+                val hdlName=overrides.headOption.getOrElse(Literal(Constant(p.name.decodedName.toString)))
+                val actual=Select(Ident(p.name),TermName("value"))
+                val rhs=if(optional)Apply(Select(factory,TermName("optional")),List(actual,Literal(Constant(0)),hdlName))
+                  else Apply(factory,List(actual,hdlName))
+                ValDef(Modifiers(Flag.PRIVATE),mapping(p.name),scalarType,rhs).setPos(p.pos)
+              }
+              val body=cls.impl.body.flatMap {
+                case ctor:DefDef if ctor.name==termNames.CONSTRUCTOR=>
+                  val lists=ctor.vparamss.map(_.map { p=>ownedByName.get(p.name) match {
+                    case Some(source)=>val(k,opt)=parameterType(source.tpt).get
+                      treeCopy.ValDef(p,p.mods,p.name,wrapper(k,opt),p.rhs)
+                    case None=>p
+                  }})
+                  List(treeCopy.DefDef(ctor,ctor.mods,ctor.name,ctor.tparams,lists,ctor.tpt,ctor.rhs))++declarations
+                case field:ValDef if field.mods.hasFlag(Flag.PARAMACCESSOR) && ownedByName.contains(field.name)=>
+                  val(k,opt)=parameterType(ownedByName(field.name).tpt).get
+                  List(treeCopy.ValDef(field,field.mods,field.name,wrapper(k,opt),field.rhs))
+                case other=>List(Rename.transform(other))
+              }
+              // Generated formal spellings retain the exact recognized Param type;
+              // copied require calls retain canonical Predef authority only.
+              super.transform(treeCopy.ClassDef(cls,cls.mods,cls.name,cls.tparams,
+                treeCopy.Template(cls.impl,cls.impl.parents,cls.impl.self,body)))
+            }
           case template: Template =>
             val old=bounds
             val oldDynamic=dynamicBounds
@@ -211,7 +346,7 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
               case _ =>
             }
             if(declarations.nonEmpty) template.body.foreach {
-              case call @ Apply(fun,args) if path(fun).lastOption.contains("require") && builtinRequire(call) && args.nonEmpty =>constrain(args.head)
+              case call @ Apply(fun,args) if path(fun).lastOption.contains("require") && (builtinRequire(call) || copiedRequires.containsKey(call)) && args.nonEmpty =>constrain(args.head)
               case _ =>
             }
             try super.transform(template) finally { bounds=old; dynamicBounds=oldDynamic }

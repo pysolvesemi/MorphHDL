@@ -268,32 +268,18 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
               s"parameterized module '$definitionName' has no canonical ') (' header terminator"
             )
           }
-        val parameterPattern =
-          "\\bparameter\\s+integer\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*(-?[0-9]+)".r
-        val existing = lines.slice(start + 1, close).flatMap { declaration =>
-          parameterPattern.findFirstMatchIn(declaration).map { matched =>
-            matched.group(1) -> BigInt(matched.group(2))
-          }
-        }
-        val duplicates = existing.groupBy(_._1).collectFirst {
-          case (name, values) if values.size != 1 => name
-        }
-        duplicates.foreach { name =>
-          fail(
-            "SPINAL-PARAMETERIZED-VERILOG-MODULE-PARAMETER-AMBIGUOUS",
-            s"module '$definitionName' declares parameter '$name' more than once"
-          )
-        }
-        val existingMap = existing.toMap
-        val expectedMap = parameters.map(parameter => parameter.name -> parameter.default).toMap
-        if (existingMap != expectedMap) {
-          fail(
-            "SPINAL-PARAMETERIZED-VERILOG-MODULE-PARAMETER-SCHEMA-CONFLICT",
-            s"module '$definitionName' emitted parameter schema ${existingMap.toVector
-                .sortBy(_._1)
-                .mkString(",")}, expected ${expectedMap.toVector.sortBy(_._1).mkString(",")}"
-          )
-        }
+        // Compare the complete authenticated declaration, including packed
+        // representation, signedness and sized default. Integer-only parsing
+        // silently discarded valid packed formals from this audit.
+        val existing = lines.slice(start + 1, close).map(_.trim.stripSuffix(",").trim)
+        val expected = parameters.map(_.declaration)
+        if (existing.distinct.size != existing.size)
+          fail("SPINAL-PARAMETERIZED-VERILOG-MODULE-PARAMETER-AMBIGUOUS",
+            s"module '$definitionName' repeats a parameter declaration")
+        if (existing.sorted != expected.sorted)
+          fail("SPINAL-PARAMETERIZED-VERILOG-MODULE-PARAMETER-SCHEMA-CONFLICT",
+            s"module '$definitionName' emitted parameter schema ${existing.mkString(",")}, expected ${expected.mkString(",")}")
+
         close
       } else {
         fail(
@@ -3600,7 +3586,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                     }
                     .getOrElse {
                       ParameterizedWidth.expressionOf(baseType) match {
-                        case Some(expression) => retained(expression)
+                        case Some(expression) => retained(NativeFormalWidthProjection.inScope(component, baseType, expression))
                         case None =>
                           baseType match {
                             case _: Bool              => WidthLiteral(1)

@@ -46,7 +46,11 @@ private[internals] object NativeWidthFormalSchema {
         "native formal declaration/connection must preserve its own width witness")
       val reference = NativeLocalParameters.reference(owner, e).getOrElse(e.verilog)
       if (e.parameters.isEmpty && e.parameterRoots.isEmpty && e.generateIndex.isEmpty)
-        if (e.default == 1) "" else s"[${e.default - 1}:0]"
+        // A child output wrapper is a BitVector even for a literal
+        // one-bit actual: indexed reads require a packed [0:0] net.
+        // Input connections may reference a native scalar Bool cast, so
+        // retain their native scalar connection spelling at width one.
+        if (e.default == 1 && value.isInput) "" else s"[${e.default - 1}:0]"
       else s"[$reference-1:0]"
     }
   }

@@ -91,6 +91,13 @@ object RtlParam {
     owner.userCache(DeclarationKey).asInstanceOf[Declarations].find(_.formal eq formal).get.active
   }
 
+  private[core] def forwardOptional(formal:ElabInt):Option[ElabInt] = {
+    val declaration = Option(Component.current).flatMap(_.userCache.get(DeclarationKey))
+      .flatMap(_.asInstanceOf[Declarations].find(_.formal eq formal)).getOrElse(
+        throw new IllegalArgumentException("SPINAL-OPTIONAL-PARAMETER-OWNER-MISMATCH: forward the exact optional formal in its declaring component"))
+    if(declaration.active)Some(formal) else None
+  }
+
   private def optionalActual(actual:Option[ElabInt]):ElabInt = {
     require(actual != null && !actual.contains(null), "optional parameter actual must be None or Some(non-null)")
     actual.orNull
