@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "4747000cbb1ffa7360416149847c4ab84d4691b5"
+      "approved_tree": "bd9a4dd42dafb84b071dc45adf225f42cdcdb63d"
     },
     {
       "path": "idslpayload/src/main",
@@ -2076,13 +2076,13 @@
       "introduced_by": [
         "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
       ],
-      "reason": "Define optional typed documentation metadata, configuration, identity-preserving APIs, exception-safe regions, declaration publication and exact relocation envelopes. Decode optional source coordinates in the metadata owner while preserving valid and malformed location behavior; the canonical producer consumes typed coordinates without parsing source text. Store region notes in elaboration-owned identity metadata with concrete default accessors, preserving binary compatibility of existing Statement implementations and empty scope construction outside elaboration.",
+      "reason": "Define optional typed documentation metadata, configuration, identity-preserving APIs, exception-safe regions, declaration publication and exact relocation envelopes. Decode optional source coordinates in the metadata owner while preserving valid and malformed location behavior; the canonical producer consumes typed coordinates without parsing source text. Store region notes in elaboration-owned identity metadata with concrete default accessors, preserving binary compatibility of existing Statement implementations and empty scope construction outside elaboration. LWR-17: route automatically captured parent aliases of exact immediate-child output identities to the instance use-site; preserve child-authored and explicit port documentation and reusable child signatures. Ignore automatic aliases to foreign inputs rather than mutating their declaration metadata.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/RtlDocumentation.scala",
         "mode": "100644",
-        "blob": "88c62cb99c5fa1b02165d5f61eaf01b3abee9c6c",
-        "sha256": "a39be301d7f09b3f3d86db526e902b3652edd83d76beab3baf999e804353bbc3"
+        "blob": "df9df95d7b9cea05f847007645f11a669d732a0a",
+        "sha256": "02332303665dc85e82d7cc859260ea708492975a3e1511afb948adcece576a04"
       },
       "edits": []
     },
