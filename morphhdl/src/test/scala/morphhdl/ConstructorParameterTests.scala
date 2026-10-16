@@ -232,9 +232,12 @@ $cases
 initial begin for(n=0;n<256;n=n+1)begin source=n;#2;end source='bx;#2;source='bz;#2;$$finish;end endmodule
 """)
   }
-  test("duplicate constructor formal names remain rejected") {
-    class Duplicate(@rtlParamName("WIDTH") A:Param[Int],@rtlParamName("WIDTH") B:Param[Int]) extends Component {
-      require(A>=1 && A<=8);require(B>=1 && B<=8)
+  test("duplicate explicit runtime formal names remain rejected") {
+    // Constructor spelling collisions are now rejected at Scala compilation;
+    // retain the independent runtime guard for callers of the explicit API.
+    class Duplicate(a:Int,b:Int) extends Component {
+      val A:ElabInt=RtlParam.int("WIDTH",a,1,8)
+      val B:ElabInt=RtlParam.int("WIDTH",b,1,8)
       val source=in Bits(A bits);val result=out Bits(B bits);result:=source
     }
     val error=intercept[Exception]{generate(Files.createTempDirectory("constructor-duplicate-")){new Duplicate(8,8)}}

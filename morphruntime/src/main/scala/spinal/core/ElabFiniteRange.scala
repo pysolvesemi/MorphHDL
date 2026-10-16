@@ -150,6 +150,7 @@ final class ElabFiniteIndex private[core] (
 
   /** Unsigned hardware value of this generate index, with checked explicit width. */
   def uint(width: BitCount): UInt = TypedFiniteIndexValue(this, width.value)
+  private[core] def runtimeUInt: UInt = uint(expression.maximum.bitLength.max(1) bits)
 
   def bits(width: BitCount): Bits = uint(width).asBits
 
@@ -584,6 +585,13 @@ object ElabFiniteRange {
         .get(StorageKey)
         .map(_.asInstanceOf[Storage].countOnes.toVector)
         .getOrElse(Vector.empty)
+
+  /** Compiler bridge for a checked ordinary immutable Int range. */
+  def foreachConstant(end: Int, inclusive: Boolean)(@rtlHardwareCallback body: ElabFiniteIndex => Unit): Unit = {
+    val length = if (inclusive) BigInt(end) + 1 else BigInt(end)
+    require(length <= Int.MaxValue, "SPINAL-CONSTANT-LOOP-BOUND-OVERFLOW: inclusive range exceeds Int domain")
+    foreachDefault(ElabInt.literal(length.max(0).toInt))(body)
+  }
 
   def foreachDefault(count: ElabInt)(body: ElabFiniteIndex => Unit): Unit =
     foreachImpl(count, "GEN", automaticLabel = true)(body)

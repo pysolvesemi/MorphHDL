@@ -212,7 +212,7 @@ abstract class ComponentEmitter {
           case target: BaseType if target.isComb => asyncStatement += s
           case target: BaseType if target.isReg  =>
             val mergeTarget =
-              if(spinalConfig.mergeSyncProcess && !target.hasTag(noBackendSyncMerge)) null
+              if(spinalConfig.mergeSyncProcess && !target.hasTag(noBackendSyncMerge) && !target.hasTag(structuralSyncSeparation)) null
               else target
             val group = syncGroups.getOrElseUpdate((target.clockDomain, s.rootScopeStatement, target.hasInit, mergeTarget), new SyncGroup(target.clockDomain, s.rootScopeStatement, target.hasInit, syncGroupInstanceCounter))
             syncGroupInstanceCounter += 1

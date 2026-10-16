@@ -5412,7 +5412,7 @@ private[internals] object ParameterizedVerilogStructural {
   private val ProceduralAssignmentTarget =
     """^\s*([A-Za-z_][A-Za-z0-9_$]*)(?:\s*\[[^\]]+\])?\s*(?:<=|=(?!=))""".r
 
-  private def proceduralBlocks(
+  private[internals] def proceduralBlocks(
       lines: Vector[String],
       sourceLocation: Option[String]
   ): Vector[LineRange] = {

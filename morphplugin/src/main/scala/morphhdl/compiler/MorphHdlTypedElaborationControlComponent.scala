@@ -16,7 +16,7 @@ import scala.util.control.NonFatal
   * syntax lowering only; it never discovers or reconstructs symbolism from a
   * plain Scala `Int` or `Boolean`.
   */
-final class MorphHdlTypedElaborationControlComponent(val global: Global)
+final class MorphHdlTypedElaborationControlComponent(val global: Global, ordinaryLoops: () => Boolean = () => true)
     extends PluginComponent {
   import global._
 
@@ -972,8 +972,30 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
 
         case original @ Apply(Select(Apply(Select(start, operator), List(end)), each), List(body: Function))
             if decoded(each) == "foreach" && Set("until", "to")(decoded(operator)) =>
-          if (isTypedInteger(end)) {
-            mark(typedRanges, original)
+          def hardwareBody(tree: Tree): Boolean = {
+            var found = false
+            object Scan extends Traverser {
+              override def traverse(t: Tree): Unit = t match {
+                case Apply(Select(_, op), _) if decoded(op) == ":=" => found = true
+                case _: DefDef | _: ClassDef | _: ModuleDef =>
+                case _ => super.traverse(t)
+              }
+            }
+            Scan.traverse(tree); found
+          }
+          def constantBoundShape(t: Tree): Boolean = expressionKind(t) == ScalaIntegerBinding || (t match {
+            case Select(_, _) if syntaxPath(t).exists(_.size >= 2) => true
+            case Apply(Select(left, op), List(right)) if Set("+", "-", "*", "/", "%")(decoded(op)) =>
+              constantBoundShape(left) && constantBoundShape(right)
+            case _ => false
+          })
+          val ordinaryHardware = start match {
+            case Literal(Constant(0)) => true
+            case _ => false
+          }
+          if (isTypedInteger(end) || (ordinaryLoops() && ordinaryHardware && hardwareBody(body.body) &&
+              constantBoundShape(end))) {
+            typedRanges.put(original, java.lang.Boolean.valueOf(isTypedInteger(end)))
             traverse(end)
             withScope {
               body.vparams.foreach { parameter =>
@@ -1443,12 +1465,15 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
         case _ => global.reporter.error(start.pos,
           "MORPHDL-TYPED-RANGE-START-UNSUPPORTED: symbolic finite ranges currently require a literal zero start")
       }
+      val constant = !classified.typedRanges.get(original).booleanValue
       val count = if (decoded(operator) == "to")
         Apply(Select(transform(end), TermName("$plus")), List(Literal(Constant(1))))
       else transform(end)
       val core = Select(Select(Ident(termNames.ROOTPKG), TermName("spinal")), TermName("core"))
-      val method = Select(Select(core, TermName("ElabFiniteRange")), TermName("foreachDefault"))
-      Apply(Apply(method, List(count)),
+      val method = Select(Select(core, TermName("ElabFiniteRange")),
+        TermName(if (constant) "foreachConstant" else "foreachDefault"))
+      val arguments = if (constant) List(transform(end), Literal(Constant(decoded(operator) == "to"))) else List(count)
+      Apply(Apply(method, arguments),
         List(staged(body))).setPos(original.pos)
     }
 

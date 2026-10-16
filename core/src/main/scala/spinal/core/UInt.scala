@@ -92,6 +92,12 @@ class UInt extends BitVector with Num[UInt] with MinMaxProvider with DataPrimiti
   override def > (right: UInt): Bool = right < this
   override def <=(right: UInt): Bool = wrapLogicalOperator(right, new Operator.UInt.SmallerOrEqual)
   override def >=(right: UInt): Bool = right <= this
+  def < (right: ElabScopedIndex): Bool = this < right.runtimeUInt
+  def > (right: ElabScopedIndex): Bool = this > right.runtimeUInt
+  def <=(right: ElabScopedIndex): Bool = this <= right.runtimeUInt
+  def >=(right: ElabScopedIndex): Bool = this >= right.runtimeUInt
+  def ===(right: ElabScopedIndex): Bool = this === right.runtimeUInt
+  def =/=(right: ElabScopedIndex): Bool = this =/= right.runtimeUInt
   override def >>(that: Int): UInt   = wrapConstantOperator(new Operator.UInt.ShiftRightByInt(that))
   override def <<(that: Int): UInt   = wrapConstantOperator(new Operator.UInt.ShiftLeftByInt(that))
   override def +^(right: UInt): UInt = this.expand + right.expand

@@ -1,0 +1,42 @@
+package morphhdl.compiler
+
+import org.scalatest.funsuite.AnyFunSuite
+
+class OrdinaryLoopSyntaxTests extends AnyFunSuite {
+  import MorphHdlCompilerTestSupport._
+  private val definitions = """
+package spinal.core {
+  class rtlHardwareCallback extends scala.annotation.StaticAnnotation
+  class ElabFiniteIndex
+  object ElabControl { def localValue[T](v:T,name:String):T=v }
+  object ElabFiniteRange {
+    def foreachConstant(end:Int,inclusive:Boolean)(@rtlHardwareCallback body:ElabFiniteIndex=>Unit):Unit=()
+  }
+}
+package probe {
+  import spinal.core._
+  class Wire {def :=(v:Boolean):Unit=()}
+  class Wires {def apply(i:ElabFiniteIndex):Wire=new Wire}
+"""
+  private def check(body:String)=compile(definitions+body+"}", "OrdinaryLoopProbe.scala")
+  for(bound<-Seq("4","p.bytes","p.bytes + 1","0","-1")) test(s"immutable ordinary hardware bound $bound") {
+    val errors=check(s"""case class Config(bytes:Int)
+      class C(p:Config) {val out=new Wires;for(i<-0 until $bound) out(i):=true}
+    """)
+    assert(errors.isEmpty, errors.mkString("\n"))
+  }
+  test("inclusive ordinary hardware range") {
+    assert(check("class C {val out=new Wires;for(i<-0 to 3) out(i):=true}").isEmpty)
+  }
+  for(member<-Seq("var bytes:Int=4","def bytes:Int=4")) test(s"reject unsupported bound $member") {
+    val errors=check(s"class Config {$member};class C(p:Config) {val out=new Wires;for(i<-0 until p.bytes) out(i):=true}")
+    assert(errors.exists(_.message.contains("CONSTANT-LOOP-BOUND-UNSUPPORTED")), errors.mkString("\n"))
+  }
+  test("reject host effect in retained statement loop") {
+    val errors=check("class C {val out=new Wires;for(i<-0 until 4) {println(123);out(i):=true}}")
+    assert(errors.exists(_.message.contains("EFFECT")), errors.mkString("\n"))
+  }
+  test("ordinary host loops keep Scala index semantics") {
+    assert(check("object C {val values=scala.collection.mutable.ArrayBuffer[Int]();for(i<-0 until 4)values+=i}").isEmpty)
+  }
+}

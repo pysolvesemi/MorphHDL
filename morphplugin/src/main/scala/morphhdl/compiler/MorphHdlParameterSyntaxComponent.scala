@@ -31,25 +31,46 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
     case _ => None
   }
   override def newPhase(previous: Phase): Phase = new StdPhase(previous) {
+    private var schemaRun: global.Run = null
+    private var sourceTrees = Vector.empty[Tree]
+    private val sharedRecognized = new java.util.IdentityHashMap[Tree, java.lang.Boolean]()
+    private val sharedFactories = new java.util.IdentityHashMap[Tree, java.lang.Boolean]()
+    private val sharedComponents = new java.util.IdentityHashMap[Tree, java.lang.Boolean]()
+    private val sharedKinds = new java.util.IdentityHashMap[Tree, String]()
+    private var resolvedSchemas = false
+    private var retainedSchemas = false
+    private final case class ConfigSchema(owner: List[String], definition: ClassDef, fields: List[ValDef])
+    private val sharedSchemas = scala.collection.mutable.LinkedHashMap.empty[List[String], ConfigSchema]
+    private val ambiguousSchemas = scala.collection.mutable.Set.empty[List[String]]
+    private val schemaImports = new java.util.IdentityHashMap[Tree, Vector[List[String]]]()
+    private val sharedComponentClasses = scala.collection.mutable.ArrayBuffer.empty[(List[String], ClassDef)]
+    private val sharedConfigClasses = scala.collection.mutable.Set.empty[ClassDef]
     override def apply(unit: CompilationUnit): Unit = {
+      if (schemaRun ne currentRun) {
+        schemaRun = currentRun
+        sourceTrees = currentRun.units.map(_.body).toVector
+        sharedRecognized.clear(); sharedFactories.clear(); sharedComponents.clear(); sharedKinds.clear()
+        sharedSchemas.clear(); ambiguousSchemas.clear(); schemaImports.clear(); sharedComponentClasses.clear(); sharedConfigClasses.clear()
+        resolvedSchemas=false; retainedSchemas=false
+      }
       // Resolve source spellings lexically before rewriting them. An import in
       // another package/block must never grant a declaration parameter authority.
-      val recognized = new java.util.IdentityHashMap[Tree, java.lang.Boolean]()
+      val recognized = sharedRecognized
       lazy val builtinRequire: Tree => Boolean = {
-        val resolver = new MorphHdlTypedElaborationControlComponent(global)
+        val resolver = new MorphHdlTypedElaborationControlComponent(global, () => false)
         val calls = resolver.canonicalPredefCalls(unit.body.asInstanceOf[resolver.global.Tree])
         (tree: Tree) => calls.containsKey(tree)
       }
       var names = Set.empty[String]
       var componentNames = Set.empty[String]
       var rtlParamNames = Set.empty[String]
-      val rtlFactories = new java.util.IdentityHashMap[Tree, java.lang.Boolean]()
-      val components = new java.util.IdentityHashMap[Tree, java.lang.Boolean]()
+      val rtlFactories = sharedFactories
+      val components = sharedComponents
       val copiedRequires = new java.util.IdentityHashMap[Tree, java.lang.Boolean]()
       var blocked = Set.empty[String]
       var ambiguous = Set.empty[String]
       var typeNames = Map("Int" -> "Int", "Boolean" -> "Boolean", "Option" -> "Option")
-      val recognizedKinds = new java.util.IdentityHashMap[Tree,String]()
+      val recognizedKinds = sharedKinds
       def defined(t: Tree): Option[String] = t match {
         case d: MemberDef => Some(d.name.decodedName.toString)
         case _ => None
@@ -160,7 +181,7 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
           }
         }
       }
-      Resolve.traverse(unit.body)
+      if (!resolvedSchemas) { sourceTrees.foreach(Resolve.traverse); resolvedSchemas=true }
       def isParam(t:Tree):Boolean = recognized.containsKey(t)
       def kind(t:Tree):Option[String]=t match {
         case AppliedTypeTree(factory,List(arg)) if isParam(factory) => Some(Option(recognizedKinds.get(arg)).getOrElse("unsupported source type"))
@@ -178,7 +199,114 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
       def parameterType(t:Tree):Option[(String,Boolean)] = kind(t).map(_ -> false).orElse(optionalKind(t).map(_ -> true))
       def wrapper(k:String,optional:Boolean):Tree = Select(core("ConstructorParam"),TypeName(
         if(optional) "OptionalInteger" else if(k=="Boolean") "BooleanValue" else if(k=="Int") "Integer" else "Packed"))
+      // Source-owned immutable configuration schemas. No reflection/getter
+      // evaluation can grant a field parameter authority.
+      val schemas = sharedSchemas
+      val componentClasses = sharedComponentClasses
+      object Schemas extends Traverser {
+        private var owner = List.empty[String]
+        private var imported = Map.empty[String,List[String]]
+        private var wildcard = Vector.empty[List[String]]
+        private def scope(body: => Unit):Unit={
+          val oldImported=imported;val oldWildcard=wildcard
+          try body finally {imported=oldImported;wildcard=oldWildcard}
+        }
+        private def captureType(tpt:Tree):Unit={
+          val names=path(tpt).filterNot(_=="_root_")
+          if(names.nonEmpty) {
+            val candidates=imported.get(names.head).map(_++names.tail).toVector ++
+              (if(names.size==1)wildcard.map(_++names)else Vector.empty)
+            schemaImports.put(tpt,candidates)
+          }
+        }
+        override def traverse(tree: Tree): Unit = tree match {
+          case Import(qualifier,selectors)=>
+            val prefix=path(qualifier).filterNot(_=="_root_")
+            selectors.foreach { selector=>
+              val name=selector.name.decodedName.toString
+              val renamed=Option(selector.rename).map(_.decodedName.toString).getOrElse(name)
+              if(name=="_")wildcard :+= prefix
+              else if(renamed!="_")imported+=renamed -> (prefix :+ name)
+            }
+          case PackageDef(name, body) =>
+            val old = owner; owner = owner ++ path(name).filterNot(_ == "<empty>")
+            scope(body.foreach(traverse)); owner = old
+          case cls: ClassDef =>
+            val key = owner :+ cls.name.decodedName.toString
+            val fields = cls.impl.body.collectFirst {
+              case ctor: DefDef if ctor.name == termNames.CONSTRUCTOR => ctor.vparamss.flatten
+            }.getOrElse(Nil)
+            fields.foreach(field=>captureType(field.tpt))
+            if (schemas.contains(key)) ambiguousSchemas += key
+            else schemas(key) = ConfigSchema(key, cls, fields)
+            if (cls.impl.parents.exists(components.containsKey)) componentClasses += key -> cls
+            val old=owner; owner=key; scope(super.traverse(tree)); owner=old
+          case module: ModuleDef =>
+            val old=owner; owner=owner :+ module.name.decodedName.toString
+            scope(super.traverse(tree)); owner=old
+          case method: DefDef =>
+            val old=owner; owner=owner :+ ("$method:" + method.name.decodedName.toString)
+            scope(super.traverse(tree)); owner=old
+          case block:Block=>scope(super.traverse(block))
+          case _ => super.traverse(tree)
+        }
+      }
+      if (!retainedSchemas) sourceTrees.foreach(Schemas.traverse)
+      def configuration(tpt: Tree, owner: List[String]): Option[ConfigSchema] = {
+        val names=path(tpt).filterNot(_ == "_root_")
+        if (names.isEmpty) None else {
+          val rooted=path(tpt).headOption.contains("_root_")
+          val candidates=if(rooted)Vector(names)else owner.inits.map(_ ++ names).toVector :+ names
+          val local=candidates.iterator.flatMap(schemas.get).take(1).toList.headOption
+          val imported=Option(schemaImports.get(tpt)).toVector.flatten.flatMap { candidate=>
+            (owner.inits.map(_++candidate).toVector :+ candidate).iterator.flatMap(schemas.get).take(1).toVector
+          }.distinct
+          if(local.isEmpty && imported.size>1)reporter.error(tpt.pos,
+            "MORPHDL-CONFIG-SHAPE-UNSUPPORTED: ambiguous imported configuration declaration")
+          local.orElse(imported.headOption).map { schema=>
+            if(ambiguousSchemas(schema.owner)) reporter.error(tpt.pos,
+              "MORPHDL-CONFIG-SHAPE-UNSUPPORTED: ambiguous local configuration declaration; use a uniquely owned class")
+            schema
+          }
+        }
+      }
+      def containsParameters(schema: ConfigSchema, seen: Set[List[String]] = Set.empty): Boolean =
+        !seen(schema.owner) && schema.fields.exists(field => parameterType(field.tpt).nonEmpty ||
+          configuration(field.tpt,schema.owner.init).exists(containsParameters(_,seen + schema.owner)))
+      val configClasses = sharedConfigClasses
+      def retainConfiguration(schema: ConfigSchema, seen: Set[List[String]]): Unit = {
+        if (seen(schema.owner)) {
+          reporter.error(schema.definition.pos,"MORPHDL-CONFIG-CYCLE: cyclic configuration shapes are unsupported")
+          return
+        }
+        if (configClasses(schema.definition)) return
+        configClasses += schema.definition
+        val cls=schema.definition
+        val accessors=cls.impl.body.collect { case value: ValDef if value.mods.hasFlag(Flag.PARAMACCESSOR) => value }
+        val constructors=cls.impl.body.collect { case d: DefDef if d.name==termNames.CONSTRUCTOR => d }
+        val ordinaryParents=Set("AnyRef","scala.AnyRef","Object","java.lang.Object","Product","scala.Product","Serializable","scala.Serializable")
+        if (cls.tparams.nonEmpty || cls.impl.parents.exists(p=> !ordinaryParents(path(p).filterNot(_=="_root_").mkString("."))) ||
+            constructors.size!=1 || constructors.head.vparamss.size!=1 ||
+            accessors.exists(v=>v.mods.hasFlag(Flag.MUTABLE) || v.mods.hasFlag(Flag.LOCAL)) ||
+            cls.impl.body.exists {
+              case _: TypeDef => true
+              case d: DefDef => d.name!=termNames.CONSTRUCTOR
+              case v: ValDef => !v.mods.hasFlag(Flag.PARAMACCESSOR)
+              case _: Import => false
+              case _ => true
+            }) reporter.error(cls.pos,
+          "MORPHDL-CONFIG-SHAPE-UNSUPPORTED: use an immutable constructor-only case class or class with public val fields; mutable, lazy, effectful or computed members are unsupported")
+        schema.fields.foreach(field=>configuration(field.tpt,schema.owner.init)
+          .filter(containsParameters(_)).foreach(retainConfiguration(_,seen+schema.owner)))
+      }
+      if (!retainedSchemas) componentClasses.foreach { case (owner, cls) =>
+        schemas(owner).fields.foreach(field=>configuration(field.tpt,owner.init)
+          .filter(containsParameters(_)).foreach(retainConfiguration(_,Set.empty)))
+      }
+      retainedSchemas = true
       object Rewrite extends Transformer {
+        private val parameterOrigins = new java.util.IdentityHashMap[Tree, String]()
+        private val configurationOrigins = new java.util.IdentityHashMap[Tree, ConfigurationFormalPath]()
         private var bounds=Map.empty[String,(BigInt,BigInt)]
         private var dynamicBounds=Map.empty[String,(Vector[Tree],Vector[Tree])]
         private def bigint(value:Tree):Tree=Apply(Select(Select(Select(Ident(termNames.ROOTPKG),
@@ -193,6 +321,21 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
           List(combine(lo,lower,"max"),combine(hi,upper,"min"))
         }
         override def transform(t:Tree):Tree=t match {
+          case cls: ClassDef if configClasses(cls) =>
+            val body=cls.impl.body.map {
+              case ctor: DefDef if ctor.name==termNames.CONSTRUCTOR =>
+                val lists=ctor.vparamss.map(_.map { field=>parameterType(field.tpt) match {
+                  case Some((k,optional)) => treeCopy.ValDef(field,field.mods,field.name,wrapper(k,optional),transform(field.rhs))
+                  case None => field
+                }})
+                treeCopy.DefDef(ctor,ctor.mods,ctor.name,ctor.tparams,lists,ctor.tpt,ctor.rhs)
+              case field: ValDef if field.mods.hasFlag(Flag.PARAMACCESSOR) && parameterType(field.tpt).nonEmpty =>
+                val(k,optional)=parameterType(field.tpt).get
+                treeCopy.ValDef(field,field.mods,field.name,wrapper(k,optional),transform(field.rhs))
+              case other=>other
+            }
+            super.transform(treeCopy.ClassDef(cls,cls.mods,cls.name,cls.tparams,
+              treeCopy.Template(cls.impl,cls.impl.parents,cls.impl.self,body)))
           case cls:ClassDef if cls.impl.parents.exists(p=>components.containsKey(p)) =>
             val ctors=cls.impl.body.collect {case d:DefDef if d.name==termNames.CONSTRUCTOR=>d}
             val forwarded=cls.impl.body.collect {case v:ValDef =>
@@ -205,7 +348,39 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
               }).collect {case Ident(n)=>n}
             }.flatten.toSet
             val params=ctors.headOption.toList.flatMap(_.vparamss.flatten)
-            val owned=params.filter(p=>parameterType(p.tpt).nonEmpty && !forwarded(p.name))
+            val classOwner=schemas.values.find(_.definition eq cls).map(_.owner.init).getOrElse(Nil)
+            val configurations=params.flatMap(p=>configuration(p.tpt,classOwner)
+              .filter(schema=>configClasses(schema.definition)).map(p -> _))
+            val configActuals=scala.collection.mutable.LinkedHashMap.empty[TermName,Tree]
+            val configPaths=scala.collection.mutable.LinkedHashMap.empty[List[String],TermName]
+            val specializationPaths=scala.collection.mutable.ArrayBuffer.empty[List[String]]
+            val origins=scala.collection.mutable.LinkedHashMap.empty[TermName,String]
+            val configParameters=scala.collection.mutable.ArrayBuffer.empty[ValDef]
+            def selectPath(names:List[String]):Tree=names.tail.foldLeft[Tree](Ident(TermName(names.head))) {
+              case (base,name)=>Select(base,TermName(name))
+            }
+            def collect(schema:ConfigSchema,prefix:List[String],seen:Set[List[String]]):Unit={
+              if(seen(schema.owner))return
+              schema.fields.foreach { field=>
+                val location=prefix :+ field.name.decodedName.toString
+                parameterType(field.tpt) match {
+                  case Some(_) =>
+                    val name=TermName(unit.fresh.newName("config_parameter_"))
+                    val parameter=ValDef(field.mods,name,field.tpt,EmptyTree).setPos(field.pos)
+                    configParameters += parameter
+                    configActuals(name)=Select(selectPath(location),TermName("value"))
+                    configPaths(location)=name
+                    origins(name)=location.mkString(".")
+                  case None=>configuration(field.tpt,schema.owner.init).filter(s=>configClasses(s.definition)) match {
+                    case Some(child)=>collect(child,location,seen+schema.owner)
+                    case None=>specializationPaths+=location
+                  }
+                }
+              }
+            }
+            configurations.foreach { case (parameter,schema)=>collect(schema,List(parameter.name.decodedName.toString),Set.empty) }
+            val directOwned=params.filter(p=>parameterType(p.tpt).nonEmpty && !forwarded(p.name))
+            val owned=directOwned ++ configParameters.toList
             if(owned.isEmpty) super.transform(t)
             else if(ctors.size!=1 || ctors.head.vparamss.size!=1 || owned.exists(p=>p.mods.hasFlag(Flag.IMPLICIT))) {
               reporter.error(cls.pos,"MORPHDL-CONSTRUCTOR-PARAM-UNSUPPORTED: use one non-implicit primary constructor parameter list")
@@ -217,7 +392,8 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
               if(unsupported.nonEmpty) reporter.error(unsupported.head.pos,
                 "MORPHDL-CONSTRUCTOR-PARAM-UNSUPPORTED: use plain immutable constructor arguments, not val/var accessors")
               val mapping=owned.map(p=>p.name -> TermName(unit.fresh.newName("parameter_"+p.name.decodedName.toString+"_"))).toMap
-              val ownedByName=owned.map(p=>p.name->p).toMap
+              val ownedByName=directOwned.map(p=>p.name->p).toMap
+              val configAliases=configurations.map { case(p,_)=>p.name -> TermName(unit.fresh.newName("owned_config_")) }.toMap
               object Rename extends Transformer {
                 private var hidden=Set.empty[Name]
                 private var untouched:Tree=EmptyTree
@@ -230,6 +406,9 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
                 override def transform(tree:Tree):Tree={
                   val result=tree match {
                     case same if same eq untouched=>same
+                    case access if configPaths.contains(path(access)) && !hidden(TermName(path(access).head)) =>
+                      Ident(mapping(configPaths(path(access)))).setPos(access.pos)
+                    case Ident(n) if configAliases.contains(n.toTermName) && !hidden(n)=>Ident(configAliases(n.toTermName)).setPos(tree.pos)
                     case Ident(n) if mapping.contains(n.toTermName) && !hidden(n)=>Ident(mapping(n.toTermName)).setPos(tree.pos)
                     case Select(th:This,n) if mapping.contains(n.toTermName) &&
                         ((th.qual==global.typeNames.EMPTY && nestedOwners.isEmpty) ||
@@ -276,11 +455,38 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
                 }
                 if(annotations.size!=overrides.size || overrides.size>1)
                   reporter.error(p.pos,"MORPHDL-CONSTRUCTOR-PARAM-NAME: use one portable literal HDL-name override")
-                val hdlName=overrides.headOption.getOrElse(Literal(Constant(p.name.decodedName.toString)))
-                val actual=Select(Ident(p.name),TermName("value"))
+                val hdlName=overrides.headOption.getOrElse(Literal(Constant(ParameterHdlNames.inferred(origins.getOrElse(p.name,p.name.decodedName.toString)))))
+                val actual=configActuals.getOrElse(p.name,Select(Ident(p.name),TermName("value")))
                 val rhs=if(optional)Apply(Select(factory,TermName("optional")),List(actual,Literal(Constant(0)),hdlName))
                   else Apply(factory,List(actual,hdlName))
-                ValDef(Modifiers(Flag.PRIVATE),mapping(p.name),scalarType,rhs).setPos(p.pos)
+                val declaration = ValDef(Modifiers(Flag.PRIVATE),mapping(p.name),scalarType,rhs).setPos(p.pos)
+                parameterOrigins.put(declaration, origins.getOrElse(p.name,p.name.decodedName.toString))
+                configPaths.find(_._2==p.name).foreach { case (location,_)=>
+                  val conversion=if(optional)"optional" else if(k=="Int")"integer" else if(k=="Boolean")"boolean" else "packed"
+                  configurationOrigins.put(declaration,ConfigurationFormalPath(location.head,location.tail,conversion,
+                    specializationPaths.filter(_.head==location.head).map(_.tail).toList))
+                }
+                declaration
+              }
+              def rebuild(schema:ConfigSchema,tpt:Tree,prefix:List[String],seen:Set[List[String]]):Tree={
+                if(seen(schema.owner))return selectPath(prefix)
+                val arguments=schema.fields.map { field=>
+                  val location=prefix :+ field.name.decodedName.toString
+                  configPaths.get(location) match {
+                    case Some(name) if parameterType(field.tpt).exists(_._2)=>
+                      Apply(Select(core("Param"),TermName("forwardOptional")),List(Ident(mapping(name))))
+                    case Some(name)=>Ident(mapping(name))
+                    case None=>configuration(field.tpt,schema.owner.init).filter(s=>configClasses(s.definition)) match {
+                      case Some(child)=>rebuild(child,field.tpt,location,seen+schema.owner)
+                      case None=>selectPath(location)
+                    }
+                  }
+                }
+                Apply(Select(New(tpt),termNames.CONSTRUCTOR),arguments)
+              }
+              val rebound=configurations.map { case (parameter,schema)=>
+                ValDef(Modifiers(Flag.PRIVATE),configAliases(parameter.name),parameter.tpt,
+                  rebuild(schema,parameter.tpt,List(parameter.name.decodedName.toString),Set.empty))
               }
               val body=cls.impl.body.flatMap {
                 case ctor:DefDef if ctor.name==termNames.CONSTRUCTOR=>
@@ -289,7 +495,7 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
                       treeCopy.ValDef(p,p.mods,p.name,wrapper(k,opt),p.rhs)
                     case None=>p
                   }})
-                  List(treeCopy.DefDef(ctor,ctor.mods,ctor.name,ctor.tparams,lists,ctor.tpt,ctor.rhs))++declarations
+                  List(treeCopy.DefDef(ctor,ctor.mods,ctor.name,ctor.tparams,lists,ctor.tpt,ctor.rhs))++declarations++rebound
                 case field:ValDef if field.mods.hasFlag(Flag.PARAMACCESSOR) && ownedByName.contains(field.name)=>
                   val(k,opt)=parameterType(ownedByName(field.name).tpt).get
                   List(treeCopy.ValDef(field,field.mods,field.name,wrapper(k,opt),field.rhs))
@@ -317,6 +523,27 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
               case _=>None
             })
             val declarations=template.body.collect {case v:ValDef if kind(v.tpt).nonEmpty && arguments(v.rhs).nonEmpty=>v}
+            val names = scala.collection.mutable.LinkedHashMap.empty[String, String]
+            declarations.foreach { declaration =>
+              val supplied = arguments(declaration.rhs).get
+              val optional = declaration.rhs match {
+                case Apply(Select(_, n), _) => n.decodedName.toString == "optional"
+                case _ => false
+              }
+              val explicit = if (optional) supplied.drop(2).headOption else supplied.drop(1).headOption
+              val sourcePath = Option(parameterOrigins.get(declaration)).getOrElse(declaration.name.decodedName.toString)
+              val published = explicit match {
+                case Some(Literal(Constant(name: String))) => Some(name)
+                case None => Some(ParameterHdlNames.inferred(sourcePath))
+                case _ => None // Runtime validation remains authoritative for nonliteral explicit names.
+              }
+              published.foreach { name =>
+                names.get(name).foreach { previous =>
+                  reporter.error(declaration.pos, s"MORPHDL-PARAM-NAME-COLLISION: '$previous' and '$sourcePath' both declare HDL parameter '$name'; use distinct explicit names")
+                }
+                names(name) = sourcePath
+              }
+            }
             bounds=declarations.map(v=>v.name.decodedName.toString ->
               (if(kind(v.tpt).contains("SInt")) BigInt(Int.MinValue) else BigInt(0),BigInt(Int.MaxValue))).toMap
             def constrain(condition:Tree):Unit=condition match {
@@ -362,7 +589,7 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
               reporter.error(value.pos,"MORPHDL-PARAM-DECLARATION: Param needs an actual/default and optional HDL name; Param.optional[Int] also needs an absent integer value")
               value
             } else {
-              val name=if(args.size==2) args(1) else Literal(Constant(value.name.decodedName.toString))
+              val name=if(args.size==2) args(1) else Literal(Constant(ParameterHdlNames.inferred(value.name.decodedName.toString)))
               val actual=transform(args.head)
               val rhs=k match {
                 case "Boolean" => Apply(Select(core("RtlParam"),TermName("bool")),List(name,actual))
@@ -384,7 +611,9 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
                   reporter.error(value.pos,s"MORPHDL-PARAM-TYPE-UNSUPPORTED: Param[$k] declaration is not supported")
                   value.rhs
               }
-              treeCopy.ValDef(value,value.mods,value.name,coreType(if(k=="Boolean")"ElabBool" else "ElabInt"),rhs).setPos(value.pos)
+              val rewritten=treeCopy.ValDef(value,value.mods,value.name,coreType(if(k=="Boolean")"ElabBool" else "ElabInt"),rhs).setPos(value.pos)
+              Option(configurationOrigins.get(value)).foreach(rewritten.updateAttachment(_))
+              rewritten
             }
           case AppliedTypeTree(factory,List(arg)) if isParam(factory) =>
             Option(recognizedKinds.get(arg)) match {

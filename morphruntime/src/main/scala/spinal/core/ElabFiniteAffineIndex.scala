@@ -6,6 +6,13 @@ private[core] final class ElabFiniteAffineIndex(
   require(index != null && coefficient > 0 && offset >= 0,
     "scoped affine selectors require a positive coefficient and nonnegative offset")
 
+  private[core] def runtimeUInt: UInt = {
+    require(BigInt(coefficient) * index.expression.maximum + offset <= BigInt(Int.MaxValue),
+      "SPINAL-SCOPED-INDEX-VALUE-OVERFLOW: affine comparison exceeds the nonnegative Int domain")
+    val width = (BigInt(coefficient) * index.expression.maximum + offset).bitLength.max(1)
+    ((index.uint(width bits) * U(coefficient, width bits)) + U(offset, width bits)).resize(width)
+  }
+
   private[core] def selectBit(source: Bits): Bool = {
     if (!ParameterizedStructure.captureEnabled || index.expression.generateIndex.isEmpty)
       return source(Math.addExact(Math.multiplyExact(index.witness, coefficient), offset))

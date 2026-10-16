@@ -44,8 +44,10 @@ and non-Component constructor annotations do not create HDL formals. Indirect
 Component inheritance is outside this inference contract. Existing explicit
 body declarations remain available for those cases.
 
-Names are inferred from the argument, including lowercase names. To preserve a
-Scala named-argument API with a different HDL name, use:
+Names are inferred from the argument and normalized to uppercase snake case
+(`dataBits` becomes `DATA_BITS`). This changes earlier lowercase inferred HDL
+names. To preserve an existing public HDL name, or give a Scala named-argument
+API a different HDL name, use:
 
 ```scala
 class WidthChild(@rtlParamName("DATA_BITS") width: Param[Int]) extends Component {

@@ -819,7 +819,7 @@ object ParameterizedStructure {
         value.setAsVital()
         value.dontSimplifyIt()
         if (value.isComb) value.noBackendCombMerge()
-        if (value.isReg) value.addTag(noBackendSyncMerge)
+        if (value.isReg) value.addTag(structuralSyncSeparation)
       }
 
       // A directionless finite-Vec alias may be the target of an ordinary
@@ -1061,7 +1061,7 @@ object ParameterizedStructure {
         case source: BaseType =>
           source.setAsVital().dontSimplifyIt()
           if (source.isComb) source.noBackendCombMerge()
-          if (source.isReg) source.addTag(noBackendSyncMerge)
+          if (source.isReg) source.addTag(structuralSyncSeparation)
         case _ =>
       }
     }
@@ -2222,7 +2222,7 @@ object ParameterizedStructure {
         leaf.setAsVital()
         leaf.dontSimplifyIt()
         if (leaf.isComb) leaf.noBackendCombMerge()
-        if (leaf.isReg) leaf.addTag(noBackendSyncMerge)
+        if (leaf.isReg) leaf.addTag(structuralSyncSeparation)
       }
     }
 
@@ -2394,7 +2394,7 @@ object ParameterizedStructure {
         target.setAsVital()
         target.dontSimplifyIt()
         if (target.isComb) target.noBackendCombMerge()
-        if (target.isReg) target.addTag(noBackendSyncMerge)
+        if (target.isReg) target.addTag(structuralSyncSeparation)
         matching.head._2 -> Some(matching.head._1)
       case _ =>
         fail(
@@ -2418,7 +2418,7 @@ object ParameterizedStructure {
       leaf.setAsVital()
       leaf.dontSimplifyIt()
       if (leaf.isComb) leaf.noBackendCombMerge()
-      if (leaf.isReg) leaf.addTag(noBackendSyncMerge)
+      if (leaf.isReg) leaf.addTag(structuralSyncSeparation)
     }
     val readBitsAssignments = ArrayBuffer.empty[DataAssignmentStatement]
     readBits.foreachStatements {
@@ -2610,6 +2610,7 @@ object ParameterizedStructure {
       component.addPrePopTask(() => {
         authorizeMutuallyExclusiveAssignments(component)
         TypedStructuralPackedCoverage.retain(component)
+        TypedFinitePackedDefaults.retain(component)
       })
     }
   }

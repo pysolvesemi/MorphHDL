@@ -39,7 +39,12 @@ final class MorphHdlDirectRecursiveComponent(val global: Global) extends PluginC
   private def declaration(value: ValDef): Option[(TermName, TermName)] = value.rhs match {
     case Apply(Select(factory, method), args) if path(factory).lastOption.contains("RtlParam") &&
         Set("int","inferredInt","packed","optionalInt","optional","bool")(method.decodedName.toString) && args.size>=2 =>
-      actualName(args(1)).map(value.name -> _)
+      value.attachments.get[ConfigurationFormalPath] match {
+        case Some(origin) if path(args(1)) == origin.root :: (origin.fields :+ "value") =>
+          Some(value.name -> TermName(origin.root))
+        case Some(_) => reject(value,"configuration formal lost its authenticated field extraction");None
+        case None=>actualName(args(1)).map(value.name -> _)
+      }
     case _ => None
   }
 
@@ -62,7 +67,13 @@ final class MorphHdlDirectRecursiveComponent(val global: Global) extends PluginC
       reject(original, "declare one io value and integer/Boolean RtlParam formals bound directly to constructor arguments")
       return original
     }
-    if (formals.map(_._2._2).distinct.size != formals.size ||
+    val configurationFormals=formals.flatMap { case (value,(name,_))=>
+      value.attachments.get[ConfigurationFormalPath].map(name -> _)
+    }.toMap
+    val bindingPaths=formals.map {case (_, (formal,actual))=>
+      configurationFormals.get(formal).map(p=>p.root :: p.fields).getOrElse(List(actual.decodedName.toString))
+    }
+    if (bindingPaths.distinct.size != formals.size ||
         formals.exists(f => body.indexOf(f._1) > body.indexOf(ports.head))) {
       reject(original, "each recursive formal must precede io and own a distinct constructor argument")
       return original
@@ -84,7 +95,7 @@ final class MorphHdlDirectRecursiveComponent(val global: Global) extends PluginC
         })) else None
     }.toMap
     formals.foreach { case (value,(_,actual))=>value.rhs match {
-      case Apply(_,args) if args(1).isInstanceOf[Select] && !constructorWrappers.contains(actual)=>
+      case Apply(_,args) if args(1).isInstanceOf[Select] && !constructorWrappers.contains(actual) && !configurationFormals.contains(value.name)=>
         reject(value,"constructor value extraction requires an authenticated ConstructorParam boundary")
       case _=>
     }}
@@ -102,7 +113,12 @@ final class MorphHdlDirectRecursiveComponent(val global: Global) extends PluginC
       })=>formal
     }.toSet
     def pair(formal: TermName, raw: Tree, declaration: Boolean): Tree = {
-      val actual=conversions.get(formal).map(method=>Apply(Select(core("ConstructorParam"),TermName(method)),List(raw))).getOrElse(raw)
+      val actual=configurationFormals.get(formal) match {
+        case Some(origin)=>
+          val field=origin.fields.foldLeft(raw)((base,name)=>Select(base,TermName(name)))
+          Apply(Select(core("ConstructorParam"),TermName(origin.conversion)),List(field))
+        case None=>conversions.get(formal).map(method=>Apply(Select(core("ConstructorParam"),TermName(method)),List(raw))).getOrElse(raw)
+      }
 
       if (booleanFormals(formal))
         Apply(Select(core("RtlParam"), TermName(if (declaration) "recursiveBooleanBinding" else "recursiveBooleanOverride")),
@@ -114,7 +130,7 @@ final class MorphHdlDirectRecursiveComponent(val global: Global) extends PluginC
         List(Ident(formal), actual))
     }
     val bindings = formals.map(_._2)
-    val overridesByArgument = bindings.map { case (formal, actual) => actual -> formal }.toMap
+    val overridesByArgument = bindings.groupBy(_._2).map { case (actual,entries)=>actual -> entries.map(_._1) }
     var selfEdges = 0
     var shadowed = false
     object ShadowScan extends Traverser {
@@ -201,10 +217,22 @@ final class MorphHdlDirectRecursiveComponent(val global: Global) extends PluginC
           } else resolvedArguments(call, args) match {
             case None => call
             case Some(ordered) =>
+              val captures=scala.collection.mutable.ArrayBuffer.empty[Tree]
               val pairs = ordered.flatMap { case (parameter, actual) =>
                 overridesByArgument.get(parameter) match {
-                  case Some(formal) =>
-                    Some(pair(formal, transform(actual), declaration = false))
+                  case Some(formalNames) =>
+                    val configurations=formalNames.flatMap(configurationFormals.get)
+                    val supplied=if(configurations.nonEmpty) {
+                      val name=TermName(unitFreshName("recursiveConfiguration"))
+                      captures+=ValDef(Modifiers(),name,TypeTree(),transform(actual))
+                      configurations.flatMap(_.specializations).distinct.foreach { fields=>
+                        def select(base:Tree):Tree=fields.foldLeft(base)((t,n)=>Select(t,TermName(n)))
+                        captures+=Apply(Select(core("RtlParam"),TermName("requireSameSpecialization")),List(
+                          select(Ident(parameter)),select(Ident(name)),Literal(Constant((parameter.decodedName.toString::fields).mkString(".")))))
+                      }
+                      Ident(name)
+                    } else transform(actual)
+                    formalNames.map(formal=>pair(formal, supplied, declaration = false))
                   case None =>
                     actual match {
                       case Ident(n: TermName) if n == parameter =>
@@ -213,7 +241,8 @@ final class MorphHdlDirectRecursiveComponent(val global: Global) extends PluginC
                     None
                 }
               }
-              Apply(Ident(boundaryName), pairs).setPos(call.pos)
+              val rewritten=Apply(Ident(boundaryName), pairs).setPos(call.pos)
+              if(captures.isEmpty)rewritten else Block(captures.toList,rewritten).setPos(call.pos)
           }
         case _ => super.transform(tree)
       }

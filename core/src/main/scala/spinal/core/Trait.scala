@@ -866,6 +866,8 @@ object noCombinatorialLoopCheck      extends SpinalTag
 object noLatchCheck                  extends SpinalTag
 object noBackendCombMerge            extends SpinalTag
 object noBackendSyncMerge            extends SpinalTag
+/** Compiler-owned temporary isolation; explicit noBackendSyncMerge stays authoritative. */
+private[spinal] object structuralSyncSeparation extends SpinalTag
 object reportIncludeSourceLocation   extends SpinalTag{ override def allowMultipleInstance = false }
 case class reportSourceLocationFormatTag(format: String) extends SpinalTag{
   override def allowMultipleInstance = false

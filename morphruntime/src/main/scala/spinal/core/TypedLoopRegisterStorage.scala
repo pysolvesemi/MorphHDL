@@ -120,7 +120,7 @@ private[core] object TypedLoopRegisterStorage {
       alias.clockDomain = clock
       alias.removeTag(allowFloating)
       alias.removeTag(noBackendCombMerge)
-      alias.addTag(noBackendSyncMerge)
+      alias.addTag(structuralSyncSeparation)
       // Declarations inside an enable scope would discard that enclosing
       // enable from native register process ownership. Keep the declaration
       // at the original registers' root while retaining the authored writes.

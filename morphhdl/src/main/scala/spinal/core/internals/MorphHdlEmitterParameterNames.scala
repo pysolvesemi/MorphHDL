@@ -24,6 +24,10 @@ object MorphHdlEmitterParameterNames {
     val names = phases.collectFirst { case phase: MorphHdlEmitterParameterNames => phase }
     phases.collect { case emitter: PhaseVerilog => emitter }.foreach { emitter =>
         emitter.bindAssignmentPublication(new VerilogBase.AssignmentPublicationPolicy {
+          override def synchronous(printer: ComponentEmitterVerilog, clock: spinal.core.ClockDomain,
+              scope: ScopeStatement, hasInit: Boolean, init: Vector[LeafStatement], data: Vector[LeafStatement],
+              render: (Vector[LeafStatement],Vector[LeafStatement])=>String): Option[String] =
+            NativeLateSequentialMerge.capture(printer,clock,scope,hasInit,init,data,render)
           override def constantShift(printer: ComponentEmitterVerilog,
               expression: Operator.BitVector.ShiftRightByInt): Option[String] =
             names.flatMap(_.constantShift(printer, expression))
@@ -40,7 +44,8 @@ object MorphHdlEmitterParameterNames {
             names.flatMap(_.binaryOperand(printer, expression, slot))
           override def target(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] = {
             NativeFiniteStatementLineage.captureReferences(printer)
-            spinal.core.TypedFinitePackedAccess.target(printer.component, assignment, value => printer.emitReference(value, false)).orElse(NativeBoundedProcessEmitter.target(printer, assignment))
+            spinal.core.TypedFinitePackedDefaults.target(printer.component, assignment, value => printer.emitReference(value, false))
+              .orElse(spinal.core.TypedFinitePackedAccess.target(printer.component, assignment, value => printer.emitReference(value, false))).orElse(NativeBoundedProcessEmitter.target(printer, assignment))
               .orElse(NativeConditionalProcessEmitter.target(printer, assignment))
           }
           override def statementSuffix(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): String =
@@ -55,9 +60,9 @@ object MorphHdlEmitterParameterNames {
               .orElse(NativeConditionalProcessEmitter.scope(printer, tree, scope, output, indentation, body))
           def source(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] = {
             NativeFiniteStatementLineage.captureScalarReferences(printer, assignment)
-            spinal.core.ElabPackedPartition.of(printer.component, assignment).map { entry =>
+            spinal.core.TypedFinitePackedDefaults.source(printer.component, assignment).orElse(spinal.core.ElabPackedPartition.of(printer.component, assignment).map { entry =>
               s"${printer.emitExpression(entry.source)}[${entry.offset.verilog} +: ${entry.width.verilog}]"
-            }.orElse(spinal.core.TypedFiniteIndexValue.source(printer.component, assignment)).orElse(NativeScopedProcessEmitter.source(printer, assignment)).orElse(NativeBoundedProcessEmitter.source(printer, assignment)).orElse(spinal.core.TypedVecStaticSelect.of(printer.component, assignment).map { entry =>
+            }).orElse(spinal.core.TypedFiniteIndexValue.source(printer.component, assignment)).orElse(NativeScopedProcessEmitter.source(printer, assignment)).orElse(NativeBoundedProcessEmitter.source(printer, assignment)).orElse(spinal.core.TypedVecStaticSelect.of(printer.component, assignment).map { entry =>
               ParameterizedVerilogVecs.structuralDynamicSlice(entry.vector, entry.index.expression, 0,
                 entry.index.expression.sourceLocation, readOnly = true, staticIndex = Some(entry.index))
             }).orElse(spinal.core.TypedLoopPowerShift.renderedIndex(printer.component, assignment)

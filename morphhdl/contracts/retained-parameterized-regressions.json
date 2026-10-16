@@ -732,22 +732,22 @@
         "unpacked register arrays preserve constant reset and parameterized dynamic writes"
       ],
       "morphhdl.ConstructorParameterTests": [
-        "constructor Boolean and packed formals preserve representation and overrides",
-        "constructor actual domains and packed representations reject incompatible values",
         "constructor formals retain named symbolic literal derived and default actuals reverse=false",
         "constructor formals retain named symbolic literal derived and default actuals reverse=true",
-        "constructor recursive actuals cannot avoid strict decrease",
         "constructor recursive formals retain optional presence present=false default=1",
         "constructor recursive formals retain optional presence present=false default=5",
         "constructor recursive formals retain optional presence present=true default=1",
         "constructor recursive formals retain optional presence present=true default=5",
+        "constructor Boolean and packed formals preserve representation and overrides",
         "constructor register Vec preserves reset stalls metadata and independent clocks",
-        "constructor scalar forwarding retains every intermediate binding without symbolic ports",
-        "duplicate constructor formal names remain rejected",
+        "constructor actual domains and packed representations reject incompatible values",
         "explicit constructor HDL names preserve the Scala named-argument API",
+        "constructor scalar forwarding retains every intermediate binding without symbolic ports",
+        "duplicate explicit runtime formal names remain rejected",
+        "root packed constructor capture rejects unrelated hardware and changed literal lineage",
+        "constructor recursive actuals cannot avoid strict decrease",
         "literal constructor width 1 retains the complete override domain",
-        "literal constructor width 64 retains the complete override domain",
-        "root packed constructor capture rejects unrelated hardware and changed literal lineage"
+        "literal constructor width 64 retains the complete override domain"
       ],
       "morphhdl.CorrelatedVecPublicationTests": [
         "finite packed direct child ports count=1 bits=1",
@@ -994,6 +994,14 @@
         "Param declarations infer names and authored domains default=8 inverted=false",
         "Param declarations infer names and authored domains default=8 inverted=true"
       ],
+      "morphhdl.LateSequentialMergeTests": [
+        "CSR cases merge without changing reset priority or snapshot scope lanes=3 packed=false",
+        "CSR cases merge without changing reset priority or snapshot scope lanes=3 packed=true",
+        "CSR cases merge without changing reset priority or snapshot scope lanes=15 packed=false",
+        "CSR cases merge without changing reset priority or snapshot scope lanes=15 packed=true",
+        "independent clock and reset identities stay in separate merged banks",
+        "shared clock banks retain distinct enables and soft-reset priority"
+      ],
       "morphhdl.LibraryDefinitionReuseTests": [
         "equal witnesses with mixed literal and symbolic actuals publish order-independent definitions",
         "native definition sharing scalar=false equal=false split=false",
@@ -1113,17 +1121,17 @@
         "public adapter symbolic geometry kind=uint pipeline=true default=5"
       ],
       "morphhdl.LightweightBalancedTreeTests": [
-        "lightweight library preserves adjacent pairs bridges and registers kind=bridge default=1 capacity=8",
-        "lightweight library preserves adjacent pairs bridges and registers kind=bridge default=5 capacity=8",
         "lightweight library preserves adjacent pairs bridges and registers kind=comb default=1 capacity=8",
         "lightweight library preserves adjacent pairs bridges and registers kind=comb default=5 capacity=8",
-        "lightweight library preserves adjacent pairs bridges and registers kind=mask default=1 capacity=32",
         "lightweight library preserves adjacent pairs bridges and registers kind=mask default=1 capacity=8",
-        "lightweight library preserves adjacent pairs bridges and registers kind=mask default=5 capacity=64",
         "lightweight library preserves adjacent pairs bridges and registers kind=mask default=5 capacity=8",
+        "lightweight library preserves adjacent pairs bridges and registers kind=bridge default=1 capacity=8",
+        "lightweight library preserves adjacent pairs bridges and registers kind=bridge default=5 capacity=8",
         "lightweight library preserves adjacent pairs bridges and registers kind=register default=1 capacity=8",
-        "lightweight library preserves adjacent pairs bridges and registers kind=register default=5 capacity=64",
-        "lightweight library preserves adjacent pairs bridges and registers kind=register default=5 capacity=8"
+        "lightweight library preserves adjacent pairs bridges and registers kind=register default=5 capacity=8",
+        "lightweight library preserves adjacent pairs bridges and registers kind=mask default=1 capacity=32",
+        "lightweight library preserves adjacent pairs bridges and registers kind=mask default=5 capacity=64",
+        "lightweight library preserves adjacent pairs bridges and registers kind=register default=5 capacity=64"
       ],
       "morphhdl.LightweightBalancedWidthTests": [
         "lightweight library symbolic payload width default=1",
@@ -1309,9 +1317,9 @@
       "morphhdl.LightweightRecursiveSafetyTests": [
         "direct recursion establishes the ordinary class-derived module name",
         "direct recursion rejects a preserved count instead of terminating",
+        "recursive aggregate rejects reordered same-width record fields",
         "recursive Vec port rejects wrong substituted depth",
-        "recursive Vec port rejects wrong substituted width",
-        "recursive aggregate rejects reordered same-width record fields"
+        "recursive Vec port rejects wrong substituted width"
       ],
       "morphhdl.LightweightRecursiveTests": [
         "direct recursive adjacent pairs default=1 subtract=false",
@@ -1685,6 +1693,10 @@
         "non-final chained predicates reject a false-label override",
         "ordinary Scala Boolean conditionals remain ordinary Scala control flow"
       ],
+      "morphhdl.NestedConfigurationParameterTests": [
+        "nested fields retain independent child bindings and uppercase paths",
+        "shared configuration objects retain independent declaration-path formals"
+      ],
       "morphhdl.OptionalReductionPolicyTests": [
         "recursive optional bindings preserve declared presence and exact identity",
         "optional reduction policy preserves omission and explicit presence mode=none",
@@ -1700,6 +1712,25 @@
         "ordinary child wiring preserves symbolic expressions and clock reset enable priority operation=choice",
         "whole-width typed slices reject partial offsets and independent equal-witness geometry",
         "direct arithmetic cannot borrow equal default widths from independent actuals"
+      ],
+      "morphhdl.OrdinaryLoopCornerTests": [
+        "packed word defaults and array copy packed=false inclusive=false",
+        "packed word defaults and array copy packed=false inclusive=true",
+        "packed word defaults and array copy packed=true inclusive=false",
+        "packed word defaults and array copy packed=true inclusive=true",
+        "empty ordinary range 0 preserves whole default",
+        "empty ordinary range -1 preserves whole default",
+        "partial word loop cannot silently overlap a whole default",
+        "out of range ordinary access is rejected",
+        "sized index values reject truncation of the admitted loop domain"
+      ],
+      "morphhdl.OrdinaryStatementLoopTests": [
+        "ordinary conditional bit loop preserves behavior width=1",
+        "ordinary conditional bit loop preserves behavior width=2",
+        "ordinary conditional bit loop preserves behavior width=4",
+        "ordinary conditional bit loop preserves behavior width=8",
+        "ordinary conditional bit loop preserves behavior width=16",
+        "ordinary conditional bit loop preserves behavior width=32"
       ],
       "morphhdl.PackedParameterTests": [
         "packed parameter types retain declared widths signedness and override values width=19",
@@ -1741,6 +1772,10 @@
         "publication report explains native sharing and separates distinct scoped programs split=true reverse=false scalarOnly=true",
         "publication report explains native sharing and separates distinct scoped programs split=true reverse=true scalarOnly=false",
         "publication report explains native sharing and separates distinct scoped programs split=true reverse=true scalarOnly=true"
+      ],
+      "morphhdl.RecursiveConfigurationParameterTests": [
+        "guarded recursion binds configuration fields and preserves ordinary specialization",
+        "recursive edges cannot change ordinary configuration fields"
       ],
       "morphhdl.RecursiveUnsignedSumTests": [
         "finite affine guards omit only domain-empty alternatives neverTrue=false",
@@ -2254,6 +2289,10 @@
         "native VHDL emission consumes typed generic witnesses without symbolic rewriting",
         "ordinary concrete BlackBox generics remain parameter-free and deterministic",
         "typed BlackBox generics bind exact parent parameters and preserve external ownership"
+      ],
+      "morphhdl.TypedConfigurationParameterTests": [
+        "configuration preserves packed signed Boolean optional and explicit names present=false",
+        "configuration preserves packed signed Boolean optional and explicit names present=true"
       ],
       "morphhdl.TypedCounterAllOnesTests": [
         "typed bidirectional Counter decrement remains all ones at every power-of-two width"
@@ -3761,25 +3800,45 @@
       ]
     },
     "morphplugin": {
+      "morphhdl.compiler.ConfigurationParameterSyntaxTests": [
+        "nested immutable configuration formals and child pass-through",
+        "configuration field constraints cannot use defaults as domains",
+        "mutable configuration is rejected",
+        "normalized field paths cannot collide",
+        "explicit constructor name collisions fail during compilation",
+        "explicit names collide with normalized configuration paths",
+        "cyclic configuration types diagnose without traversing indefinitely",
+        "effectful configuration members are not evaluated for discovery",
+        "plain immutable configuration classes are supported",
+        "configuration discovery rejects inherited user behavior",
+        "local configuration names are owned by their declaring method",
+        "source configuration import import models.Config",
+        "source configuration import import models.{Config => Renamed}",
+        "source configuration import import models._",
+        "configuration schemas across files reverse=false",
+        "configuration schemas across files reverse=true",
+        "configuration and component constructor defaults retain typed actuals",
+        "root-qualified configuration types ignore same-named relative schemas"
+      ],
       "morphhdl.compiler.ConstructorParameterSyntaxTests": [
-        "constructor HDL name overrides require one portable literal",
-        "constructor argument accessors and multiple parameter lists reject explicitly",
-        "constructor formals need real finite bounds",
-        "constructor rewriting respects nested this owners and shadowed method and pattern names",
         "constructor-only formals accept renamed imports named defaults and Int actuals",
+        "constructor formals need real finite bounds",
+        "ordinary Scala constructors and foreign Component types retain actual-only annotations",
+        "constructor argument accessors and multiple parameter lists reject explicitly",
         "hardware-like and untyped foreign actuals cannot use constructor integer conversion",
-        "legacy explicit RtlParam body factories retain constructor actual-only compatibility",
         "legacy explicit body declarations keep their actual-only constructor binding",
-        "ordinary Scala constructors and foreign Component types retain actual-only annotations"
+        "constructor HDL name overrides require one portable literal",
+        "legacy explicit RtlParam body factories retain constructor actual-only compatibility",
+        "constructor rewriting respects nested this owners and shadowed method and pattern names"
       ],
       "morphhdl.compiler.DirectRecursiveSyntaxTests": [
-        "Boolean recursive formals forward without integer conversion in source",
-        "constructor shadowing cannot borrow specialization identity",
         "direct self construction infers ports and parameter overrides",
-        "invalid named recursive bindings reject rather than guessing",
-        "named recursive bindings preserve declaration identity in any authored order",
         "specialization changes cannot hide in recursive construction",
-        "unsupported inheritance and missing explicit bindings reject"
+        "constructor shadowing cannot borrow specialization identity",
+        "unsupported inheritance and missing explicit bindings reject",
+        "named recursive bindings preserve declaration identity in any authored order",
+        "invalid named recursive bindings reject rather than guessing",
+        "Boolean recursive formals forward without integer conversion in source"
       ],
       "morphhdl.compiler.InferredParameterSyntaxTests": [
         "ordinary and renamed imports support declared integer domains and explicit HDL names",
@@ -3876,27 +3935,49 @@
         "selection results retain equality safety"
       ],
       "morphhdl.compiler.MorphHdlTypedElaborationControlComponentTests": [
-        "arbitrary wildcards shadow unrooted carrier and Predef qualifiers",
-        "block helper infers an immutable parameter intermediate",
-        "canonical carrier imports, aliases and rooted names enable typed control",
+        "typed Boolean matches lower exhaustive branches without changing ordinary matches",
         "guarded and non-exhaustive typed Boolean matches fail at their source",
-        "immutable block helper nesting retains lexical shadowing",
-        "local and explicitly imported fake carrier names remain ordinary Scala",
-        "non-Predef wildcard imports do not authorize typed require rewriting",
-        "noncanonical wildcard carrier imports remain ordinary Scala",
-        "only unshadowed Predef require and assert calls are rewritten",
-        "resolved external package-object members remain ordinary",
+        "canonical carrier imports, aliases and rooted names enable typed control",
+        "simple carriers are canonical inside package spinal.core",
         "resolved external wildcards do not shadow canonical typed control",
         "root package prefixes do not make external wildcards source-owned",
+        "resolved external package-object members remain ordinary",
         "same-run relative qualifiers shadow root external providers",
-        "simple carriers are canonical inside package spinal.core",
+        "local and explicitly imported fake carrier names remain ordinary Scala",
+        "noncanonical wildcard carrier imports remain ordinary Scala",
+        "arbitrary wildcards shadow unrooted carrier and Predef qualifiers",
+        "only unshadowed Predef require and assert calls are rewritten",
         "spinal.core and custom assert bindings are not rewritten",
-        "typed Boolean matches lower exhaustive branches without changing ordinary matches",
-        "typed require arity diagnostics preserve the original source position"
+        "non-Predef wildcard imports do not authorize typed require rewriting",
+        "typed require arity diagnostics preserve the original source position",
+        "block helper infers an immutable parameter intermediate",
+        "immutable block helper nesting retains lexical shadowing"
       ],
       "morphhdl.compiler.NativeSymbolicEqualitySafetyTests": [
         "inferred helper and qualified results cannot fall back to numeric Scala equality",
         "null checks explicit identity and unrelated host equality remain ordinary"
+      ],
+      "morphhdl.compiler.OrdinaryLoopSyntaxTests": [
+        "immutable ordinary hardware bound 4",
+        "immutable ordinary hardware bound p.bytes",
+        "immutable ordinary hardware bound p.bytes + 1",
+        "immutable ordinary hardware bound 0",
+        "immutable ordinary hardware bound -1",
+        "inclusive ordinary hardware range",
+        "reject unsupported bound var bytes:Int=4",
+        "reject unsupported bound def bytes:Int=4",
+        "reject host effect in retained statement loop",
+        "ordinary host loops keep Scala index semantics"
+      ],
+      "morphhdl.compiler.ParameterHdlNameTests": [
+        "normalize parameter declaration path num_bytes",
+        "normalize parameter declaration path numBytes",
+        "normalize parameter declaration path c.num_bytes",
+        "normalize parameter declaration path c.video.numBytes",
+        "normalize parameter declaration path RGBWidth",
+        "normalize parameter declaration path rgb2Bytes",
+        "normalize parameter declaration path DATA_BITS",
+        "normalize parameter declaration path video2D"
       ]
     },
     "paramrtl": {
@@ -4304,7 +4385,7 @@
     "morphhdl/src/test/scala/morphhdl/ConditionalForwardingContractFixture.scala": "17e178ecd03bad24bdddbe29c98d376be7f51b95eea47b633006dd6d0ceb1b7e",
     "morphhdl/src/test/scala/morphhdl/ConditionalWidthContractFixture.scala": "10492466f4281597a997518d2da81166a1c5998f8dc7fcf327fc0d878612642d",
     "morphhdl/src/test/scala/morphhdl/ConstantAggregateTests.scala": "3857dfc8a220a698f16a8e96da68503c945786599e1c15c75d7d5516e02b2818",
-    "morphhdl/src/test/scala/morphhdl/ConstructorParameterTests.scala": "6e2ba6d8552529a8a2c23e324f6481d2381aa645a35df23f9b1341a81b074fb6",
+    "morphhdl/src/test/scala/morphhdl/ConstructorParameterTests.scala": "5291cd053ea1a78f6817527426177a4990948560634df2ca2b1084bb413afd74",
     "morphhdl/src/test/scala/morphhdl/CorrelatedVecPublicationTests.scala": "bf05989f87340b3adf5736aaa616f381f62ec1520eb3fce7b3593fd28edf4b91",
     "morphhdl/src/test/scala/morphhdl/DerivedWidthContractFixture.scala": "76d8cecf59436f684baac6dea2c09b6c5add58b721dc48daf37162fe882140d9",
     "morphhdl/src/test/scala/morphhdl/DescendingPriorityProcessTests.scala": "55610b85ccadb4ebf82e40d0784c69b61b70aa8b4fe863963e8d953dc9be7e83",
@@ -4331,6 +4412,7 @@
     "morphhdl/src/test/scala/morphhdl/LaneArrayContractFixture.scala": "77ef87334eae392b107353446cd63503890e7befec0479b5dbe481016e64f7bf",
     "morphhdl/src/test/scala/morphhdl/LaneConditionCoverageExample.scala": "814b9c6bc371a91c7a621f287bfa8a3516c23066212ee118d26aa052ded3201e",
     "morphhdl/src/test/scala/morphhdl/LaneReceiverCoverageExample.scala": "76e1f07bf1f7abdceeb60eb5758db1b3df6a225bddac1cae5e9b7a347b6f6f83",
+    "morphhdl/src/test/scala/morphhdl/LateSequentialMergeTests.scala": "1c17efbbef4d72547b169e767f50d0614a5753aac7597f196c26a79a387aa260",
     "morphhdl/src/test/scala/morphhdl/LibraryDefinitionReuseTests.scala": "84784c0718615ba7e20cd831e89719a98d47e16b437abbf26ddc6c0141a1b09e",
     "morphhdl/src/test/scala/morphhdl/LightweightAffineTests.scala": "878f0b3e18b7b68d6238d6c0b0069ec3d698d98b30235bc34b6010f94fbb4e76",
     "morphhdl/src/test/scala/morphhdl/LightweightAffineWriteTests.scala": "45a5a32adbd961d5c56092740f5a1b175f3e39b71b190d97da2328483ffacf52",
@@ -4399,8 +4481,11 @@
     "morphhdl/src/test/scala/morphhdl/NativeValueSizingTests.scala": "8940eaa33540c443381a11e4ad12149afd074dbf1884c084ebb436835ddfe034",
     "morphhdl/src/test/scala/morphhdl/NativeWireCompatibility.scala": "d2458caee53ff314df4159e19cc32d7b71bd83ac1b9f271946cd1758f070d346",
     "morphhdl/src/test/scala/morphhdl/NaturalSymbolicConditionalTests.scala": "7effda58bcee90a3092ba30ac2a574e4234f4d4bb5a2d0d9f9d9583783a81cca",
+    "morphhdl/src/test/scala/morphhdl/NestedConfigurationParameterTests.scala": "adc29c9ad6c757150e2a269e96b31ccdb084ca3cad7a1d0ebd5b27f4c8cf8172",
     "morphhdl/src/test/scala/morphhdl/OptionalReductionPolicyTests.scala": "3864806ba5799794a3e29abdf30b0885650394c1fd8a675453d54eb1f5456819",
     "morphhdl/src/test/scala/morphhdl/OrdinaryChildClockGeometryTests.scala": "86d2815353554bc6d29020ad583243e4bc8d02bfbe8a899a880893b9499f3dc4",
+    "morphhdl/src/test/scala/morphhdl/OrdinaryLoopCornerTests.scala": "bde1aaad3157ee8a3919a552b2d0ded4547d4358b08e4e72b53d471f0d050aad",
+    "morphhdl/src/test/scala/morphhdl/OrdinaryStatementLoopTests.scala": "754278197a201967433ce23cfc6d0fda3d429933857854cf61b7ccdfd0323f5e",
     "morphhdl/src/test/scala/morphhdl/PackedParameterTests.scala": "073e29b145a02d579611591c010ed7a72788268ea876fcc508bbb7e66a2783ce",
     "morphhdl/src/test/scala/morphhdl/ParameterForwardingContractFixture.scala": "1d81e70b0761d2d5b24179af2b474cac96b66fbf67a913b1c56da0b153031110",
     "morphhdl/src/test/scala/morphhdl/ParameterMaskTests.scala": "df7c6f00dc335445d2c44e768f7d98266f826075f6982594f8844936f4db9ddf",
@@ -4411,6 +4496,7 @@
     "morphhdl/src/test/scala/morphhdl/ProcessExpressionLineageTests.scala": "0d5d884b771a18e0adb4d41d7b7a74aa6ef0ec73b971176fb03e2a7f7ab9c3b2",
     "morphhdl/src/test/scala/morphhdl/PublicationDecisionTests.scala": "e7693affa99b9570684e67f1c4c280079cec5d24d00e99878a906559afefed35",
     "morphhdl/src/test/scala/morphhdl/PureSIntCastTests.scala": "c2d8d0eeaba13d3c41c19b7081c5a011f8030cc2eeb92e23dd2f4ace198b0ef6",
+    "morphhdl/src/test/scala/morphhdl/RecursiveConfigurationParameterTests.scala": "d4d51a5efad17c6b45321ab173e43c7dc6dbb739052748cdeaa16860fa74b6e6",
     "morphhdl/src/test/scala/morphhdl/RecursiveUnsignedSumTests.scala": "0eeed78a711da5437406118203b09373d1bb1e1481d465d9a7c9dfb04541bdbc",
     "morphhdl/src/test/scala/morphhdl/ReduceBalancedTreeNativeContractTests.scala": "7ed02fcf5d40a383a13added7696622df6084a2e2b208967255576e82b981f4b",
     "morphhdl/src/test/scala/morphhdl/RepositoryTestResources.scala": "6c7951371f5b09e65bc6a3a59440eb5b5fafa12c682f905f552a20022f70abbc",
@@ -4444,6 +4530,7 @@
     "morphhdl/src/test/scala/morphhdl/SynchronousStreamM2sPipeContractFixture.scala": "298c8f36b9158f9c436a7d20a096ff38978f5a4b2e7805cb4d5e67293051bd56",
     "morphhdl/src/test/scala/morphhdl/TransitiveScalarFormalTests.scala": "823e546ad3493c11848d0c4ea98bc206b2453a4f319557c5a5b6e66baa2226a5",
     "morphhdl/src/test/scala/morphhdl/TypedBlackBoxGenericBindingTests.scala": "5bad6f609c151bd57fed46818f1937f4c4085c689e4cad748e03773d17e5fbac",
+    "morphhdl/src/test/scala/morphhdl/TypedConfigurationParameterTests.scala": "f3b5297d5900746b32276e960755079e832faec3988a00f90d6ac1db4a41e756",
     "morphhdl/src/test/scala/morphhdl/TypedCounterAllOnesTests.scala": "25ec50c19e5d7087312071f214a84394daa364fe4d0890141519080e33442d9b",
     "morphhdl/src/test/scala/morphhdl/TypedElaborationControlTests.scala": "e26cb84d0bc7afec1fe631d6005a9bee157dbe354d300dc875d2a06ed5679d78",
     "morphhdl/src/test/scala/morphhdl/TypedElaborationValueTests.scala": "722fb1b5a164fe369ba6dd0a23d856468b1a0fda10ea4d43968f56b8638b92fb",
@@ -4622,6 +4709,7 @@
     "morphhdl/src/test/scala/spinal/lib/CounterSingleAuthorityParityTests.scala": "9eedbe0f3ce7a457d4c79ab2c9fc3aa1cb02c932436bc76d30d8ada2ca6780f5",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala": "24b185c3ef7939be404500704e955d598c2493ee7c3a1f737d0cf16267d9c362",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrV1Spec.scala": "835224bc5028bc192976dd96e08906add489d4824d328397466a7e4dd7f31493",
+    "morphplugin/src/test/scala/morphhdl/compiler/ConfigurationParameterSyntaxTests.scala": "d946eec6ab6a59d9faaadbf3646a9b6255773512982f076f9cd290414d2c39af",
     "morphplugin/src/test/scala/morphhdl/compiler/ConstructorParameterSyntaxTests.scala": "ca45bf6806815f8697baa50acf2d2bb0090f9bd1cdf858476d85b2d59b263b33",
     "morphplugin/src/test/scala/morphhdl/compiler/DirectRecursiveSyntaxTests.scala": "583a6a612a15cfc4b80c1fa9a613314c4917c77db7ccadb35b60851c40d3815a",
     "morphplugin/src/test/scala/morphhdl/compiler/InferredParameterSyntaxTests.scala": "d7c7badff17f887b6ff23690e241072b4c059faec9c6abc47f3d19d0081aa943",
@@ -4632,6 +4720,8 @@
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlFrontendSymbolicEqualitySafetyComponentTests.scala": "61d8fb7fb5892ec9b48b3d74360204d432b030b52387bd4779d225d62a5ab34a",
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponentTests.scala": "3dc3d84549cfcfd48d9da00444babb522cdd8326f6811053cccd14085af7b5a0",
     "morphplugin/src/test/scala/morphhdl/compiler/NativeSymbolicEqualitySafetyTests.scala": "0595a578953516bf7d8c036515f7d3bb2a6534347a0acb20a9075bca6e096ca5",
+    "morphplugin/src/test/scala/morphhdl/compiler/OrdinaryLoopSyntaxTests.scala": "91735677c8e803f99f80c831fe28aca5d51fd06ffda40e4002bdff2b064ddfa1",
+    "morphplugin/src/test/scala/morphhdl/compiler/ParameterHdlNameTests.scala": "669e6244b0bfa3e773ca3a234a30c44b38786cfab291f4b66bb747cc380b08b6",
     "paramrtl/src/test/scala/morphhdl/paramrtl/AddressWidthExpressionTests.scala": "b194d35db36483b350c998a39c22e0932b758ca603fc9f06d3b571cd016de4d8",
     "paramrtl/src/test/scala/morphhdl/paramrtl/AsynchronousEnabledRegisterValidatorTests.scala": "b3b9ed7d77d4d5031a47a1dbebaec496b5f2434a3ae9db6472dd7c511c70a5de",
     "paramrtl/src/test/scala/morphhdl/paramrtl/AsynchronousRegisterValidatorTests.scala": "3dff30c34755886770ccd195c5a2ec4f54b4200b01b5dd14ee4de8f9b0e4dd62",

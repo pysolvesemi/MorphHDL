@@ -13,7 +13,8 @@ val nextCount = (COUNT + 1) / 2
 ```
 
 COUNT and ENABLED are module parameters; nextCount is a derived expression.
-Names come from the declaration, regardless of capitalization. `Param(8,
+Names come from the declaration, normalized to uppercase snake case (`numBytes`
+becomes `NUM_BYTES`). `Param(8,
 "TERM_COUNT")` on a typed declaration overrides the HDL name. Integer and Boolean
 parameters retain the legacy HDL integer representation (Boolean domain 0..1).
 `Param[Int]` follows the existing nonnegative geometry-parameter contract; use

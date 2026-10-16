@@ -623,23 +623,18 @@ class ComponentEmitterVerilog(
   def emitSynchronous(component: Component, group: SyncGroup): Unit = {
     import group._
 
-    def withReset = hasInit
-
-    def emitRegsInitialValue(tab: String, b: StringBuilder): Unit = {
-      emitLeafStatements(group.initStatements, 0, group.scope, "<=", b , tab)
+    def render(initial: Vector[LeafStatement], updates: Vector[LeafStatement]): String = {
+      val output = new StringBuilder()
+      emitClockedProcess(
+        emitRegsLogic = (tab, b) => emitLeafStatements(ArrayBuffer(updates: _*), 0, group.scope, "<=", b, tab),
+        emitRegsInitialValue = (tab, b) => emitLeafStatements(ArrayBuffer(initial: _*), 0, group.scope, "<=", b, tab),
+        b = output, clockDomain = group.clockDomain, withReset = group.hasInit)
+      output.toString
     }
-
-    def emitRegsLogic(tab: String, b: StringBuilder): Unit = {
-      emitLeafStatements(group.dataStatements, 0, group.scope, "<=", b , tab)
-    }
-
-    emitClockedProcess(
-      emitRegsLogic        = emitRegsLogic,
-      emitRegsInitialValue = emitRegsInitialValue,
-      b                    = logics,
-      clockDomain          = group.clockDomain,
-      withReset            = withReset
-    )
+    val initial=group.initStatements.toVector
+    val updates=group.dataStatements.toVector
+    logics ++= verilogBase.emitSynchronousPublication(this,group.clockDomain,group.scope,
+      group.hasInit,initial,updates,render).getOrElse(render(initial,updates))
   }
 
   def emitMuxes(): Unit ={

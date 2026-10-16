@@ -265,6 +265,10 @@ lazy val morph = (project in file("morphhdl"))
 lazy val lib = (project in file("lib"))
   .settings(
     defaultSettingsWithPlugin,
+    // Existing library Int loops describe Scala topology algorithms. Typed
+    // loops retain their explicit capture; application compilation defaults to
+    // ordinary hardware-loop capture unless it deliberately selects host mode.
+    Compile / scalacOptions += "-P:morphhdl:ordinary-loops=host",
     name := "SpinalHDL-lib",
     Compile / scalacOptions += {
       val file = (morphplugin / Compile / packageBin).value

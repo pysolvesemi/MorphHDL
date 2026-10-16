@@ -8,6 +8,15 @@ package spinal.core
   * Use an explicit ElabInt/ElabBool annotation for natural Scala control flow.
   */
 object RtlParam {
+  /** Recursive configuration edges may change formals, never constructor specialization. */
+  def requireSameSpecialization(previous: Any, next: Any, path: String): Unit = {
+    val identical=(previous.asInstanceOf[AnyRef] eq next.asInstanceOf[AnyRef]) ||
+      (previous != null && next != null && previous.getClass==next.getClass && (previous match {
+        case _: Int | _: Long | _: Short | _: Byte | _: Char | _: Boolean | _: String => previous==next
+        case _=>false
+      }))
+    require(identical,"SPINAL-RECURSIVE-CONFIG-SPECIALIZATION-MISMATCH: recursive edge changes " + path)
+  }
   private object BooleanDeclarationKey
   private case class BooleanDeclaration(formal: ElabBool, actual: ElabBool,
       integerFormal: ElabInt, integerActual: ElabInt)

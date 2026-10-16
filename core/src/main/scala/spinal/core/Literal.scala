@@ -150,6 +150,7 @@ abstract class BitVectorLiteralFactory[T <: BitVector] {
   * Used to create a new Bits or cast to Bits
   */
 object B extends BitVectorLiteralFactory[Bits] {
+  def apply(value: ElabScopedIndex, width: BitCount): Bits = value.sizedRuntimeUInt(width).asBits
   def apply(value: ElabInt, width: BitCount): Bits = U(value, width).asBits
   def apply(value: ElabInt, width: ParameterizedBitCount): Bits = U(value, width).asBits
 
@@ -184,6 +185,7 @@ object B extends BitVectorLiteralFactory[Bits] {
   * Used to create a new UInt or cast to UInt
   */
 object U extends BitVectorLiteralFactory[UInt] {
+  def apply(value: ElabScopedIndex, width: BitCount): UInt = value.sizedRuntimeUInt(width)
   /** Explicitly sized unsigned hardware value retaining its ElabInt authority.
     * Width and value remain independent; unsupported values fail before emission.
     */

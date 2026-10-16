@@ -5,6 +5,13 @@ package spinal.core
   */
 abstract class ElabScopedIndex private[core] () {
   private[core] def select[T <: Data](vector: Vec[T]): T
+  private[core] def runtimeUInt: UInt
+  private[core] final def sizedRuntimeUInt(width: BitCount): UInt = {
+    val value = runtimeUInt
+    require(width.value > 0 && width.value >= value.getBitsWidth,
+      "SPINAL-FINITE-INDEX-VALUE-WIDTH: sized index must represent its complete unsigned domain")
+    value.resize(width.value)
+  }
   private[core] def selectBit(source: Bits): Bool
   private[core] def selectPacked(source: Bits, width: BitCount): Bits
   def *(width: ElabInt): ElabScopedWordOffset

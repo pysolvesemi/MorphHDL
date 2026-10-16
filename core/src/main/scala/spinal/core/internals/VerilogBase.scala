@@ -103,6 +103,9 @@ object VerilogBase {
     * Concrete emission has no bound policy and keeps its historical path.
     */
   trait AssignmentPublicationPolicy {
+    def synchronous(printer: ComponentEmitterVerilog, clock: ClockDomain, scope: ScopeStatement,
+        hasInit: Boolean, init: Vector[LeafStatement], data: Vector[LeafStatement],
+        render: (Vector[LeafStatement], Vector[LeafStatement]) => String): Option[String] = None
     def constantShift(printer: ComponentEmitterVerilog,
         expression: Operator.BitVector.ShiftRightByInt): Option[String] = None
     def blackBoxGeneric(printer: ComponentEmitterVerilog, blackBox: BlackBox,
@@ -238,6 +241,17 @@ trait VerilogBase extends VhdlVerilogBase{
     }
   }
 
+  private[spinal] final def emitSynchronousPublication(printer: ComponentEmitterVerilog,
+      clock: ClockDomain, scope: ScopeStatement, hasInit: Boolean,
+      init: Vector[LeafStatement], data: Vector[LeafStatement],
+      render: (Vector[LeafStatement], Vector[LeafStatement]) => String): Option[String] = {
+    require(printer.usesVerilogBase(this), "synchronous publication must belong to its native emitter")
+    this match {
+      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>
+        owner.assignmentPublication.synchronous(printer,clock,scope,hasInit,init,data,render)
+      case _ => None
+    }
+  }
   private[spinal] final def emitStatementSuffix(printer: ComponentEmitterVerilog,
       assignment: AssignmentStatement): String = {
     require(printer.usesVerilogBase(this), "assignment lineage must belong to this native emitter")

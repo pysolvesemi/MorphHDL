@@ -51,7 +51,9 @@ private[internals] object NativeFiniteStatementLineage {
     .getOrElseUpdate(Key, ArrayBuffer.empty[Edge]).asInstanceOf[ArrayBuffer[Edge]]
 
   private def captured(component: Component, assignment: AssignmentStatement): Boolean =
-    TypedFinitePackedAccess.writes(component).exists(_.assignment eq assignment) ||
+    NativeLateSequentialMerge.owns(component, assignment) ||
+      TypedFinitePackedDefaults.owns(component, assignment) ||
+      TypedFinitePackedAccess.writes(component).exists(_.assignment eq assignment) ||
       ParameterizedVec.vectorsOf(component).exists(vector => ParameterizedVec.operationsOf(vector).exists {
         case write: ParameterizedVecStaticWrite => (write.assignment eq assignment) && write.constantBitIndex.nonEmpty
         case _ => false
@@ -62,6 +64,10 @@ private[internals] object NativeFiniteStatementLineage {
   def suffix(component: Component, assignment: AssignmentStatement): String = {
     if (!captured(component, assignment)) return ""
     val edges = records(component)
+    if (NativeLateSequentialMerge.replaying(component)) {
+      return edges.find(_.assignment eq assignment).getOrElse(
+        throw new IllegalArgumentException("late replay attempted an uncaptured native assignment")).marker
+    }
     require(!edges.exists(_.assignment eq assignment), "finite packed assignment was emitted twice")
     val marker = s" // native_edge_${edges.size}"
     edges += Edge(assignment, marker)
