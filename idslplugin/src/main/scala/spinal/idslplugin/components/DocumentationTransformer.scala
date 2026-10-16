@@ -46,11 +46,11 @@ class DocumentationTransformer(val global: Global) extends PluginComponent with 
       "spinal.core.switch.apply", "spinal.core.is.apply", "spinal.core.default.apply"
     )
     private def take(notes: Seq[SourceDocumentation.Comment]): List[SourceDocumentation.Comment] =
-      notes.filter(n => n.text.length > 0 && consumed.add(n.start)).toList
+      notes.filter(n => n.marked && n.text.length > 0 && consumed.add(n.start)).toList
     private def wrapRegion(value: Tree, notes: List[SourceDocumentation.Comment]): Tree =
       notes.foldRight(value) { (note, result) =>
         val module = rootMirror.staticModule("spinal.core.RtlDocumentation")
-        val select = Select(gen.mkAttributedRef(module), TermName("automaticRegion"))
+        val select = Select(gen.mkAttributedRef(module), TermName("markedRegion"))
         val call = Apply(Apply(TypeApply(select, List(TypeTree(result.tpe))), List(
           Literal(Constant(note.text)), Literal(Constant(note.scaladoc)))), List(result))
         localTyper.typed(atPos(value.pos)(call))

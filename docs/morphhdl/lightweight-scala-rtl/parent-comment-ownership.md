@@ -18,5 +18,5 @@ remains opt-in and requires source range positions. Existing pruning, generate
 region and definition documentation behavior is covered by RtlDocumentationTests.
 
 Focused cross-version evidence is recorded in `parent-comment-ownership-receipt.json`.
-LWR-18 (compiler implementation-comment filtering) is a separate item and is not
-claimed as repaired here. No CI/full qualification is required for this increment.
+The subsequent [LWR-18 marker policy](explicit-rtl-comments.md) restricts automatic
+capture to explicit RTL: comments; this ownership rule continues to apply. No CI/full qualification is required for this increment.

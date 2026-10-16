@@ -70,7 +70,10 @@ object RtlDocumentation {
     override def initialValue(): Vector[RegionNote] = Vector.empty
   }
   private[spinal] def activeRegions: Vector[RegionNote] = regions.get()
-  def automaticRegion[T](message: String, scaladoc: Boolean)(body: => T): T = {
+  // Binary compatibility for already compiled capture-all annotations. Ordinary
+  // source comments from older compiler/library JARs are no longer publishable.
+  def automaticRegion[T](message: String, scaladoc: Boolean)(body: => T): T = body
+  def markedRegion[T](message: String, scaladoc: Boolean)(body: => T): T = {
     val options = RtlDocumentationOptions.of(GlobalData.get.config)
     if (if (scaladoc) options.captureScaladoc else options.captureScalaComments) region(message)(body)
     else body
@@ -141,13 +144,16 @@ object RtlDocumentation {
   }
   def attach[T](value: T, message: String, origin: String = "explicit", location: String = "", definition: Boolean = false): T = {
     val content = text(message)
-    val automatic = origin == "scala" || origin == "scaladoc"
+    val legacyAutomatic = origin == "scala" || origin == "scaladoc"
+    val automatic = legacyAutomatic || origin == "rtl-scala" || origin == "rtl-scaladoc"
     val options = RtlDocumentationOptions.of(GlobalData.get.config)
-    if (origin == "unavailable") {
+    if (origin == "unavailable") return value // Legacy unmarked source without ranges.
+    if (origin == "rtl-unavailable") {
       require(!options.captureScalaComments && !options.captureScaladoc, content)
       return value
     }
-    val enabled = !automatic || (if (origin == "scaladoc") options.captureScaladoc else options.captureScalaComments)
+    val enabled = !legacyAutomatic && (!automatic ||
+      (if (origin == "rtl-scaladoc") options.captureScaladoc else options.captureScalaComments))
     if (enabled && content.nonEmpty) {
       val tag = new RtlDocTag(content, origin, location)
       value match {

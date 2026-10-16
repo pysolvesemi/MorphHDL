@@ -187,12 +187,12 @@ class RtlDocumentationTests extends AnyFunSuite {
     assert("module Child".r.findAllIn(rtl).size == 2, rtl)
   }
 
-  class Automatic extends Component { // Automatically documented module
+  class Automatic extends Component { // RTL: Automatically documented module
     setDefinitionName("Top")
-    // Preceding input explanation
-    val x = in Bits(8 bits) // Trailing input explanation
-    val y = out Bits(8 bits) // Trailing output explanation
-    /** Saved packet word. */
+    // RTL: Preceding input explanation
+    val x = in Bits(8 bits) // RTL: Trailing input explanation
+    val y = out Bits(8 bits) // RTL: Trailing output explanation
+    /** RTL: Saved packet word. */
     val saved = Reg(Bits(8 bits)) init(0)
     val notHardware = "// not a comment" // Scala-only comment
     saved := x
@@ -212,10 +212,77 @@ class RtlDocumentationTests extends AnyFunSuite {
     assert(!both.contains("Scala-only comment") && !both.contains("not a comment"), both)
   }
 
+  class MarkedComments extends Component {
+    setDefinitionName("Top")
+    val WIDTH = RtlParam.int("WIDTH", 8, 1, 16)
+    // Ordinary implementation note
+    /** Ordinary Scaladoc beside marked comment. */
+    // RTL: Marked input contract
+    val x = in Bits(WIDTH bits)
+    /* Ordinary block explanation */
+    /* RTL:
+     * Marked output line one.
+     * Marked output line two.
+     */
+    val y = out Bits(WIDTH bits)
+    val quoted = "// RTL: Not a real source comment"
+    val triple = """/* RTL: Not a real block comment */"""
+    // RTL: Removed declaration explanation
+    val unused = Bits(WIDTH bits)
+    unused := x
+    // RTL: Kept logic region
+    when(x.orR) {
+      rtlDoc("Explicit region survives") { y := x }
+    } otherwise { y := 0 }
+    y.doc("Explicit declaration survives")
+    RtlDocumentation.attach(y, "Legacy compiler phase note", "scala")
+    RtlDocumentation.attach(y, "Legacy compiler Scaladoc", "scaladoc")
+    RtlDocumentation.attach(y, "Legacy missing ranges", "unavailable")
+    var legacyBodyCalls = 0
+    RtlDocumentation.automaticRegion("Legacy compiler region", false) { legacyBodyCalls += 1 }
+    assert(legacyBodyCalls == 1)
+  }
+  test("only marked source comments publish while explicit APIs and pruning preserve ownership") {
+    for (morph <- Seq(false, true)) {
+      val plain = emit(morph = morph, prune = !morph)(new MarkedComments)
+      val marked = emit(morph = morph, auto = true, scaladoc = true, prune = !morph)(new MarkedComments)
+      assert(tokens(plain) == tokens(marked), marked)
+      for (note <- Seq("Marked input contract", "Marked output line one.", "Marked output line two.",
+          "Kept logic region", "Explicit declaration survives", "Explicit region survives"))
+        assert(marked.contains(note), marked)
+      for (note <- Seq("Ordinary implementation note", "Ordinary Scaladoc", "Ordinary block explanation",
+          "Not a real source comment", "Not a real block comment",
+          "Legacy compiler phase note", "Legacy compiler Scaladoc", "Legacy missing ranges", "Legacy compiler region", "RTL:"))
+        assert(!marked.contains(note), marked)
+      // The parameterized emitter retains the unused typed carrier; native
+      // pruning removes it. In either case its note must follow its real owner.
+      assert(marked.contains("Removed declaration explanation") == marked.contains(" unused;"), marked)
+      if (!morph) assert(!marked.contains("Removed declaration explanation"), marked)
+      assert(!marked.contains("* Marked output"), marked)
+      assert(!plain.contains("Marked input contract") && plain.contains("Explicit declaration survives"), plain)
+      assert(marked == emit(morph = morph, auto = true, scaladoc = true, prune = !morph)(new MarkedComments))
+    }
+  }
+  test("library generated children exclude unmarked compiler phase annotations") {
+    def top() = new Component {
+      setDefinitionName("Top")
+      val x = in Bool()
+      val y = out Bool()
+      // RTL: Synchronize incoming level
+      val synchronized = spinal.lib.BufferCC(x, init = False)
+      y := synchronized
+    }
+    val plain = emit()(top())
+    val marked = emit(auto = true, scaladoc = true)(top())
+    assert(tokens(plain) == tokens(marked), marked)
+    assert(marked.contains("Synchronize incoming level"), marked)
+    assert(!marked.contains("Check s.component BEFORE accessing pulledDataCache"), marked)
+  }
+
   class AliasDocumentedChild(actual: ElabInt) extends Component {
     val WIDTH = RtlParam.int("WIDTH", actual, 1, 16)
     val x = in Bits(WIDTH bits)
-    // Child-authored output contract
+    // RTL: Child-authored output contract
     val y = out Bits(WIDTH bits)
     y := x
   }
@@ -231,9 +298,9 @@ class RtlDocumentationTests extends AnyFunSuite {
       child.x := x
       child.y
     }
-    // Parent direct use explanation
+    // RTL: Parent direct use explanation
     val directAlias = direct.y
-    // Parent helper use explanation
+    // RTL: Parent helper use explanation
     val helperAlias = output()
     y := directAlias
     z := helperAlias
@@ -263,7 +330,7 @@ class RtlDocumentationTests extends AnyFunSuite {
       val y = out Bits(WIDTH bits)
       val child = new AliasDocumentedChild(WIDTH)
       child.x := x
-      // Not an owned input declaration
+      // RTL: Not an owned input declaration
       val inputAlias = child.x
       child.y.doc("Explicit child output contract")
       y := child.y
@@ -366,10 +433,10 @@ class RtlDocumentationTests extends AnyFunSuite {
     val data = in Bits(8 bits)
     val result = out Bits(8 bits)
     result := 0
-    // Automatic condition
-    when(enable) { // Automatic true branch
+    // RTL: Automatic condition
+    when(enable) { // RTL: Automatic true branch
       result := data
-    } otherwise { // Automatic false branch
+    } otherwise { // RTL: Automatic false branch
       result := ~data
     }
   }
@@ -455,13 +522,13 @@ class RtlDocumentationTests extends AnyFunSuite {
       observed := input.orR
     }
     def sink(): Unit = { val child = new Sink; child.input := data }
-    // Automatic generated selection
-    enable.generateIf("g_yes", "g_no") { // Automatic selected body
-      // Automatic nested loop
-      (0 until lanes).named("g_lane", "lane").foreach { lane => // Automatic lane body
+    // RTL: Automatic generated selection
+    enable.generateIf("g_yes", "g_no") { // RTL: Automatic selected body
+      // RTL: Automatic nested loop
+      (0 until lanes).named("g_lane", "lane").foreach { lane => // RTL: Automatic lane body
         sink()
       }
-    }.otherwise { // Automatic alternative body
+    }.otherwise { // RTL: Automatic alternative body
       sink()
     }
   }
@@ -529,19 +596,19 @@ class RtlDocumentationTests extends AnyFunSuite {
 
   class BoundaryComments extends Component {
     setDefinitionName("Top")
-    // Detached section is not attached
+    // RTL: Detached section is not attached
 
     val x = in Bits(8 bits)
-    // Preceding annotated port
+    // RTL: Preceding annotated port
     @doc("Explicit annotated port")
     val y = out(
       Bits(8 bits)
-    ) // Completed multiline port
-    val one = Bits(8 bits); val two = Bits(8 bits) // Ambiguous declarations
+    ) // RTL: Completed multiline port
+    val one = Bits(8 bits); val two = Bits(8 bits) // RTL: Ambiguous declarations
     one := x
     two := one
     y := two
-    val child = new Child // Automatically documented instance
+    val child = new Child // RTL: Automatically documented instance
     child.x := x
     val unused = "// quoted" // Ordinary Scala metadata
   }
@@ -573,11 +640,11 @@ class RtlDocumentationTests extends AnyFunSuite {
     val scratch = Bits(8 bits)
     note("Removed assignment") { scratch := data }
     note("Empty unrolled loop") { for (i <- 0 until 0) { scratch := 0 } }
-    // Automatic switch selection
+    // RTL: Automatic switch selection
     switch(mode) {
-      // Automatic multiple labels
+      // RTL: Automatic multiple labels
       is(0, 1) { note("Multiple-label body") { y := data ^ B(1, 8 bits) } }
-      // Automatic default
+      // RTL: Automatic default
       default { }
     }
   }
@@ -628,8 +695,8 @@ class RtlDocumentationTests extends AnyFunSuite {
   @doc("Combined documentation example")
   class Combined(enable: morphhdl.frontend.HdlBool, lanes: morphhdl.frontend.HdlInt)
       extends GenerateRegions(true, enable, lanes) {
-    // Incoming packet bank
-    val packets = in(Vec(Bits(8 bits), 3)) // Packet array payload
+    // RTL: Incoming packet bank
+    val packets = in(Vec(Bits(8 bits), 3)) // RTL: Packet array payload
     @doc("Buffered packet word")
     val buffered = Reg(Bits(8 bits)) init(0)
     val packetResult = out Bits(8 bits)

@@ -81,9 +81,24 @@ class DocumentationPluginTests extends AnyFunSuite {
     assert(SourceDocumentation.scan(literals).map(_.text) == Vector("real"))
   }
 
+  test("RTL markers require a leading exact marker and preserve comment attachment boundaries") {
+    import spinal.idslplugin.components.SourceDocumentation
+    val source = "// RTL: First\r\n// ordinary\r\n/* RTL:\r\n * Second\r\n * line\r\n */\r\nval x = 1\n" +
+      "// rtl: wrong case\n// prose RTL: not a marker\n// RTL:\nval y = 2\n" +
+      "val text = \"// RTL: quoted\"\n/** ordinary doc */\n"
+    val comments = SourceDocumentation.scan(source)
+    assert(comments.filter(_.marked).map(_.text) == Vector("First", "Second\nline", ""))
+    assert(SourceDocumentation.preceding(source, comments, source.indexOf("val x"))
+      .filter(_.marked).map(_.text) == Vector("First", "Second\nline"))
+    assert(!comments.exists(_.text == "quoted"))
+    val adjacent = "val z = 0 /* implementation */ /* RTL: trailing contract */"
+    assert(SourceDocumentation.trailing(adjacent, SourceDocumentation.scan(adjacent), adjacent.indexOf(" /*"))
+      .filter(_.marked).map(_.text) == Vector("trailing contract"))
+  }
+
   test("comment-only recompilation updates embedded metadata and requires no runtime source") {
     def source(note: String) = core + s"""object Probe {
-      val value = new spinal.core.Data // $note
+      val value = new spinal.core.Data // RTL: $note
       def result = spinal.core.RtlDocumentation.notes.mkString(",")
     }"""
     val directory = Files.createTempDirectory("comment-recompile-")
@@ -102,7 +117,7 @@ class DocumentationPluginTests extends AnyFunSuite {
 
   test("missing range positions embed a precise automatic capture diagnostic") {
     val (directory, errors) = compile(core + """object Probe {
-      val value = new spinal.core.Data // source note
+      val value = new spinal.core.Data // RTL: source note
       def result = spinal.core.RtlDocumentation.notes.mkString(",")
     }""", ranges = false)
     assert(errors.isEmpty, errors)
@@ -113,7 +128,7 @@ class DocumentationPluginTests extends AnyFunSuite {
     } finally loader.close()
   }
   test("precompiled class comments survive source deletion without inheriting to unrelated classes") {
-    val (library, errors) = compile(core + """class Library extends spinal.core.Component { // Library header λ
+    val (library, errors) = compile(core + """class Library extends spinal.core.Component { // RTL: Library header λ
     }
     class Derived extends Library
     """)
@@ -134,7 +149,7 @@ class DocumentationPluginTests extends AnyFunSuite {
 
   test("precompiled region markers capture comments without frontend package coupling") {
     val runtime = core.replace("var notes = Vector.empty[String]", """var notes = Vector.empty[String]
-      def automaticRegion[T](text: String, scaladoc: Boolean)(body: => T): T = {
+      def markedRegion[T](text: String, scaladoc: Boolean)(body: => T): T = {
         notes :+= text; body
       }""")
     val (library, errors) = compile(runtime + """object IndependentRegions {
@@ -146,9 +161,9 @@ class DocumentationPluginTests extends AnyFunSuite {
     Files.delete(library.resolve("Fixture.scala"))
     val (client, clientErrors) = compile("""object Probe {
       var calls = 0
-      // Captured region
+      // RTL: Captured region
       IndependentRegions.region { calls += 1 }
-      // Not a hardware region
+      // RTL: Not a hardware region
       IndependentRegions.ordinary { calls += 1 }
       def result = calls.toString + ":" + spinal.core.RtlDocumentation.notes.mkString(",")
     }""", extra = library.toString)

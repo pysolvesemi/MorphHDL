@@ -42,6 +42,13 @@ Import `spinal.core._`. Use `@doc("Packet buffer")` on a Component class,
 `definition.doc("Packet buffer")` inside a component for explicit definition text.
 Annotations accept literal strings; fluent calls accept elaboration-time strings.
 
+Source capture is explicit opt-in: only comments beginning with `RTL:` are
+publishable, even when capture is enabled. Ordinary line/block comments and
+unmarked Scaladoc remain Scala-only. There is no capture-all option. Use
+`// RTL: Input packet` or `/* RTL:\n * Input packet\n */`; the marker and
+conventional block leading stars are removed. `/** RTL: ... */` is accepted
+only when `captureScaladoc` is enabled. The flags remain false by default.
+
 Automatic capture requires the IDSL compiler plugin and `-Yrangepos` at Scala
 compiler construction time. Both repository builds enable this option. External
 projects must add it to their Scala compiler options and recompile source whose
@@ -57,7 +64,7 @@ val config = RtlDocumentationOptions(
 MorphVerilog(config)(new PacketBuffer)
 ```
 
-Scaladoc capture preserves prose and tags as documentation text, without rendering
+Marked Scaladoc capture preserves prose and tags as documentation text, without rendering
 HTML or resolving links. Comments inside declaration initializers are not attached
 to the declaration; use `.doc` or a comment after the completed initializer.
 
@@ -86,10 +93,10 @@ section spanning several statements or an attachment whose scope is otherwise
 ambiguous. Automatic capture does not reinterpret ordinary Scala control flow.
 
 ```scala
-// Choose the payload
-when(accept) { // Accepted packet
+// RTL: Choose the payload
+when(accept) { // RTL: Accepted packet
   payload := incoming
-} otherwise { // Fallback packet
+} otherwise { // RTL: Fallback packet
   payload := fallback
 }
 
@@ -128,3 +135,17 @@ headers/licensing blocks from a declaration with a blank line. A block placed
 directly against a declaration is treated as that declaration's documentation.
 For unsupported or ambiguous placements, use an explicit API. Compiler diagnostics
 identify ambiguous same-line declarations and unsupported explicit annotations.
+
+## Explicit marker migration (LWR-18)
+
+Recompile authored Scala after marking useful hardware contracts. Legacy embedded
+`scala`/`scaladoc` metadata and automatic regions remain binary-call-compatible but
+are not published, preventing ordinary implementation notes in previously built
+compiler/library classes from leaking into RTL. Explicit `@doc`, `.doc` and
+`rtlDoc` remain unchanged. Implementation comments should not be mechanically
+marked. No generated-text filtering or cleanup rule is involved.
+
+Marked parent aliases of immediate child outputs retain the LWR-17 instance
+use-site ownership rule. Child-port and definition documentation stays child-owned;
+removed declarations lose their documentation rather than retaining orphan notes.
+Existing relocation carries notes only with authenticated surviving owners.

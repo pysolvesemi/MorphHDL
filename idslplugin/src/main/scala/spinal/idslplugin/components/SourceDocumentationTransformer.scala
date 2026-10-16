@@ -29,15 +29,15 @@ class SourceDocumentationTransformer(val global: Global) extends PluginComponent
       val column = comment.start - unit.source.lineToOffset(line)
       val location = s"${unit.source.file.path}:${line + 1}:${column + 1}"
       Apply(Select(New(tpe), termNames.CONSTRUCTOR), List(Literal(Constant(comment.text)),
-        Literal(Constant(if (comment.scaladoc) "scaladoc" else "scala")), Literal(Constant(location))))
+        Literal(Constant(if (comment.scaladoc) "rtl-scaladoc" else "rtl-scala")), Literal(Constant(location))))
     }
     def notes(tree: Tree, mods: Modifiers, header: Boolean): List[Tree] = {
-      if (global.useOffsetPositions && comments.nonEmpty) {
+      if (global.useOffsetPositions && comments.exists(_.marked)) {
         val marker = SourceDocumentation.Comment(math.max(0, tree.pos.point), math.max(0, tree.pos.point),
           "Automatic RTL comments require Scala compilation with -Yrangepos", false, false)
         val built = annotation(marker)
         return List(built match {
-          case Apply(fun, args) => Apply(fun, List(args.head, Literal(Constant("unavailable")), args(2)))
+          case Apply(fun, args) => Apply(fun, List(args.head, Literal(Constant("rtl-unavailable")), args(2)))
           case _ => built
         })
       }
@@ -59,11 +59,11 @@ class SourceDocumentationTransformer(val global: Global) extends PluginComponent
         val brace = source.indexOf('{', tree.pos.point)
         if (brace >= 0 && brace < lineEnd) SourceDocumentation.trailing(source, comments, brace + 1) else Vector.empty
       } else if (ambiguous(unit.source.offsetToLine(tree.pos.end))) {
-        if (SourceDocumentation.trailing(source, comments, tree.pos.end).nonEmpty)
+        if (SourceDocumentation.trailing(source, comments, tree.pos.end).exists(_.marked))
           reporter.warning(tree.pos, "RTL comment capture: ambiguous same-line declarations; use @doc or .doc")
         Vector.empty
       } else SourceDocumentation.trailing(source, comments, tree.pos.end)
-      (leading ++ trailing).distinct.filter(_.text.length > 0).map(annotation _).toList
+      (leading ++ trailing).distinct.filter(c => c.marked && c.text.length > 0).map(annotation _).toList
     }
     override def transform(tree: Tree): Tree = {
       val transformed = super.transform(tree)

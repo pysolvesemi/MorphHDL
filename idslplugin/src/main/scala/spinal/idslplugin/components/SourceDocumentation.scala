@@ -4,7 +4,7 @@ import scala.collection.mutable
 
 /** Source lexer: comments inside quoted literals are never documentation. */
 private[idslplugin] object SourceDocumentation {
-  final case class Comment(start: Int, end: Int, text: String, scaladoc: Boolean, standalone: Boolean)
+  final case class Comment(start: Int, end: Int, text: String, scaladoc: Boolean, standalone: Boolean, marked: Boolean = false)
   def scan(source: String): Vector[Comment] = {
     val result = mutable.ArrayBuffer.empty[Comment]
     var i = 0
@@ -49,7 +49,14 @@ private[idslplugin] object SourceDocumentation {
         if (end < source.length && source(end) == '\'') i = end + 1 else i += 1
       } else i += 1
     }
-    result.toVector
+    // Keep ordinary comments in the token stream so they cannot change lexical
+    // attachment boundaries. Only an exact, leading RTL: opts into publication.
+    result.toVector.map { comment =>
+      val normalized = comment.text.trim
+      if (normalized.startsWith("RTL:"))
+        comment.copy(text = normalized.substring(4).trim, marked = true)
+      else comment
+    }
   }
   def preceding(source: String, comments: Vector[Comment], start: Int): Vector[Comment] = {
     val result = mutable.ArrayBuffer.empty[Comment]
@@ -65,8 +72,19 @@ private[idslplugin] object SourceDocumentation {
     }
     result.toVector
   }
-  def trailing(source: String, comments: Vector[Comment], end: Int): Vector[Comment] =
-    comments.find { comment =>
-      comment.start >= end && source.substring(end, comment.start).forall(c => c == ' ' || c == '\t' || c == '\r' || c == ';')
-    }.toVector
+  def trailing(source: String, comments: Vector[Comment], end: Int): Vector[Comment] = {
+    val result = mutable.ArrayBuffer.empty[Comment]
+    var cursor = end
+    var searching = true
+    comments.iterator.filter(_.start >= end).foreach { comment =>
+      if (searching) {
+        val gap = source.substring(cursor, comment.start)
+        if (gap.forall(c => c == ' ' || c == '\t' || c == '\r' || c == ';')) {
+          result += comment
+          cursor = comment.end
+        } else searching = false
+      }
+    }
+    result.toVector
+  }
 }
