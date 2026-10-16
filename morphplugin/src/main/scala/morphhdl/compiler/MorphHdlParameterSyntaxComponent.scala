@@ -39,11 +39,18 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
     private val sharedKinds = new java.util.IdentityHashMap[Tree, String]()
     private var resolvedSchemas = false
     private var retainedSchemas = false
+    private final case class ConfigurationValueAccess(field:ValDef)
     private final case class ConfigSchema(owner: List[String], definition: ClassDef, fields: List[ValDef])
     private val sharedSchemas = scala.collection.mutable.LinkedHashMap.empty[List[String], ConfigSchema]
     private val ambiguousSchemas = scala.collection.mutable.Set.empty[List[String]]
     private val schemaImports = new java.util.IdentityHashMap[Tree, Vector[List[String]]]()
     private val sharedComponentClasses = scala.collection.mutable.ArrayBuffer.empty[(List[String], ClassDef)]
+    private val configurationRequirements = new java.util.IdentityHashMap[Tree, Tree]()
+    private val canonicalConfigurationRequires = new java.util.IdentityHashMap[Tree, java.lang.Boolean]()
+    private val derivedExpressions = new java.util.IdentityHashMap[ValDef, Tree]()
+    private val sourceHelpers = scala.collection.mutable.LinkedHashMap.empty[List[String], Vector[DefDef]]
+    private val helperObjects = scala.collection.mutable.Map.empty[List[String], ModuleDef]
+    private val helperImports = new java.util.IdentityHashMap[Tree, Vector[List[String]]]()
     private val sharedConfigClasses = scala.collection.mutable.Set.empty[ClassDef]
     override def apply(unit: CompilationUnit): Unit = {
       if (schemaRun ne currentRun) {
@@ -51,6 +58,7 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
         sourceTrees = currentRun.units.map(_.body).toVector
         sharedRecognized.clear(); sharedFactories.clear(); sharedComponents.clear(); sharedKinds.clear()
         sharedSchemas.clear(); ambiguousSchemas.clear(); schemaImports.clear(); sharedComponentClasses.clear(); sharedConfigClasses.clear()
+        configurationRequirements.clear(); canonicalConfigurationRequires.clear(); derivedExpressions.clear(); sourceHelpers.clear(); helperImports.clear(); helperObjects.clear()
         resolvedSchemas=false; retainedSchemas=false
       }
       // Resolve source spellings lexically before rewriting them. An import in
@@ -99,7 +107,7 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
             val primary=if(provider.isModule)provider.moduleClass.info else provider.info
             val pkg=primary.packageObject
             val infos=if(pkg==NoSymbol)List(primary)else List(primary,pkg.moduleClass.info)
-            val tracked=names++componentNames++rtlParamNames++typeNames.keySet++Set("Param","RtlParam","Component","UInt","Bits","SInt","rtlParamName")
+            val tracked=names++componentNames++rtlParamNames++typeNames.keySet++Set("Param","RtlParam","Component","UInt","Bits","SInt","rtlParamName","ElabInt")
             Some(tracked.filter(n=>infos.exists(i=>i.nonPrivateMember(TermName(n))!=NoSymbol || i.nonPrivateMember(TypeName(n))!=NoSymbol)))
           }
         } catch { case scala.util.control.NonFatal(_)=>None }
@@ -125,7 +133,7 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
           val p=path(t).filterNot(n=>n=="_root_" || n=="<root>")
           val rooted=path(t).headOption.exists(n=>n=="_root_" || n=="<root>")
           val nativeKind=if(p.size==1)typeNames.get(p.head)
-            else if(p.size==3 && p.take(2)==List("spinal","core") && (rooted || !blocked("spinal")) && Set("UInt","Bits","SInt","rtlParamName")(p.last))Some(p.last)
+            else if(p.size==3 && p.take(2)==List("spinal","core") && (rooted || !blocked("spinal")) && Set("UInt","Bits","SInt","rtlParamName","ElabInt")(p.last))Some(p.last)
             else if(p.size==2 && p.head=="scala" && (rooted || !blocked("scala")) && Set("Int","Boolean","Option")(p.last))Some(p.last)
             else None
           if((p==List("spinal","core","Component") && (rooted || !blocked("spinal"))) ||
@@ -155,11 +163,11 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
                   if(!hidden("Component") && !blocked("Component") && !ambiguous("Component"))componentNames += "Component"
                   if(!hidden("RtlParam") && !blocked("RtlParam") && !ambiguous("RtlParam"))rtlParamNames += "RtlParam"
                   if(!hidden("Param") && !blocked("Param") && !ambiguous("Param"))names += "Param"
-                  for(k<-Seq("UInt","Bits","SInt","rtlParamName") if !hidden(k) && !blocked(k) && !ambiguous(k))typeNames += k->k
+                  for(k<-Seq("UInt","Bits","SInt","rtlParamName","ElabInt") if !hidden(k) && !blocked(k) && !ambiguous(k))typeNames += k->k
                 }
                 else if(from=="_") {
                   val hidden=selectors.map(_.name.decodedName.toString).toSet
-                  val conflicts=wildcardExports(q).getOrElse(names++componentNames++rtlParamNames++typeNames.keySet++Set("Param","RtlParam","Component","UInt","Bits","SInt","rtlParamName")) -- hidden
+                  val conflicts=wildcardExports(q).getOrElse(names++componentNames++rtlParamNames++typeNames.keySet++Set("Param","RtlParam","Component","UInt","Bits","SInt","rtlParamName","ElabInt")) -- hidden
                   ambiguous ++= conflicts
                   names --= conflicts
                   componentNames --= conflicts
@@ -173,7 +181,7 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
                   if(isCore && from=="Component" && to!="_" && !blocked(to))componentNames += to
                   if(isCore && from=="RtlParam" && to!="_" && !blocked(to))rtlParamNames += to
                   if(isCore && from=="Param" && to!="_" && !blocked(to)) names += to
-                  if(isCore && Set("UInt","Bits","SInt","rtlParamName")(from) && to!="_" && !blocked(to))typeNames += to->from
+                  if(isCore && Set("UInt","Bits","SInt","rtlParamName","ElabInt")(from) && to!="_" && !blocked(to))typeNames += to->from
                   if(path(q).filterNot(_=="_root_")==List("scala") && Set("Int","Boolean","Option")(from) && to!="_" && !blocked(to))typeNames += to->from
                 }
               }
@@ -242,16 +250,31 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
             if (cls.impl.parents.exists(components.containsKey)) componentClasses += key -> cls
             val old=owner; owner=key; scope(super.traverse(tree)); owner=old
           case module: ModuleDef =>
+            helperObjects(owner :+ module.name.decodedName.toString)=module
             val old=owner; owner=owner :+ module.name.decodedName.toString
             scope(super.traverse(tree)); owner=old
+          case call: Apply =>
+            val names=path(call.fun).filterNot(_=="_root_")
+            if(names.nonEmpty) helperImports.put(call, imported.get(names.head).map(_++names.tail).toVector ++
+              (if(names.size<=2)wildcard.map(_++names)else Vector.empty))
+            super.traverse(tree)
           case method: DefDef =>
+            if(method.name!=termNames.CONSTRUCTOR) {
+              val key=owner :+ method.name.decodedName.toString
+              sourceHelpers(key)=sourceHelpers.getOrElse(key,Vector.empty) :+ method
+            }
             val old=owner; owner=owner :+ ("$method:" + method.name.decodedName.toString)
             scope(super.traverse(tree)); owner=old
           case block:Block=>scope(super.traverse(block))
           case _ => super.traverse(tree)
         }
       }
-      if (!retainedSchemas) sourceTrees.foreach(Schemas.traverse)
+      if (!retainedSchemas) sourceTrees.foreach { tree=>
+        Schemas.traverse(tree)
+        val resolver=new MorphHdlTypedElaborationControlComponent(global,()=>false)
+        val calls=resolver.canonicalPredefCalls(tree.asInstanceOf[resolver.global.Tree]).keySet().iterator()
+        while(calls.hasNext)canonicalConfigurationRequires.put(calls.next().asInstanceOf[Tree],true)
+      }
       def configuration(tpt: Tree, owner: List[String]): Option[ConfigSchema] = {
         val names=path(tpt).filterNot(_ == "_root_")
         if (names.isEmpty) None else {
@@ -274,6 +297,138 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
         !seen(schema.owner) && schema.fields.exists(field => parameterType(field.tpt).nonEmpty ||
           configuration(field.tpt,schema.owner.init).exists(containsParameters(_,seen + schema.owner)))
       val configClasses = sharedConfigClasses
+      // Derivations are rebuilt from a closed, source-authenticated arithmetic
+      // grammar. Inline helper bodies rather than invoking arbitrary objects or
+      // getters. Reconstructing the configuration later substitutes owned roots.
+      // Constant body fields keep Scala Int specialization semantics, including
+      // per-operation overflow; references must not reinterpret them as symbolic
+      // arithmetic (or read a forward field before Scala initializes it).
+      def hostInteger(t:Tree):Option[Int]=t match {
+        case Literal(Constant(n:Int))=>Some(n)
+        case Select(a,n) if n.decodedName.toString=="unary_-"=>hostInteger(a).map(-_)
+        case Apply(Select(a,n),Nil) if n.decodedName.toString=="unary_-"=>hostInteger(a).map(-_)
+        case Apply(Select(a,n),List(b))=>for(x<-hostInteger(a);y<-hostInteger(b);z<-n.decodedName.toString match {
+          case "+"=>Some(x+y);case "-"=>Some(x-y);case "*"=>Some(x*y)
+          case "/" if y!=0=>Some(x/y);case "%" if y!=0=>Some(x%y);case _=>None
+        })yield z
+        case _=>None
+      }
+      def derived(schema:ConfigSchema, field:ValDef, active:Set[ValDef]=Set.empty, predicate:Boolean=false):Tree = {
+        Option(derivedExpressions.get(field)).getOrElse {
+          def reject(t:Tree, detail:String):Tree={
+            reporter.error(t.pos,"MORPHDL-CONFIG-DERIVED-UNSUPPORTED: "+detail)
+            Apply(Select(core("ElabInt"),TermName("literal")),List(Literal(Constant(0))))
+          }
+          if(active(field)) return reject(field,"cyclic derived field dependency")
+          val members=schema.definition.impl.body.collect {
+            case v:ValDef if !v.mods.hasFlag(Flag.PARAMACCESSOR)=>v.name.decodedName.toString -> v
+          }.toMap
+          def arithmetic(t:Tree, env:Map[String,Tree], owner:List[String], calls:Set[List[String]]):Tree = {
+            def loop(v:Tree)=arithmetic(v,env,owner,calls)
+            def memberPath(t:Tree):List[String]=t match {
+              case Ident(n)=>List(n.decodedName.toString)
+              case Select(th:This,n) if th.qual==global.typeNames.EMPTY || th.qual==schema.definition.name=>List(n.decodedName.toString)
+              case Select(_:This,_)=>Nil
+              case Select(q,n)=>val prefix=memberPath(q);if(prefix.nonEmpty)prefix :+ n.decodedName.toString else Nil
+              case _=>Nil
+            }
+            val names=memberPath(t)
+            def fieldAccess(current:ConfigSchema, rest:List[String], prefix:Tree):Option[Tree]=rest match {
+              case name::Nil if current.definition.impl.body.exists {
+                case v:ValDef=> !v.mods.hasFlag(Flag.PARAMACCESSOR) && v.name.decodedName.toString==name
+                case _=>false
+              }=>
+                val member=current.definition.impl.body.collectFirst {
+                  case v:ValDef if !v.mods.hasFlag(Flag.PARAMACCESSOR) && v.name.decodedName.toString==name=>v
+                }.get
+                val expanded=derived(current,member,active+field).duplicate
+                val roots=current.fields.map(_.name).toSet
+                object Qualify extends Transformer {
+                  override def transform(t:Tree):Tree=t match {
+                    case Ident(n) if roots(n.toTermName) && prefix!=EmptyTree=>Select(prefix.duplicate,n)
+                    case _=>super.transform(t)
+                  }
+                }
+                Some(Qualify.transform(expanded))
+              case name::tail=>current.fields.find(_.name.decodedName.toString==name).flatMap { f=>
+                val access=if(prefix==EmptyTree)Ident(f.name) else Select(prefix,f.name)
+                if(tail.isEmpty) parameterType(f.tpt) match {
+                  case Some(("Int",false))=>Some(Select(access,TermName("value")).updateAttachment(ConfigurationValueAccess(f)))
+                  case None if Option(recognizedKinds.get(f.tpt)).exists(Set("Int","ElabInt"))=>
+                    Some(Apply(Select(core("ConstructorParam"),TermName("integer")),List(access)))
+                  case _=>None
+                } else configuration(f.tpt,current.owner.init).flatMap(fieldAccess(_,tail,access))
+              }
+              case _=>None
+            }
+            t match {
+              case Literal(Constant(n:Int))=>Apply(Select(core("ElabInt"),TermName("literal")),List(Literal(Constant(n))))
+              case Ident(n) if env.contains(n.decodedName.toString)=>env(n.decodedName.toString).duplicate
+              case Ident(n) if calls.isEmpty && members.contains(n.decodedName.toString)=>
+                derived(schema,members(n.decodedName.toString),active+field).duplicate
+              case _ if calls.isEmpty && names.nonEmpty && fieldAccess(schema,names,EmptyTree).nonEmpty=>
+                fieldAccess(schema,names,EmptyTree).get
+              case Apply(Select(a,op),List(b)) if predicate && Set("<","<=",">",">=","==","!=","&&","||")(op.decodedName.toString)=>
+                val method=op.decodedName.toString match {case "=="=>TermName("elabEq");case "!="=>TermName("elabNe");case _=>op}
+                Apply(Select(loop(a),method),List(loop(b)))
+              case Apply(Select(a,op),List(b)) if Set("+","-","*","/","%")(op.decodedName.toString)=>
+                Apply(Select(loop(a),op),List(loop(b)))
+              case Select(a,op) if op.decodedName.toString=="unary_-"=>
+                Apply(Select(loop(Literal(Constant(0))),TermName("$minus")),List(loop(a)))
+              case Apply(Select(a,op),Nil) if op.decodedName.toString=="unary_-"=>
+                Apply(Select(loop(Literal(Constant(0))),TermName("$minus")),List(loop(a)))
+              case Select(a,op) if Set("pow2","log2Up","addressWidth")(op.decodedName.toString)=>Select(loop(a),op)
+              case Apply(Select(a,op),Nil) if Set("pow2","log2Up","addressWidth")(op.decodedName.toString)=>Select(loop(a),op)
+              case call:Apply=>
+                if(call.fun.exists(_.isInstanceOf[This]))return reject(call,"helper receiver must be a source-owned object path")
+                val name=path(call.fun).filterNot(_=="_root_")
+                val rooted=path(call.fun).headOption.contains("_root_")
+                val shadowed= !rooted && name.headOption.exists(n=>env.contains(n) ||
+                  (calls.isEmpty && (members.contains(n) || schema.fields.exists(_.name.decodedName.toString==n))))
+                val local=(if(rooted)Vector(name)else owner.inits.map(_++name).toVector)
+                  .find(sourceHelpers.contains)
+                val imported=Option(helperImports.get(call)).toVector.flatten.flatMap { candidate=>
+                  (owner.inits.map(_++candidate).toVector :+ candidate).find(sourceHelpers.contains)
+                }.distinct
+                val found=if(shadowed || (local.isEmpty && imported.size>1))Nil else (if(local.nonEmpty)local.toList else imported.toList)
+                found.headOption match {
+                  case Some(key) if !calls(key) && sourceHelpers(key).size==1 && helperObjects.contains(key.init)=>
+                    val obj=helperObjects(key.init)
+                    val pureObject=obj.impl.parents.forall(p=>Set("AnyRef","scala.AnyRef","Object","java.lang.Object")(path(p).mkString("."))) &&
+                      obj.impl.body.forall {
+                        case d:DefDef=>true
+                        case _:Import=>true
+                        case v:ValDef=> !v.mods.hasFlag(Flag.MUTABLE) && !v.mods.hasFlag(Flag.LAZY) && constant(v.rhs).nonEmpty &&
+                          (v.tpt.isEmpty || Option(recognizedKinds.get(v.tpt)).contains("Int"))
+                        case _=>false
+                      }
+                    if(!pureObject) return reject(call,"helper object has unsupported initialization or inheritance")
+                    val helper=sourceHelpers(key).head
+                    val params=helper.vparamss.flatten
+                    if(helper.tparams.nonEmpty || helper.vparamss.size!=1 || params.size!=call.args.size ||
+                      (helper.tpt.nonEmpty && !Option(recognizedKinds.get(helper.tpt)).exists(Set("Int","ElabInt"))) ||
+                      params.exists(p=>p.mods.hasFlag(Flag.IMPLICIT) || !Option(recognizedKinds.get(p.tpt)).exists(Set("Int","ElabInt"))))
+                      reject(call,"helper needs one explicit immutable integer argument list")
+                    else arithmetic(helper.rhs,params.map(_.name.decodedName.toString).zip(call.args.map(loop)).toMap,key.init,calls+key)
+                  case _=>reject(call,"helper must have a unique nonrecursive source body")
+                }
+              case Block(stats,result)=>
+                var locals=env
+                stats.foreach {
+                  case v:ValDef if !v.mods.hasFlag(Flag.MUTABLE) && !v.mods.hasFlag(Flag.LAZY) &&
+                    (v.tpt.isEmpty || Option(recognizedKinds.get(v.tpt)).exists(Set("Int","ElabInt")))=>
+                    locals+=v.name.decodedName.toString -> arithmetic(v.rhs,locals,owner,calls)
+                  case other=>reject(other,"helper blocks admit immutable arithmetic values only")
+                }
+                arithmetic(result,locals,owner,calls)
+              case _=>reject(t,"expected immutable integer fields, arithmetic or a pure source helper")
+            }
+          }
+          val result=hostInteger(field.rhs).map(n=>Apply(Select(core("ElabInt"),TermName("literal")),List(Literal(Constant(n)))):Tree)
+            .getOrElse(arithmetic(field.rhs,Map.empty,schema.owner.init,Set.empty))
+          derivedExpressions.put(field,result);result
+        }
+      }
       def retainConfiguration(schema: ConfigSchema, seen: Set[List[String]]): Unit = {
         if (seen(schema.owner)) {
           reporter.error(schema.definition.pos,"MORPHDL-CONFIG-CYCLE: cyclic configuration shapes are unsupported")
@@ -291,11 +446,25 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
             cls.impl.body.exists {
               case _: TypeDef => true
               case d: DefDef => d.name!=termNames.CONSTRUCTOR
-              case v: ValDef => !v.mods.hasFlag(Flag.PARAMACCESSOR)
+              case v: ValDef => !v.mods.hasFlag(Flag.PARAMACCESSOR) &&
+                (v.mods.hasFlag(Flag.MUTABLE) || v.mods.hasFlag(Flag.LAZY))
               case _: Import => false
+              case call:Apply if canonicalConfigurationRequires.containsKey(call) && path(call.fun).lastOption.contains("require") &&
+                (call.args.size==1 || (call.args.size==2 && call.args(1).isInstanceOf[Literal]))=>false
               case _ => true
             }) reporter.error(cls.pos,
-          "MORPHDL-CONFIG-SHAPE-UNSUPPORTED: use an immutable constructor-only case class or class with public val fields; mutable, lazy, effectful or computed members are unsupported")
+          "MORPHDL-CONFIG-SHAPE-UNSUPPORTED: use an immutable constructor-only case class or class with public val fields; mutable, lazy or effectful members are unsupported; derived values require authenticated integer expressions")
+        cls.impl.body.collect {case v:ValDef if !v.mods.hasFlag(Flag.PARAMACCESSOR)=>v}.foreach { v=>
+          if(v.tpt.nonEmpty && !Option(recognizedKinds.get(v.tpt)).exists(Set("Int","ElabInt")))
+            reporter.error(v.pos,"MORPHDL-CONFIG-DERIVED-UNSUPPORTED: derived fields require native integer types")
+          derived(schema,v)
+        }
+        cls.impl.body.foreach {
+          case call:Apply if canonicalConfigurationRequires.containsKey(call) && path(call.fun).lastOption.contains("require") && call.args.nonEmpty=>
+            val condition=ValDef(Modifiers(),TermName("configuration_requirement"),EmptyTree,call.args.head).setPos(call.pos)
+            configurationRequirements.put(call,derived(schema,condition,predicate=true))
+          case _=>
+        }
         schema.fields.foreach(field=>configuration(field.tpt,schema.owner.init)
           .filter(containsParameters(_)).foreach(retainConfiguration(_,seen+schema.owner)))
       }
@@ -332,6 +501,13 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
               case field: ValDef if field.mods.hasFlag(Flag.PARAMACCESSOR) && parameterType(field.tpt).nonEmpty =>
                 val(k,optional)=parameterType(field.tpt).get
                 treeCopy.ValDef(field,field.mods,field.name,wrapper(k,optional),transform(field.rhs))
+              case field:ValDef if derivedExpressions.containsKey(field) && hostInteger(field.rhs).isEmpty=>
+                treeCopy.ValDef(field,field.mods,field.name,coreType("ElabInt"),derivedExpressions.get(field).duplicate)
+              case call:Apply if configurationRequirements.containsKey(call)=>
+                Apply(Select(core("ElabControl"),TermName("requireCondition")),List(
+                  configurationRequirements.get(call).duplicate) ++ call.args.drop(1).map(_.duplicate) ++ List(
+                  Literal(Constant(Option(call.pos.source).map(_.file.name).getOrElse("configuration"))),
+                  Literal(Constant(if(call.pos.isDefined)call.pos.line else 0))))
               case other=>other
             }
             super.transform(treeCopy.ClassDef(cls,cls.mods,cls.name,cls.tparams,
@@ -353,14 +529,38 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
               .filter(schema=>configClasses(schema.definition)).map(p -> _))
             val configActuals=scala.collection.mutable.LinkedHashMap.empty[TermName,Tree]
             val configPaths=scala.collection.mutable.LinkedHashMap.empty[List[String],TermName]
+            val configDerivedPaths=scala.collection.mutable.LinkedHashMap.empty[List[String],TermName]
             val specializationPaths=scala.collection.mutable.ArrayBuffer.empty[List[String]]
             val origins=scala.collection.mutable.LinkedHashMap.empty[TermName,String]
             val configParameters=scala.collection.mutable.ArrayBuffer.empty[ValDef]
+            val configConstraints=scala.collection.mutable.ArrayBuffer.empty[Tree]
             def selectPath(names:List[String]):Tree=names.tail.foldLeft[Tree](Ident(TermName(names.head))) {
               case (base,name)=>Select(base,TermName(name))
             }
             def collect(schema:ConfigSchema,prefix:List[String],seen:Set[List[String]]):Unit={
               if(seen(schema.owner))return
+              schema.definition.impl.body.collect {
+                case field:ValDef if derivedExpressions.containsKey(field) && hostInteger(field.rhs).isEmpty=>field
+              }.foreach { field=>
+                configDerivedPaths(prefix :+ field.name.decodedName.toString)=TermName(unit.fresh.newName("derived_" + (prefix :+ field.name.decodedName.toString).mkString("_") + "_"))
+              }
+              val roots=schema.fields.map(_.name).toSet
+              schema.definition.impl.body.foreach { call=>
+                if(configurationRequirements.containsKey(call)) {
+                  object QualifyConstraint extends Transformer {
+                    override def transform(t:Tree):Tree=t match {
+                      case read @ Select(a,_) if read.attachments.get[ConfigurationValueAccess].nonEmpty=>transform(a)
+                      case Apply(Select(factory,n),List(value:Literal)) if path(factory)==List("_root_","spinal","core","ElabInt") && n.decodedName.toString=="literal"=>value
+                      case Ident(n) if roots(n.toTermName)=>Select(selectPath(prefix),n)
+                      case _=>super.transform(t)
+                    }
+                  }
+                  val condition=QualifyConstraint.transform(configurationRequirements.get(call).duplicate)
+                  val requireFun=Select(Select(Select(Ident(termNames.ROOTPKG),TermName("scala")),TermName("Predef")),TermName("require"))
+                  val requirement=Apply(requireFun,List(condition) ++ call.asInstanceOf[Apply].args.drop(1).map(_.duplicate)).setPos(call.pos)
+                  copiedRequires.put(requirement,true);configConstraints+=requirement
+                }
+              }
               schema.fields.foreach { field=>
                 val location=prefix :+ field.name.decodedName.toString
                 parameterType(field.tpt) match {
@@ -403,11 +603,21 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
                   try body finally nestedOwners=saved
                 }
                 private def scoped[A](names:Set[Name])(body: => A):A={val saved=hidden;hidden++=names;try body finally hidden=saved}
+                private def configurationPath(tree:Tree):List[String]=tree match {
+                  case Ident(n)=>List(n.decodedName.toString)
+                  case Select(th:This,n) if (th.qual==global.typeNames.EMPTY && nestedOwners.isEmpty) ||
+                    (th.qual==cls.name && !nestedOwners(th.qual.decodedName.toString))=>List(n.decodedName.toString)
+                  case Select(_:This,_)=>Nil
+                  case Select(q,n)=>val prefix=configurationPath(q);if(prefix.nonEmpty)prefix :+ n.decodedName.toString else Nil
+                  case _=>Nil
+                }
                 override def transform(tree:Tree):Tree={
                   val result=tree match {
                     case same if same eq untouched=>same
-                    case access if configPaths.contains(path(access)) && !hidden(TermName(path(access).head)) =>
-                      Ident(mapping(configPaths(path(access)))).setPos(access.pos)
+                    case access if configDerivedPaths.contains(configurationPath(access)) && !hidden(TermName(configurationPath(access).head))=>
+                      Ident(configDerivedPaths(configurationPath(access))).setPos(access.pos)
+                    case access if configPaths.contains(configurationPath(access)) && !hidden(TermName(configurationPath(access).head)) =>
+                      Ident(mapping(configPaths(configurationPath(access)))).setPos(access.pos)
                     case Ident(n) if configAliases.contains(n.toTermName) && !hidden(n)=>Ident(configAliases(n.toTermName)).setPos(tree.pos)
                     case Ident(n) if mapping.contains(n.toTermName) && !hidden(n)=>Ident(mapping(n.toTermName)).setPos(tree.pos)
                     case Select(th:This,n) if mapping.contains(n.toTermName) &&
@@ -436,7 +646,7 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
                       } else super.transform(tree)
                     case _=>super.transform(tree)
                   }
-                  if(builtinRequire(tree))copiedRequires.put(result,true)
+                  if(builtinRequire(tree) || copiedRequires.containsKey(tree))copiedRequires.put(result,true)
                   result
                 }
               }
@@ -488,14 +698,18 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
                 ValDef(Modifiers(Flag.PRIVATE),configAliases(parameter.name),parameter.tpt,
                   rebuild(schema,parameter.tpt,List(parameter.name.decodedName.toString),Set.empty))
               }
-              val body=cls.impl.body.flatMap {
+              val derivedAliases=configDerivedPaths.toList.map { case (location,name)=>
+                val value=selectPath(configAliases(TermName(location.head)).decodedName.toString :: location.tail)
+                ValDef(Modifiers(Flag.PRIVATE),name,coreType("ElabInt"),value)
+              }
+              val body=(cls.impl.body ++ configConstraints.toList).flatMap {
                 case ctor:DefDef if ctor.name==termNames.CONSTRUCTOR=>
                   val lists=ctor.vparamss.map(_.map { p=>ownedByName.get(p.name) match {
                     case Some(source)=>val(k,opt)=parameterType(source.tpt).get
                       treeCopy.ValDef(p,p.mods,p.name,wrapper(k,opt),p.rhs)
                     case None=>p
                   }})
-                  List(treeCopy.DefDef(ctor,ctor.mods,ctor.name,ctor.tparams,lists,ctor.tpt,ctor.rhs))++declarations++rebound
+                  List(treeCopy.DefDef(ctor,ctor.mods,ctor.name,ctor.tparams,lists,ctor.tpt,ctor.rhs))++declarations++rebound++derivedAliases
                 case field:ValDef if field.mods.hasFlag(Flag.PARAMACCESSOR) && ownedByName.contains(field.name)=>
                   val(k,opt)=parameterType(ownedByName(field.name).tpt).get
                   List(treeCopy.ValDef(field,field.mods,field.name,wrapper(k,opt),field.rhs))
@@ -553,7 +767,7 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
                 bounds += key -> (op.decodedName.toString match {
                   case ">=" => (lo.max(value),hi);case ">" => (lo.max(value+1),hi)
                   case "<=" => (lo,hi.min(value));case "<" => (lo,hi.min(value-1))
-                  case "==" => (lo.max(value),hi.min(value));case _ => (lo,hi)
+                  case "==" | "elabEq" => (lo.max(value),hi.min(value));case _ => (lo,hi)
                 })
               case Apply(Select(Ident(name),op),List(rhs @ Ident(limit)))
                   if bounds.contains(name.decodedName.toString) && constructorLimits(limit.decodedName.toString) =>
@@ -567,7 +781,7 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
                   case ">" => (lower :+ increment,upper)
                   case "<=" => (lower,upper :+ bound)
                   case "<" => (lower,upper :+ decrement)
-                  case "==" => (lower :+ bound,upper :+ bound)
+                  case "==" | "elabEq" => (lower :+ bound,upper :+ bound)
                   case _ => (lower,upper)
                 })
               case _ =>

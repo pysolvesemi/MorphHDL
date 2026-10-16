@@ -798,6 +798,16 @@
       "morphhdl.CounterSingleAuthorityParityTests": [
         "typed Counter specializations match independent concrete policy matrices"
       ],
+      "morphhdl.DerivedConfigurationParameterTests": [
+        "nested derived fields retain symbolic geometry, overrides and deterministic output",
+        "distinct defaults use the same symbolic derivation",
+        "shared configuration instances rebind independently through nested paths",
+        "parent child bindings preserve symbolic derivations and cross-field guards",
+        "recursive bindings recompute derived term geometry on non-default overrides",
+        "derived widths must be legal across the domain, not just at the default",
+        "configuration requirements retain domains and cross-field override guards",
+        "derived array geometry and loop bounds retain symbolic overrides"
+      ],
       "morphhdl.DescendingPriorityProcessTests": [
         "ordered priority retains coherent array and packed outputs descending=false unpacked=false",
         "ordered priority retains coherent array and packed outputs descending=false unpacked=true",
@@ -3852,7 +3862,26 @@
         "configuration schemas across files reverse=false",
         "configuration schemas across files reverse=true",
         "configuration and component constructor defaults retain typed actuals",
-        "root-qualified configuration types ignore same-named relative schemas"
+        "root-qualified configuration types ignore same-named relative schemas",
+        "derived configuration fields and pure source helpers rebind owned roots",
+        "derived configuration rejects val a=b+1;val b=a+1",
+        "derived configuration rejects val a={println(1);count+1}",
+        "derived configuration rejects val a=Unknown.width(count)",
+        "derived configuration rejects lazy val a=count+1",
+        "derived configuration rejects var a=count+1",
+        "derived helper cannot access mutable globals or recurse",
+        "ordinary literal members keep Scala specialization types",
+        "helper qualification respects local shadows and root ownership",
+        "helper aliases across files retain source ownership",
+        "configuration requirements establish owned domains without default inference",
+        "helper initialization and inherited behavior cannot be hidden by inlining",
+        "foreign integer helper signatures cannot borrow native arithmetic authority",
+        "shadowed require cannot authorize configuration domains",
+        "configuration equality constraints establish singleton domains",
+        "a configuration field named value is distinct from its authenticated wrapper read",
+        "explicit foreign field and local types cannot conceal effectful conversions",
+        "derived fields reject outer-this reads instead of capturing same-named local roots",
+        "own-this derived fields and component accesses preserve lexical ownership"
       ],
       "morphhdl.compiler.ConstructorParameterSyntaxTests": [
         "constructor-only formals accept renamed imports named defaults and Int actuals",
@@ -4428,6 +4457,7 @@
     "morphhdl/src/test/scala/morphhdl/ConstantAggregateTests.scala": "3857dfc8a220a698f16a8e96da68503c945786599e1c15c75d7d5516e02b2818",
     "morphhdl/src/test/scala/morphhdl/ConstructorParameterTests.scala": "5291cd053ea1a78f6817527426177a4990948560634df2ca2b1084bb413afd74",
     "morphhdl/src/test/scala/morphhdl/CorrelatedVecPublicationTests.scala": "bf05989f87340b3adf5736aaa616f381f62ec1520eb3fce7b3593fd28edf4b91",
+    "morphhdl/src/test/scala/morphhdl/DerivedConfigurationParameterTests.scala": "e59ef3ca9b8005f6c6503ea09f3dd9974e88ed22cee93b9fdfd5b210f4aeb549",
     "morphhdl/src/test/scala/morphhdl/DerivedWidthContractFixture.scala": "76d8cecf59436f684baac6dea2c09b6c5add58b721dc48daf37162fe882140d9",
     "morphhdl/src/test/scala/morphhdl/DescendingPriorityProcessTests.scala": "55610b85ccadb4ebf82e40d0784c69b61b70aa8b4fe863963e8d953dc9be7e83",
     "morphhdl/src/test/scala/morphhdl/ElabVecSelectionTests.scala": "a264d270078bfa6d5f6ccc8cc29304406382ef3a588ce6c0f33496c1afabc9c4",
@@ -4753,7 +4783,7 @@
     "morphhdl/src/test/scala/spinal/lib/CounterSingleAuthorityParityTests.scala": "9eedbe0f3ce7a457d4c79ab2c9fc3aa1cb02c932436bc76d30d8ada2ca6780f5",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala": "24b185c3ef7939be404500704e955d598c2493ee7c3a1f737d0cf16267d9c362",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrV1Spec.scala": "835224bc5028bc192976dd96e08906add489d4824d328397466a7e4dd7f31493",
-    "morphplugin/src/test/scala/morphhdl/compiler/ConfigurationParameterSyntaxTests.scala": "d946eec6ab6a59d9faaadbf3646a9b6255773512982f076f9cd290414d2c39af",
+    "morphplugin/src/test/scala/morphhdl/compiler/ConfigurationParameterSyntaxTests.scala": "61dfd3c95626f5e01eaa6ac6d09b4d6161e1fd556f1e6be4deaecc2b1c6d2b24",
     "morphplugin/src/test/scala/morphhdl/compiler/ConstructorParameterSyntaxTests.scala": "ca45bf6806815f8697baa50acf2d2bb0090f9bd1cdf858476d85b2d59b263b33",
     "morphplugin/src/test/scala/morphhdl/compiler/DirectRecursiveSyntaxTests.scala": "583a6a612a15cfc4b80c1fa9a613314c4917c77db7ccadb35b60851c40d3815a",
     "morphplugin/src/test/scala/morphhdl/compiler/InferredParameterSyntaxTests.scala": "d7c7badff17f887b6ff23690e241072b4c059faec9c6abc47f3d19d0081aa943",

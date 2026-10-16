@@ -10,13 +10,15 @@ package spinal.core {
  class rtlParamName(val name:String) extends scala.annotation.StaticAnnotation
  trait Param[T]
  object Param {def apply(n:Int):ElabInt=new ElabInt}
- class ElabInt {def >=(n:Int):ElabBool=new ElabBool;def <=(n:Int):ElabBool=new ElabBool;def +(n:Int):ElabInt=this}
+ class ElabInt {def elabEq(n:ElabInt):ElabBool=new ElabBool;def elabEq(n:Int):ElabBool=new ElabBool;def >=(n:ElabInt):ElabBool=new ElabBool;def <=(n:ElabInt):ElabBool=new ElabBool;def pow2:ElabInt=this; def *(n:ElabInt):ElabInt=this;def +(n:ElabInt):ElabInt=this;def >=(n:Int):ElabBool=new ElabBool;def <=(n:Int):ElabBool=new ElabBool;def +(n:Int):ElabInt=this}
  class ElabBool {def &&(b:ElabBool):ElabBool=this}
  object ConstructorParam {
+   def integer(v:Int):ElabInt=new ElabInt;def integer(v:ElabInt):ElabInt=v
    class Integer(val value:ElabInt)
    object Integer {implicit def literal(v:Int):Integer=new Integer(new ElabInt);implicit def symbolic(v:ElabInt):Integer=new Integer(v)}
  }
  object RtlParam {def inferredInt(name:String,n:ElabInt,lo:BigInt,hi:BigInt):ElabInt=n}
+ object ElabInt {def literal(n:Int):ElabInt=new ElabInt}
  object ElabControl {
    def requireCondition(p:ElabBool,file:String,line:Int):Unit=()
    def localValue[T](value:T,name:String):T=value
@@ -170,6 +172,152 @@ package spinal.core {
         object Calls {val child=new Child(_root_.models.Config(4))}
       }
     """)
+    assert(errors.isEmpty,errors.mkString("\n"))
+  }
+
+  test("derived configuration fields and pure source helpers rebind owned roots") {
+    val errors=check("""package probe {import spinal.core._
+      object Layout {def width(a:ElabInt,b:ElabInt):ElabInt={val c=a+7;c+b+1}}
+      case class Video(count:Param[Int]) {val capacity=count.pow2+1;val next=capacity+2}
+      case class Config(video:Video) {val bits=Layout.width(video.count,video.next)}
+      class Child(c:Config) extends Component {
+        require(c.video.count>=1 && c.video.count<=8)
+        val result:ElabInt=c.bits
+      }
+      object Calls {val root=new Child(Config(Video(4)))}
+    }""")
+    assert(errors.isEmpty,errors.mkString("\n"))
+  }
+  for((body,diagnostic)<-Seq(
+    "val a=b+1;val b=a+1" -> "cyclic",
+    "val a={println(1);count+1}" -> "immutable",
+    "val a=Unknown.width(count)" -> "source body",
+    "lazy val a=count+1" -> "CONFIG-SHAPE",
+    "var a=count+1" -> "CONFIG-SHAPE"))
+    test("derived configuration rejects "+body) {
+      val errors=check(s"""package probe {import spinal.core._
+        case class Config(count:Param[Int]) {$body}
+        class Child(c:Config) extends Component {require(c.count>=1 && c.count<=8)}
+      }""")
+      assert(errors.exists(_.message.contains(diagnostic)),errors.mkString("\n"))
+    }
+  test("derived helper cannot access mutable globals or recurse") {
+    for(body<-Seq("global+v","width(v)")) {
+      val errors=check(s"""package probe {import spinal.core._
+        object Layout {var global:ElabInt=new ElabInt;def width(v:ElabInt):ElabInt=$body}
+        case class Config(count:Param[Int]) {val bits=Layout.width(count)}
+        class Child(c:Config) extends Component {require(c.count>=1 && c.count<=8)}
+      }""")
+      assert(errors.exists(_.message.contains("CONFIG-DERIVED-UNSUPPORTED")),errors.mkString("\n"))
+    }
+  }
+
+  test("ordinary literal members keep Scala specialization types") {
+    val errors=check("""package probe {import spinal.core._
+      case class Config(count:Param[Int]) {val ordinary=7;val bits=count+ordinary}
+      class Child(c:Config) extends Component {require(c.count>=1 && c.count<=8);val selected:Int=c.ordinary}
+    }""")
+    assert(errors.isEmpty,errors.mkString("\n"))
+  }
+  test("helper qualification respects local shadows and root ownership") {
+    val errors=check("""package probe {import spinal.core._
+      object Layout {def width(v:ElabInt):ElabInt=v+1}
+      case class Config(count:Param[Int],Layout:Int) {val bits=Layout.width(count)}
+      class Child(c:Config) extends Component {require(c.count>=1 && c.count<=8)}
+    }""")
+    assert(errors.exists(_.message.contains("CONFIG-DERIVED-UNSUPPORTED")),errors.mkString("\n"))
+  }
+  test("helper aliases across files retain source ownership") {
+    val schema="""package probe {import spinal.core._;import helpers.{Layout=>Shape}
+      case class Config(count:Param[Int]) {val bits=Shape.width(count)}
+      class Child(c:Config) extends Component {require(c.count>=1 && c.count<=8)}
+    }"""
+    val helper="""package helpers {import spinal.core._;object Layout {def width(n:ElabInt):ElabInt=n+1}}"""
+    for(reverse<-Seq(false,true)) {
+      val sources=List("Definitions.scala"->definitions,"Schema.scala"->schema,"Helper.scala"->helper)
+      val ordered=if(reverse)sources.reverse else sources
+      val errors=compile(ordered.head._2,ordered.head._1,ordered.tail)
+      assert(errors.isEmpty,errors.mkString("\n"))
+    }
+  }
+
+  test("configuration requirements establish owned domains without default inference") {
+    val errors=check("""package probe {import spinal.core._
+      case class Config(count:Param[Int]) {require(count>=1 && count<=8);val bits=count+1}
+      class Child(c:Config) extends Component {val result:ElabInt=c.bits}
+      object Calls {val child=new Child(Config(4))}
+    }""")
+    assert(errors.isEmpty,errors.mkString("\n"))
+  }
+
+  test("helper initialization and inherited behavior cannot be hidden by inlining") {
+    for(body<-Seq("println(1)","var secret=1","val secret={println(1);2}")) {
+      val errors=check(s"""package probe {import spinal.core._
+        object Layout {$body;def width(v:ElabInt):ElabInt=v+1}
+        case class Config(count:Param[Int]) {val bits=Layout.width(count)}
+        class Child(c:Config) extends Component {require(c.count>=1 && c.count<=8)}
+      }""")
+      assert(errors.exists(_.message.contains("CONFIG-DERIVED-UNSUPPORTED")),errors.mkString("\n"))
+    }
+  }
+  test("foreign integer helper signatures cannot borrow native arithmetic authority") {
+    val errors=check("""package probe {import spinal.core._
+      object Layout {class ElabInt;def width(v:ElabInt):ElabInt=v}
+      case class Config(count:Param[Int]) {val bits=Layout.width(count)}
+      class Child(c:Config) extends Component {require(c.count>=1 && c.count<=8)}
+    }""")
+    assert(errors.exists(_.message.contains("CONFIG-DERIVED-UNSUPPORTED")),errors.mkString("\n"))
+  }
+  test("shadowed require cannot authorize configuration domains") {
+    val errors=check("""package probe {import spinal.core._
+      case class Config(count:Param[Int]) {
+        def require(v:Boolean):Unit=();require(true);val bits=count+1
+      }
+      class Child(c:Config) extends Component {val result:ElabInt=c.bits}
+    }""")
+    assert(errors.exists(_.message.contains("CONFIG-SHAPE-UNSUPPORTED")),errors.mkString("\n"))
+  }
+
+  test("configuration equality constraints establish singleton domains") {
+    val errors=check("""package probe {import spinal.core._
+      case class Config(count:Param[Int]) {require(count==4);val bits=count+1}
+      class Child(c:Config) extends Component {val result:ElabInt=c.bits}
+    }""")
+    assert(errors.isEmpty,errors.mkString("\n"))
+  }
+
+  test("a configuration field named value is distinct from its authenticated wrapper read") {
+    val errors=check("""package probe {import spinal.core._
+      case class Inner(value:Param[Int]) {require(value>=1 && value<=4);val bits=value+1}
+      case class Config(value:Inner) {val bits=value.bits+1}
+      class Child(c:Config) extends Component {val result:ElabInt=c.bits}
+    }""")
+    assert(errors.isEmpty,errors.mkString("\n"))
+  }
+
+  test("explicit foreign field and local types cannot conceal effectful conversions") {
+    val errors=check("""package probe {import spinal.core._
+      class Foreign
+      case class Config(count:Param[Int]) {val hidden:Foreign=1;val bits=count+1}
+      class Child(c:Config) extends Component {require(c.count>=1 && c.count<=8)}
+    }""")
+    assert(errors.exists(_.message.contains("CONFIG-DERIVED-UNSUPPORTED")),errors.mkString("\n"))
+  }
+
+  test("derived fields reject outer-this reads instead of capturing same-named local roots") {
+    val errors=check("""package probe {import spinal.core._
+      class Outer(val count:Int) {
+        case class Config(count:Param[Int]) {val bits=Outer.this.count+1}
+        class Child(c:Config) extends Component {require(c.count>=1 && c.count<=8)}
+      }
+    }""")
+    assert(errors.exists(_.message.contains("CONFIG-DERIVED-UNSUPPORTED")),errors.mkString("\n"))
+  }
+  test("own-this derived fields and component accesses preserve lexical ownership") {
+    val errors=check("""package probe {import spinal.core._
+      case class Config(count:Param[Int]) {require(count>=1 && count<=4);val bits=this.count+1}
+      class Child(c:Config) extends Component {val result:ElabInt=this.c.bits}
+    }""")
     assert(errors.isEmpty,errors.mkString("\n"))
   }
 
