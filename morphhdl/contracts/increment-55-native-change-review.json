@@ -217,7 +217,7 @@
         },
         {
           "id": "lightweight-bits-scoped-bit",
-          "kind": "typed-overload",
+          "kind": "overload",
           "owner": "spinal.core.Bits.apply(ElabScopedIndex)",
           "reason": "Delegate scoped bit access to the authenticated index without hardware conversion or witness extraction.",
           "required_exact_text": [
