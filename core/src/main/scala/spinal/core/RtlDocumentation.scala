@@ -151,6 +151,14 @@ object RtlDocumentation {
     if (enabled && content.nonEmpty) {
       val tag = new RtlDocTag(content, origin, location)
       value match {
+        // An alias does not acquire the declaration ownership of the returned
+        // port. Keep inferred use-site prose on the immediate child instance,
+        // outside its reusable definition and port documentation signature.
+        case data: Data if automatic && Component.current != null &&
+            (data.component ne Component.current) =>
+          val owner = data.component
+          if (owner != null && (owner.parent eq Component.current) &&
+              data.flatten.nonEmpty && data.flatten.forall(_.isOutput)) owner.addTag(tag)
         case c: Component if definition => c.definition.addTag(tag)
         case data: MultiData =>
           data.spinalTags += tag

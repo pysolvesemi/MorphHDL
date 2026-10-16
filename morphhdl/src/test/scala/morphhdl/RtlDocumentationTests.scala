@@ -212,6 +212,68 @@ class RtlDocumentationTests extends AnyFunSuite {
     assert(!both.contains("Scala-only comment") && !both.contains("not a comment"), both)
   }
 
+  class AliasDocumentedChild(actual: ElabInt) extends Component {
+    val WIDTH = RtlParam.int("WIDTH", actual, 1, 16)
+    val x = in Bits(WIDTH bits)
+    // Child-authored output contract
+    val y = out Bits(WIDTH bits)
+    y := x
+  }
+  class AliasDocumentationTop extends Component {
+    setDefinitionName("Top")
+    val WIDTH = RtlParam.int("WIDTH", 8, 1, 16)
+    val x = in Bits(WIDTH bits)
+    val y, z = out Bits(WIDTH bits)
+    val direct = new AliasDocumentedChild(WIDTH)
+    direct.x := x
+    def output(): Bits = {
+      val child = new AliasDocumentedChild(WIDTH)
+      child.x := x
+      child.y
+    }
+    // Parent direct use explanation
+    val directAlias = direct.y
+    // Parent helper use explanation
+    val helperAlias = output()
+    y := directAlias
+    z := helperAlias
+  }
+  test("automatic parent alias notes stay on instances and preserve shared child port documentation") {
+    val plain = emit(morph = true)(new AliasDocumentationTop)
+    val documented = emit(morph = true, auto = true)(new AliasDocumentationTop)
+    assert(tokens(plain) == tokens(documented), documented)
+    val modules = "(?s)module .*?endmodule".r.findAllIn(documented).toVector
+    val parent = modules.find(_.startsWith("module Top")).get
+    val children = modules.filter(_.startsWith("module AliasDocumentedChild"))
+    assert(children.size == 1, documented)
+    for (note <- Seq("Parent direct use explanation", "Parent helper use explanation")) {
+      assert(parent.contains(note), documented)
+      assert(!children.head.contains(note), documented)
+      assert(documented.sliding(note.length).count(_ == note) == 1, documented)
+    }
+    assert(children.head.contains("Child-authored output contract"), documented)
+    assert(!parent.contains("Child-authored output contract"), documented)
+  }
+
+  test("automatic aliases cannot document foreign inputs while explicit port documentation remains intentional") {
+    val rtl = emit(morph = true, auto = true)(new Component {
+      setDefinitionName("Top")
+      val WIDTH = RtlParam.int("WIDTH", 8, 1, 16)
+      val x = in Bits(WIDTH bits)
+      val y = out Bits(WIDTH bits)
+      val child = new AliasDocumentedChild(WIDTH)
+      child.x := x
+      // Not an owned input declaration
+      val inputAlias = child.x
+      child.y.doc("Explicit child output contract")
+      y := child.y
+    })
+    assert(!rtl.contains("Not an owned input declaration"), rtl)
+    val child = "(?s)module AliasDocumentedChild.*?endmodule".r.findFirstIn(rtl).get
+    assert(child.contains("Explicit child output contract"), rtl)
+    assert(child.contains("Child-authored output contract"), rtl)
+  }
+
   class Regions(documented: Boolean, width: ElabInt) extends Component {
     setDefinitionName("Top")
     val enable = in Bool()
