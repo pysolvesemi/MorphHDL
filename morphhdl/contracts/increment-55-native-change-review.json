@@ -1225,7 +1225,7 @@
       "introduced_by": [
         "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
       ],
-      "reason": "Define optional typed documentation metadata, configuration, identity-preserving APIs, exception-safe regions, declaration publication and exact relocation envelopes. Decode optional source coordinates in the metadata owner while preserving valid and malformed location behavior; the canonical producer consumes typed coordinates without parsing source text. Store region notes in elaboration-owned identity metadata with concrete default accessors, preserving binary compatibility of existing Statement implementations and empty scope construction outside elaboration.",
+      "reason": "Define optional typed documentation metadata, configuration, identity-preserving APIs, exception-safe regions, declaration publication and exact relocation envelopes. Decode optional source coordinates in the metadata owner while preserving valid and malformed location behavior; the canonical producer consumes typed coordinates without parsing source text. Store region notes in elaboration-owned identity metadata with concrete default accessors, preserving binary compatibility of existing Statement implementations and empty scope construction outside elaboration. LWR-17: route automatically captured parent aliases of exact immediate-child output identities to the instance use-site; preserve child-authored and explicit port documentation and reusable child signatures. Ignore automatic aliases to foreign inputs rather than mutating their declaration metadata.",
       "baseline_path": null,
       "edits": []
     },
