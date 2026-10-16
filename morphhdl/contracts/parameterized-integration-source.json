@@ -120,7 +120,7 @@
     },
     ".github/workflows/morphhdl-external-structural-process.yml": {
       "mode": "100644",
-      "sha256": "77aae3d7d1e260928c4daf4785f130e01d36d68618addce9063e2c47e5be6a08"
+      "sha256": "9ccc4924a995be853e16263e85104ef722d5f2f590b4626d87995356ddd6ed88"
     },
     ".github/workflows/morphhdl-external-symbolic-width.yml": {
       "mode": "100644",
@@ -421,6 +421,14 @@
     "docs/morphhdl/lightweight-scala-rtl/source-inventory.md": {
       "mode": "100644",
       "sha256": "7473bc8afde8d532bc123ee078c63dd4fbdca32151b30a2d0c2a91e97fe40b2f"
+    },
+    "docs/morphhdl/lightweight-scala-rtl/structural-switch-registers-receipt.json": {
+      "mode": "100644",
+      "sha256": "623475f16ef8e4b63c24ce0f977c56c40420d496eab306f027a156f806590d1f"
+    },
+    "docs/morphhdl/lightweight-scala-rtl/structural-switch-registers.md": {
+      "mode": "100644",
+      "sha256": "5ebfd782a3f92b1822a26977e483c930c607051d5c160b9cfe8e3f0e3658fa50"
     },
     "docs/morphhdl/lightweight-scala-rtl/toolchain.md": {
       "mode": "100644",
@@ -886,7 +894,7 @@
     },
     "morphhdl/contracts/retained-parameterized-regressions.json": {
       "mode": "100644",
-      "sha256": "0adca4628ad9011318e9cef93f66116312a769cc98b43139eab86263e17ac783"
+      "sha256": "927f27020ee7e1b78d19c7818db9e3359d705172e4ed4b82c79dd91b01db91a9"
     },
     "morphhdl/examples/contracts/symbolic_data_shapes.v": {
       "mode": "100644",
@@ -982,7 +990,7 @@
     },
     "morphhdl/scripts/check-retained-parameterized-regressions.py": {
       "mode": "100644",
-      "sha256": "78da026d04bcf9fbd3a19010b25559fc1a557d033addd871922489f2abe7ffae"
+      "sha256": "18a2b01cb04d9772bd94903784ef5c3c2741fac4a1ad6247d22c4f3c0f2bbe45"
     },
     "morphhdl/scripts/check-symbolic-recursive-width.py": {
       "mode": "100644",
@@ -1663,6 +1671,10 @@
       "mode": "100644",
       "sha256": "0a51fcfe3224445d21c886de0980e47b0fd13aef859a9de0d921637d4e72f24c"
     },
+    "morphhdl/src/test/scala/morphhdl/StructuralSwitchRegisterTests.scala": {
+      "mode": "100644",
+      "sha256": "7a76472e7b57274e9cbe000a97e18e1f9a8fd3105efdaf49f90375f89fd4cf26"
+    },
     "morphhdl/src/test/scala/morphhdl/SymbolicArrayGeometryTests.scala": {
       "mode": "100644",
       "sha256": "6be68f5afa8c2d3f8f4d0481aad3c19845d3502a9dc42dc5d8a6e018877f655a"
@@ -2123,7 +2135,7 @@
     },
     "morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala": {
       "mode": "100644",
-      "sha256": "8ee674e10efef3d1b0951044d5804221b7a44550d0971e3da2523c6ab1918a74"
+      "sha256": "be2518d3c2ad2ff1c67c896070357592f3badc4ca60bbe446dc6221fa169013a"
     },
     "morphruntime/src/main/scala/spinal/core/ProcessExpressionLineage.scala": {
       "mode": "100644",
@@ -2159,7 +2171,7 @@
     },
     "morphruntime/src/main/scala/spinal/core/TypedLoopRegisterStorage.scala": {
       "mode": "100644",
-      "sha256": "ef992d32ab9aa897a7e1b3929cec214a1b9b5a62ea38ca9e68d1269a53b762da"
+      "sha256": "0bcda0b9976249e8e0641ef9d7c5e9cda6d309a54e6e59f17776d25e367c48dd"
     },
     "morphruntime/src/main/scala/spinal/core/TypedLoopVecBridges.scala": {
       "mode": "100644",
