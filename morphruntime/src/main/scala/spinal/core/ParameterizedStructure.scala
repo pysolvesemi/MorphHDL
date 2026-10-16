@@ -540,25 +540,58 @@ object ParameterizedStructure {
     val original = DslScopeStack.get
     if (original eq component.dslBody) body
     else {
-      def path(scope: ScopeStatement): Vector[(WhenStatement, Boolean)] = {
+      def path(scope: ScopeStatement): Vector[() => ScopeStatement] = {
         if (scope eq component.dslBody) Vector.empty
         else if (scope == null || (scope.component ne component))
           fail("SPINAL-STRUCTURAL-RUNTIME-SCOPE-OWNER", "structural capture crossed its declaring component", None)
         else scope.parentStatement match {
           case statement: WhenStatement if (scope eq statement.whenTrue) || (scope eq statement.whenFalse) =>
-            path(statement.parentScope) :+ (statement -> (scope eq statement.whenTrue))
+            path(statement.parentScope) :+ (() => {
+              val isolated = new WhenStatement(statement.cond)
+              DslScopeStack.get.append(isolated)
+              if (scope eq statement.whenTrue) isolated.whenTrue else isolated.whenFalse
+            })
+          case statement: SwitchStatement if (scope eq statement.defaultScope) ||
+              statement.elements.exists(_.scopeStatement eq scope) =>
+            path(statement.parentScope) :+ (() => {
+              val isolated = new SwitchStatement(statement.value)
+              isolated.coverUnreachable = statement.coverUnreachable
+              isolated.removeDuplication = statement.removeDuplication
+              val selected = new ScopeStatement(isolated)
+              // Keep empty alternatives: they participate in native case priority,
+              // including exclusion of a default body. Later authored cases are
+              // copied when elaboration ends, before native normalization.
+              def refresh(): Unit = {
+                isolated.elements.clear()
+                statement.elements.foreach { element =>
+                  isolated.elements += new SwitchStatementElement(element.keys.map {
+                    // Duplicating an unsized literal carrier would prevent native
+                    // single-use literal folding and lose case-key resizing.
+                    // Reuse only its exact, unconditional literal assignment.
+                    case key: BitVector if !key.isFixedWidth && !key.isReg && key.hasOnlyOneStatement &&
+                        key.head.isInstanceOf[DataAssignmentStatement] && (key.head.target eq key) &&
+                        (key.head.parentScope eq key.parentScope) && key.head.source.isInstanceOf[BitVectorLiteral] =>
+                      key.head.source
+                    case key => key
+                  },
+                    if (element.scopeStatement eq scope) selected else new ScopeStatement(isolated))
+                }
+                isolated.defaultScope = if (statement.defaultScope == null) null
+                  else if (statement.defaultScope eq scope) selected else new ScopeStatement(isolated)
+              }
+              refresh()
+              component.addPrePopTask(() => refresh())
+              DslScopeStack.get.append(isolated)
+              selected
+            })
           case _ => fail("SPINAL-STRUCTURAL-RUNTIME-SCOPE-UNSUPPORTED",
-            "a retained structural body inside a runtime scope currently requires native when/otherwise branches", None)
+            "a retained structural body inside a runtime scope requires native when/otherwise or switch/is branches", None)
         }
       }
       val enclosing = path(original)
       val context = DslScopeStack.set(component.dslBody)
       try {
-        enclosing.foreach { case (statement, positive) =>
-          val isolated = new WhenStatement(statement.cond)
-          DslScopeStack.get.append(isolated)
-          DslScopeStack.set(if (positive) isolated.whenTrue else isolated.whenFalse)
-        }
+        enclosing.foreach(enter => DslScopeStack.set(enter()))
         body
       } finally context.restore()
     }

@@ -173,6 +173,7 @@ jobs:
             morphhdl.ReduceBalancedTreeNativeContractTests \
             morphhdl.FiniteBitsAndRamSharingTests \
             morphhdl.SharedFiniteLoopControlTests \
+            morphhdl.StructuralSwitchRegisterTests \
             morphhdl.AreaCollectionLoopTests \
             spinal.core.AreaCollectionLineageTests \
             spinal.core.FiniteBitsIndexTests \

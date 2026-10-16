@@ -2159,6 +2159,19 @@
         "typed structural predicates reject independent same-name roots across regions",
         "unfinished structural conditionals fail with a stable continuation diagnostic"
       ],
+      "morphhdl.StructuralSwitchRegisterTests": [
+        "switch guarded register prefix packed=false mode=case",
+        "switch guarded register prefix packed=false mode=default",
+        "switch guarded register prefix packed=false mode=nested",
+        "switch guarded register prefix packed=true mode=case",
+        "switch guarded register prefix packed=true mode=default",
+        "switch guarded register prefix packed=true mode=nested",
+        "reject missing complement writers",
+        "reject overlap complement writers",
+        "reject clock complement writers",
+        "reject reset complement writers",
+        "reject missingReset complement writers"
+      ],
       "morphhdl.SymbolicArrayGeometryTests": [
         "guarded packed writes use their active width default=1 mode=constant",
         "guarded packed writes use their active width default=1 mode=missing",
@@ -4401,6 +4414,7 @@
     "morphhdl/src/test/scala/morphhdl/StageDepthFormalSharingTests.scala": "0a51fcfe3224445d21c886de0980e47b0fd13aef859a9de0d921637d4e72f24c",
     "morphhdl/src/test/scala/morphhdl/StreamFifoCompatibilityTests.scala": "8413127d7fc637d88ffdc36b9e86cc0a726885b5194b3891d951ee6c223896b4",
     "morphhdl/src/test/scala/morphhdl/StructuralGenerateControlTests.scala": "cda3720f0b52d64131552585bab76fd6233e3fbca7e8092db66ffa98dbb4646a",
+    "morphhdl/src/test/scala/morphhdl/StructuralSwitchRegisterTests.scala": "7a76472e7b57274e9cbe000a97e18e1f9a8fd3105efdaf49f90375f89fd4cf26",
     "morphhdl/src/test/scala/morphhdl/SymbolicArrayGeometryTests.scala": "6be68f5afa8c2d3f8f4d0481aad3c19845d3502a9dc42dc5d8a6e018877f655a",
     "morphhdl/src/test/scala/morphhdl/SymbolicDataShapesContractFixture.scala": "f9ac5ac237e523f01a8ca7a2f0ed6f88dc4b8da16cbaf2555a3335ab383161e8",
     "morphhdl/src/test/scala/morphhdl/SymbolicPackedWordsTests.scala": "f1ed866c587e2a1c33469472f1cd047aadf717eeef017813fc16e6979e487e69",

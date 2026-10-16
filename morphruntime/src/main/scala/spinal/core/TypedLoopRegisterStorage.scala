@@ -58,14 +58,18 @@ private[core] object TypedLoopRegisterStorage {
         val lower = selection.index.minimum
         val upper = selection.index.maximum
         val coversTail = selection.unitRange.exists(_.coversTail)
+        val fixedRange = selection.unitRange.filter(r => r.matches &&
+          r.count.expression.minimum == r.count.expression.maximum && r.depth.minimum == r.depth.maximum)
         val affine = selection.affineWrite.filter(_.matches)
         val leaves = affine.map(_.laneIndices.toVector.sorted.map(allLeaves)).getOrElse(
-          if (coversTail) allLeaves.drop(lower.toInt) else allLeaves)
+          if (coversTail) allLeaves.drop(lower.toInt)
+          else if (fixedRange.nonEmpty) allLeaves.slice(lower.toInt, upper.toInt + 1)
+          else allLeaves)
         if (writes.isEmpty || !leaves.exists(_.isReg)) Vector.empty
         else {
           if (!writes.forall(_.target eq alias) || !leaves.forall(_.isReg) ||
-              (affine.isEmpty && !coversTail && (lower != 0 || upper != allLeaves.size - 1)) ||
-              (affine.isEmpty && upper != allLeaves.size - 1) ||
+              (affine.isEmpty && fixedRange.isEmpty && !coversTail && (lower != 0 || upper != allLeaves.size - 1)) ||
+              (affine.isEmpty && fixedRange.isEmpty && upper != allLeaves.size - 1) ||
               !selection.index.generateIndex.contains(loop.indexName) ||
               allLeaves.exists(value => value.isIo || (value.parentScope ne component.dslBody)))
             fail("register relocation requires a complete whole-leaf Vec write in its declaring component")
@@ -77,6 +81,17 @@ private[core] object TypedLoopRegisterStorage {
                   assignments.exists(a => a.target ne value))
                 fail("register subrange requires disjoint whole-leaf scalar prefix writers")
             }
+          }
+          if (fixedRange.nonEmpty && leaves.size != allLeaves.size) {
+            val complement = allLeaves.filterNot(v => leaves.exists(_ eq v))
+            component.addPrePopTask(() => complement.foreach { value =>
+              val assignments = statements(value)
+              if (!value.isReg || (value.clockDomain ne leaves.head.clockDomain) ||
+                  !assignments.exists(_.isInstanceOf[InitAssignmentStatement]) ||
+                  !assignments.exists(a => a.isInstanceOf[DataAssignmentStatement] && (a.target eq value)) ||
+                  assignments.exists(a => a.target ne value))
+                fail("register subrange requires disjoint initialized whole-leaf scalar complement writers")
+            })
           }
           val clock = leaves.head.clockDomain
           if (clock == null || !allLeaves.forall(_.clockDomain eq clock))
