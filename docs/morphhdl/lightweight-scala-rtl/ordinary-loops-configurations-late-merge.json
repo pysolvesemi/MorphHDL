@@ -12,6 +12,8 @@
     }
   },
   "historical_attempts": "Earlier exploratory failures and repairs remain under /tmp/lwr22* and /tmp/lwr23*. They are not passing evidence; final runs above supersede them.",
+  "implementation_commit": "90dd8d399b66d43b51a6dcdc627b95d610d78433",
+  "implementation_tree": "14d9b83d03b231bbcb632acb66c21499e13cc661",
   "limitations": [
     "Zero-based supported ordinary statement loops; constant default projection requires complete fixed-width bit/word coverage and preceding known constants.",
     "Configuration schemas must be constructor-only immutable source definitions in the same compilation run. Generic, inherited/effectful/mutable and cyclic schema shapes are rejected; binary-only schema discovery is not implemented.",
@@ -19,6 +21,7 @@
     "Late merging is conservative: soft-reset processes, generated scopes, explicit no-merge requests and unproven control transformations remain separate.",
     "Questa unavailable; no new formal campaign, CI, full qualification or application-wide simulation. Application Scala, delivery RTL and Rust cleanup unchanged."
   ],
+  "native_seal_commit": "5db922c21d9d92a17f27471e202ed3c8be1400a1",
   "runner_sha256": {
     "check-lwr20-21-suites.py": "53ad8f0ddf0e1d2b34a415a9fcc6399dcfb072ea271f1bbd030972b9290665af",
     "check-lwr22-24-plugin.py": "20d5a0b56070ee2749199b1e2edcb4467f119373209be9b344b5386f5425f006",
@@ -3669,6 +3672,23 @@
   },
   "schema": 1,
   "scope": "LWR-22\u201324 focused local implementation checks; no CI/full qualification",
+  "tool_identities": {
+    "iverilog": {
+      "path": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/toolchain/ci-installer-validation/bin/iverilog",
+      "sha256": "f8c14c5d4e04e5cf74c7333429f63d0759acc2ddc0d437d579326b7a1acd1929",
+      "version": "Icarus Verilog version 14.0 (devel) (af348e2)"
+    },
+    "verilator": {
+      "path": "/usr/bin/verilator",
+      "sha256": "4c6292ab82e57b7f34ab26dbae86ba9c494bacfb088b6ff34be93c553d1301b1",
+      "version": "Verilator 5.020 2024-01-01 rev (Debian 5.020-1)"
+    },
+    "yosys": {
+      "path": "/home/kartik/.local/bin/yosys",
+      "sha256": "5e88dbdf8307c645058e5a35b93f5670213e7c1915305d36536548898fa497b5",
+      "version": "Yosys 0.41 (git sha1 c1ad37779, g++ 13.3.0-6ubuntu2~24.04.1 -fPIC -Os)"
+    }
+  },
   "tools": {
     "lwr22-24-final-212": {
       "counts": {
