@@ -918,7 +918,7 @@
     },
     "morphhdl/contracts/retained-parameterized-regressions.json": {
       "mode": "100644",
-      "sha256": "8b8b1d3d11bd878c69978a8c75d6023e86c81efa0e574290a76437b51f765e79"
+      "sha256": "da8d21ec09a62ca7030ee2c5c6bf8a6161fe4db47841080964a1058f739d081c"
     },
     "morphhdl/examples/contracts/symbolic_data_shapes.v": {
       "mode": "100644",
@@ -1014,7 +1014,7 @@
     },
     "morphhdl/scripts/check-retained-parameterized-regressions.py": {
       "mode": "100644",
-      "sha256": "3e2e91f5861eb8e1506b2b7278bce5b24fa7822776d0b31711917e94a70d165e"
+      "sha256": "89c1c41c16697f0e9be79c1ce36aa418e4e5c8fa04594fc363f0109858b194fe"
     },
     "morphhdl/scripts/check-symbolic-recursive-width.py": {
       "mode": "100644",
@@ -1335,7 +1335,7 @@
     },
     "morphhdl/src/test/scala/morphhdl/CompactGenerateLabelTests.scala": {
       "mode": "100644",
-      "sha256": "a39b326512c0c0f2ac0b74e7199efed37582e3f134aeddd39fab59dc1d05969d"
+      "sha256": "aa1077f5191aa2c00fc45d3b3762f2717990ec6f3ff2df1a41f52b036781cf63"
     },
     "morphhdl/src/test/scala/morphhdl/CompactReductionExampleTests.scala": {
       "mode": "100644",
