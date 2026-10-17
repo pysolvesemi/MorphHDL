@@ -28,6 +28,11 @@ private[spinal] object NativeFormalWidthProjection {
       case (formal, actual) if width.parameters.size == 1 &&
           (width.parameters.head eq formal) && width.generateIndex.isEmpty &&
           ElabInt.equivalentExactFunction(width, ElabInt.directParameter(formal, width.sourceLocation).expression) => actual
-    }.getOrElse(width)
+    }.getOrElse {
+      val selected = width.parameters.map(formal => entries.filter(_._1 eq formal))
+      if (width.parameters.nonEmpty && width.generateIndex.isEmpty && selected.forall(_.size == 1))
+        ElaborationWidthAuthority.substituteFormals(width, selected.map(_.head))
+      else width
+    }
   }
 }

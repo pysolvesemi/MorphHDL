@@ -67,6 +67,12 @@ private[spinal] object ElaborationProductDomain {
     val roots: Set[Root] = Set(root)
     def evaluate(environment: Environment): BigInt = values(environment(root))
   }
+  // Imported only from the private finite-width registry after its authority
+  // and active scope have been validated. No public table constructor exists.
+  private final case class FiniteWidth(orderedRoots: Vector[Root], values: Map[Vector[BigInt], BigInt]) extends Atom {
+    val roots: Set[Root] = orderedRoots.toSet
+    def evaluate(environment: Environment): BigInt = values(orderedRoots.map(environment))
+  }
   private final case class Operation(operator: String, operands: Vector[Form]) extends Atom {
     lazy val roots: Set[Root] = operands.flatMap(_.roots).toSet
     def evaluate(environment: Environment): BigInt = {
@@ -283,6 +289,11 @@ private[spinal] object ElaborationProductDomain {
     case Some(proof) =>
       requireInteger(value, Role)
       active(proof, Role, value.sourceLocation)
+    case None if ElaborationWidthAuthority.isRetained(value) =>
+      val (domains, values) = ElaborationWidthAuthority.finiteProductEvidence(value).getOrElse(
+        fail(Missing, "finite width lost its private registry certificate", value.sourceLocation))
+      val axes = domains.map { case (domain, admitted) => Axis(domain, admitted) }
+      TrustedExpressionEvidence(atom(FiniteWidth(axes.map(_.root), values)), axes)
     case None =>
       val exact = ElabInt.requireAuthoritativeIntegerDomain(value, Role, Missing, requireExactExtrema = false)
       exact match {
@@ -368,6 +379,7 @@ private[spinal] object ElaborationProductDomain {
     case leaf: Leaf =>
       val values = axes.find(_.root eq leaf.root).get.values.map(leaf.values)
       Extrema(values.min, values.max)
+    case table: FiniteWidth => enumerate(atom(table), axes, location)
     case current @ Operation(operator, operands) =>
       def b(index: Int): Extrema = bounds(operands(index), axes, location)
       def fallback: Extrema = enumerate(atom(current), axes, location)
@@ -494,6 +506,9 @@ private[spinal] object ElaborationProductDomain {
       case leaf: Leaf =>
         val values = proof.axes.find(_.root eq leaf.root).get.values.map(leaf.values)
         Enclosure(values.min, values.max)
+      case table: FiniteWidth =>
+        val limits = enumerate(atom(table), proof.axes, location)
+        Enclosure(limits.minimum, limits.maximum)
       case Operation(operator, operands) =>
         def b(i: Int): Enclosure = visit(operands(i))
         operator match {
