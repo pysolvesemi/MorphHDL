@@ -3366,6 +3366,34 @@ object ParameterizedStructure {
     }
   }
 
+  /** Compact actuals require the exact module-scope instance and a declaration
+    * owned by its immediate parent. No finite projection or equal-schema owner
+    * substitution can grant this capability.
+    */
+  private[core] def requireCompactChildOwner(parent: Component, child: Component,
+      root: ElaborationIntegerParameterRoot, schema: ElaborationIntegerParameter,
+      role: String, location: Option[String]): Unit = {
+    if (parent == null || child == null || root == null || schema == null ||
+        (child.parent ne parent) || !parent.children.exists(_ eq child))
+      fail("SPINAL-ELAB-DOMAIN-COMPACT-OWNER-MISSING",
+        s"$role lost its exact parent/child identity", location)
+    if (!root.isAuthoritativeSchema(schema) ||
+        !ExternalFormalParameterRegistry.bindingsOf(parent).exists(_.formal eq schema))
+      fail("SPINAL-ELAB-DOMAIN-COMPACT-OWNER-MISMATCH",
+        s"$role root '${root.name}' is not an exact formal declaration of its parent", location)
+    var current = child
+    while (current.parent != null) {
+      val enclosing = current.parent
+      if (!enclosing.children.exists(_ eq current))
+        fail("SPINAL-ELAB-DOMAIN-COMPACT-OWNER-MISSING",
+          s"$role lost its enclosing instance identity", location)
+      if (capturedChildren(regionsOf(enclosing)).exists(_.child eq current))
+        fail("SPINAL-ELAB-DOMAIN-COMPACT-OWNER-UNSUPPORTED",
+          s"$role needs explicit compact structural-owner projection", location)
+      current = enclosing
+    }
+  }
+
   /** Exact-child counterpart of [[exactDeclarationDomainOf]]. */
   private[core] def exactChildDomainOf(
       parent: Component,

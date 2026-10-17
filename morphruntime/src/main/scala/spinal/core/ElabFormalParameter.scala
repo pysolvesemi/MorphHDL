@@ -51,7 +51,15 @@ object ElabFormalParameter {
       "SPINAL-PARAM-REPRESENTATION-OVERFLOW: domain must fit its declared packed type")
     val formal = ElaborationIntegerParameter(name, expression.default, minimum, maximum, representation)
     val definition = ElabInt.directParameter(formal, expression.sourceLocation)
-    state.entries += ((formal,expression,expression.sourceLocation))
+    // Diagnostic provenance only: a default/literal often has no source span.
+    // Retain the declaring Component's constructor frame while it is live,
+    // independently of optional native trace retries and emitted comments.
+    val declarationLocation = expression.sourceLocation.orElse {
+      new Throwable().getStackTrace.find(frame =>
+        frame.getClassName == owner.getClass.getName && frame.getFileName != null && frame.getLineNumber > 0)
+        .map(frame => s"${frame.getFileName}:${frame.getLineNumber}")
+    }
+    state.entries += ((formal,expression,declarationLocation))
     definition
   }
 }

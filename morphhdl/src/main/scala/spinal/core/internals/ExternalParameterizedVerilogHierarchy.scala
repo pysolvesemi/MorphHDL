@@ -644,8 +644,20 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
 
     ExternalFormalParameterRegistry.bindingsOf(child).foreach { binding =>
       if (ElaborationProductDomain.isRetained(binding.actual)) {
-        ElaborationProductDomain.owner(binding.actual, "compound child formal actual", binding.sourceLocation) {
-          (_, universe) => universe
+        val location = binding.sourceLocation.orElse(binding.actual.sourceLocation)
+        val domains = binding.actual.parameters.map(p =>
+          s"${p.name}=[${p.minimum},${p.maximum}] default=${p.default}").mkString(", ")
+        val context = s"parent '${parent.definitionName}', child '$instanceName' ($definitionName), " +
+          s"formal '${binding.formal.name}', actual '${binding.actual.verilog}', domains: $domains"
+        try {
+          ElaborationProductDomain.ownerWithCompact(binding.actual, "compound child formal actual", location)(
+            (root, universe) => ParameterizedStructure.exactChildDomainOf(
+              parent, child, root, universe, "compound child formal actual", location).values,
+            (root, schema) => ParameterizedStructure.requireCompactChildOwner(
+              parent, child, root, schema, "compound child formal actual", location))
+        } catch {
+          case error: ParameterizedVerilogException =>
+            fail(error.code, context + ": " + error.detail, location.orElse(error.sourceLocation))
         }
       } else if (binding.actual.exactDomain.nonEmpty) {
         ParameterizedStructure
