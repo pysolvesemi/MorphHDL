@@ -51,6 +51,7 @@ class AxiLite4SlaveFactory(bus : AxiLite4, useWriteStrobes : Boolean = false) ex
   val readOccur = bus.readRsp.fire
 
   override def build(): Unit = {
+    validateNamedAddressCases()
     super.doNonStopWrite(bus.writeData.data)
 
     switch(writeAddress()) {
@@ -60,11 +61,15 @@ class AxiLite4SlaveFactory(bus : AxiLite4, useWriteStrobes : Boolean = false) ex
           is(address.address) {
             doMappedWriteElements(jobs, writeJoinEvent.valid, writeOccur, bus.writeData.data)
           }
+        case address: TypedLocalSingleMapping =>
+          is(address.local) {
+            doMappedWriteElements(jobs, writeJoinEvent.valid, writeOccur, bus.writeData.data)
+          }
         case _ =>
       }
     }
 
-    for ((address, jobs) <- elementsPerAddress if !address.isInstanceOf[SingleMapping]) {
+    for ((address, jobs) <- elementsPerAddress if !address.isInstanceOf[SingleMapping] && !address.isInstanceOf[TypedLocalSingleMapping]) {
       when(address.hit(writeAddress())){
         doMappedWriteElements(jobs,writeJoinEvent.valid, writeOccur, bus.writeData.data)
       }
@@ -78,11 +83,15 @@ class AxiLite4SlaveFactory(bus : AxiLite4, useWriteStrobes : Boolean = false) ex
           is(address.address) {
             doMappedReadElements(jobs, readDataStage.valid, readOccur, readRsp.data)
           }
+        case address: TypedLocalSingleMapping =>
+          is(address.local) {
+            doMappedReadElements(jobs, readDataStage.valid, readOccur, readRsp.data)
+          }
         case _ =>
       }
     }
 
-    for ((address, jobs) <- elementsPerAddress if !address.isInstanceOf[SingleMapping]) {
+    for ((address, jobs) <- elementsPerAddress if !address.isInstanceOf[SingleMapping] && !address.isInstanceOf[TypedLocalSingleMapping]) {
       when(address.hit(readAddress())){
         doMappedReadElements(jobs,readDataStage.valid, readOccur, readRsp.data)
       }

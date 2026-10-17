@@ -144,3 +144,44 @@ Every migration requires dual-Scala compilation, concrete parity,
 deterministic parameterized generation, strict Verilog-2001 lint/synthesis,
 simulation where applicable, formal equivalence against independently generated
 concrete witnesses and a negative mutation or ambiguity control.
+
+## Combined recursive reductions (59i)
+
+The combined backend retains one certified native callback graph and recursive
+shape across named field vectors, nested Vecs, widening, captures, native
+register bridges and typed lexical owners. A width schedule distinguishes full
+pairs, partial pairs and odd tails. Replaying that schedule substitutes only
+certified scalar widths; field paths, native scalar kinds, independent dimension
+identities and finite capacities remain unchanged. Packed offsets use logical
+depth expressions and inactive carrier elements have explicit guards.
+
+Fresh clone retargeting is a construction transaction. It requires distinct,
+unaliased, directionless, nondriven targets with empty retained operation and
+formal-binding journals. It rebuilds only target nested metadata and restores
+the exact original metadata and native width observations on rejection. This
+does not authorize mutation of an existing Vec or relax normal shape conflicts.
+
+The typed child constructor enrolls its complete formal inventory atomically.
+Each slot retains its own definition schema, declaration root and parent actual;
+shared reads authenticate the exact ordered inventory and attached port identities.
+Ports depending on several formals additionally prove the complete instantiated
+width function against their direct parent connections. Equal width witnesses,
+partial inventories and copied slot descriptions cannot establish that boundary.
+
+Recursive register bridges may delegate to the unchanged native Vec zero
+constructor only through fresh, invocation-local clone ancestry from their exact
+operand. Owner, recursive shape, scalar width authority and native clone identities
+are checked before and after construction. The independent closed bridge graph
+still proves the reset literals, drivers, clock and enable semantics. This scoped
+construction evidence does not authorize ordinary symbolic Vec zero construction,
+operator callbacks, preexisting receivers or copied shape metadata.
+
+Saturation retains the native UInt graph. Source-relative ranges, result widths
+and all-ones literals carry construction evidence before concrete witness
+geometry is erased. Reuse compares the complete retained expression and exact
+declaration roots, including when the active branch is a singleton. Equal
+current widths cannot authenticate changed full-domain geometry.
+
+The implementation and its qualification obligations are recorded
+in [the 59i closure document](increment-59i-combined-closure.md). These additions
+do not themselves mark the integration join complete.

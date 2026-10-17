@@ -132,6 +132,15 @@ private[frontend] object FrontendSession {
   private final class NameRegistry {
     private val labels = mutable.Set.empty[String]
     private val indices = mutable.Set.empty[String]
+    private var nextDefault = 0
+    def generated(): GenerateNames = {
+      var result: GenerateNames = null
+      do {
+        nextDefault += 1
+        result = GenerateNames(s"g_GEN_$nextDefault", s"gen_index_$nextDefault")
+      } while (labels(result.label) || indices(result.label) || labels(result.index) || indices(result.index))
+      result
+    }
 
     def reserve(names: GenerateNames, origin: SourceOrigin): Unit = {
       reserveAll(Vector(names.label), Vector(names.index), origin)
@@ -286,7 +295,7 @@ private[frontend] object FrontendSession {
     }
     range.end.requireUsable("generate-loop count")
     val count = checkedIterationCount(range.end.witness, range.origin)
-    val names = range.names.getOrElse(HdlRange.generatedNames(range.origin))
+    val names = range.names.getOrElse(context.names.generated())
 
     context.mode match {
       case Concrete =>

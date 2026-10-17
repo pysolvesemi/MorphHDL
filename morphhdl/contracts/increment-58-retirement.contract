@@ -267,24 +267,6 @@
       ]
     },
     {
-      "id": "pass-raw-design-binding",
-      "path": "morphhdl-passes/src/main/scala/morphhdl/passes/adapter/CanonicalIrPassAdapter.scala",
-      "declaration_pattern": "(?ms)^\\s*def\\s+bind\\s*\\(\\s*design\\s*:\\s*Design\\b",
-      "expected_count": 1,
-      "required_message_terms": [
-        "compatibility"
-      ]
-    },
-    {
-      "id": "pass-validated-design-binding",
-      "path": "morphhdl-passes/src/main/scala/morphhdl/passes/adapter/CanonicalIrPassAdapter.scala",
-      "declaration_pattern": "(?ms)^\\s*def\\s+bindValidated\\s*\\(\\s*validated\\s*:\\s*ValidatedDesign\\b",
-      "expected_count": 1,
-      "required_message_terms": [
-        "compatibility"
-      ]
-    },
-    {
       "id": "post-publication-canonical-transform",
       "path": "morphhdl/src/main/scala/morphhdl/integration/ExternalSpinalVerilog.scala",
       "declaration_pattern": "(?m)^\\s*def\\s+transformWithCanonicalIdentity\\s*\\[",
@@ -322,15 +304,6 @@
     }
   ],
   "required_files": [
-    {
-      "path": "morphhdl-passes/src/main/scala/morphhdl/passes/adapter/CanonicalIrPassAdapter.scala",
-      "required_markers": [
-        "bindValidatedInternal(handoff.validated)",
-        "def bind(handoff: CanonicalIrHandoff): CanonicalIrPassView",
-        "def bindFixture(",
-        "handoff.profile.requiredFacets.subsetOf(handoff.completeFacets)"
-      ]
-    },
     {
       "path": "morphhdl/src/main/scala/morphhdl/MorphCanonicalIrReport.scala",
       "required_markers": [

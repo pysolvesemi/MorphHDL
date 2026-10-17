@@ -25,7 +25,7 @@ first parameterized-Verilog release, not implemented in Increment 1.
 | RTL | Registers, counter and sync/async reset | v1 | Increments 16 and 17 implement active-high synchronous/asynchronous reset-to-zero; Increments 18 and 19 add the matching reset-priority active-high enable with disabled hold; Increment 25 adds a direct-public-limit synchronous modulo-up counter with depth-derived state width; broader state remains bounded follow-on work |
 | RTL | Supported memories | v1 | Increment 20 implements one synchronous read-first whole-word single-port memory; Increment 21 derives its public address ABI from depth; Increment 22 adds active-high read enable and hold; Increment 26 adds one single-clock simple-dual-port `1R1W` form with independent capacity-proven addresses/enables and deterministic read-first collisions, while its public fixture uses two exact depth-derived addresses. Reset, initialization, masks and extra ports remain deferred. Increment 57a admits only the native `StreamFifoCC` dual-clock RAM carrying its authenticated `clockCrossing`, independent-address and `dontCare` collision contract; all other independent-clock memories remain deferred. |
 | RTL | Tri-state/analog primitives | Post-v1 | Rejected by initial strict profile |
-| Aggregates | Bundle/Vec internal intent | v1 | Increment 30 preserves native symbolic leaves through `cloneOf`, `HardType`, Bundle and Vec construction. Increment 53f retains positive finite typed Vec depth plus recursive element layout and publishes each Vec subtree as one packed Verilog-2001 vector; `Mem` remains an unpacked memory array. Symbolic-depth support is explicitly limited to constant/dynamic indexing, compatible assignment/autoconnect, packed whole-value conversion, cloning/`HardType`/registers and aggregate/payload propagation. Range selection, one-hot access, Vec equality, `getZero`, bitwise Vec operations and ranged packed assignment remain deferred and fail closed; concrete Vec behavior is unchanged. |
+| Aggregates | Bundle/Vec internal intent | v1 | Increment 30 preserves native symbolic leaves through `cloneOf`, `HardType`, Bundle and Vec construction. Increment 53f retains positive finite typed Vec depth plus recursive element layout and publishes each Vec subtree as one packed Verilog-2001 vector; `Mem` remains an unpacked memory array. Symbolic-depth support is explicitly limited to constant/dynamic indexing, compatible assignment/autoconnect, packed whole-value conversion, cloning/`HardType`/registers and aggregate/payload propagation. Range selection, one-hot access, Vec equality, bitwise Vec operations and ranged packed assignment remain deferred and fail closed. Ordinary symbolic `getZero` remains rejected; Increment 59i admits the unchanged native zero constructor only for a fresh clone with exact operand ancestry inside its certified register bridge. Concrete Vec behavior is unchanged. |
 | Ports | Scalar and packed-vector ports | v1 | Stable flat ABI |
 | Ports | Unpacked array, struct or interface ports | Post-v1 | Potential rich SystemVerilog ABI |
 | Libraries | Bits/UInt/SInt and core operators | v1 | Increments 30 and 31 retain direct and derived symbolic widths on ordinary `Bits`, `UInt` and `SInt` leaves through cloning, data shapes, typed arithmetic/comparison/control and exact-domain projection. Increment 53f closes typed slice/resize helpers and rejects any operation whose complete legal domain cannot be proved. |
@@ -47,6 +47,16 @@ first parameterized-Verilog release, not implemented in Increment 1.
 | Backends | SystemVerilog-flat | Post-v1 | Must consume the same validated MorphHDL-owned canonical handoff and may not revive ParamRTL or generated-text reconstruction as production authority |
 
 ## v1 completion criterion
+
+Increment 59i defines the combined Vec/reduction qualification join.
+Its [closure contract](increment-59i-combined-closure.md) preserves the existing
+packed default, makes named field vectors opt-in, and specifies migration of
+generated-port consumers. The [pairwise and end-to-end inventory](increment-59i-nested-mechanism-matrix.md)
+adds recursive widening, certified captures, native saturation/register bridges
+and generated child bindings. Individual passing slices do not establish full
+join support: both Scala lanes, independent hardware proofs, inherited negative
+controls, source review and all applicable final-head workflows remain required
+while the roadmap item is unchecked.
 
 One emitted Verilog-2001 hierarchy must be externally instantiated with
 multiple legal parameter values without rerunning MorphHDL. The DisplayController

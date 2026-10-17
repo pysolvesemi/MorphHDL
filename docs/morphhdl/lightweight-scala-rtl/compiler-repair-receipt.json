@@ -1,0 +1,90 @@
+{
+  "implementation_commit": "9c459f53519e0a3e52dd29e1e94be5f187c5607e",
+  "tested_base_commit": "ec5a43c3fde96b8ed2a605ad7a1daf0c6a281f69",
+  "branch": "work/remaining-parameterized-increments",
+  "mode": "focused local tests; no full CI",
+  "logs": [
+    {
+      "path": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-compiler-repairs/compiler-issue-closure-212.log",
+      "sha256": "635c5674d3e7e24a05461606c1186c6327f8ef1a4f6de9014b5caf66944f6c16"
+    },
+    {
+      "path": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-compiler-repairs/compiler-repairs-final-212.log",
+      "sha256": "efa5d9adb57d3ce7c60f4dcdc9947f5d882d103dcfbd714d8110f8ca4f74c1bc"
+    },
+    {
+      "path": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-compiler-repairs/compiler-repairs-213.log",
+      "sha256": "067ed096d9771fc7d57ff581acaf0dfa9e84cfca8c3d16ca5434dc09837652d2"
+    },
+    {
+      "path": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-compiler-repairs/compiler-corrected-tests-212.log",
+      "sha256": "691510488783ec6cd0be8d366fd0717f4b16d23bb3e17b1b647b000e1e9b48a2"
+    },
+    {
+      "path": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-compiler-repairs/compiler-corrected-tests-213.log",
+      "sha256": "e8f89dad30392a8934a1c92b4f0c5aa1fbab0a2d8aaf7dbb14d25920cf9c8483"
+    },
+    {
+      "path": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-compiler-repairs/retained-repair-check.log",
+      "sha256": "aaee97d2bcdbef1ac70d247558da62e177d9059083dfb764d92918a83bab8e5d"
+    }
+  ],
+  "results": {
+    "older_issue_regressions_scala_2_12": 57,
+    "repaired_suites_scala_2_12": "26 passed; one expected-diagnostic assertion corrected and rerun in the 16-test final run",
+    "repaired_suites_scala_2_13": "92 passed; one expected-diagnostic assertion corrected and rerun in the 16-test final run",
+    "final_corrected_suites_each_scala": 16
+  },
+  "limitations": [
+    "Questa unavailable; Icarus used for behavioral checks.",
+    "Application status and CSR pass generation, determinism, lint and existing unit simulation. Top generation and Icarus compilation with vendor modules pass; vendor axivdisplay requires SystemVerilog mode.",
+    "Full roadmap completion and full qualification are not claimed."
+  ],
+  "application_artifacts": {
+    "CdcClockProbe.v": "88d7a4ae24916133f87b8848e7cec14ae00cd462d0d903fa9397614e6eeddbb7",
+    "CdcEventChannel.v": "cd467ca773428ca4e46327eb98a9acc6481afc0c485a7e1f65629c8cc14d5bf5",
+    "CdcGrayCounterCrossing.v": "252b4f5d0eb56a5c16974a154edd5dd78921330aa0bf4f5b0f7121b17f5e4bdc",
+    "CdcGrayToBinary.v": "2f45258659a66fa8e54beca47f805bb7620a14e6b359126c8fbe91ead6ffdc47",
+    "CdcResetRelease.v": "3c24811425217e92495dc214a5b6702a2ea3f86a98c48ee6f6661be0359a08bf",
+    "CdcSynchronizer.v": "4f55da2edc79ea7a860a8f27601297f9a9504bb55b3142079fada40124c799b6",
+    "CdcTransferCounter.v": "d9cfc0cf441aab75c29bf21f8b3c77a9d2b28c445b5dde946fe6d88276939883",
+    "CdcVideoChannel.v": "317d2f7d3b47834a6e0403ae11dd87ff20314d201bf4c87b527b64fd87ba339e",
+    "DisplayControllerAxiLiteCsrCommit.v": "fadf0b152b566439fb8a8f7c2fdcdb8553d8b91118c296b61a9b828e4b87cfe3",
+    "DisplayControllerClockResetCdc.v": "2465dd60813c21b05806ef25b446ff3133255df7861237fd2e05904059b55d0f",
+    "DisplayControllerCsrApplyTransport.v": "db32c3dc7220c8a3280e2e460a5dee9acb113c272aae67cd75f10d87471b4540",
+    "DisplayControllerDdrFrameReader.v": "dbcb85984f1ff4d7f1e78ae728d43cc4f2610c54109545652c7173f734da63d5",
+    "DisplayControllerDdrPixelUnpackerRgbNormalizer.v": "199c3f2711a3d8a948a0c7fee9d49e80876bc944ebc6f3cac3bbf3f3ebf71f8e",
+    "DisplayControllerFrameSafeSourceSelector.v": "52f85e8cba47828be671ee1a3090180a97fb9a2a793885baafea5c8f3b3eb943",
+    "DisplayControllerFramebufferReadinessHandoff.v": "93c9889ed11a8b07f371b33932c2c148b839b19c83adf6fdfbaa4b3477a16922",
+    "DisplayControllerLiveAxisIngress.v": "3e1ce6a027f9685b642fff5778712e2a219963c99e7b2a9441504c7101da95f5",
+    "DisplayControllerLiveProcessingPipeline.v": "b8a8da77c6f9243fe51f973f7b377c4d2e3683c2167f8600a5f1c3a2f3122da6",
+    "DisplayControllerProgressiveTimingGenerator.v": "bf3cab8108f4de51a3619b066150b8ba506c69eacd6ce877cc59b83fa0b4e813",
+    "DisplayControllerRgbDpiOutputFormatter.v": "1b56cecd51c7c3fac2607312c8aa32dd0cb73b4cf9b14cc397984484e252cd23",
+    "DisplayControllerSafeOutputRecoveryCoordinator.v": "e20f434dd8a05628f5a9e1bdfe750bf61b32884c2454e1b4c6114bbdf1229d99",
+    "DisplayControllerSafePixelSource.v": "a71db963d99e664a418c597018cc8bb444b322694c408490c32177a34667cc68",
+    "DisplayControllerSaturatingCounter.v": "c523cf46fd6528b8fe9dc77c1191d8628a2d34494ac55c00c3f44e9a7b1bbc42",
+    "DisplayControllerSplitReader.v": "baa6b13fed7d3020879842118327069a954e94caf9d3d4479405c28b746f5aac",
+    "DisplayControllerStableCsr.v": "3275582b4cf30af1dff59f37b2fdf8d87e80ae7eca977322496f98e74ca743b9",
+    "DisplayControllerStableStatus.v": "6934e7a2487ef0f58a6fb50fcb80cdae1673aebe42bcd6390bc293e026def02e",
+    "DisplayControllerStatusCounterInterrupt.v": "70c675918c9570f2690ce3eb3864584c3ce951acaf4639faa0966cc927621331",
+    "DisplayControllerTop.v": "920c9e25cc14966715589f98e1f04c683bd923deb5023ce49c8579e7011dd13a",
+    "DisplayControllerTopClockSupervisor.v": "eb4fc43066ef84a3917d9855102c47284c58530f42119de88dbb76e1e45fac6a",
+    "DisplayControllerYcbcr422Reconstructor.v": "5d43f24fe0720aed7b5ef75d366ce44810c6aedd515b012dd40e5023c10887cf",
+    "DisplayControllerYcbcr444Csc.v": "92dcb3b7376d47d8c5b6195f9f1f711fec57bf801cc08b3f8bacc2a770bb2972",
+    "LiveFormatDispatchRgbBypass.v": "58764bed1f8553af78630daae5e8890aa48ab632fbb015c051fbc0e114c3c863",
+    "LiveRgbBypassDispatch.v": "c2ff45e940a75cb941c0b672e9d5574a66388907752c0be3a0db946d43cc8b1b",
+    "RgbPrecisionExpand.v": "3ee4daedb17bcda2169af13fdd2885cc62ea47225d8b24ab35432347dbf2b57f",
+    "SignedRoundClip.v": "c581889be75f30e83d924557d2a28d876b56d347e1ecc4779e56467af519cc6e",
+    "StatusCounterDeltaSum.v": "f22473edf0c8071b88e5c020e997930e3c23d68311b6d8f188bebf0ff38fe405",
+    "StatusEventErrorUnion.v": "713608637b8fdf809b246d69d6977932bbfa17e784a258fcd801eee1fbc53265"
+  },
+  "compiler_sources": {
+    "core/src/main/scala/spinal/core/NativeFormalWidthProjection.scala": "151bfd1639e42872178af9ebb531974648892cd922fc290b12f82030ce710a79",
+    "core/src/main/scala/spinal/core/ElabInt.scala": "2e0a38a4596c884e3f61c3c307b78d1eb26b556922ee921ebe5fc7bbfc99c591",
+    "morphruntime/src/main/scala/spinal/core/ElabProcess.scala": "f15cab15efc124ed71f404c3ac61fee5d65edb7b584d8374fade696409505224",
+    "morphruntime/src/main/scala/spinal/core/ElabScopedProcess.scala": "4d0037d46c7475f3e437b4fcc50eff1f8583099522f5df5abfeab975907cc747",
+    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala": "c04287734e358898d471b26e8ef61cd455b2f2e6cc2432ce9c87900c6b7478c9",
+    "morphhdl/src/main/scala/spinal/core/internals/NativeScopedProcessEmitter.scala": "c7116722b9d03f57f2316e5cf448ff81626a70dab8edfc0b329e4ebf218866c2",
+    "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogVecs.scala": "a76633b6dbe7252e9f686d3d06259ecf6b2fcd902b59460fb28b984e2e985c23"
+  }
+}

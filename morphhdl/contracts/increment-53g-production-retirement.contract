@@ -8,7 +8,6 @@
     "idslpayload/src/main",
     "idslplugin/src/main",
     "lib/src/main",
-    "morphhdl-passes/src/main",
     "morphhdl/src/main",
     "morphir/src/main",
     "morphplugin/src/main",
@@ -54,7 +53,6 @@
         "idslpayload/src/main/",
         "idslplugin/src/main/",
         "lib/src/main/",
-        "morphhdl-passes/src/main/",
         "morphhdl/src/main/",
         "morphir/src/main/",
         "morphplugin/src/main/",
@@ -132,9 +130,14 @@
     }
   ],
   "expected_plugin_components": [
+    "MorphHdlParameterSyntaxComponent",
+    "MorphHdlCallbackEffectComponent",
+    "MorphHdlDirectRecursiveComponent",
+    "MorphHdlAreaCollectionComponent",
     "MorphHdlTypedElaborationControlComponent",
     "MorphHdlNaturalSymbolicConditionalComponent",
-    "MorphHdlFrontendSymbolicEqualitySafetyComponent"
+    "MorphHdlFrontendSymbolicEqualitySafetyComponent",
+    "MorphHdlConstantLoopBoundsComponent"
   ],
   "plugin_descriptor": "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala",
   "forbidden_jar_class_prefixes": [

@@ -1,0 +1,1872 @@
+{
+  "schema": 1,
+  "scope": "LWR-13\u201316 compiler/library implementation and focused local acceptance",
+  "policy": "User-authorized proportional local checks; no remote CI, full qualification or monitoring.",
+  "branch": "work/remaining-parameterized-increments",
+  "tested_base_commit": "ba040f99e9de05247a03d0333e58ec30e3f8bd58",
+  "tested_base_tree": "346c7299ed85dc0e4a34080253c67fc21b2a3890",
+  "source_overlay_sha256": {
+    "core/src/main/scala/spinal/core/Bits.scala": "32b81df3efb5132474a7393e380df7f85f1055586dc9ef58eed7969160af6399",
+    "core/src/main/scala/spinal/core/ElabScopedIndex.scala": "22f045734391b913b779cb9c5312d6b584311e07fb49f7f1b5aded957be4a29e",
+    "core/src/main/scala/spinal/core/NativeFormalWidthProjection.scala": "719ff8cf2f73b60aa780c0901b9c738f1aff35c959e679bcf1573fd9a9813003",
+    "core/src/main/scala/spinal/core/NativeWidthProvenance.scala": "c9718c0f398ee4d6a421f582dcf188445f970fee3ad898ad6ef41b14ae862e51",
+    "core/src/main/scala/spinal/core/ParameterizedWidth.scala": "c4db44a46b97bd3d8833030a4441a64b028299249b51883857c0be1535063d93",
+    "lib/src/main/scala/spinal/lib/BalancedTree.scala": "660f0b059cdd7041e338c4a07713b2648c09b318ea93962323279e092744a1a4",
+    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala": "f1c28278c835905c21cecde089f587d191337f2a5ed02e0874c698b764a09c0b",
+    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala": "e5a29225369f5721b0d0662c877d5e5d382168e25eb59ca423c54385de00d6d2",
+    "morphhdl/src/main/scala/spinal/core/internals/NativeWidthFormalSchema.scala": "cb9f1b40c6260673b421f46dad7a3edfc85f4780f06b4f7451772f147a12c079",
+    "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala": "32f15e2a94aeeef061dcd670820a7eb8d51e6688089a825d44355eafeab43454",
+    "morphhdl/src/test/scala/morphhdl/ConstructorParameterTests.scala": "6e2ba6d8552529a8a2c23e324f6481d2381aa645a35df23f9b1341a81b074fb6",
+    "morphhdl/src/test/scala/morphhdl/LightweightPortCompositionTests.scala": "d630b38ae7dda8babd298f35e8c8f2521a9107274d8bf5def4ac6200e70270f3",
+    "morphhdl/src/test/scala/morphhdl/NativeHierarchyWidthBoundaryTests.scala": "f778d114ee0d2f7e77d90a1ba3ca4b3173a318005b26645cc5c7de5a52103c26",
+    "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlDirectRecursiveComponent.scala": "8b387fc644957beaa1221774f5c9d65d1a3154ce6ac3aaf23f4810bacb0ff8f8",
+    "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlParameterSyntaxComponent.scala": "f7ca78616ded471b701b58e464fb661dcff7b7981ad371332cd772ed7713bfc8",
+    "morphplugin/src/test/scala/morphhdl/compiler/ConstructorParameterSyntaxTests.scala": "ca45bf6806815f8697baa50acf2d2bb0090f9bd1cdf858476d85b2d59b263b33",
+    "morphruntime/src/main/scala/spinal/core/ConstructorParam.scala": "758d6c5274cfbc00bc77ac0abc6ee5bfa22948a27c31886fe29828a2655604e4",
+    "morphruntime/src/main/scala/spinal/core/ElabFiniteAffineIndex.scala": "f8825644d8bac106d2c2977311c303af7892474d22d379f32c3902bc6ebc36b7",
+    "morphruntime/src/main/scala/spinal/core/ElabFiniteRange.scala": "03694802f1b851882860f12d4f4f569b9cf86e4e7bce6482b18fc24fc76a2fa2",
+    "morphruntime/src/main/scala/spinal/core/Param.scala": "b3c5214a0df7c8001ff5ab2e24b07b58b2a29be8a7e784e1d9223de931e9ffa1",
+    "morphruntime/src/main/scala/spinal/core/RtlParam.scala": "4a27d1217bf9ee81ecd87e30bd777d84cb26909e00db100abd4a225de77c95df",
+    "morphruntime/src/main/scala/spinal/core/rtlParamName.scala": "c11e73de99b023227454836d16c30b84551a5467957e4e79abbf415a2cdfd1c0"
+  },
+  "complete_scala_source_inventory_sha256": "12e989f59f234eb3f1b03ba07f4eb9ec9c513b8816d260f8c80ffff9647145af",
+  "source_identity_note": "The tested candidate is the named base plus exact source overlay. The application closure receipt records the published implementation/seal commits and final compiler pin; historical baselines are not new passing results.",
+  "checks": {
+    "native212": {
+      "result_manifest": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/results.json",
+      "result_manifest_sha256": "d5973a0a11c7830be78094bae7fca20c26278f6c89ad01431757878045cd7324",
+      "tests": 137,
+      "suites": {
+        "morphhdl.CapturedDomainWidthEquivalenceTests": {
+          "tests": 20,
+          "report_sha256": "11939d7b9eb1409dc45b6ff74f31822ce7e33f8333d0e44ab5856c12244a45da"
+        },
+        "morphhdl.ConstructorParameterTests": {
+          "tests": 16,
+          "report_sha256": "a1913a3ac79da75b9961c50c52ee9ba493448c06a80ee2e524ed5183b189ee7f"
+        },
+        "morphhdl.GenericExpressionAndStreamTests": {
+          "tests": 9,
+          "report_sha256": "7e385fb797aa5d3a02fd05e3a075e29c48365b6d4c3e5b5f59aeae2cc901ee2f"
+        },
+        "morphhdl.HierarchyParameterBindingTests": {
+          "tests": 8,
+          "report_sha256": "c2e5f5641958166853870765aa5c8f9ba9693457329c5324334c8fb041f9bafd"
+        },
+        "morphhdl.LightweightBalancedTreeTests": {
+          "tests": 11,
+          "report_sha256": "cf21307442204925acb70fbb22f9e84bcb9c662a947b22a7c229e456aebaaf90"
+        },
+        "morphhdl.LightweightPortCompositionTests": {
+          "tests": 15,
+          "report_sha256": "1c310909288ef0922f533154cfb837cb7f2c94264dc8d04a41c2e48b07e362c4"
+        },
+        "morphhdl.LightweightRecursiveSafetyTests": {
+          "tests": 5,
+          "report_sha256": "9693b9548beac203552f45411900989a9c6636fc55b4c078b1183341b6176c24"
+        },
+        "morphhdl.LightweightRecursiveTests": {
+          "tests": 4,
+          "report_sha256": "11255ef58820e3d3c1972b117c3cb544c7eb4c30f922ea7de576f6e2e8ca6ed7"
+        },
+        "morphhdl.NativeHierarchyWidthBoundaryTests": {
+          "tests": 22,
+          "report_sha256": "45d3d5f5eb594eaab71bfd59e8eef3acdb7d5e29d629671d2ac269abde106655"
+        },
+        "morphhdl.OptionalReductionPolicyTests": {
+          "tests": 7,
+          "report_sha256": "edf2789f911c7e5e6e65995ea95fdad232541ea2ece826e6b8db60a5249bc35e"
+        },
+        "morphhdl.PackedParameterTests": {
+          "tests": 6,
+          "report_sha256": "827cfa1e5604fc8ede89cdc132000a25ce11e67f279c9a149d255ecd687450f7"
+        },
+        "morphhdl.ScalarFormalReuseTests": {
+          "tests": 14,
+          "report_sha256": "c492fb4970cede10d115babc9c2475f5a630e3f4a7eb125f2a8b536071f8ca05"
+        }
+      },
+      "commands": [
+        {
+          "command": [
+            "java",
+            "-Xmx3G",
+            "-XX:ActiveProcessorCount=4",
+            "-cp",
+            "/home/kartik/projects/MorphHDL/morphhdl/target/scala-2.12/test-classes:/home/kartik/projects/MorphHDL/morphhdl/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/core/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/idslplugin/target/scala-2.12/spinalhdl-idsl-plugin_2.12-dev.jar:/home/kartik/projects/MorphHDL/idslpayload/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/sim/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/morphruntime/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/morphir/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/paramrtl/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/frontend/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/lib/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/backends/verilog/target/scala-2.12/classes:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-library/2.12.18/scala-library-2.12.18.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest_2.12/3.2.14/scalatest_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalactic/scalactic_2.12/3.2.14/scalactic_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-compiler/2.12.18/scala-compiler-2.12.18.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm-tree/9.2/asm-tree-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/lihaoyi/sourcecode_2.12/0.3.0/sourcecode_2.12-0.3.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-reflect/2.12.18/scala-reflect-2.12.18.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/scopt/scopt_2.12/4.1.0/scopt_2.12-4.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/commons-io/commons-io/2.11.0/commons-io-2.11.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-core_2.12/3.2.14/scalatest-core_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-featurespec_2.12/3.2.14/scalatest-featurespec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-flatspec_2.12/3.2.14/scalatest-flatspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-freespec_2.12/3.2.14/scalatest-freespec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funsuite_2.12/3.2.14/scalatest-funsuite_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funspec_2.12/3.2.14/scalatest-funspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-propspec_2.12/3.2.14/scalatest-propspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-refspec_2.12/3.2.14/scalatest-refspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-wordspec_2.12/3.2.14/scalatest-wordspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-diagrams_2.12/3.2.14/scalatest-diagrams_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-matchers-core_2.12/3.2.14/scalatest-matchers-core_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-shouldmatchers_2.12/3.2.14/scalatest-shouldmatchers_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-mustmatchers_2.12/3.2.14/scalatest-mustmatchers_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/io/github/java-diff-utils/java-diff-utils/4.12/java-diff-utils-4.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/jline/jline/3.22.0/jline-3.22.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna/5.12.1/jna-5.12.1.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm/9.2/asm-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/openhft/affinity/3.23.2/affinity-3.23.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-simple/2.0.5/slf4j-simple-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/oshi/oshi-core/6.4.0/oshi-core-6.4.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-compatible/3.2.14/scalatest-compatible-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/modules/scala-xml_2.12/2.1.0/scala-xml_2.12-2.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-api/2.0.5/slf4j-api-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna-platform/5.12.1/jna-platform-5.12.1.jar",
+            "scala.tools.nsc.Main",
+            "-Yrangepos",
+            "-classpath",
+            "/home/kartik/projects/MorphHDL/morphhdl/target/scala-2.12/test-classes:/home/kartik/projects/MorphHDL/morphhdl/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/core/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/idslplugin/target/scala-2.12/spinalhdl-idsl-plugin_2.12-dev.jar:/home/kartik/projects/MorphHDL/idslpayload/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/sim/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/morphruntime/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/morphir/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/paramrtl/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/frontend/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/lib/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/backends/verilog/target/scala-2.12/classes:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-library/2.12.18/scala-library-2.12.18.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest_2.12/3.2.14/scalatest_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalactic/scalactic_2.12/3.2.14/scalactic_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-compiler/2.12.18/scala-compiler-2.12.18.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm-tree/9.2/asm-tree-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/lihaoyi/sourcecode_2.12/0.3.0/sourcecode_2.12-0.3.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-reflect/2.12.18/scala-reflect-2.12.18.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/scopt/scopt_2.12/4.1.0/scopt_2.12-4.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/commons-io/commons-io/2.11.0/commons-io-2.11.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-core_2.12/3.2.14/scalatest-core_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-featurespec_2.12/3.2.14/scalatest-featurespec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-flatspec_2.12/3.2.14/scalatest-flatspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-freespec_2.12/3.2.14/scalatest-freespec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funsuite_2.12/3.2.14/scalatest-funsuite_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funspec_2.12/3.2.14/scalatest-funspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-propspec_2.12/3.2.14/scalatest-propspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-refspec_2.12/3.2.14/scalatest-refspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-wordspec_2.12/3.2.14/scalatest-wordspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-diagrams_2.12/3.2.14/scalatest-diagrams_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-matchers-core_2.12/3.2.14/scalatest-matchers-core_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-shouldmatchers_2.12/3.2.14/scalatest-shouldmatchers_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-mustmatchers_2.12/3.2.14/scalatest-mustmatchers_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/io/github/java-diff-utils/java-diff-utils/4.12/java-diff-utils-4.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/jline/jline/3.22.0/jline-3.22.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna/5.12.1/jna-5.12.1.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm/9.2/asm-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/openhft/affinity/3.23.2/affinity-3.23.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-simple/2.0.5/slf4j-simple-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/oshi/oshi-core/6.4.0/oshi-core-6.4.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-compatible/3.2.14/scalatest-compatible-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/modules/scala-xml_2.12/2.1.0/scala-xml_2.12-2.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-api/2.0.5/slf4j-api-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna-platform/5.12.1/jna-platform-5.12.1.jar",
+            "-d",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/classes",
+            "-Xplugin:/home/kartik/projects/MorphHDL/idslplugin/target/scala-2.12/spinalhdl-idsl-plugin_2.12-dev.jar",
+            "-Xplugin:/home/kartik/projects/MorphHDL/morphplugin/target/scala-2.12/morphhdl-compiler-plugin_2.12-dev.jar",
+            "-Xplugin-require:idsl-plugin",
+            "-Xplugin-require:morphhdl",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/ConstructorParameterTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/LightweightPortCompositionTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/PackedParameterTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/OptionalReductionPolicyTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/LightweightBalancedTreeTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/LightweightRecursiveTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/LightweightRecursiveSafetyTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/ScalarFormalReuseTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/HierarchyParameterBindingTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/NativeHierarchyWidthBoundaryTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/GenericExpressionAndStreamTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/CapturedDomainWidthEquivalenceTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/Increment66ToolEvidence.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/NativeWireCompatibility.scala"
+          ],
+          "returncode": 0,
+          "seconds": 47.66830600200046,
+          "log_sha256": "bc9236755c4c4c77ecb928afa630e80ba3fa87aa39ac75338aacdfe6fcc0a266"
+        },
+        {
+          "command": [
+            "java",
+            "-Xmx3G",
+            "-XX:ActiveProcessorCount=4",
+            "-Djava.io.tmpdir=/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/artifacts",
+            "-cp",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/classes:/home/kartik/projects/MorphHDL/morphhdl/target/scala-2.12/test-classes:/home/kartik/projects/MorphHDL/morphhdl/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/core/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/idslplugin/target/scala-2.12/spinalhdl-idsl-plugin_2.12-dev.jar:/home/kartik/projects/MorphHDL/idslpayload/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/sim/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/morphruntime/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/morphir/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/paramrtl/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/frontend/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/lib/target/scala-2.12/classes:/home/kartik/projects/MorphHDL/backends/verilog/target/scala-2.12/classes:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-library/2.12.18/scala-library-2.12.18.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest_2.12/3.2.14/scalatest_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalactic/scalactic_2.12/3.2.14/scalactic_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-compiler/2.12.18/scala-compiler-2.12.18.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm-tree/9.2/asm-tree-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/lihaoyi/sourcecode_2.12/0.3.0/sourcecode_2.12-0.3.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-reflect/2.12.18/scala-reflect-2.12.18.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/scopt/scopt_2.12/4.1.0/scopt_2.12-4.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/commons-io/commons-io/2.11.0/commons-io-2.11.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-core_2.12/3.2.14/scalatest-core_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-featurespec_2.12/3.2.14/scalatest-featurespec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-flatspec_2.12/3.2.14/scalatest-flatspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-freespec_2.12/3.2.14/scalatest-freespec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funsuite_2.12/3.2.14/scalatest-funsuite_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funspec_2.12/3.2.14/scalatest-funspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-propspec_2.12/3.2.14/scalatest-propspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-refspec_2.12/3.2.14/scalatest-refspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-wordspec_2.12/3.2.14/scalatest-wordspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-diagrams_2.12/3.2.14/scalatest-diagrams_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-matchers-core_2.12/3.2.14/scalatest-matchers-core_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-shouldmatchers_2.12/3.2.14/scalatest-shouldmatchers_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-mustmatchers_2.12/3.2.14/scalatest-mustmatchers_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/io/github/java-diff-utils/java-diff-utils/4.12/java-diff-utils-4.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/jline/jline/3.22.0/jline-3.22.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna/5.12.1/jna-5.12.1.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm/9.2/asm-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/openhft/affinity/3.23.2/affinity-3.23.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-simple/2.0.5/slf4j-simple-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/oshi/oshi-core/6.4.0/oshi-core-6.4.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-compatible/3.2.14/scalatest-compatible-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/modules/scala-xml_2.12/2.1.0/scala-xml_2.12-2.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-api/2.0.5/slf4j-api-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna-platform/5.12.1/jna-platform-5.12.1.jar",
+            "org.scalatest.tools.Runner",
+            "-o",
+            "-u",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/xml",
+            "-s",
+            "morphhdl.ConstructorParameterTests",
+            "-s",
+            "morphhdl.LightweightPortCompositionTests",
+            "-s",
+            "morphhdl.PackedParameterTests",
+            "-s",
+            "morphhdl.OptionalReductionPolicyTests",
+            "-s",
+            "morphhdl.LightweightBalancedTreeTests",
+            "-s",
+            "morphhdl.LightweightRecursiveTests",
+            "-s",
+            "morphhdl.LightweightRecursiveSafetyTests",
+            "-s",
+            "morphhdl.ScalarFormalReuseTests",
+            "-s",
+            "morphhdl.HierarchyParameterBindingTests",
+            "-s",
+            "morphhdl.NativeHierarchyWidthBoundaryTests",
+            "-s",
+            "morphhdl.GenericExpressionAndStreamTests",
+            "-s",
+            "morphhdl.CapturedDomainWidthEquivalenceTests"
+          ],
+          "returncode": 0,
+          "seconds": 165.2466957220022,
+          "log_sha256": "95f3d769c78a8885626ae892ba5285c90da13fc5facd9d8d0d2b72d03c80da6c"
+        },
+        {
+          "command": [
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/cleanup-build/release/spinal-cleanup-r",
+            "--dir",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/concrete-ports-350481936165867958",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/artifacts/concrete-ports-350481936165867958/ConcretePorts.v"
+          ],
+          "cwd": "/home/kartik/projects/MorphHDL",
+          "returncode": 0,
+          "log_sha256": "86546641d624447fc0cdf76986f691d87385948c3f005c23f3bfdb820a0859dd"
+        },
+        {
+          "command": [
+            "iverilog",
+            "-g2001",
+            "-s",
+            "tb",
+            "-o",
+            "sim",
+            "ConcretePorts.v",
+            "tb.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/concrete-ports-350481936165867958",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "vvp",
+            "sim"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/concrete-ports-350481936165867958",
+          "returncode": 0,
+          "log_sha256": "04acc9afc52d281de8e98b6e76f8f54a2de67d5e5077d6028ed35154a2cee859"
+        },
+        {
+          "command": [
+            "verilator",
+            "--lint-only",
+            "--language",
+            "1364-2001",
+            "-DSYNTHESIS",
+            "-Wno-fatal",
+            "ConcretePorts.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/concrete-ports-350481936165867958",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "yosys",
+            "-Q",
+            "-p",
+            "read_verilog -DSYNTHESIS ConcretePorts.v; hierarchy -check -top ConcretePorts; proc; opt; check -assert; stat"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/concrete-ports-350481936165867958",
+          "returncode": 0,
+          "log_sha256": "26866bdda2dca456aa428a1e85416896c7fc709ffd4f83edf424ebd5a1e1e963"
+        },
+        {
+          "command": [
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/cleanup-build/release/spinal-cleanup-r",
+            "--dir",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/constructor-sync-2508461693302468052",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/artifacts/constructor-sync-2508461693302468052/ConstructorSynchronizer.v"
+          ],
+          "cwd": "/home/kartik/projects/MorphHDL",
+          "returncode": 0,
+          "log_sha256": "7522d511fe2e65360fe19e77c876764aa6acf1d4900ec66150855e7f144788cf"
+        },
+        {
+          "command": [
+            "iverilog",
+            "-g2001",
+            "-s",
+            "tb",
+            "-o",
+            "sim",
+            "ConstructorSynchronizer.v",
+            "tb.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/constructor-sync-2508461693302468052",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "vvp",
+            "sim"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/constructor-sync-2508461693302468052",
+          "returncode": 0,
+          "log_sha256": "9c71befe6a9537a3fcc5a39c8b67052ac406714466ce9dd34dc8fa1aab56cd5a"
+        },
+        {
+          "command": [
+            "verilator",
+            "--lint-only",
+            "--language",
+            "1364-2001",
+            "-DSYNTHESIS",
+            "-Wno-fatal",
+            "ConstructorSynchronizer.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/constructor-sync-2508461693302468052",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "yosys",
+            "-Q",
+            "-p",
+            "read_verilog -DSYNTHESIS ConstructorSynchronizer.v; hierarchy -check -top ConstructorSynchronizer; proc; opt; check -assert; stat"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/constructor-sync-2508461693302468052",
+          "returncode": 0,
+          "log_sha256": "531755088a12bfe033a691c4d6851b65ffaedb45186b3cab37f34b829b959a58"
+        },
+        {
+          "command": [
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/cleanup-build/release/spinal-cleanup-r",
+            "--dir",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/one-bit-child-11242847911894995782",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/artifacts/one-bit-child-11242847911894995782/OneBitChild.v"
+          ],
+          "cwd": "/home/kartik/projects/MorphHDL",
+          "returncode": 0,
+          "log_sha256": "c24701960e31a9e492a2b4140bdcf354a7b3ac2394cb84c788f6fa3d5df96798"
+        },
+        {
+          "command": [
+            "iverilog",
+            "-g2001",
+            "-s",
+            "tb",
+            "-o",
+            "sim",
+            "OneBitChild.v",
+            "tb.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/one-bit-child-11242847911894995782",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "vvp",
+            "sim"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/one-bit-child-11242847911894995782",
+          "returncode": 0,
+          "log_sha256": "3f91af02c35927487d68e0ab74bef985a3f8b3c1dfd84cbce7ccc3079dc9a2d8"
+        },
+        {
+          "command": [
+            "verilator",
+            "--lint-only",
+            "--language",
+            "1364-2001",
+            "-DSYNTHESIS",
+            "-Wno-fatal",
+            "OneBitChild.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/one-bit-child-11242847911894995782",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "yosys",
+            "-Q",
+            "-p",
+            "read_verilog -DSYNTHESIS OneBitChild.v; hierarchy -check -top OneBitChild; proc; opt; check -assert; stat"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/one-bit-child-11242847911894995782",
+          "returncode": 0,
+          "log_sha256": "e8ed305509b66d2712b757ff4c9ef893f2256af1049375b3696a38a86ef99342"
+        },
+        {
+          "command": [
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/cleanup-build/release/spinal-cleanup-r",
+            "--dir",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/partial-child-input-18320205772441834706",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/artifacts/partial-child-input-18320205772441834706/PartialChildInput.v"
+          ],
+          "cwd": "/home/kartik/projects/MorphHDL",
+          "returncode": 0,
+          "log_sha256": "de7da5e48a59b44fda8050077e4f3dac09fc3ce92bd05228ca17c48975dac04b"
+        },
+        {
+          "command": [
+            "iverilog",
+            "-g2001",
+            "-s",
+            "tb",
+            "-o",
+            "sim",
+            "PartialChildInput.v",
+            "tb.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/partial-child-input-18320205772441834706",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "vvp",
+            "sim"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/partial-child-input-18320205772441834706",
+          "returncode": 0,
+          "log_sha256": "cfa79260acedb6cfcca1c971d41f1b064386a2410ecf99e9176f21629f98f893"
+        },
+        {
+          "command": [
+            "verilator",
+            "--lint-only",
+            "--language",
+            "1364-2001",
+            "-DSYNTHESIS",
+            "-Wno-fatal",
+            "PartialChildInput.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/partial-child-input-18320205772441834706",
+          "returncode": 0,
+          "log_sha256": "0942d69fc5a17057aa81bc2a385089e2e7b8f34ccc12fb7d785dcd72d0e57b66"
+        },
+        {
+          "command": [
+            "yosys",
+            "-Q",
+            "-p",
+            "read_verilog -DSYNTHESIS PartialChildInput.v; hierarchy -check -top PartialChildInput; proc; opt; check -assert; stat"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/partial-child-input-18320205772441834706",
+          "returncode": 0,
+          "log_sha256": "7ca5672cb6c90705b0c7248cc41d8c36f6f5d1eb1dd37137687bd481f1e66bd8"
+        },
+        {
+          "command": [
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/cleanup-build/release/spinal-cleanup-r",
+            "--dir",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/scoped-bits-17393329046075108495",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/artifacts/scoped-bits-17393329046075108495/ScopedBits.v"
+          ],
+          "cwd": "/home/kartik/projects/MorphHDL",
+          "returncode": 0,
+          "log_sha256": "e3aa07452d34514afa6d485e215b2035ac1e0cc62658a98b88d31508d76cffcd"
+        },
+        {
+          "command": [
+            "iverilog",
+            "-g2001",
+            "-s",
+            "tb",
+            "-o",
+            "sim",
+            "ScopedBits.v",
+            "tb.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/scoped-bits-17393329046075108495",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "vvp",
+            "sim"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/scoped-bits-17393329046075108495",
+          "returncode": 0,
+          "log_sha256": "21edf658de22ba26538d439cc630e9e82785cd22b3d2b4713d950cd5bcde83c6"
+        },
+        {
+          "command": [
+            "verilator",
+            "--lint-only",
+            "--language",
+            "1364-2001",
+            "-DSYNTHESIS",
+            "-Wno-fatal",
+            "ScopedBits.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/scoped-bits-17393329046075108495",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "yosys",
+            "-Q",
+            "-p",
+            "read_verilog -DSYNTHESIS ScopedBits.v; hierarchy -check -top ScopedBits; proc; opt; check -assert; stat"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/scoped-bits-17393329046075108495",
+          "returncode": 0,
+          "log_sha256": "74f4cc99d863a64f447b0de74f5163276982ef5df944bfaf98c7c43b01286f3c"
+        },
+        {
+          "command": [
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/cleanup-build/release/spinal-cleanup-r",
+            "--dir",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/scoped-bits-3547708821944618331",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/artifacts/scoped-bits-3547708821944618331/ScopedBits.v"
+          ],
+          "cwd": "/home/kartik/projects/MorphHDL",
+          "returncode": 0,
+          "log_sha256": "d4077f458c0700a68f4ead440610d2dbaa20b85c739450a362892e68a61794db"
+        },
+        {
+          "command": [
+            "iverilog",
+            "-g2001",
+            "-s",
+            "tb",
+            "-o",
+            "sim",
+            "ScopedBits.v",
+            "tb.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/scoped-bits-3547708821944618331",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "vvp",
+            "sim"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/scoped-bits-3547708821944618331",
+          "returncode": 0,
+          "log_sha256": "21edf658de22ba26538d439cc630e9e82785cd22b3d2b4713d950cd5bcde83c6"
+        },
+        {
+          "command": [
+            "verilator",
+            "--lint-only",
+            "--language",
+            "1364-2001",
+            "-DSYNTHESIS",
+            "-Wno-fatal",
+            "ScopedBits.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/scoped-bits-3547708821944618331",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "yosys",
+            "-Q",
+            "-p",
+            "read_verilog -DSYNTHESIS ScopedBits.v; hierarchy -check -top ScopedBits; proc; opt; check -assert; stat"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/scoped-bits-3547708821944618331",
+          "returncode": 0,
+          "log_sha256": "65be3cda39627120b8f0f766741cfbc5259b05fa239392e573c088915f65243c"
+        },
+        {
+          "command": [
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/cleanup-build/release/spinal-cleanup-r",
+            "--dir",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/sibling-geometry-13661303711469820601",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/artifacts/sibling-geometry-13661303711469820601/SiblingGeometry.v"
+          ],
+          "cwd": "/home/kartik/projects/MorphHDL",
+          "returncode": 0,
+          "log_sha256": "a34111847831c75e959ec4ae05e0f96ec71fb2970304b8dd41e8785479d456ac"
+        },
+        {
+          "command": [
+            "iverilog",
+            "-g2001",
+            "-s",
+            "tb",
+            "-o",
+            "sim",
+            "SiblingGeometry.v",
+            "tb.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/sibling-geometry-13661303711469820601",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "vvp",
+            "sim"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/sibling-geometry-13661303711469820601",
+          "returncode": 0,
+          "log_sha256": "38dd35e38dfe5ba54faa2860d6db6f94245a3eb9461cca13602580d64953359d"
+        },
+        {
+          "command": [
+            "verilator",
+            "--lint-only",
+            "--language",
+            "1364-2001",
+            "-DSYNTHESIS",
+            "-Wno-fatal",
+            "SiblingGeometry.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/sibling-geometry-13661303711469820601",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "yosys",
+            "-Q",
+            "-p",
+            "read_verilog -DSYNTHESIS SiblingGeometry.v; hierarchy -check -top SiblingGeometry; proc; opt; check -assert; stat"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/sibling-geometry-13661303711469820601",
+          "returncode": 0,
+          "log_sha256": "93dbd86f2a0344a583319b43e36ee6857bf6165bc0cb8a13cb78e746df4eea19"
+        }
+      ],
+      "plugin_sha256": {
+        "idslplugin/target/scala-2.12/spinalhdl-idsl-plugin_2.12-dev.jar": "088080351cef65b6c08a1d05c3fc789da118c0b7f0e6ac3147c0249d8908879d",
+        "morphplugin/target/scala-2.12/morphhdl-compiler-plugin_2.12-dev.jar": "0c47651eb822e7d554c158c0444c2047e2efffe0122cda3a964775108892a9f4"
+      },
+      "artifact_sha256": {
+        "artifacts/concrete-bit-fallback-1082168377711731890/ConcreteBitFallback.v": "09d75cb095b6899e289f71b23f419b3c6d0393c177a4d2c17ab867031facc5f5",
+        "artifacts/concrete-bit-fallback-1082168377711731890/tb.v": "60a82c0e25066cc3d93cecc0330eff83233c83199d64777846fd99bf121b43e8",
+        "artifacts/optional-reduction-13354473898547298918/OptionalTop.v": "4bc7fc68b33e07ca612b29ed60e693d44c7eb2a28fef8156a5096e7dbf5cd55e",
+        "artifacts/optional-reduction-13354473898547298918/tb.v": "27dbc2cd2a48fd2b50184d4477459c47fb19255a39223f7b6064f0877a1546d8",
+        "artifacts/optional-presence-747025414144743912/unnamed.v": "555f9570e9ae478e73d80dd487b0800088dffc5a47bdea431f159e1bd03b029f",
+        "artifacts/constructor-extreme-3810907564025876931/ConstructorCopy.v": "513a8fabf958b2fd17407cbae2544f615804ae250d00fb89f5654a8cb6436bfe",
+        "artifacts/constructor-extreme-3810907564025876931/tb.v": "d636c584faa63db9e9fd86f6be5215ea99402190c3fde8de8be89bd5c8511555",
+        "artifacts/scalar-formal-reuse-16814739976201953015/Top.v": "6b91af88d1d9142c69ae1aa92d5968b10af66a00510b3709ac4e1f46a4be4055",
+        "artifacts/scalar-formal-reuse-16814739976201953015/tb.v": "ef918d43c65292ceb797c49d797a253c017b9f239902253553b55dff369b0be2",
+        "artifacts/constructor-formals-14918252876939702002/ConstructorTop.v": "3970993a2da00b6c967d481ce0f44ec1a955fddfc28f30ad6314d438e24a04e7",
+        "artifacts/constructor-formals-14918252876939702002/tb.v": "add2abc2d62981ed9a1bfe34b79814fc4661f22925d3eb4aaf9f9b4be6462a81",
+        "artifacts/scalar-formal-reuse-832775044266322133/Top.v": "e581e802b701150eca1b03bc22cea67b4172a2fcd4a1045785d12ef499cd74d9",
+        "artifacts/scalar-formal-reuse-832775044266322133/tb.v": "35f70474269b25ce45e99fdaf796fa844444d69ccd52bcbab0d12e89039ac853",
+        "artifacts/native-invalid-binding-owner-2482548819354138458/LiteralInputSlice.v": "0bde20dc577a3ce09c5ee6ecb8899f4e5372e43bba910e8b528ec899a758c8a6",
+        "artifacts/native-invalid-binding-owner-2482548819354138458/tb.v": "7f1ea89e165c445f078ccdf221ba249574fa26ec00db08038720e79fd1cf8167",
+        "artifacts/native-literal-internal-758135175182038926/Top.v": "2e435045b0b9ae4c036d3f8378ea06b5a3c2a858c8cb32ed475a16881540166e",
+        "artifacts/native-literal-internal-758135175182038926/GenericChild.v": "2d88dcc335cd8b94bba35744ffce3fe744f79a201e9a0466182577840372d813",
+        "artifacts/native-literal-internal-758135175182038926/tb.v": "26be4462627ceda56d57e858cfa6d9ec4e9f927d9e2051218f719d952814f32f",
+        "artifacts/native-typed-internal-15322177159983720980/TypedChild.v": "51b590a6957c21e347028d29763995029aff56832f3e4555aaf14c7cad558daf",
+        "artifacts/native-typed-internal-15322177159983720980/Top.v": "e41d1c845757e8f6f9fe0b8f18cfb28c9aa1d49cfe25585262e9d824dea74742",
+        "artifacts/native-typed-internal-15322177159983720980/tb.v": "a04fa197088ed12d8079048c8d5ac68a47f1b62eeac7fe607696df0cfce9802e",
+        "artifacts/one-bit-child-11242847911894995782/OneBitChild.v": "f6c5f74be5164be8ccf5460941ee1cfe922b1a82f1c1bacd9f9f33d0d4fa4730",
+        "artifacts/one-bit-child-11242847911894995782/tb.v": "a82019c4b0b900c5c2c4ee6e613b2e63baee66c392837e2ec936366c69a82a93",
+        "artifacts/scalar-formal-reuse-2999330425245298838/Top.v": "a898c94cf070624bf6e526ccbc41f530fb76322cea787c184feec549f4e8faec",
+        "artifacts/scalar-formal-reuse-15054330194909563563/Top.v": "767833077ea2a0d0ed87f9f5cbf9aa49ff390bd1ad81f8639e9d245ba941a950",
+        "artifacts/scalar-formal-reuse-15054330194909563563/ConstantChild.v": "a26a6dd1e7827f03df4a63260903dad491fab9bc2c34806f4063020513a4cce4",
+        "artifacts/lightweight-library-tree-6373256986928851133/synth_top.v": "c9648aefed198e49d7db3a448795b48d6f3c14dd98d53a03c68e2b599fce03a3",
+        "artifacts/lightweight-library-tree-6373256986928851133/tb.v": "df4bd20700f5c8d00d76efbddd506333c47c8bf5ce0e59abcb6fbd8178fbf209",
+        "artifacts/lightweight-library-tree-6373256986928851133/LibraryTree.v": "2834bde6b15e291b569a947ccf0b1d69351bc13189ab63fa3834f453be9a5a67",
+        "artifacts/native-resize-cast-12440311275949193110/Top.v": "829c15690a7a886921b48d4cf316bc55d9da9476843de74564efc92869592b17",
+        "artifacts/scalar-formal-reuse-8497132586938011092/Top.v": "55500f0ae33d4619f77c3b0300592026cf99f3bc0e320e618a1d859ae7341c8f",
+        "artifacts/scalar-formal-reuse-8497132586938011092/ConstantChild.v": "1bef4413e89d377862f7480d6ea002c3709ab23f16ae49ff213595ec4b9f73d5",
+        "artifacts/lightweight-library-tree-13478927370402506904/synth_top.v": "c6dc769f3d8278433e51706a97480b9ee1f253ef873b949386e7067d1463a872",
+        "artifacts/lightweight-library-tree-13478927370402506904/tb.v": "3ff312397ff1b32c40d07406d3fe3b4132fe2532a91006c8d066ff736373f9f7",
+        "artifacts/lightweight-library-tree-13478927370402506904/LibraryTree.v": "5e1cc1e8cab3927e55c25694f38deb3ec64590e4bb09829faf80799abc4107a5",
+        "artifacts/optional-reduction-11772396139810305981/OptionalTop.v": "810d27ca33656741cf1a7f61d5478f8effd691cedefe61d26e5ae85529502528",
+        "artifacts/optional-reduction-11772396139810305981/tb.v": "62fb8c592de84923fa1b3ba8c10cbe06b997b3ecadc964ff501025e1f51fbd18",
+        "artifacts/lightweight-library-tree-13975661755792942634/synth_top.v": "c6dc769f3d8278433e51706a97480b9ee1f253ef873b949386e7067d1463a872",
+        "artifacts/lightweight-library-tree-13975661755792942634/tb.v": "55d99c97eecfc17fa29d9053244a3d1321b804d1551644f56ac5be73e879093e",
+        "artifacts/lightweight-library-tree-13975661755792942634/LibraryTree.v": "be597a8f4cb06b2d55d7d0cf50d36461db2ef70b019b4f76c8fa533872fcba9c",
+        "artifacts/native-typed-internal-5804606706293775390/Top.v": "7c1630ea8aeb524f407b1bfc2d8a485676bf1723590db367283012ec33bae31e",
+        "artifacts/native-typed-internal-5804606706293775390/tb.v": "a04fa197088ed12d8079048c8d5ac68a47f1b62eeac7fe607696df0cfce9802e",
+        "artifacts/native-typed-internal-10079425851697418918/Top.v": "3936e04ef865c470590f8ec5ebcfb7ac8b3930bd63bfa166822085353db9c79d",
+        "artifacts/native-typed-internal-10079425851697418918/tb.v": "dab18707e77ff6a14354d1e3dbb0190301837b43974546870e062e2bcbefe271",
+        "artifacts/lightweight-library-tree-6155565079633192217/synth_top.v": "c6dc769f3d8278433e51706a97480b9ee1f253ef873b949386e7067d1463a872",
+        "artifacts/lightweight-library-tree-6155565079633192217/tb.v": "3ff312397ff1b32c40d07406d3fe3b4132fe2532a91006c8d066ff736373f9f7",
+        "artifacts/lightweight-library-tree-6155565079633192217/LibraryTree.v": "dad897478b1952157540c2ca22c3f4dbb0ba5475a03d1a6289729effcad0c636",
+        "artifacts/native-literal-internal-8500645294708527590/Top.v": "f3c9a6f370a248f24314ac45df4056420eb0e2d91f6c67695388c0d195502423",
+        "artifacts/native-literal-internal-8500645294708527590/GenericChild.v": "bb3f2f5a34e57b81ed686835d9320ea4842396ff65e79ad609e6c0ea73a8e5e5",
+        "artifacts/native-literal-internal-8500645294708527590/tb.v": "1e1b242ec5c109ba48cdeda127d0c794ecd4233dfa68388540b23b17608bd754",
+        "artifacts/constructor-formals-5908015558639004712/ConstructorTop.v": "150f1d5d8450aac167cb6e289cd2b69252009ca48bd00a02b60ac19e5c4b1bfe",
+        "artifacts/constructor-formals-5908015558639004712/tb.v": "add2abc2d62981ed9a1bfe34b79814fc4661f22925d3eb4aaf9f9b4be6462a81",
+        "artifacts/lightweight-recursive-7177693941790954450/LightweightRecursiveTree.v": "bbb2f34c87ee8f1fa96a73c81a606d9a4ccd103e363ea4abf6891d0b75dfb959",
+        "artifacts/lightweight-recursive-7177693941790954450/tb.v": "3794a67d9ad46da5fcabe2ead525def9492fdcbd109d094d77e2e444a08d4d2c",
+        "artifacts/lightweight-library-tree-5160812995175549044/synth_top.v": "c9648aefed198e49d7db3a448795b48d6f3c14dd98d53a03c68e2b599fce03a3",
+        "artifacts/lightweight-library-tree-5160812995175549044/tb.v": "df4bd20700f5c8d00d76efbddd506333c47c8bf5ce0e59abcb6fbd8178fbf209",
+        "artifacts/lightweight-library-tree-5160812995175549044/LibraryTree.v": "149b7d795914ccbac55e732e39d98c08d4464a5c0e2e1fdc6d288215744bf1cd",
+        "artifacts/literal-clone-2599895356168007699/LiteralClone.v": "d0e97c0042b85d721db1e6280c3401646714ee6fe673b793c45ff3f11bcf78c6",
+        "artifacts/literal-clone-2599895356168007699/tb.v": "ec23e3966a631d7532bac40cea46ab70d1acfb4ffc07dc663ed2b19bb2abb882",
+        "artifacts/native-typed-internal-4450541705006939522/Top.v": "2e6e2613b45a553e877e8c8c8a6b68b155044c73ccdd726e266e41176df2cd34",
+        "artifacts/native-typed-internal-4450541705006939522/tb.v": "a04fa197088ed12d8079048c8d5ac68a47f1b62eeac7fe607696df0cfce9802e",
+        "artifacts/lightweight-library-tree-4723269361607934009/LibraryTree.v": "2834bde6b15e291b569a947ccf0b1d69351bc13189ab63fa3834f453be9a5a67",
+        "artifacts/optional-mask-13148034791440212326/OptionalMaskTop.v": "f3baa354560d07da361fade6382b69022689402689285b45fcec23f4e81db213",
+        "artifacts/optional-mask-13148034791440212326/tb.v": "45e40feec464312cb9cd4805c3f37d522d1bf42b33b6f013773570f51ef932fc",
+        "artifacts/sibling-geometry-13661303711469820601/SiblingGeometry.v": "750707d1923f56fc68dad990df774d24142afdcd13c1e0a8bdc4925cdff19280",
+        "artifacts/sibling-geometry-13661303711469820601/tb.v": "d4dfccd900ed51ded3e6b582847dbd4631c6eadb09942b3302533c32662a4f86",
+        "artifacts/packed-forward-7495062248861779993/PackedParent.v": "2cf099db2b4f3e34f8dff579ee56938acb0a53e53496447183b40e0494b50d85",
+        "artifacts/packed-forward-7495062248861779993/tb.v": "dd3430c8a93fa7bf8fed8390f7bd22c346d543344d065f6b2eab5ec4489881ec",
+        "artifacts/constructor-name-4373243015259488061/ConstructorNamed.v": "da4c18861b9c441b7439071ac76a86b4c0d28093922b9e37ed475e6d09f4beb3",
+        "artifacts/constructor-name-4373243015259488061/tb.v": "cab29577b888503892950fa75d19a5fb4224e62e90ab4999f57719be146bac10",
+        "artifacts/constructor-recursive-3023039282035401187/ConstructorRecursive.v": "680008b58114fe6cce006a980f06cc882de50c3b392466306a64ffd8296bb216",
+        "artifacts/constructor-recursive-3023039282035401187/tb.v": "c8c0459f9470d1c9dc14432085bfaaaae8167316bf81ff3bb7eddbe7a4efd95e",
+        "artifacts/lightweight-library-tree-4958469669619878305/synth_top.v": "1e55ff7ac34b241059a700fd6bf004d17f823240b4878b2cee22f351775a3b70",
+        "artifacts/lightweight-library-tree-4958469669619878305/tb.v": "37e1310728e92adc7315511bde25b85a56fa98dfe7d5ea130f03885427f5454a",
+        "artifacts/lightweight-library-tree-4958469669619878305/LibraryTree.v": "c2863d6e755ef3d86d5c17974254619c70318d69227a287ecea2395a0b9fa99a",
+        "artifacts/native-typed-internal-12006204096944886665/TypedChild.v": "51b590a6957c21e347028d29763995029aff56832f3e4555aaf14c7cad558daf",
+        "artifacts/native-typed-internal-12006204096944886665/Top.v": "037841e6fea1f5b1852fdf6c9a1ded28d605b0cf6c624f263eb8a9ae7b3bc95d",
+        "artifacts/constructor-forward-8510331545437050781/ConstructorForward.v": "4bea359ead98981afd36d5bb5b27da37faefe325823fccadfc7b7c35e8aa72ea",
+        "artifacts/constructor-forward-8510331545437050781/tb.v": "b08dea5b088c8e71571f6036835ab2280f7e6d1ed18d8acdb63651da283beacf",
+        "artifacts/scalar-formal-reuse-17040227371708958010/Top.v": "7da9a2141e78bde1d1796476ac58a794b6a88c9335380fc38cb6c0d0f0bd1312",
+        "artifacts/scalar-formal-reuse-17040227371708958010/ConstantChild.v": "1bef4413e89d377862f7480d6ea002c3709ab23f16ae49ff213595ec4b9f73d5",
+        "artifacts/scalar-formal-reuse-17040227371708958010/tb.v": "517bded511ba7674020dbb76b200b598c47abce8dd7581504be222bc2e7993ec",
+        "artifacts/constructor-recursive-12842603770749827194/ConstructorRecursive.v": "c8b09eea07f0f8def3b006fec55e51dddfafbea7d0fb42f355db076e9aa2e984",
+        "artifacts/constructor-recursive-12842603770749827194/tb.v": "c8c0459f9470d1c9dc14432085bfaaaae8167316bf81ff3bb7eddbe7a4efd95e",
+        "artifacts/lightweight-recursive-default-name-7126859284844074826/LightweightUnsafeRecursion.v": "4c055eda564c30ba6c0c9842315c27bb2f39933e72ec7adb63193f589bffd02f",
+        "artifacts/lightweight-library-tree-921097178331001040/LibraryTree.v": "c2863d6e755ef3d86d5c17974254619c70318d69227a287ecea2395a0b9fa99a",
+        "artifacts/native-typed-internal-17874077627128825281/TypedChild.v": "51b590a6957c21e347028d29763995029aff56832f3e4555aaf14c7cad558daf",
+        "artifacts/native-typed-internal-17874077627128825281/Top.v": "037841e6fea1f5b1852fdf6c9a1ded28d605b0cf6c624f263eb8a9ae7b3bc95d",
+        "artifacts/native-typed-internal-17874077627128825281/tb.v": "dab18707e77ff6a14354d1e3dbb0190301837b43974546870e062e2bcbefe271",
+        "artifacts/scalar-formal-reuse-7876917670720248424/Top.v": "56396b3120ba5a424d070c4be8c9d535c22c3af7d8add5523e89e4e4ef2ec801",
+        "artifacts/native-typed-internal-17354133884041148905/TypedChild.v": "51b590a6957c21e347028d29763995029aff56832f3e4555aaf14c7cad558daf",
+        "artifacts/native-typed-internal-17354133884041148905/Top.v": "a21637e7d17b0f0aa82a3ce6a2ece82addc9316e7ada273ed8e18033ff61c794",
+        "artifacts/concrete-ports-350481936165867958/ConcretePorts.v": "c4e08dbbeda8f8885675aec5aadebd3a60ec84ae09dfdc15063a3c1dd46fec20",
+        "artifacts/concrete-ports-350481936165867958/tb.v": "5dfacdb1afa582c1734267a9a3bf2fd95c1fcca5eaab9a965651390823ad1453",
+        "artifacts/scalar-formal-reuse-3432870047633641959/Top.v": "767833077ea2a0d0ed87f9f5cbf9aa49ff390bd1ad81f8639e9d245ba941a950",
+        "artifacts/scalar-formal-reuse-3432870047633641959/ConstantChild.v": "a26a6dd1e7827f03df4a63260903dad491fab9bc2c34806f4063020513a4cce4",
+        "artifacts/scalar-formal-reuse-3432870047633641959/tb.v": "08f2ef553335bb43ad8216ea66dddd377a55d9d43d2449f0adcb3ea74bce8d3a",
+        "artifacts/scalar-formal-reuse-18158886923873250869/Top.v": "b29903f209b5fe83758c93fa76adbcbf5c76f5da42942e5854ad6ce5d423f076",
+        "artifacts/scalar-formal-reuse-18158886923873250869/ConstantChild.v": "1bef4413e89d377862f7480d6ea002c3709ab23f16ae49ff213595ec4b9f73d5",
+        "artifacts/native-fixed-port-owner-13994198185493156005/FixedChild.v": "a1977a0b9ea65d78b1189478d5df95a1c6a24ae3e8505f5fd8c6e1c56e3594e3",
+        "artifacts/native-fixed-port-owner-13994198185493156005/Top.v": "38b33375a83170c03bad4918d5e9227e3af5b780f088de13888b577a89541b58",
+        "artifacts/native-fixed-port-owner-13994198185493156005/GenericChild.v": "2d88dcc335cd8b94bba35744ffce3fe744f79a201e9a0466182577840372d813",
+        "artifacts/native-fixed-port-owner-13994198185493156005/tb.v": "6dc879db62c3af7cdd1081fb7b48d6a766be246d6b47b841163f2a386573f4ea",
+        "artifacts/optional-reduction-11798366758239166356/OptionalTop.v": "5e9489cf61ac83fdf1993c6b20e3af9203cf698cc2762e2afbaa7bf34b49448e",
+        "artifacts/optional-reduction-11798366758239166356/tb.v": "27dbc2cd2a48fd2b50184d4477459c47fb19255a39223f7b6064f0877a1546d8",
+        "artifacts/literal-sibling-ports-18422504677943745079/LiteralSiblingTop.v": "dfc09de64f423f5065f0d7197dbaf25ac45b41416b92f795c6e5826b8c76fd2a",
+        "artifacts/literal-sibling-ports-18422504677943745079/tb.v": "d024db7f5e4619e1dd5493205dd12b1991e19ea665dcc162e91ad49dc5d60622",
+        "artifacts/native-typed-internal-472841154906212600/TypedChild.v": "51b590a6957c21e347028d29763995029aff56832f3e4555aaf14c7cad558daf",
+        "artifacts/native-typed-internal-472841154906212600/Top.v": "a21637e7d17b0f0aa82a3ce6a2ece82addc9316e7ada273ed8e18033ff61c794",
+        "artifacts/native-typed-internal-472841154906212600/tb.v": "a04fa197088ed12d8079048c8d5ac68a47f1b62eeac7fe607696df0cfce9802e",
+        "artifacts/signed-param-boundary-7742446425075235056/SignedBoundary.v": "0d022396e8a2c35bb9eb5b34ddfdc32f5c4764de2c9582f0aa9dd8f4479a5dcc",
+        "artifacts/signed-param-boundary-7742446425075235056/tb.v": "e3aa5103cf0b7958a85ce845729bdc3cbe4f9a716e45e00d08d61b9811f4707c",
+        "artifacts/scalar-formal-reuse-7238089540502466498/Top.v": "56396b3120ba5a424d070c4be8c9d535c22c3af7d8add5523e89e4e4ef2ec801",
+        "artifacts/scalar-formal-reuse-7238089540502466498/tb.v": "08f2ef553335bb43ad8216ea66dddd377a55d9d43d2449f0adcb3ea74bce8d3a",
+        "artifacts/optional-reduction-10644231215034317685/OptionalTop.v": "851da570b83b0ecebf9412bf0a4da0f8edda9833d9819e8ecf650a56c899e264",
+        "artifacts/optional-reduction-10644231215034317685/tb.v": "27dbc2cd2a48fd2b50184d4477459c47fb19255a39223f7b6064f0877a1546d8",
+        "artifacts/native-typed-internal-13129133528667907015/Top.v": "a6b52a5d7a2701e8dd41f993144503ee8dfff49f565d365b9d7806e5f4894f6d",
+        "artifacts/scalar-formal-reuse-10473653106300622398/Top.v": "6b91af88d1d9142c69ae1aa92d5968b10af66a00510b3709ac4e1f46a4be4055",
+        "artifacts/lightweight-recursive-14875270685429876247/LightweightRecursiveTree.v": "bdfa032ebf4c91c171205f1e014fbc6c5edf9ba015fb90a14bc35ef6d7a3980b",
+        "artifacts/constructor-recursive-5920422100709171287/ConstructorRecursive.v": "4d78650080864b6d2846b7c5dd8533848d254eb867155dec25453d64bc676bf2",
+        "artifacts/constructor-recursive-5920422100709171287/tb.v": "a368d77b71627110ab5e9ba42a8d97a8f22dc2e5fae3d54bb3d1701d9d073f14",
+        "artifacts/standalone-scalar-formal-9319598362889126000/ConstantChild.v": "2769d8b5c4803a610955efdc6e4d5e914423332ecd33e8510ab15df4c1c5da1e",
+        "artifacts/standalone-scalar-formal-9319598362889126000/tb.v": "d1d39ce50294e88ff73823f088826238d6860c8b41cbc2ede9acb7150e3c81bf",
+        "artifacts/mixed-formal-defaults-11843455890380371842/MixedTop.v": "522accc8f34fb0b6d1b160e8e0518191127355d7b386982afd09a2ed022f8654",
+        "artifacts/mixed-formal-defaults-11843455890380371842/tb.v": "38bb6c83e62f17c22b904474111f359131a7d4a90f6e318d25613c3162f0fa5f",
+        "artifacts/lightweight-library-tree-16561446203476648005/synth_top.v": "c6dc769f3d8278433e51706a97480b9ee1f253ef873b949386e7067d1463a872",
+        "artifacts/lightweight-library-tree-16561446203476648005/tb.v": "55d99c97eecfc17fa29d9053244a3d1321b804d1551644f56ac5be73e879093e",
+        "artifacts/lightweight-library-tree-16561446203476648005/LibraryTree.v": "56cabb3bcec1036a23214627d8d8e3c2f1d1d16d8cde845ac3d78ab51a37a918",
+        "artifacts/lightweight-library-tree-10785603193388907951/synth_top.v": "be9abb06678000c5fc3bb60cb3d8b3c3f03f502ca021e8e7a92612e5ea35f4ee",
+        "artifacts/lightweight-library-tree-10785603193388907951/tb.v": "4a52cecf8d7cf2359b9b9685692e9a1bb6b9b321ecf4f2ef4450410417eba3c1",
+        "artifacts/lightweight-library-tree-10785603193388907951/LibraryTree.v": "41fd7c58bb29199b55c275860fbeb404f15f5a27eb0c7815b825736e594a089c",
+        "artifacts/lightweight-library-tree-10232002371544345103/LibraryTree.v": "56cabb3bcec1036a23214627d8d8e3c2f1d1d16d8cde845ac3d78ab51a37a918",
+        "artifacts/lightweight-recursive-3880046975112641027/LightweightRecursiveTree.v": "b5b5e3f47de6645f58c411a591b3dcff3c1a6a913a4ac2122d840a94795df54c",
+        "artifacts/lightweight-library-tree-2494178392202180679/synth_top.v": "be9abb06678000c5fc3bb60cb3d8b3c3f03f502ca021e8e7a92612e5ea35f4ee",
+        "artifacts/lightweight-library-tree-2494178392202180679/tb.v": "4a52cecf8d7cf2359b9b9685692e9a1bb6b9b321ecf4f2ef4450410417eba3c1",
+        "artifacts/lightweight-library-tree-2494178392202180679/LibraryTree.v": "e44500362aa6bfdf336189349753b64197e8e02c616a8cb85b368c1980ae1fe1",
+        "artifacts/lightweight-recursive-13183618605303083790/LightweightRecursiveTree.v": "bdfa032ebf4c91c171205f1e014fbc6c5edf9ba015fb90a14bc35ef6d7a3980b",
+        "artifacts/lightweight-recursive-13183618605303083790/tb.v": "42d9841743ccd2d24264401b202b46cc9772558cc9144d75ad057cdd77131dfe",
+        "artifacts/optional-reduction-14463383272065256188/OptionalTop.v": "5e9489cf61ac83fdf1993c6b20e3af9203cf698cc2762e2afbaa7bf34b49448e",
+        "artifacts/optional-reduction-14463383272065256188/tb.v": "27dbc2cd2a48fd2b50184d4477459c47fb19255a39223f7b6064f0877a1546d8",
+        "artifacts/lightweight-library-tree-16664134755759638271/LibraryTree.v": "dad897478b1952157540c2ca22c3f4dbb0ba5475a03d1a6289729effcad0c636",
+        "artifacts/scalar-formal-reuse-6135142931810958968/Top.v": "973b12ee3abbe5e6264106458eea4340a54274380997b66d6d4fff0626dc4fe0",
+        "artifacts/scalar-formal-reuse-6135142931810958968/ConstantChild.v": "18ea8d0f8328789611144346de88881a7488e940a587e97b30d5953a725fa6bb",
+        "artifacts/lightweight-library-tree-7526181157054094380/LibraryTree.v": "be597a8f4cb06b2d55d7d0cf50d36461db2ef70b019b4f76c8fa533872fcba9c",
+        "artifacts/scalar-formal-reuse-13904108367735792514/Top.v": "a898c94cf070624bf6e526ccbc41f530fb76322cea787c184feec549f4e8faec",
+        "artifacts/scalar-formal-reuse-13904108367735792514/tb.v": "517bded511ba7674020dbb76b200b598c47abce8dd7581504be222bc2e7993ec",
+        "artifacts/lightweight-library-tree-14060309330736089877/LibraryTree.v": "41fd7c58bb29199b55c275860fbeb404f15f5a27eb0c7815b825736e594a089c",
+        "artifacts/scalar-formal-reuse-6696848263822598774/Top.v": "8fdf060a7aeef8315b9f44f8510b6a5f78b1c770a625d0797bb324f61f5b256b",
+        "artifacts/scalar-formal-reuse-6696848263822598774/ConstantChild.v": "18ea8d0f8328789611144346de88881a7488e940a587e97b30d5953a725fa6bb",
+        "artifacts/scalar-formal-reuse-6696848263822598774/tb.v": "35f70474269b25ce45e99fdaf796fa844444d69ccd52bcbab0d12e89039ac853",
+        "artifacts/native-typed-internal-4984180439953168161/TypedChild.v": "51b590a6957c21e347028d29763995029aff56832f3e4555aaf14c7cad558daf",
+        "artifacts/native-typed-internal-4984180439953168161/Top.v": "968923e086e13a5f009bc0399cd5eee833c637afc9299a233d6a5d336bbf940c",
+        "artifacts/native-typed-internal-4984180439953168161/tb.v": "dab18707e77ff6a14354d1e3dbb0190301837b43974546870e062e2bcbefe271",
+        "artifacts/standalone-scalar-formal-15665053431727348810/ConstantChild.v": "7817fa026bd522506207035f425a13c482be13433c18d57f0714a44f77b0c45e",
+        "artifacts/standalone-scalar-formal-15665053431727348810/tb.v": "e0527d516a69b0e6545ab3ce8f2d29389948bd692febdde96532e5c71cf81859",
+        "artifacts/lightweight-library-tree-9655418849731173323/LibraryTree.v": "5e1cc1e8cab3927e55c25694f38deb3ec64590e4bb09829faf80799abc4107a5",
+        "artifacts/scoped-bits-3547708821944618331/ScopedBits.v": "7899f19c85104d994887c5dea0da4cfd02acd951e3a3a5cce3f1e80d86295fad",
+        "artifacts/scoped-bits-3547708821944618331/tb.v": "d91df63bb261fcedbde51e8c6272e2c3a7398c1936d4553be97f73cfd15a7370",
+        "artifacts/constructor-formals-15162957345252142349/ConstructorTop.v": "3970993a2da00b6c967d481ce0f44ec1a955fddfc28f30ad6314d438e24a04e7",
+        "artifacts/lightweight-library-tree-9929369906421046791/LibraryTree.v": "149b7d795914ccbac55e732e39d98c08d4464a5c0e2e1fdc6d288215744bf1cd",
+        "artifacts/scalar-formal-reuse-14527634315588555992/Top.v": "a4ed76398e52f23d69951da62733aaf9220202edd139f243c53bbfa7a8dca71e",
+        "artifacts/scalar-formal-reuse-3617496852575654811/Top.v": "9e9e23d9e89ae366cc5dc2508dd341ac6b2584e8aa52e0b91e0a640f5878e510",
+        "artifacts/scalar-formal-reuse-3617496852575654811/ConstantChild.v": "a26a6dd1e7827f03df4a63260903dad491fab9bc2c34806f4063020513a4cce4",
+        "artifacts/scalar-formal-reuse-5003668643152129887/Top.v": "241bd563137275d62b02def28324171f46c46346aa7d87b7319754ba41081243",
+        "artifacts/scalar-formal-reuse-5003668643152129887/ConstantChild.v": "1bef4413e89d377862f7480d6ea002c3709ab23f16ae49ff213595ec4b9f73d5",
+        "artifacts/scalar-formal-reuse-5003668643152129887/tb.v": "ef918d43c65292ceb797c49d797a253c017b9f239902253553b55dff369b0be2",
+        "artifacts/lightweight-recursive-211474421298769917/LightweightRecursiveTree.v": "bbb2f34c87ee8f1fa96a73c81a606d9a4ccd103e363ea4abf6891d0b75dfb959",
+        "artifacts/optional-presence-7724425982287372850/unnamed.v": "555f9570e9ae478e73d80dd487b0800088dffc5a47bdea431f159e1bd03b029f",
+        "artifacts/constructor-recursive-9662364647268235900/ConstructorRecursive.v": "76e7861834927f2790018ebe8539793abffbe9742c267b7975a134750b1cca65",
+        "artifacts/constructor-recursive-9662364647268235900/tb.v": "a368d77b71627110ab5e9ba42a8d97a8f22dc2e5fae3d54bb3d1701d9d073f14",
+        "artifacts/native-typed-internal-17237687788861726548/Top.v": "3936e04ef865c470590f8ec5ebcfb7ac8b3930bd63bfa166822085353db9c79d",
+        "artifacts/packed-parameters-7968481974776206611/PackedParameters.v": "1976ab1a868959bed8016250358301bc4a59ee584d1e0b093ed0729f05b1548e",
+        "artifacts/packed-parameters-7968481974776206611/tb.v": "c609ff084dae85ffcd378a471750e3d908f36e7e21ed5fde80f9566594341bef",
+        "artifacts/scalar-formal-reuse-6061642398506710994/Top.v": "997ac5b7de26d370fe0233e6c2999f1c2ac513fbf64ad0b746648f1f0008e84a",
+        "artifacts/scalar-formal-reuse-1702644628366624307/Top.v": "e581e802b701150eca1b03bc22cea67b4172a2fcd4a1045785d12ef499cd74d9",
+        "artifacts/lightweight-library-tree-635415091676169732/synth_top.v": "0e6ab0056915e1b8bc1a861aabafa263c779cf08e815eb7cfc6c97947f82a196",
+        "artifacts/lightweight-library-tree-635415091676169732/tb.v": "ad4c6a1f4628081feb107b284ee19a90e85872f3f89d89c0cab87b2a2d62ad4a",
+        "artifacts/lightweight-library-tree-635415091676169732/LibraryTree.v": "8011a31fda228aa525a57a185a2d793f6a754b4b34db18a2d27bff7cff179027",
+        "artifacts/packed-parameters-8689881959912112493/PackedParameters.v": "366372fe7f34a636b093a43ec0ea3792e4405fe126019ce5f8615fe0b08c2f84",
+        "artifacts/packed-parameters-8689881959912112493/tb.v": "c609ff084dae85ffcd378a471750e3d908f36e7e21ed5fde80f9566594341bef",
+        "artifacts/scoped-bits-17393329046075108495/ScopedBits.v": "62aecc4aac45c788f3a9ab40fa95a35a023a0ffc9179a94ede9fa16d95aa1f5a",
+        "artifacts/scoped-bits-17393329046075108495/tb.v": "c751788706f3186830622aca87f52ab9e715c38deaa3453aaa3c26cc9cb47283",
+        "artifacts/native-typed-internal-8524402133053739471/Top.v": "2e6e2613b45a553e877e8c8c8a6b68b155044c73ccdd726e266e41176df2cd34",
+        "artifacts/constructor-sync-2508461693302468052/ConstructorSynchronizer.v": "ef3d953c96c133a5fc8793030916b577812bcf880b23984e4bcaee558625476f",
+        "artifacts/constructor-sync-2508461693302468052/tb.v": "c1aa78a38129e02e1b6bf5fecdad6377c0f704960a08243f87b1bc937dc349f2",
+        "artifacts/lightweight-library-tree-7581829833077895270/LibraryTree.v": "8011a31fda228aa525a57a185a2d793f6a754b4b34db18a2d27bff7cff179027",
+        "artifacts/scalar-formal-reuse-15037393751381328795/Top.v": "dfcd73b184f6b9d4d193f8e614d14ffd95041c7bfffa63e12f3916792cd1b12d",
+        "artifacts/scalar-formal-reuse-10853785447142152060/Top.v": "3c7079b9473d3f6a257c1f777d83567a5f00db17dbbbe5a49475ae8ce19e9531",
+        "artifacts/lightweight-recursive-7235592943431551519/LightweightRecursiveTree.v": "94ecfafc4ed3dd2fed8aefd16d0e97234986557b3340930018782edf73ee6f68",
+        "artifacts/scalar-formal-reuse-17035166222373310210/Top.v": "241bd563137275d62b02def28324171f46c46346aa7d87b7319754ba41081243",
+        "artifacts/scalar-formal-reuse-17035166222373310210/ConstantChild.v": "1bef4413e89d377862f7480d6ea002c3709ab23f16ae49ff213595ec4b9f73d5",
+        "artifacts/lightweight-library-tree-13324361128453707806/synth_top.v": "0e6ab0056915e1b8bc1a861aabafa263c779cf08e815eb7cfc6c97947f82a196",
+        "artifacts/lightweight-library-tree-13324361128453707806/tb.v": "0dd28f88a01e70c4529ca344889c2e380ca97be1207856a326f4a9a1fbdbbf73",
+        "artifacts/lightweight-library-tree-13324361128453707806/LibraryTree.v": "edc2d7d052afc02173a01caa1eba740a004919a8025e42adc5de5d273784a127",
+        "artifacts/native-typed-internal-4982047330372710093/Top.v": "7c1630ea8aeb524f407b1bfc2d8a485676bf1723590db367283012ec33bae31e",
+        "artifacts/constructor-formals-9675598116223936963/ConstructorTop.v": "150f1d5d8450aac167cb6e289cd2b69252009ca48bd00a02b60ac19e5c4b1bfe",
+        "artifacts/native-resize-cast-4066073496092676557/Top.v": "6b0ab10ad31b9874f831301c79b7610674ff9d443c40fb6b6062f0a2b2fee87c",
+        "artifacts/scalar-formal-reuse-1242930332369710999/Top.v": "8fdf060a7aeef8315b9f44f8510b6a5f78b1c770a625d0797bb324f61f5b256b",
+        "artifacts/scalar-formal-reuse-1242930332369710999/ConstantChild.v": "18ea8d0f8328789611144346de88881a7488e940a587e97b30d5953a725fa6bb",
+        "artifacts/constructor-extreme-4861528151416579569/ConstructorCopy.v": "74afb4aeee4350ea212ff555e4ba1a2452543f5288c7fee06eafa3d5ce0d1c71",
+        "artifacts/constructor-extreme-4861528151416579569/tb.v": "d636c584faa63db9e9fd86f6be5215ea99402190c3fde8de8be89bd5c8511555",
+        "artifacts/lightweight-recursive-7522185494290464471/LightweightRecursiveTree.v": "94ecfafc4ed3dd2fed8aefd16d0e97234986557b3340930018782edf73ee6f68",
+        "artifacts/lightweight-recursive-7522185494290464471/tb.v": "3794a67d9ad46da5fcabe2ead525def9492fdcbd109d094d77e2e444a08d4d2c",
+        "artifacts/mixed-formal-defaults-4729175030626542024/MixedTop.v": "e54070d089cc1a1cf79e288c9f7cfbfd6967082243d8c68389b61625f402b300",
+        "artifacts/mixed-formal-defaults-4729175030626542024/ConstantChild.v": "a26a6dd1e7827f03df4a63260903dad491fab9bc2c34806f4063020513a4cce4",
+        "artifacts/mixed-formal-defaults-4729175030626542024/tb.v": "38bb6c83e62f17c22b904474111f359131a7d4a90f6e318d25613c3162f0fa5f",
+        "artifacts/native-typed-internal-8883257326995092027/TypedChild.v": "51b590a6957c21e347028d29763995029aff56832f3e4555aaf14c7cad558daf",
+        "artifacts/native-typed-internal-8883257326995092027/Top.v": "e41d1c845757e8f6f9fe0b8f18cfb28c9aa1d49cfe25585262e9d824dea74742",
+        "artifacts/lightweight-recursive-3902963105124199688/LightweightRecursiveTree.v": "b5b5e3f47de6645f58c411a591b3dcff3c1a6a913a4ac2122d840a94795df54c",
+        "artifacts/lightweight-recursive-3902963105124199688/tb.v": "42d9841743ccd2d24264401b202b46cc9772558cc9144d75ad057cdd77131dfe",
+        "artifacts/constructor-packed-6977229425994560943/ConstructorValues.v": "89c9272d579753b060d968f6470dc373e4865bef18580cb2f9eab021cab06863",
+        "artifacts/constructor-packed-6977229425994560943/tb.v": "c8ac14e624dc2aef22b4df193feb4563900b120801392822919566d45f358b17",
+        "artifacts/native-typed-internal-7392962448906661516/Top.v": "a6b52a5d7a2701e8dd41f993144503ee8dfff49f565d365b9d7806e5f4894f6d",
+        "artifacts/native-typed-internal-7392962448906661516/tb.v": "dab18707e77ff6a14354d1e3dbb0190301837b43974546870e062e2bcbefe271",
+        "artifacts/scalar-formal-reuse-17967721710807695866/Top.v": "7da9a2141e78bde1d1796476ac58a794b6a88c9335380fc38cb6c0d0f0bd1312",
+        "artifacts/scalar-formal-reuse-17967721710807695866/ConstantChild.v": "1bef4413e89d377862f7480d6ea002c3709ab23f16ae49ff213595ec4b9f73d5",
+        "artifacts/native-fixed-port-owner-3926505568257654329/FixedChild.v": "a1977a0b9ea65d78b1189478d5df95a1c6a24ae3e8505f5fd8c6e1c56e3594e3",
+        "artifacts/native-fixed-port-owner-3926505568257654329/Top.v": "bd3e962cc5bbbd62401efc155cc93c7f7083707ffbbf47567ef1c1b246ed3996",
+        "artifacts/native-fixed-port-owner-3926505568257654329/GenericChild.v": "1f1a64f3375641be6bc41f50a040910a340a84cf507d8cc3d625ba16d52f8870",
+        "artifacts/native-fixed-port-owner-3926505568257654329/tb.v": "2a11d86d8db0d710bea98309ad110397d85df4aff886cf69568d4405b5601e5a",
+        "artifacts/lightweight-library-tree-15547345370374879756/LibraryTree.v": "edc2d7d052afc02173a01caa1eba740a004919a8025e42adc5de5d273784a127",
+        "artifacts/lightweight-library-tree-10449273744325305738/LibraryTree.v": "e44500362aa6bfdf336189349753b64197e8e02c616a8cb85b368c1980ae1fe1",
+        "artifacts/native-typed-internal-17503986774768366527/TypedChild.v": "51b590a6957c21e347028d29763995029aff56832f3e4555aaf14c7cad558daf",
+        "artifacts/native-typed-internal-17503986774768366527/Top.v": "968923e086e13a5f009bc0399cd5eee833c637afc9299a233d6a5d336bbf940c",
+        "artifacts/native-invalid-internal-813821018090116639/LiteralOutputSlice.v": "8966eb3ea209ce5a98aa38b2ca1e1cee9312a7f0e0764f6822bcb75f8c7e148e",
+        "artifacts/native-invalid-internal-813821018090116639/tb.v": "1715e9187bdb1c9ec27308e4aac690cf6041d4c6d04b97cf65d22e860d1f9176",
+        "artifacts/partial-child-input-18320205772441834706/PartialChildInput.v": "eef2d459713db8e66cf865801cddf73f5dfaf7c7d53b7c04dec2220f963bced3",
+        "artifacts/partial-child-input-18320205772441834706/tb.v": "946f9fab320eadf4e13b8095c19dcf50cc13d090b1bc0f453ade013542cd73fd"
+      },
+      "cleaned_artifact_sha256": {
+        "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/concrete-ports-350481936165867958/ConcretePorts.v": "06a013cfd1a16c492cf31d9b41b81ce1d4f7f143d8afb901cad977fb94126060",
+        "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/constructor-sync-2508461693302468052/ConstructorSynchronizer.v": "d2693d560f33332bcb7e1a5004c83e211999d1223204f161a44d634f9f05a28b",
+        "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/one-bit-child-11242847911894995782/OneBitChild.v": "a9de1419640faeec0366ce61831ae8064752389f78b286ca2741a7a26419b3bc",
+        "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/partial-child-input-18320205772441834706/PartialChildInput.v": "59cdbfedef39f99e3de529909ede733d9526bc39817d347f58cb45ed05911d2f",
+        "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/scoped-bits-17393329046075108495/ScopedBits.v": "160053048e4eeee1a4dea224cbe1e0253d5632c46a62189e31f25935273ae03c",
+        "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/scoped-bits-3547708821944618331/ScopedBits.v": "11461e4f117dc8eff3994f4fd91b9e36233a5e9490ef954d884786760504cbe6",
+        "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/cleaned/sibling-geometry-13661303711469820601/SiblingGeometry.v": "5cdd0d98fdaa8cda994832d26db2e9d950667aa974d6ff32bb94c28aef8ce070"
+      },
+      "tool_ledger": {
+        "path": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-212-closure/tools/tools.jsonl",
+        "sha256": "cf0d754534cc9c8896691baa12c50f1d5b21ed94036a7e16e79d33e593c89ed2",
+        "records": 264
+      }
+    },
+    "native213": {
+      "result_manifest": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/results.json",
+      "result_manifest_sha256": "799b65423735a9cd3da5a3e7c84c8bd6537c024d9ddb2ef731e147f01e191cf7",
+      "tests": 137,
+      "suites": {
+        "morphhdl.CapturedDomainWidthEquivalenceTests": {
+          "tests": 20,
+          "report_sha256": "52943b658516c2ad9c86b34e858804380f7540fc215acf59b98ca5b8e6304996"
+        },
+        "morphhdl.ConstructorParameterTests": {
+          "tests": 16,
+          "report_sha256": "0e1473baa18de2940d388dfd1b9fd39390270026080975659f3f23fd25ff0a48"
+        },
+        "morphhdl.GenericExpressionAndStreamTests": {
+          "tests": 9,
+          "report_sha256": "854de9852df9287e178b92925109f13e9c985ca5bc89c05c5d502e76020b0083"
+        },
+        "morphhdl.HierarchyParameterBindingTests": {
+          "tests": 8,
+          "report_sha256": "174af74d2c05443df2c808ded347877568ef8d6ce9424c4ea37c2f8e6dae998f"
+        },
+        "morphhdl.LightweightBalancedTreeTests": {
+          "tests": 11,
+          "report_sha256": "c9208531a26b0932bbb9b86a6ad616e344733637b80e6b4685279092006f6cbb"
+        },
+        "morphhdl.LightweightPortCompositionTests": {
+          "tests": 15,
+          "report_sha256": "d6a5dbfe1f761b69cc0efcaf34aa3c80b50fcc5b38d580c47bc41ad9130b5b7d"
+        },
+        "morphhdl.LightweightRecursiveSafetyTests": {
+          "tests": 5,
+          "report_sha256": "7670e1ffaa06ab6e19ebd534c4799ef246fd79c993b59207de08952e58c618ee"
+        },
+        "morphhdl.LightweightRecursiveTests": {
+          "tests": 4,
+          "report_sha256": "4fddb48088db06d47723aff3e86cf280cbba6024dbe655d40921281f32d677b5"
+        },
+        "morphhdl.NativeHierarchyWidthBoundaryTests": {
+          "tests": 22,
+          "report_sha256": "17d816b78d5d399905573e66233aafa12767c7c59a90887d99d382df9d6a3700"
+        },
+        "morphhdl.OptionalReductionPolicyTests": {
+          "tests": 7,
+          "report_sha256": "12dcf702aec71caa04a0492121ef52da8a68f785af801d6fe0f0c64499be16d6"
+        },
+        "morphhdl.PackedParameterTests": {
+          "tests": 6,
+          "report_sha256": "400881b6cfb1c828b95b973041b52d47b446aad64bc0a7735f2d1c9e866b621d"
+        },
+        "morphhdl.ScalarFormalReuseTests": {
+          "tests": 14,
+          "report_sha256": "676b91c79924d223f26da50e9acc48f72d8b6d2d6d86d1b8f30fd6462c5e85e4"
+        }
+      },
+      "commands": [
+        {
+          "command": [
+            "java",
+            "-Xmx3G",
+            "-XX:ActiveProcessorCount=4",
+            "-cp",
+            "/home/kartik/projects/MorphHDL/morphhdl/target/scala-2.13/test-classes:/home/kartik/projects/MorphHDL/morphhdl/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/core/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/idslplugin/target/scala-2.13/spinalhdl-idsl-plugin_2.13-dev.jar:/home/kartik/projects/MorphHDL/idslpayload/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/sim/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/morphruntime/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/morphir/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/paramrtl/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/frontend/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/lib/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/backends/verilog/target/scala-2.13/classes:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-library/2.13.12/scala-library-2.13.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest_2.13/3.2.14/scalatest_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalactic/scalactic_2.13/3.2.14/scalactic_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-compiler/2.13.12/scala-compiler-2.13.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm-tree/9.2/asm-tree-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/lihaoyi/sourcecode_2.13/0.3.0/sourcecode_2.13-0.3.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-reflect/2.13.12/scala-reflect-2.13.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/scopt/scopt_2.13/4.1.0/scopt_2.13-4.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/commons-io/commons-io/2.11.0/commons-io-2.11.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-core_2.13/3.2.14/scalatest-core_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-featurespec_2.13/3.2.14/scalatest-featurespec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-flatspec_2.13/3.2.14/scalatest-flatspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-freespec_2.13/3.2.14/scalatest-freespec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funsuite_2.13/3.2.14/scalatest-funsuite_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funspec_2.13/3.2.14/scalatest-funspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-propspec_2.13/3.2.14/scalatest-propspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-refspec_2.13/3.2.14/scalatest-refspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-wordspec_2.13/3.2.14/scalatest-wordspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-diagrams_2.13/3.2.14/scalatest-diagrams_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-matchers-core_2.13/3.2.14/scalatest-matchers-core_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-shouldmatchers_2.13/3.2.14/scalatest-shouldmatchers_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-mustmatchers_2.13/3.2.14/scalatest-mustmatchers_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/io/github/java-diff-utils/java-diff-utils/4.12/java-diff-utils-4.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/jline/jline/3.22.0/jline-3.22.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna/5.12.1/jna-5.12.1.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm/9.2/asm-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/openhft/affinity/3.23.2/affinity-3.23.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-simple/2.0.5/slf4j-simple-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/oshi/oshi-core/6.4.0/oshi-core-6.4.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-compatible/3.2.14/scalatest-compatible-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/modules/scala-xml_2.13/2.1.0/scala-xml_2.13-2.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-api/2.0.5/slf4j-api-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna-platform/5.12.1/jna-platform-5.12.1.jar",
+            "scala.tools.nsc.Main",
+            "-Yrangepos",
+            "-classpath",
+            "/home/kartik/projects/MorphHDL/morphhdl/target/scala-2.13/test-classes:/home/kartik/projects/MorphHDL/morphhdl/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/core/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/idslplugin/target/scala-2.13/spinalhdl-idsl-plugin_2.13-dev.jar:/home/kartik/projects/MorphHDL/idslpayload/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/sim/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/morphruntime/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/morphir/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/paramrtl/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/frontend/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/lib/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/backends/verilog/target/scala-2.13/classes:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-library/2.13.12/scala-library-2.13.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest_2.13/3.2.14/scalatest_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalactic/scalactic_2.13/3.2.14/scalactic_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-compiler/2.13.12/scala-compiler-2.13.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm-tree/9.2/asm-tree-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/lihaoyi/sourcecode_2.13/0.3.0/sourcecode_2.13-0.3.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-reflect/2.13.12/scala-reflect-2.13.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/scopt/scopt_2.13/4.1.0/scopt_2.13-4.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/commons-io/commons-io/2.11.0/commons-io-2.11.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-core_2.13/3.2.14/scalatest-core_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-featurespec_2.13/3.2.14/scalatest-featurespec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-flatspec_2.13/3.2.14/scalatest-flatspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-freespec_2.13/3.2.14/scalatest-freespec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funsuite_2.13/3.2.14/scalatest-funsuite_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funspec_2.13/3.2.14/scalatest-funspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-propspec_2.13/3.2.14/scalatest-propspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-refspec_2.13/3.2.14/scalatest-refspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-wordspec_2.13/3.2.14/scalatest-wordspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-diagrams_2.13/3.2.14/scalatest-diagrams_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-matchers-core_2.13/3.2.14/scalatest-matchers-core_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-shouldmatchers_2.13/3.2.14/scalatest-shouldmatchers_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-mustmatchers_2.13/3.2.14/scalatest-mustmatchers_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/io/github/java-diff-utils/java-diff-utils/4.12/java-diff-utils-4.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/jline/jline/3.22.0/jline-3.22.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna/5.12.1/jna-5.12.1.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm/9.2/asm-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/openhft/affinity/3.23.2/affinity-3.23.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-simple/2.0.5/slf4j-simple-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/oshi/oshi-core/6.4.0/oshi-core-6.4.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-compatible/3.2.14/scalatest-compatible-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/modules/scala-xml_2.13/2.1.0/scala-xml_2.13-2.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-api/2.0.5/slf4j-api-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna-platform/5.12.1/jna-platform-5.12.1.jar",
+            "-d",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/classes",
+            "-Xplugin:/home/kartik/projects/MorphHDL/idslplugin/target/scala-2.13/spinalhdl-idsl-plugin_2.13-dev.jar",
+            "-Xplugin:/home/kartik/projects/MorphHDL/morphplugin/target/scala-2.13/morphhdl-compiler-plugin_2.13-dev.jar",
+            "-Xplugin-require:idsl-plugin",
+            "-Xplugin-require:morphhdl",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/ConstructorParameterTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/LightweightPortCompositionTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/PackedParameterTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/OptionalReductionPolicyTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/LightweightBalancedTreeTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/LightweightRecursiveTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/LightweightRecursiveSafetyTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/ScalarFormalReuseTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/HierarchyParameterBindingTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/NativeHierarchyWidthBoundaryTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/GenericExpressionAndStreamTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/CapturedDomainWidthEquivalenceTests.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/Increment66ToolEvidence.scala",
+            "/home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/NativeWireCompatibility.scala"
+          ],
+          "returncode": 0,
+          "seconds": 45.565726791995985,
+          "log_sha256": "90742c0447144368ec95b7b8de39f9ab2199fefc494972f81e3892a13fa0a7a2"
+        },
+        {
+          "command": [
+            "java",
+            "-Xmx3G",
+            "-XX:ActiveProcessorCount=4",
+            "-Djava.io.tmpdir=/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/artifacts",
+            "-cp",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/classes:/home/kartik/projects/MorphHDL/morphhdl/target/scala-2.13/test-classes:/home/kartik/projects/MorphHDL/morphhdl/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/core/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/idslplugin/target/scala-2.13/spinalhdl-idsl-plugin_2.13-dev.jar:/home/kartik/projects/MorphHDL/idslpayload/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/sim/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/morphruntime/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/morphir/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/paramrtl/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/frontend/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/lib/target/scala-2.13/classes:/home/kartik/projects/MorphHDL/backends/verilog/target/scala-2.13/classes:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-library/2.13.12/scala-library-2.13.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest_2.13/3.2.14/scalatest_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalactic/scalactic_2.13/3.2.14/scalactic_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-compiler/2.13.12/scala-compiler-2.13.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm-tree/9.2/asm-tree-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/lihaoyi/sourcecode_2.13/0.3.0/sourcecode_2.13-0.3.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-reflect/2.13.12/scala-reflect-2.13.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/scopt/scopt_2.13/4.1.0/scopt_2.13-4.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/commons-io/commons-io/2.11.0/commons-io-2.11.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-core_2.13/3.2.14/scalatest-core_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-featurespec_2.13/3.2.14/scalatest-featurespec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-flatspec_2.13/3.2.14/scalatest-flatspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-freespec_2.13/3.2.14/scalatest-freespec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funsuite_2.13/3.2.14/scalatest-funsuite_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funspec_2.13/3.2.14/scalatest-funspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-propspec_2.13/3.2.14/scalatest-propspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-refspec_2.13/3.2.14/scalatest-refspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-wordspec_2.13/3.2.14/scalatest-wordspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-diagrams_2.13/3.2.14/scalatest-diagrams_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-matchers-core_2.13/3.2.14/scalatest-matchers-core_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-shouldmatchers_2.13/3.2.14/scalatest-shouldmatchers_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-mustmatchers_2.13/3.2.14/scalatest-mustmatchers_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/io/github/java-diff-utils/java-diff-utils/4.12/java-diff-utils-4.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/jline/jline/3.22.0/jline-3.22.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna/5.12.1/jna-5.12.1.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm/9.2/asm-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/openhft/affinity/3.23.2/affinity-3.23.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-simple/2.0.5/slf4j-simple-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/oshi/oshi-core/6.4.0/oshi-core-6.4.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-compatible/3.2.14/scalatest-compatible-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/modules/scala-xml_2.13/2.1.0/scala-xml_2.13-2.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-api/2.0.5/slf4j-api-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna-platform/5.12.1/jna-platform-5.12.1.jar",
+            "org.scalatest.tools.Runner",
+            "-o",
+            "-u",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/xml",
+            "-s",
+            "morphhdl.ConstructorParameterTests",
+            "-s",
+            "morphhdl.LightweightPortCompositionTests",
+            "-s",
+            "morphhdl.PackedParameterTests",
+            "-s",
+            "morphhdl.OptionalReductionPolicyTests",
+            "-s",
+            "morphhdl.LightweightBalancedTreeTests",
+            "-s",
+            "morphhdl.LightweightRecursiveTests",
+            "-s",
+            "morphhdl.LightweightRecursiveSafetyTests",
+            "-s",
+            "morphhdl.ScalarFormalReuseTests",
+            "-s",
+            "morphhdl.HierarchyParameterBindingTests",
+            "-s",
+            "morphhdl.NativeHierarchyWidthBoundaryTests",
+            "-s",
+            "morphhdl.GenericExpressionAndStreamTests",
+            "-s",
+            "morphhdl.CapturedDomainWidthEquivalenceTests"
+          ],
+          "returncode": 0,
+          "seconds": 157.68577201099833,
+          "log_sha256": "f7c6757623b17e9af6647fcc651f5e4948a98946feff0f30a8156fe74507fae6"
+        },
+        {
+          "command": [
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/cleanup-build/release/spinal-cleanup-r",
+            "--dir",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/concrete-ports-11964715753964292082",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/artifacts/concrete-ports-11964715753964292082/ConcretePorts.v"
+          ],
+          "cwd": "/home/kartik/projects/MorphHDL",
+          "returncode": 0,
+          "log_sha256": "e4cfb39c1d73369261e11cd0c8faa34148d04e7b487e1aab20f52960cec02d18"
+        },
+        {
+          "command": [
+            "iverilog",
+            "-g2001",
+            "-s",
+            "tb",
+            "-o",
+            "sim",
+            "ConcretePorts.v",
+            "tb.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/concrete-ports-11964715753964292082",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "vvp",
+            "sim"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/concrete-ports-11964715753964292082",
+          "returncode": 0,
+          "log_sha256": "04acc9afc52d281de8e98b6e76f8f54a2de67d5e5077d6028ed35154a2cee859"
+        },
+        {
+          "command": [
+            "verilator",
+            "--lint-only",
+            "--language",
+            "1364-2001",
+            "-DSYNTHESIS",
+            "-Wno-fatal",
+            "ConcretePorts.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/concrete-ports-11964715753964292082",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "yosys",
+            "-Q",
+            "-p",
+            "read_verilog -DSYNTHESIS ConcretePorts.v; hierarchy -check -top ConcretePorts; proc; opt; check -assert; stat"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/concrete-ports-11964715753964292082",
+          "returncode": 0,
+          "log_sha256": "d57c991e7edc526f9e14a41beac1a756797b9cc5817868e6ea2cf739c86aa97c"
+        },
+        {
+          "command": [
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/cleanup-build/release/spinal-cleanup-r",
+            "--dir",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/constructor-sync-3385873517739595006",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/artifacts/constructor-sync-3385873517739595006/ConstructorSynchronizer.v"
+          ],
+          "cwd": "/home/kartik/projects/MorphHDL",
+          "returncode": 0,
+          "log_sha256": "4a46f7ec5674b34a36c1692fd4233c95e634a64df59ace907975fbb76f39e259"
+        },
+        {
+          "command": [
+            "iverilog",
+            "-g2001",
+            "-s",
+            "tb",
+            "-o",
+            "sim",
+            "ConstructorSynchronizer.v",
+            "tb.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/constructor-sync-3385873517739595006",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "vvp",
+            "sim"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/constructor-sync-3385873517739595006",
+          "returncode": 0,
+          "log_sha256": "9c71befe6a9537a3fcc5a39c8b67052ac406714466ce9dd34dc8fa1aab56cd5a"
+        },
+        {
+          "command": [
+            "verilator",
+            "--lint-only",
+            "--language",
+            "1364-2001",
+            "-DSYNTHESIS",
+            "-Wno-fatal",
+            "ConstructorSynchronizer.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/constructor-sync-3385873517739595006",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "yosys",
+            "-Q",
+            "-p",
+            "read_verilog -DSYNTHESIS ConstructorSynchronizer.v; hierarchy -check -top ConstructorSynchronizer; proc; opt; check -assert; stat"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/constructor-sync-3385873517739595006",
+          "returncode": 0,
+          "log_sha256": "b22b6399f9ed6783d5a1f64e5a9dde3b786b3f454fa412c3587b5c7df89d292d"
+        },
+        {
+          "command": [
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/cleanup-build/release/spinal-cleanup-r",
+            "--dir",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/one-bit-child-5346991787945322114",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/artifacts/one-bit-child-5346991787945322114/OneBitChild.v"
+          ],
+          "cwd": "/home/kartik/projects/MorphHDL",
+          "returncode": 0,
+          "log_sha256": "b4d80a9e8b0028eb098af0800ffa04ea206df30f855fe2392e726b7ef10a6be7"
+        },
+        {
+          "command": [
+            "iverilog",
+            "-g2001",
+            "-s",
+            "tb",
+            "-o",
+            "sim",
+            "OneBitChild.v",
+            "tb.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/one-bit-child-5346991787945322114",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "vvp",
+            "sim"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/one-bit-child-5346991787945322114",
+          "returncode": 0,
+          "log_sha256": "3f91af02c35927487d68e0ab74bef985a3f8b3c1dfd84cbce7ccc3079dc9a2d8"
+        },
+        {
+          "command": [
+            "verilator",
+            "--lint-only",
+            "--language",
+            "1364-2001",
+            "-DSYNTHESIS",
+            "-Wno-fatal",
+            "OneBitChild.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/one-bit-child-5346991787945322114",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "yosys",
+            "-Q",
+            "-p",
+            "read_verilog -DSYNTHESIS OneBitChild.v; hierarchy -check -top OneBitChild; proc; opt; check -assert; stat"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/one-bit-child-5346991787945322114",
+          "returncode": 0,
+          "log_sha256": "83175088cf71b05ef37f7c5f770d9675fe955433d877a792b318f047a8429404"
+        },
+        {
+          "command": [
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/cleanup-build/release/spinal-cleanup-r",
+            "--dir",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/partial-child-input-10102573394406314228",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/artifacts/partial-child-input-10102573394406314228/PartialChildInput.v"
+          ],
+          "cwd": "/home/kartik/projects/MorphHDL",
+          "returncode": 0,
+          "log_sha256": "e0d6d777136b0450706daa202f4b06813ef2afa2e4b1e95eaa4cd68f8a6d0793"
+        },
+        {
+          "command": [
+            "iverilog",
+            "-g2001",
+            "-s",
+            "tb",
+            "-o",
+            "sim",
+            "PartialChildInput.v",
+            "tb.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/partial-child-input-10102573394406314228",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "vvp",
+            "sim"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/partial-child-input-10102573394406314228",
+          "returncode": 0,
+          "log_sha256": "cfa79260acedb6cfcca1c971d41f1b064386a2410ecf99e9176f21629f98f893"
+        },
+        {
+          "command": [
+            "verilator",
+            "--lint-only",
+            "--language",
+            "1364-2001",
+            "-DSYNTHESIS",
+            "-Wno-fatal",
+            "PartialChildInput.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/partial-child-input-10102573394406314228",
+          "returncode": 0,
+          "log_sha256": "0942d69fc5a17057aa81bc2a385089e2e7b8f34ccc12fb7d785dcd72d0e57b66"
+        },
+        {
+          "command": [
+            "yosys",
+            "-Q",
+            "-p",
+            "read_verilog -DSYNTHESIS PartialChildInput.v; hierarchy -check -top PartialChildInput; proc; opt; check -assert; stat"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/partial-child-input-10102573394406314228",
+          "returncode": 0,
+          "log_sha256": "c0b7e8a0fb72c9dd0e7a23375f6e06bba86d27a31f00c37c7df07f52398bf684"
+        },
+        {
+          "command": [
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/cleanup-build/release/spinal-cleanup-r",
+            "--dir",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/scoped-bits-13692219171580078090",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/artifacts/scoped-bits-13692219171580078090/ScopedBits.v"
+          ],
+          "cwd": "/home/kartik/projects/MorphHDL",
+          "returncode": 0,
+          "log_sha256": "b9d27b9e8e8bfc97316af8d71bfea1eda1f3dd22bd41700d162a94b9f353bad2"
+        },
+        {
+          "command": [
+            "iverilog",
+            "-g2001",
+            "-s",
+            "tb",
+            "-o",
+            "sim",
+            "ScopedBits.v",
+            "tb.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/scoped-bits-13692219171580078090",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "vvp",
+            "sim"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/scoped-bits-13692219171580078090",
+          "returncode": 0,
+          "log_sha256": "21edf658de22ba26538d439cc630e9e82785cd22b3d2b4713d950cd5bcde83c6"
+        },
+        {
+          "command": [
+            "verilator",
+            "--lint-only",
+            "--language",
+            "1364-2001",
+            "-DSYNTHESIS",
+            "-Wno-fatal",
+            "ScopedBits.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/scoped-bits-13692219171580078090",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "yosys",
+            "-Q",
+            "-p",
+            "read_verilog -DSYNTHESIS ScopedBits.v; hierarchy -check -top ScopedBits; proc; opt; check -assert; stat"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/scoped-bits-13692219171580078090",
+          "returncode": 0,
+          "log_sha256": "ccee7f53e5616ef6a295983c1b15aaa928795c9d0cce9c3cef8b1b02b87a65e9"
+        },
+        {
+          "command": [
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/cleanup-build/release/spinal-cleanup-r",
+            "--dir",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/scoped-bits-500947078118310019",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/artifacts/scoped-bits-500947078118310019/ScopedBits.v"
+          ],
+          "cwd": "/home/kartik/projects/MorphHDL",
+          "returncode": 0,
+          "log_sha256": "cb0e22f19a859a3a05af3869fd1d31fb9f6955dfa4e99ee3998daa7c320a90ee"
+        },
+        {
+          "command": [
+            "iverilog",
+            "-g2001",
+            "-s",
+            "tb",
+            "-o",
+            "sim",
+            "ScopedBits.v",
+            "tb.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/scoped-bits-500947078118310019",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "vvp",
+            "sim"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/scoped-bits-500947078118310019",
+          "returncode": 0,
+          "log_sha256": "21edf658de22ba26538d439cc630e9e82785cd22b3d2b4713d950cd5bcde83c6"
+        },
+        {
+          "command": [
+            "verilator",
+            "--lint-only",
+            "--language",
+            "1364-2001",
+            "-DSYNTHESIS",
+            "-Wno-fatal",
+            "ScopedBits.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/scoped-bits-500947078118310019",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "yosys",
+            "-Q",
+            "-p",
+            "read_verilog -DSYNTHESIS ScopedBits.v; hierarchy -check -top ScopedBits; proc; opt; check -assert; stat"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/scoped-bits-500947078118310019",
+          "returncode": 0,
+          "log_sha256": "a79aa8b20e6f4e6ad25089c67198611d7e3a03f1f5285c97aeb494905a1f5bdf"
+        },
+        {
+          "command": [
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/cleanup-build/release/spinal-cleanup-r",
+            "--dir",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/sibling-geometry-4921185867335454041",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/artifacts/sibling-geometry-4921185867335454041/SiblingGeometry.v"
+          ],
+          "cwd": "/home/kartik/projects/MorphHDL",
+          "returncode": 0,
+          "log_sha256": "5401dc302413228833f179ae4c92654f3fdfae033be9e6896757b2531f095ae6"
+        },
+        {
+          "command": [
+            "iverilog",
+            "-g2001",
+            "-s",
+            "tb",
+            "-o",
+            "sim",
+            "SiblingGeometry.v",
+            "tb.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/sibling-geometry-4921185867335454041",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "vvp",
+            "sim"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/sibling-geometry-4921185867335454041",
+          "returncode": 0,
+          "log_sha256": "38dd35e38dfe5ba54faa2860d6db6f94245a3eb9461cca13602580d64953359d"
+        },
+        {
+          "command": [
+            "verilator",
+            "--lint-only",
+            "--language",
+            "1364-2001",
+            "-DSYNTHESIS",
+            "-Wno-fatal",
+            "SiblingGeometry.v"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/sibling-geometry-4921185867335454041",
+          "returncode": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "yosys",
+            "-Q",
+            "-p",
+            "read_verilog -DSYNTHESIS SiblingGeometry.v; hierarchy -check -top SiblingGeometry; proc; opt; check -assert; stat"
+          ],
+          "cwd": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/sibling-geometry-4921185867335454041",
+          "returncode": 0,
+          "log_sha256": "1fa232aa3e51b09ee78e6ead618ddd9fad1877314e1496ff97350e67974135a7"
+        }
+      ],
+      "plugin_sha256": {
+        "idslplugin/target/scala-2.13/spinalhdl-idsl-plugin_2.13-dev.jar": "c52051bd012aa831ec743e585d57f53ab02b0f529a3fd04f5859ba4ccf5a87b9",
+        "morphplugin/target/scala-2.13/morphhdl-compiler-plugin_2.13-dev.jar": "9ce660d13c842a01929c23fee6e45cf6353ba54f70d5359018d76d788db91703"
+      },
+      "artifact_sha256": {
+        "artifacts/scalar-formal-reuse-13091170746669624288/Top.v": "9e9e23d9e89ae366cc5dc2508dd341ac6b2584e8aa52e0b91e0a640f5878e510",
+        "artifacts/scalar-formal-reuse-13091170746669624288/ConstantChild.v": "a26a6dd1e7827f03df4a63260903dad491fab9bc2c34806f4063020513a4cce4",
+        "artifacts/lightweight-library-tree-923536581885971347/LibraryTree.v": "c2863d6e755ef3d86d5c17974254619c70318d69227a287ecea2395a0b9fa99a",
+        "artifacts/partial-child-input-10102573394406314228/PartialChildInput.v": "eef2d459713db8e66cf865801cddf73f5dfaf7c7d53b7c04dec2220f963bced3",
+        "artifacts/partial-child-input-10102573394406314228/tb.v": "946f9fab320eadf4e13b8095c19dcf50cc13d090b1bc0f453ade013542cd73fd",
+        "artifacts/lightweight-library-tree-13137102531223946139/LibraryTree.v": "41fd7c58bb29199b55c275860fbeb404f15f5a27eb0c7815b825736e594a089c",
+        "artifacts/scalar-formal-reuse-14464054141693724159/Top.v": "3c7079b9473d3f6a257c1f777d83567a5f00db17dbbbe5a49475ae8ce19e9531",
+        "artifacts/constructor-sync-3385873517739595006/ConstructorSynchronizer.v": "ef3d953c96c133a5fc8793030916b577812bcf880b23984e4bcaee558625476f",
+        "artifacts/constructor-sync-3385873517739595006/tb.v": "c1aa78a38129e02e1b6bf5fecdad6377c0f704960a08243f87b1bc937dc349f2",
+        "artifacts/scalar-formal-reuse-15417480361226218233/Top.v": "7da9a2141e78bde1d1796476ac58a794b6a88c9335380fc38cb6c0d0f0bd1312",
+        "artifacts/scalar-formal-reuse-15417480361226218233/ConstantChild.v": "1bef4413e89d377862f7480d6ea002c3709ab23f16ae49ff213595ec4b9f73d5",
+        "artifacts/scalar-formal-reuse-9643500172026143721/Top.v": "56396b3120ba5a424d070c4be8c9d535c22c3af7d8add5523e89e4e4ef2ec801",
+        "artifacts/scalar-formal-reuse-9643500172026143721/tb.v": "08f2ef553335bb43ad8216ea66dddd377a55d9d43d2449f0adcb3ea74bce8d3a",
+        "artifacts/sibling-geometry-4921185867335454041/SiblingGeometry.v": "750707d1923f56fc68dad990df774d24142afdcd13c1e0a8bdc4925cdff19280",
+        "artifacts/sibling-geometry-4921185867335454041/tb.v": "d4dfccd900ed51ded3e6b582847dbd4631c6eadb09942b3302533c32662a4f86",
+        "artifacts/lightweight-library-tree-14722997560264198520/synth_top.v": "c9648aefed198e49d7db3a448795b48d6f3c14dd98d53a03c68e2b599fce03a3",
+        "artifacts/lightweight-library-tree-14722997560264198520/tb.v": "df4bd20700f5c8d00d76efbddd506333c47c8bf5ce0e59abcb6fbd8178fbf209",
+        "artifacts/lightweight-library-tree-14722997560264198520/LibraryTree.v": "2834bde6b15e291b569a947ccf0b1d69351bc13189ab63fa3834f453be9a5a67",
+        "artifacts/optional-reduction-2753461908324481674/OptionalTop.v": "5e9489cf61ac83fdf1993c6b20e3af9203cf698cc2762e2afbaa7bf34b49448e",
+        "artifacts/optional-reduction-2753461908324481674/tb.v": "27dbc2cd2a48fd2b50184d4477459c47fb19255a39223f7b6064f0877a1546d8",
+        "artifacts/native-typed-internal-7537834194603137269/Top.v": "a6b52a5d7a2701e8dd41f993144503ee8dfff49f565d365b9d7806e5f4894f6d",
+        "artifacts/native-fixed-port-owner-12294720556713870163/FixedChild.v": "a1977a0b9ea65d78b1189478d5df95a1c6a24ae3e8505f5fd8c6e1c56e3594e3",
+        "artifacts/native-fixed-port-owner-12294720556713870163/Top.v": "bd3e962cc5bbbd62401efc155cc93c7f7083707ffbbf47567ef1c1b246ed3996",
+        "artifacts/native-fixed-port-owner-12294720556713870163/GenericChild.v": "1f1a64f3375641be6bc41f50a040910a340a84cf507d8cc3d625ba16d52f8870",
+        "artifacts/native-fixed-port-owner-12294720556713870163/tb.v": "2a11d86d8db0d710bea98309ad110397d85df4aff886cf69568d4405b5601e5a",
+        "artifacts/concrete-bit-fallback-13037114960595267345/ConcreteBitFallback.v": "09d75cb095b6899e289f71b23f419b3c6d0393c177a4d2c17ab867031facc5f5",
+        "artifacts/concrete-bit-fallback-13037114960595267345/tb.v": "60a82c0e25066cc3d93cecc0330eff83233c83199d64777846fd99bf121b43e8",
+        "artifacts/mixed-formal-defaults-11463755556108022725/MixedTop.v": "e54070d089cc1a1cf79e288c9f7cfbfd6967082243d8c68389b61625f402b300",
+        "artifacts/mixed-formal-defaults-11463755556108022725/ConstantChild.v": "a26a6dd1e7827f03df4a63260903dad491fab9bc2c34806f4063020513a4cce4",
+        "artifacts/mixed-formal-defaults-11463755556108022725/tb.v": "38bb6c83e62f17c22b904474111f359131a7d4a90f6e318d25613c3162f0fa5f",
+        "artifacts/native-typed-internal-2908006614051174768/Top.v": "2e6e2613b45a553e877e8c8c8a6b68b155044c73ccdd726e266e41176df2cd34",
+        "artifacts/scalar-formal-reuse-566787610018068494/Top.v": "8fdf060a7aeef8315b9f44f8510b6a5f78b1c770a625d0797bb324f61f5b256b",
+        "artifacts/scalar-formal-reuse-566787610018068494/ConstantChild.v": "18ea8d0f8328789611144346de88881a7488e940a587e97b30d5953a725fa6bb",
+        "artifacts/scalar-formal-reuse-566787610018068494/tb.v": "35f70474269b25ce45e99fdaf796fa844444d69ccd52bcbab0d12e89039ac853",
+        "artifacts/scalar-formal-reuse-5190562570574052499/Top.v": "e581e802b701150eca1b03bc22cea67b4172a2fcd4a1045785d12ef499cd74d9",
+        "artifacts/scalar-formal-reuse-5190562570574052499/tb.v": "35f70474269b25ce45e99fdaf796fa844444d69ccd52bcbab0d12e89039ac853",
+        "artifacts/lightweight-library-tree-17236903002502897503/synth_top.v": "be9abb06678000c5fc3bb60cb3d8b3c3f03f502ca021e8e7a92612e5ea35f4ee",
+        "artifacts/lightweight-library-tree-17236903002502897503/tb.v": "4a52cecf8d7cf2359b9b9685692e9a1bb6b9b321ecf4f2ef4450410417eba3c1",
+        "artifacts/lightweight-library-tree-17236903002502897503/LibraryTree.v": "e44500362aa6bfdf336189349753b64197e8e02c616a8cb85b368c1980ae1fe1",
+        "artifacts/lightweight-library-tree-2024124344116684113/LibraryTree.v": "5e1cc1e8cab3927e55c25694f38deb3ec64590e4bb09829faf80799abc4107a5",
+        "artifacts/lightweight-recursive-325408647596855847/LightweightRecursiveTree.v": "b5b5e3f47de6645f58c411a591b3dcff3c1a6a913a4ac2122d840a94795df54c",
+        "artifacts/lightweight-recursive-325408647596855847/tb.v": "42d9841743ccd2d24264401b202b46cc9772558cc9144d75ad057cdd77131dfe",
+        "artifacts/scalar-formal-reuse-1490266779632196404/Top.v": "8fdf060a7aeef8315b9f44f8510b6a5f78b1c770a625d0797bb324f61f5b256b",
+        "artifacts/scalar-formal-reuse-1490266779632196404/ConstantChild.v": "18ea8d0f8328789611144346de88881a7488e940a587e97b30d5953a725fa6bb",
+        "artifacts/lightweight-library-tree-3800960530189208677/synth_top.v": "c6dc769f3d8278433e51706a97480b9ee1f253ef873b949386e7067d1463a872",
+        "artifacts/lightweight-library-tree-3800960530189208677/tb.v": "3ff312397ff1b32c40d07406d3fe3b4132fe2532a91006c8d066ff736373f9f7",
+        "artifacts/lightweight-library-tree-3800960530189208677/LibraryTree.v": "dad897478b1952157540c2ca22c3f4dbb0ba5475a03d1a6289729effcad0c636",
+        "artifacts/lightweight-library-tree-16006980760942978372/synth_top.v": "0e6ab0056915e1b8bc1a861aabafa263c779cf08e815eb7cfc6c97947f82a196",
+        "artifacts/lightweight-library-tree-16006980760942978372/tb.v": "ad4c6a1f4628081feb107b284ee19a90e85872f3f89d89c0cab87b2a2d62ad4a",
+        "artifacts/lightweight-library-tree-16006980760942978372/LibraryTree.v": "8011a31fda228aa525a57a185a2d793f6a754b4b34db18a2d27bff7cff179027",
+        "artifacts/scalar-formal-reuse-16346202826060026297/Top.v": "7da9a2141e78bde1d1796476ac58a794b6a88c9335380fc38cb6c0d0f0bd1312",
+        "artifacts/scalar-formal-reuse-16346202826060026297/ConstantChild.v": "1bef4413e89d377862f7480d6ea002c3709ab23f16ae49ff213595ec4b9f73d5",
+        "artifacts/scalar-formal-reuse-16346202826060026297/tb.v": "517bded511ba7674020dbb76b200b598c47abce8dd7581504be222bc2e7993ec",
+        "artifacts/optional-reduction-18331096178271215031/OptionalTop.v": "4bc7fc68b33e07ca612b29ed60e693d44c7eb2a28fef8156a5096e7dbf5cd55e",
+        "artifacts/optional-reduction-18331096178271215031/tb.v": "27dbc2cd2a48fd2b50184d4477459c47fb19255a39223f7b6064f0877a1546d8",
+        "artifacts/constructor-extreme-11381216598442661915/ConstructorCopy.v": "513a8fabf958b2fd17407cbae2544f615804ae250d00fb89f5654a8cb6436bfe",
+        "artifacts/constructor-extreme-11381216598442661915/tb.v": "d636c584faa63db9e9fd86f6be5215ea99402190c3fde8de8be89bd5c8511555",
+        "artifacts/native-typed-internal-6720313557245393579/TypedChild.v": "51b590a6957c21e347028d29763995029aff56832f3e4555aaf14c7cad558daf",
+        "artifacts/native-typed-internal-6720313557245393579/Top.v": "e41d1c845757e8f6f9fe0b8f18cfb28c9aa1d49cfe25585262e9d824dea74742",
+        "artifacts/native-typed-internal-6720313557245393579/tb.v": "a04fa197088ed12d8079048c8d5ac68a47f1b62eeac7fe607696df0cfce9802e",
+        "artifacts/lightweight-library-tree-12869604697800019186/synth_top.v": "c9648aefed198e49d7db3a448795b48d6f3c14dd98d53a03c68e2b599fce03a3",
+        "artifacts/lightweight-library-tree-12869604697800019186/tb.v": "df4bd20700f5c8d00d76efbddd506333c47c8bf5ce0e59abcb6fbd8178fbf209",
+        "artifacts/lightweight-library-tree-12869604697800019186/LibraryTree.v": "149b7d795914ccbac55e732e39d98c08d4464a5c0e2e1fdc6d288215744bf1cd",
+        "artifacts/lightweight-library-tree-4938963063081793295/LibraryTree.v": "be597a8f4cb06b2d55d7d0cf50d36461db2ef70b019b4f76c8fa533872fcba9c",
+        "artifacts/lightweight-library-tree-1359940922167216939/synth_top.v": "c6dc769f3d8278433e51706a97480b9ee1f253ef873b949386e7067d1463a872",
+        "artifacts/lightweight-library-tree-1359940922167216939/tb.v": "3ff312397ff1b32c40d07406d3fe3b4132fe2532a91006c8d066ff736373f9f7",
+        "artifacts/lightweight-library-tree-1359940922167216939/LibraryTree.v": "5e1cc1e8cab3927e55c25694f38deb3ec64590e4bb09829faf80799abc4107a5",
+        "artifacts/lightweight-recursive-17125225233183084395/LightweightRecursiveTree.v": "b5b5e3f47de6645f58c411a591b3dcff3c1a6a913a4ac2122d840a94795df54c",
+        "artifacts/native-typed-internal-11672196190188211697/Top.v": "7c1630ea8aeb524f407b1bfc2d8a485676bf1723590db367283012ec33bae31e",
+        "artifacts/native-typed-internal-11672196190188211697/tb.v": "a04fa197088ed12d8079048c8d5ac68a47f1b62eeac7fe607696df0cfce9802e",
+        "artifacts/scalar-formal-reuse-15529961934326392430/Top.v": "973b12ee3abbe5e6264106458eea4340a54274380997b66d6d4fff0626dc4fe0",
+        "artifacts/scalar-formal-reuse-15529961934326392430/ConstantChild.v": "18ea8d0f8328789611144346de88881a7488e940a587e97b30d5953a725fa6bb",
+        "artifacts/scalar-formal-reuse-17252260951882790772/Top.v": "56396b3120ba5a424d070c4be8c9d535c22c3af7d8add5523e89e4e4ef2ec801",
+        "artifacts/constructor-recursive-9838511033793716983/ConstructorRecursive.v": "76e7861834927f2790018ebe8539793abffbe9742c267b7975a134750b1cca65",
+        "artifacts/constructor-recursive-9838511033793716983/tb.v": "a368d77b71627110ab5e9ba42a8d97a8f22dc2e5fae3d54bb3d1701d9d073f14",
+        "artifacts/lightweight-recursive-2426083895056792913/LightweightRecursiveTree.v": "bdfa032ebf4c91c171205f1e014fbc6c5edf9ba015fb90a14bc35ef6d7a3980b",
+        "artifacts/lightweight-recursive-2426083895056792913/tb.v": "42d9841743ccd2d24264401b202b46cc9772558cc9144d75ad057cdd77131dfe",
+        "artifacts/native-typed-internal-15421368646148971946/TypedChild.v": "51b590a6957c21e347028d29763995029aff56832f3e4555aaf14c7cad558daf",
+        "artifacts/native-typed-internal-15421368646148971946/Top.v": "037841e6fea1f5b1852fdf6c9a1ded28d605b0cf6c624f263eb8a9ae7b3bc95d",
+        "artifacts/constructor-forward-10336966266280894815/ConstructorForward.v": "4bea359ead98981afd36d5bb5b27da37faefe325823fccadfc7b7c35e8aa72ea",
+        "artifacts/constructor-forward-10336966266280894815/tb.v": "b08dea5b088c8e71571f6036835ab2280f7e6d1ed18d8acdb63651da283beacf",
+        "artifacts/lightweight-library-tree-7035624194224013917/synth_top.v": "c6dc769f3d8278433e51706a97480b9ee1f253ef873b949386e7067d1463a872",
+        "artifacts/lightweight-library-tree-7035624194224013917/tb.v": "55d99c97eecfc17fa29d9053244a3d1321b804d1551644f56ac5be73e879093e",
+        "artifacts/lightweight-library-tree-7035624194224013917/LibraryTree.v": "be597a8f4cb06b2d55d7d0cf50d36461db2ef70b019b4f76c8fa533872fcba9c",
+        "artifacts/native-invalid-internal-17290130973394139700/LiteralOutputSlice.v": "8966eb3ea209ce5a98aa38b2ca1e1cee9312a7f0e0764f6822bcb75f8c7e148e",
+        "artifacts/native-invalid-internal-17290130973394139700/tb.v": "1715e9187bdb1c9ec27308e4aac690cf6041d4c6d04b97cf65d22e860d1f9176",
+        "artifacts/packed-parameters-14104150314406828248/PackedParameters.v": "366372fe7f34a636b093a43ec0ea3792e4405fe126019ce5f8615fe0b08c2f84",
+        "artifacts/packed-parameters-14104150314406828248/tb.v": "c609ff084dae85ffcd378a471750e3d908f36e7e21ed5fde80f9566594341bef",
+        "artifacts/native-invalid-binding-owner-1308885953371655851/LiteralInputSlice.v": "0bde20dc577a3ce09c5ee6ecb8899f4e5372e43bba910e8b528ec899a758c8a6",
+        "artifacts/native-invalid-binding-owner-1308885953371655851/tb.v": "7f1ea89e165c445f078ccdf221ba249574fa26ec00db08038720e79fd1cf8167",
+        "artifacts/scalar-formal-reuse-13123613531008025477/Top.v": "241bd563137275d62b02def28324171f46c46346aa7d87b7319754ba41081243",
+        "artifacts/scalar-formal-reuse-13123613531008025477/ConstantChild.v": "1bef4413e89d377862f7480d6ea002c3709ab23f16ae49ff213595ec4b9f73d5",
+        "artifacts/optional-mask-18328517348377392020/OptionalMaskTop.v": "f3baa354560d07da361fade6382b69022689402689285b45fcec23f4e81db213",
+        "artifacts/optional-mask-18328517348377392020/tb.v": "45e40feec464312cb9cd4805c3f37d522d1bf42b33b6f013773570f51ef932fc",
+        "artifacts/scalar-formal-reuse-5016324918394377387/Top.v": "6b91af88d1d9142c69ae1aa92d5968b10af66a00510b3709ac4e1f46a4be4055",
+        "artifacts/signed-param-boundary-4170195351341181483/SignedBoundary.v": "0d022396e8a2c35bb9eb5b34ddfdc32f5c4764de2c9582f0aa9dd8f4479a5dcc",
+        "artifacts/signed-param-boundary-4170195351341181483/tb.v": "e3aa5103cf0b7958a85ce845729bdc3cbe4f9a716e45e00d08d61b9811f4707c",
+        "artifacts/lightweight-library-tree-2133977637067891330/LibraryTree.v": "e44500362aa6bfdf336189349753b64197e8e02c616a8cb85b368c1980ae1fe1",
+        "artifacts/constructor-name-1434300875228044913/ConstructorNamed.v": "da4c18861b9c441b7439071ac76a86b4c0d28093922b9e37ed475e6d09f4beb3",
+        "artifacts/constructor-name-1434300875228044913/tb.v": "cab29577b888503892950fa75d19a5fb4224e62e90ab4999f57719be146bac10",
+        "artifacts/native-fixed-port-owner-6467815440841824333/FixedChild.v": "a1977a0b9ea65d78b1189478d5df95a1c6a24ae3e8505f5fd8c6e1c56e3594e3",
+        "artifacts/native-fixed-port-owner-6467815440841824333/Top.v": "38b33375a83170c03bad4918d5e9227e3af5b780f088de13888b577a89541b58",
+        "artifacts/native-fixed-port-owner-6467815440841824333/GenericChild.v": "2d88dcc335cd8b94bba35744ffce3fe744f79a201e9a0466182577840372d813",
+        "artifacts/native-fixed-port-owner-6467815440841824333/tb.v": "6dc879db62c3af7cdd1081fb7b48d6a766be246d6b47b841163f2a386573f4ea",
+        "artifacts/scoped-bits-13692219171580078090/ScopedBits.v": "62aecc4aac45c788f3a9ab40fa95a35a023a0ffc9179a94ede9fa16d95aa1f5a",
+        "artifacts/scoped-bits-13692219171580078090/tb.v": "c751788706f3186830622aca87f52ab9e715c38deaa3453aaa3c26cc9cb47283",
+        "artifacts/scalar-formal-reuse-6847484527868456250/Top.v": "e581e802b701150eca1b03bc22cea67b4172a2fcd4a1045785d12ef499cd74d9",
+        "artifacts/literal-clone-16252133542057254326/LiteralClone.v": "d0e97c0042b85d721db1e6280c3401646714ee6fe673b793c45ff3f11bcf78c6",
+        "artifacts/literal-clone-16252133542057254326/tb.v": "ec23e3966a631d7532bac40cea46ab70d1acfb4ffc07dc663ed2b19bb2abb882",
+        "artifacts/standalone-scalar-formal-5027755090138651494/ConstantChild.v": "2769d8b5c4803a610955efdc6e4d5e914423332ecd33e8510ab15df4c1c5da1e",
+        "artifacts/standalone-scalar-formal-5027755090138651494/tb.v": "d1d39ce50294e88ff73823f088826238d6860c8b41cbc2ede9acb7150e3c81bf",
+        "artifacts/native-typed-internal-15543431378918480691/TypedChild.v": "51b590a6957c21e347028d29763995029aff56832f3e4555aaf14c7cad558daf",
+        "artifacts/native-typed-internal-15543431378918480691/Top.v": "a21637e7d17b0f0aa82a3ce6a2ece82addc9316e7ada273ed8e18033ff61c794",
+        "artifacts/native-typed-internal-15543431378918480691/tb.v": "a04fa197088ed12d8079048c8d5ac68a47f1b62eeac7fe607696df0cfce9802e",
+        "artifacts/one-bit-child-5346991787945322114/OneBitChild.v": "f6c5f74be5164be8ccf5460941ee1cfe922b1a82f1c1bacd9f9f33d0d4fa4730",
+        "artifacts/one-bit-child-5346991787945322114/tb.v": "a82019c4b0b900c5c2c4ee6e613b2e63baee66c392837e2ec936366c69a82a93",
+        "artifacts/constructor-formals-7174571787693562622/ConstructorTop.v": "150f1d5d8450aac167cb6e289cd2b69252009ca48bd00a02b60ac19e5c4b1bfe",
+        "artifacts/lightweight-library-tree-3681551340218431490/synth_top.v": "be9abb06678000c5fc3bb60cb3d8b3c3f03f502ca021e8e7a92612e5ea35f4ee",
+        "artifacts/lightweight-library-tree-3681551340218431490/tb.v": "4a52cecf8d7cf2359b9b9685692e9a1bb6b9b321ecf4f2ef4450410417eba3c1",
+        "artifacts/lightweight-library-tree-3681551340218431490/LibraryTree.v": "41fd7c58bb29199b55c275860fbeb404f15f5a27eb0c7815b825736e594a089c",
+        "artifacts/lightweight-library-tree-16537913505821049978/LibraryTree.v": "56cabb3bcec1036a23214627d8d8e3c2f1d1d16d8cde845ac3d78ab51a37a918",
+        "artifacts/lightweight-library-tree-9973635731654616098/synth_top.v": "0e6ab0056915e1b8bc1a861aabafa263c779cf08e815eb7cfc6c97947f82a196",
+        "artifacts/lightweight-library-tree-9973635731654616098/tb.v": "0dd28f88a01e70c4529ca344889c2e380ca97be1207856a326f4a9a1fbdbbf73",
+        "artifacts/lightweight-library-tree-9973635731654616098/LibraryTree.v": "edc2d7d052afc02173a01caa1eba740a004919a8025e42adc5de5d273784a127",
+        "artifacts/constructor-packed-811024306827927464/ConstructorValues.v": "89c9272d579753b060d968f6470dc373e4865bef18580cb2f9eab021cab06863",
+        "artifacts/constructor-packed-811024306827927464/tb.v": "c8ac14e624dc2aef22b4df193feb4563900b120801392822919566d45f358b17",
+        "artifacts/lightweight-recursive-17560002777279055644/LightweightRecursiveTree.v": "bbb2f34c87ee8f1fa96a73c81a606d9a4ccd103e363ea4abf6891d0b75dfb959",
+        "artifacts/lightweight-recursive-17560002777279055644/tb.v": "3794a67d9ad46da5fcabe2ead525def9492fdcbd109d094d77e2e444a08d4d2c",
+        "artifacts/native-typed-internal-5522916408127417447/TypedChild.v": "51b590a6957c21e347028d29763995029aff56832f3e4555aaf14c7cad558daf",
+        "artifacts/native-typed-internal-5522916408127417447/Top.v": "968923e086e13a5f009bc0399cd5eee833c637afc9299a233d6a5d336bbf940c",
+        "artifacts/lightweight-recursive-2502703026504004199/LightweightRecursiveTree.v": "bdfa032ebf4c91c171205f1e014fbc6c5edf9ba015fb90a14bc35ef6d7a3980b",
+        "artifacts/native-literal-internal-14171577374045580705/Top.v": "2e435045b0b9ae4c036d3f8378ea06b5a3c2a858c8cb32ed475a16881540166e",
+        "artifacts/native-literal-internal-14171577374045580705/GenericChild.v": "2d88dcc335cd8b94bba35744ffce3fe744f79a201e9a0466182577840372d813",
+        "artifacts/native-literal-internal-14171577374045580705/tb.v": "26be4462627ceda56d57e858cfa6d9ec4e9f927d9e2051218f719d952814f32f",
+        "artifacts/native-typed-internal-18344633695655556324/Top.v": "7c1630ea8aeb524f407b1bfc2d8a485676bf1723590db367283012ec33bae31e",
+        "artifacts/scalar-formal-reuse-15007923853180101776/Top.v": "a4ed76398e52f23d69951da62733aaf9220202edd139f243c53bbfa7a8dca71e",
+        "artifacts/scalar-formal-reuse-18435804175886023901/Top.v": "767833077ea2a0d0ed87f9f5cbf9aa49ff390bd1ad81f8639e9d245ba941a950",
+        "artifacts/scalar-formal-reuse-18435804175886023901/ConstantChild.v": "a26a6dd1e7827f03df4a63260903dad491fab9bc2c34806f4063020513a4cce4",
+        "artifacts/scalar-formal-reuse-18435804175886023901/tb.v": "08f2ef553335bb43ad8216ea66dddd377a55d9d43d2449f0adcb3ea74bce8d3a",
+        "artifacts/scalar-formal-reuse-15147344981093482119/Top.v": "a898c94cf070624bf6e526ccbc41f530fb76322cea787c184feec549f4e8faec",
+        "artifacts/scalar-formal-reuse-15147344981093482119/tb.v": "517bded511ba7674020dbb76b200b598c47abce8dd7581504be222bc2e7993ec",
+        "artifacts/native-resize-cast-3275652248096632109/Top.v": "829c15690a7a886921b48d4cf316bc55d9da9476843de74564efc92869592b17",
+        "artifacts/optional-presence-12239931303931584716/unnamed.v": "555f9570e9ae478e73d80dd487b0800088dffc5a47bdea431f159e1bd03b029f",
+        "artifacts/standalone-scalar-formal-13847523286247648326/ConstantChild.v": "7817fa026bd522506207035f425a13c482be13433c18d57f0714a44f77b0c45e",
+        "artifacts/standalone-scalar-formal-13847523286247648326/tb.v": "e0527d516a69b0e6545ab3ce8f2d29389948bd692febdde96532e5c71cf81859",
+        "artifacts/scalar-formal-reuse-7322166086640909709/Top.v": "dfcd73b184f6b9d4d193f8e614d14ffd95041c7bfffa63e12f3916792cd1b12d",
+        "artifacts/lightweight-library-tree-4006727101725275480/LibraryTree.v": "2834bde6b15e291b569a947ccf0b1d69351bc13189ab63fa3834f453be9a5a67",
+        "artifacts/scalar-formal-reuse-14173690312190570223/Top.v": "6b91af88d1d9142c69ae1aa92d5968b10af66a00510b3709ac4e1f46a4be4055",
+        "artifacts/scalar-formal-reuse-14173690312190570223/tb.v": "ef918d43c65292ceb797c49d797a253c017b9f239902253553b55dff369b0be2",
+        "artifacts/lightweight-library-tree-13717218406158307686/LibraryTree.v": "edc2d7d052afc02173a01caa1eba740a004919a8025e42adc5de5d273784a127",
+        "artifacts/lightweight-recursive-default-name-1222799812002945787/LightweightUnsafeRecursion.v": "4c055eda564c30ba6c0c9842315c27bb2f39933e72ec7adb63193f589bffd02f",
+        "artifacts/scalar-formal-reuse-10449836361552850042/Top.v": "767833077ea2a0d0ed87f9f5cbf9aa49ff390bd1ad81f8639e9d245ba941a950",
+        "artifacts/scalar-formal-reuse-10449836361552850042/ConstantChild.v": "a26a6dd1e7827f03df4a63260903dad491fab9bc2c34806f4063020513a4cce4",
+        "artifacts/native-typed-internal-5018631856804021583/Top.v": "2e6e2613b45a553e877e8c8c8a6b68b155044c73ccdd726e266e41176df2cd34",
+        "artifacts/native-typed-internal-5018631856804021583/tb.v": "a04fa197088ed12d8079048c8d5ac68a47f1b62eeac7fe607696df0cfce9802e",
+        "artifacts/native-typed-internal-16832319979363242152/TypedChild.v": "51b590a6957c21e347028d29763995029aff56832f3e4555aaf14c7cad558daf",
+        "artifacts/native-typed-internal-16832319979363242152/Top.v": "a21637e7d17b0f0aa82a3ce6a2ece82addc9316e7ada273ed8e18033ff61c794",
+        "artifacts/optional-reduction-17473607374663248804/OptionalTop.v": "851da570b83b0ecebf9412bf0a4da0f8edda9833d9819e8ecf650a56c899e264",
+        "artifacts/optional-reduction-17473607374663248804/tb.v": "27dbc2cd2a48fd2b50184d4477459c47fb19255a39223f7b6064f0877a1546d8",
+        "artifacts/scalar-formal-reuse-11506953399623611248/Top.v": "241bd563137275d62b02def28324171f46c46346aa7d87b7319754ba41081243",
+        "artifacts/scalar-formal-reuse-11506953399623611248/ConstantChild.v": "1bef4413e89d377862f7480d6ea002c3709ab23f16ae49ff213595ec4b9f73d5",
+        "artifacts/scalar-formal-reuse-11506953399623611248/tb.v": "ef918d43c65292ceb797c49d797a253c017b9f239902253553b55dff369b0be2",
+        "artifacts/native-resize-cast-11687003153986876794/Top.v": "6b0ab10ad31b9874f831301c79b7610674ff9d443c40fb6b6062f0a2b2fee87c",
+        "artifacts/scalar-formal-reuse-15252702189788789611/Top.v": "a898c94cf070624bf6e526ccbc41f530fb76322cea787c184feec549f4e8faec",
+        "artifacts/constructor-recursive-6784650334494064021/ConstructorRecursive.v": "680008b58114fe6cce006a980f06cc882de50c3b392466306a64ffd8296bb216",
+        "artifacts/constructor-recursive-6784650334494064021/tb.v": "c8c0459f9470d1c9dc14432085bfaaaae8167316bf81ff3bb7eddbe7a4efd95e",
+        "artifacts/packed-parameters-5099481346489538928/PackedParameters.v": "1976ab1a868959bed8016250358301bc4a59ee584d1e0b093ed0729f05b1548e",
+        "artifacts/packed-parameters-5099481346489538928/tb.v": "c609ff084dae85ffcd378a471750e3d908f36e7e21ed5fde80f9566594341bef",
+        "artifacts/lightweight-library-tree-15715853359679726216/synth_top.v": "c6dc769f3d8278433e51706a97480b9ee1f253ef873b949386e7067d1463a872",
+        "artifacts/lightweight-library-tree-15715853359679726216/tb.v": "55d99c97eecfc17fa29d9053244a3d1321b804d1551644f56ac5be73e879093e",
+        "artifacts/lightweight-library-tree-15715853359679726216/LibraryTree.v": "56cabb3bcec1036a23214627d8d8e3c2f1d1d16d8cde845ac3d78ab51a37a918",
+        "artifacts/constructor-recursive-2269853056624090164/ConstructorRecursive.v": "c8b09eea07f0f8def3b006fec55e51dddfafbea7d0fb42f355db076e9aa2e984",
+        "artifacts/constructor-recursive-2269853056624090164/tb.v": "c8c0459f9470d1c9dc14432085bfaaaae8167316bf81ff3bb7eddbe7a4efd95e",
+        "artifacts/lightweight-recursive-17708835023981466057/LightweightRecursiveTree.v": "94ecfafc4ed3dd2fed8aefd16d0e97234986557b3340930018782edf73ee6f68",
+        "artifacts/native-typed-internal-3455957692395324506/Top.v": "3936e04ef865c470590f8ec5ebcfb7ac8b3930bd63bfa166822085353db9c79d",
+        "artifacts/constructor-formals-17071105646001151745/ConstructorTop.v": "3970993a2da00b6c967d481ce0f44ec1a955fddfc28f30ad6314d438e24a04e7",
+        "artifacts/constructor-formals-17071105646001151745/tb.v": "add2abc2d62981ed9a1bfe34b79814fc4661f22925d3eb4aaf9f9b4be6462a81",
+        "artifacts/native-typed-internal-2741475078820716719/Top.v": "a6b52a5d7a2701e8dd41f993144503ee8dfff49f565d365b9d7806e5f4894f6d",
+        "artifacts/native-typed-internal-2741475078820716719/tb.v": "dab18707e77ff6a14354d1e3dbb0190301837b43974546870e062e2bcbefe271",
+        "artifacts/concrete-ports-11964715753964292082/ConcretePorts.v": "c4e08dbbeda8f8885675aec5aadebd3a60ec84ae09dfdc15063a3c1dd46fec20",
+        "artifacts/concrete-ports-11964715753964292082/tb.v": "5dfacdb1afa582c1734267a9a3bf2fd95c1fcca5eaab9a965651390823ad1453",
+        "artifacts/lightweight-recursive-15214186133795557071/LightweightRecursiveTree.v": "94ecfafc4ed3dd2fed8aefd16d0e97234986557b3340930018782edf73ee6f68",
+        "artifacts/lightweight-recursive-15214186133795557071/tb.v": "3794a67d9ad46da5fcabe2ead525def9492fdcbd109d094d77e2e444a08d4d2c",
+        "artifacts/lightweight-library-tree-4986073073813553425/LibraryTree.v": "8011a31fda228aa525a57a185a2d793f6a754b4b34db18a2d27bff7cff179027",
+        "artifacts/native-typed-internal-8073185050325960724/TypedChild.v": "51b590a6957c21e347028d29763995029aff56832f3e4555aaf14c7cad558daf",
+        "artifacts/native-typed-internal-8073185050325960724/Top.v": "037841e6fea1f5b1852fdf6c9a1ded28d605b0cf6c624f263eb8a9ae7b3bc95d",
+        "artifacts/native-typed-internal-8073185050325960724/tb.v": "dab18707e77ff6a14354d1e3dbb0190301837b43974546870e062e2bcbefe271",
+        "artifacts/constructor-formals-1591532360705263359/ConstructorTop.v": "150f1d5d8450aac167cb6e289cd2b69252009ca48bd00a02b60ac19e5c4b1bfe",
+        "artifacts/constructor-formals-1591532360705263359/tb.v": "add2abc2d62981ed9a1bfe34b79814fc4661f22925d3eb4aaf9f9b4be6462a81",
+        "artifacts/lightweight-library-tree-9556249363929166914/LibraryTree.v": "dad897478b1952157540c2ca22c3f4dbb0ba5475a03d1a6289729effcad0c636",
+        "artifacts/scalar-formal-reuse-14769747099842025826/Top.v": "b29903f209b5fe83758c93fa76adbcbf5c76f5da42942e5854ad6ce5d423f076",
+        "artifacts/scalar-formal-reuse-14769747099842025826/ConstantChild.v": "1bef4413e89d377862f7480d6ea002c3709ab23f16ae49ff213595ec4b9f73d5",
+        "artifacts/native-literal-internal-11978347758760495703/Top.v": "f3c9a6f370a248f24314ac45df4056420eb0e2d91f6c67695388c0d195502423",
+        "artifacts/native-literal-internal-11978347758760495703/GenericChild.v": "bb3f2f5a34e57b81ed686835d9320ea4842396ff65e79ad609e6c0ea73a8e5e5",
+        "artifacts/native-literal-internal-11978347758760495703/tb.v": "1e1b242ec5c109ba48cdeda127d0c794ecd4233dfa68388540b23b17608bd754",
+        "artifacts/mixed-formal-defaults-4825604765499726156/MixedTop.v": "522accc8f34fb0b6d1b160e8e0518191127355d7b386982afd09a2ed022f8654",
+        "artifacts/mixed-formal-defaults-4825604765499726156/tb.v": "38bb6c83e62f17c22b904474111f359131a7d4a90f6e318d25613c3162f0fa5f",
+        "artifacts/constructor-formals-17292888203811252584/ConstructorTop.v": "3970993a2da00b6c967d481ce0f44ec1a955fddfc28f30ad6314d438e24a04e7",
+        "artifacts/scalar-formal-reuse-3796659761158627665/Top.v": "997ac5b7de26d370fe0233e6c2999f1c2ac513fbf64ad0b746648f1f0008e84a",
+        "artifacts/constructor-extreme-14597828516093800186/ConstructorCopy.v": "74afb4aeee4350ea212ff555e4ba1a2452543f5288c7fee06eafa3d5ce0d1c71",
+        "artifacts/constructor-extreme-14597828516093800186/tb.v": "d636c584faa63db9e9fd86f6be5215ea99402190c3fde8de8be89bd5c8511555",
+        "artifacts/lightweight-library-tree-6575694068582192934/synth_top.v": "1e55ff7ac34b241059a700fd6bf004d17f823240b4878b2cee22f351775a3b70",
+        "artifacts/lightweight-library-tree-6575694068582192934/tb.v": "37e1310728e92adc7315511bde25b85a56fa98dfe7d5ea130f03885427f5454a",
+        "artifacts/lightweight-library-tree-6575694068582192934/LibraryTree.v": "c2863d6e755ef3d86d5c17974254619c70318d69227a287ecea2395a0b9fa99a",
+        "artifacts/lightweight-recursive-18076302178311354435/LightweightRecursiveTree.v": "bbb2f34c87ee8f1fa96a73c81a606d9a4ccd103e363ea4abf6891d0b75dfb959",
+        "artifacts/native-typed-internal-9723956597808635405/Top.v": "3936e04ef865c470590f8ec5ebcfb7ac8b3930bd63bfa166822085353db9c79d",
+        "artifacts/native-typed-internal-9723956597808635405/tb.v": "dab18707e77ff6a14354d1e3dbb0190301837b43974546870e062e2bcbefe271",
+        "artifacts/scalar-formal-reuse-1979648053822820209/Top.v": "55500f0ae33d4619f77c3b0300592026cf99f3bc0e320e618a1d859ae7341c8f",
+        "artifacts/scalar-formal-reuse-1979648053822820209/ConstantChild.v": "1bef4413e89d377862f7480d6ea002c3709ab23f16ae49ff213595ec4b9f73d5",
+        "artifacts/optional-reduction-17729819696213033734/OptionalTop.v": "5e9489cf61ac83fdf1993c6b20e3af9203cf698cc2762e2afbaa7bf34b49448e",
+        "artifacts/optional-reduction-17729819696213033734/tb.v": "27dbc2cd2a48fd2b50184d4477459c47fb19255a39223f7b6064f0877a1546d8",
+        "artifacts/native-typed-internal-3625500866889434654/TypedChild.v": "51b590a6957c21e347028d29763995029aff56832f3e4555aaf14c7cad558daf",
+        "artifacts/native-typed-internal-3625500866889434654/Top.v": "968923e086e13a5f009bc0399cd5eee833c637afc9299a233d6a5d336bbf940c",
+        "artifacts/native-typed-internal-3625500866889434654/tb.v": "dab18707e77ff6a14354d1e3dbb0190301837b43974546870e062e2bcbefe271",
+        "artifacts/optional-presence-6697719590260639984/unnamed.v": "555f9570e9ae478e73d80dd487b0800088dffc5a47bdea431f159e1bd03b029f",
+        "artifacts/native-typed-internal-2203575973767032624/TypedChild.v": "51b590a6957c21e347028d29763995029aff56832f3e4555aaf14c7cad558daf",
+        "artifacts/native-typed-internal-2203575973767032624/Top.v": "e41d1c845757e8f6f9fe0b8f18cfb28c9aa1d49cfe25585262e9d824dea74742",
+        "artifacts/constructor-recursive-5457558043143014157/ConstructorRecursive.v": "4d78650080864b6d2846b7c5dd8533848d254eb867155dec25453d64bc676bf2",
+        "artifacts/constructor-recursive-5457558043143014157/tb.v": "a368d77b71627110ab5e9ba42a8d97a8f22dc2e5fae3d54bb3d1701d9d073f14",
+        "artifacts/packed-forward-4851950822021271915/PackedParent.v": "2cf099db2b4f3e34f8dff579ee56938acb0a53e53496447183b40e0494b50d85",
+        "artifacts/packed-forward-4851950822021271915/tb.v": "dd3430c8a93fa7bf8fed8390f7bd22c346d543344d065f6b2eab5ec4489881ec",
+        "artifacts/scoped-bits-500947078118310019/ScopedBits.v": "7899f19c85104d994887c5dea0da4cfd02acd951e3a3a5cce3f1e80d86295fad",
+        "artifacts/scoped-bits-500947078118310019/tb.v": "d91df63bb261fcedbde51e8c6272e2c3a7398c1936d4553be97f73cfd15a7370",
+        "artifacts/optional-reduction-10164945365481654287/OptionalTop.v": "810d27ca33656741cf1a7f61d5478f8effd691cedefe61d26e5ae85529502528",
+        "artifacts/optional-reduction-10164945365481654287/tb.v": "62fb8c592de84923fa1b3ba8c10cbe06b997b3ecadc964ff501025e1f51fbd18",
+        "artifacts/literal-sibling-ports-15118152447060137323/LiteralSiblingTop.v": "dfc09de64f423f5065f0d7197dbaf25ac45b41416b92f795c6e5826b8c76fd2a",
+        "artifacts/literal-sibling-ports-15118152447060137323/tb.v": "d024db7f5e4619e1dd5493205dd12b1991e19ea665dcc162e91ad49dc5d60622",
+        "artifacts/lightweight-library-tree-14249114334010274432/LibraryTree.v": "149b7d795914ccbac55e732e39d98c08d4464a5c0e2e1fdc6d288215744bf1cd"
+      },
+      "cleaned_artifact_sha256": {
+        "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/concrete-ports-11964715753964292082/ConcretePorts.v": "06a013cfd1a16c492cf31d9b41b81ce1d4f7f143d8afb901cad977fb94126060",
+        "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/constructor-sync-3385873517739595006/ConstructorSynchronizer.v": "d2693d560f33332bcb7e1a5004c83e211999d1223204f161a44d634f9f05a28b",
+        "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/one-bit-child-5346991787945322114/OneBitChild.v": "a9de1419640faeec0366ce61831ae8064752389f78b286ca2741a7a26419b3bc",
+        "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/partial-child-input-10102573394406314228/PartialChildInput.v": "59cdbfedef39f99e3de529909ede733d9526bc39817d347f58cb45ed05911d2f",
+        "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/scoped-bits-13692219171580078090/ScopedBits.v": "160053048e4eeee1a4dea224cbe1e0253d5632c46a62189e31f25935273ae03c",
+        "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/scoped-bits-500947078118310019/ScopedBits.v": "11461e4f117dc8eff3994f4fd91b9e36233a5e9490ef954d884786760504cbe6",
+        "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/cleaned/sibling-geometry-4921185867335454041/SiblingGeometry.v": "5cdd0d98fdaa8cda994832d26db2e9d950667aa974d6ff32bb94c28aef8ce070"
+      },
+      "tool_ledger": {
+        "path": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-213-closure/tools/tools.jsonl",
+        "sha256": "1b66558cd58ebf07f0f4343f2e63ad34427f5ad04c3601627e8cb0e030a5876e",
+        "records": 264
+      }
+    },
+    "frontend212": {
+      "result_manifest": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-frontend-212/results.json",
+      "result_manifest_sha256": "4eb64f9696bd5816a898fee0acb39acfdb965e09e4ea352297e8ed6c42752bb4",
+      "tests": 20,
+      "suites": {
+        "morphhdl.compiler.ConstructorParameterSyntaxTests": {
+          "tests": 9,
+          "report_sha256": "6431a3e79b053243d1fa3663870cb7a3b8d4a9f1c3a660d4b498cb9da9f01ef8"
+        },
+        "morphhdl.compiler.InferredParameterSyntaxTests": {
+          "tests": 11,
+          "report_sha256": "3dbc8f05dc8f5a89568f94c72f9c056930c0462dc752db1da23db55c1f1c7b37"
+        }
+      },
+      "commands": [
+        {
+          "command": [
+            "java",
+            "-Xmx3G",
+            "-XX:ActiveProcessorCount=4",
+            "-cp",
+            "/home/kartik/projects/MorphHDL/morphplugin/target/scala-2.12/classes:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-library/2.12.18/scala-library-2.12.18.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest_2.12/3.2.14/scalatest_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalactic/scalactic_2.12/3.2.14/scalactic_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-compiler/2.12.18/scala-compiler-2.12.18.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm-tree/9.2/asm-tree-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/lihaoyi/sourcecode_2.12/0.3.0/sourcecode_2.12-0.3.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-reflect/2.12.18/scala-reflect-2.12.18.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/scopt/scopt_2.12/4.1.0/scopt_2.12-4.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/commons-io/commons-io/2.11.0/commons-io-2.11.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-core_2.12/3.2.14/scalatest-core_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-featurespec_2.12/3.2.14/scalatest-featurespec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-flatspec_2.12/3.2.14/scalatest-flatspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-freespec_2.12/3.2.14/scalatest-freespec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funsuite_2.12/3.2.14/scalatest-funsuite_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funspec_2.12/3.2.14/scalatest-funspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-propspec_2.12/3.2.14/scalatest-propspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-refspec_2.12/3.2.14/scalatest-refspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-wordspec_2.12/3.2.14/scalatest-wordspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-diagrams_2.12/3.2.14/scalatest-diagrams_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-matchers-core_2.12/3.2.14/scalatest-matchers-core_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-shouldmatchers_2.12/3.2.14/scalatest-shouldmatchers_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-mustmatchers_2.12/3.2.14/scalatest-mustmatchers_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/io/github/java-diff-utils/java-diff-utils/4.12/java-diff-utils-4.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/jline/jline/3.22.0/jline-3.22.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna/5.12.1/jna-5.12.1.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm/9.2/asm-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/openhft/affinity/3.23.2/affinity-3.23.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-simple/2.0.5/slf4j-simple-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/oshi/oshi-core/6.4.0/oshi-core-6.4.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-compatible/3.2.14/scalatest-compatible-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/modules/scala-xml_2.12/2.1.0/scala-xml_2.12-2.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-api/2.0.5/slf4j-api-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna-platform/5.12.1/jna-platform-5.12.1.jar",
+            "scala.tools.nsc.Main",
+            "-Yrangepos",
+            "-classpath",
+            "/home/kartik/projects/MorphHDL/morphplugin/target/scala-2.12/classes:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-library/2.12.18/scala-library-2.12.18.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest_2.12/3.2.14/scalatest_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalactic/scalactic_2.12/3.2.14/scalactic_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-compiler/2.12.18/scala-compiler-2.12.18.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm-tree/9.2/asm-tree-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/lihaoyi/sourcecode_2.12/0.3.0/sourcecode_2.12-0.3.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-reflect/2.12.18/scala-reflect-2.12.18.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/scopt/scopt_2.12/4.1.0/scopt_2.12-4.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/commons-io/commons-io/2.11.0/commons-io-2.11.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-core_2.12/3.2.14/scalatest-core_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-featurespec_2.12/3.2.14/scalatest-featurespec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-flatspec_2.12/3.2.14/scalatest-flatspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-freespec_2.12/3.2.14/scalatest-freespec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funsuite_2.12/3.2.14/scalatest-funsuite_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funspec_2.12/3.2.14/scalatest-funspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-propspec_2.12/3.2.14/scalatest-propspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-refspec_2.12/3.2.14/scalatest-refspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-wordspec_2.12/3.2.14/scalatest-wordspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-diagrams_2.12/3.2.14/scalatest-diagrams_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-matchers-core_2.12/3.2.14/scalatest-matchers-core_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-shouldmatchers_2.12/3.2.14/scalatest-shouldmatchers_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-mustmatchers_2.12/3.2.14/scalatest-mustmatchers_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/io/github/java-diff-utils/java-diff-utils/4.12/java-diff-utils-4.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/jline/jline/3.22.0/jline-3.22.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna/5.12.1/jna-5.12.1.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm/9.2/asm-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/openhft/affinity/3.23.2/affinity-3.23.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-simple/2.0.5/slf4j-simple-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/oshi/oshi-core/6.4.0/oshi-core-6.4.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-compatible/3.2.14/scalatest-compatible-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/modules/scala-xml_2.12/2.1.0/scala-xml_2.12-2.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-api/2.0.5/slf4j-api-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna-platform/5.12.1/jna-platform-5.12.1.jar",
+            "-d",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-frontend-212/classes",
+            "/home/kartik/projects/MorphHDL/morphplugin/src/test/scala/morphhdl/compiler/ConstructorParameterSyntaxTests.scala",
+            "/home/kartik/projects/MorphHDL/morphplugin/src/test/scala/morphhdl/compiler/InferredParameterSyntaxTests.scala",
+            "/home/kartik/projects/MorphHDL/morphplugin/src/test/scala/morphhdl/compiler/MorphHdlCompilerTestSupport.scala"
+          ],
+          "returncode": 0,
+          "seconds": 8.993524814999546,
+          "log_sha256": "6169964b3ed06d6e31f9f26ab911f42d6f4bb7f02679ba9fe35a36ac64108fe1"
+        },
+        {
+          "command": [
+            "java",
+            "-Xmx3G",
+            "-XX:ActiveProcessorCount=4",
+            "-Djava.io.tmpdir=/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-frontend-212/artifacts",
+            "-cp",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-frontend-212/classes:/home/kartik/projects/MorphHDL/morphplugin/target/scala-2.12/classes:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-library/2.12.18/scala-library-2.12.18.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest_2.12/3.2.14/scalatest_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalactic/scalactic_2.12/3.2.14/scalactic_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-compiler/2.12.18/scala-compiler-2.12.18.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm-tree/9.2/asm-tree-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/lihaoyi/sourcecode_2.12/0.3.0/sourcecode_2.12-0.3.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-reflect/2.12.18/scala-reflect-2.12.18.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/scopt/scopt_2.12/4.1.0/scopt_2.12-4.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/commons-io/commons-io/2.11.0/commons-io-2.11.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-core_2.12/3.2.14/scalatest-core_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-featurespec_2.12/3.2.14/scalatest-featurespec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-flatspec_2.12/3.2.14/scalatest-flatspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-freespec_2.12/3.2.14/scalatest-freespec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funsuite_2.12/3.2.14/scalatest-funsuite_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funspec_2.12/3.2.14/scalatest-funspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-propspec_2.12/3.2.14/scalatest-propspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-refspec_2.12/3.2.14/scalatest-refspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-wordspec_2.12/3.2.14/scalatest-wordspec_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-diagrams_2.12/3.2.14/scalatest-diagrams_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-matchers-core_2.12/3.2.14/scalatest-matchers-core_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-shouldmatchers_2.12/3.2.14/scalatest-shouldmatchers_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-mustmatchers_2.12/3.2.14/scalatest-mustmatchers_2.12-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/io/github/java-diff-utils/java-diff-utils/4.12/java-diff-utils-4.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/jline/jline/3.22.0/jline-3.22.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna/5.12.1/jna-5.12.1.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm/9.2/asm-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/openhft/affinity/3.23.2/affinity-3.23.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-simple/2.0.5/slf4j-simple-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/oshi/oshi-core/6.4.0/oshi-core-6.4.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-compatible/3.2.14/scalatest-compatible-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/modules/scala-xml_2.12/2.1.0/scala-xml_2.12-2.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-api/2.0.5/slf4j-api-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna-platform/5.12.1/jna-platform-5.12.1.jar",
+            "org.scalatest.tools.Runner",
+            "-o",
+            "-u",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-frontend-212/xml",
+            "-s",
+            "morphhdl.compiler.ConstructorParameterSyntaxTests",
+            "-s",
+            "morphhdl.compiler.InferredParameterSyntaxTests"
+          ],
+          "returncode": 0,
+          "seconds": 16.481286668000394,
+          "log_sha256": "ef175f8e454972f4fba5eb929c3cc07c9b8538375ab5a8b7a4bec4b40ae2d2a4"
+        }
+      ],
+      "plugin_sha256": {
+        "idslplugin/target/scala-2.12/spinalhdl-idsl-plugin_2.12-dev.jar": "088080351cef65b6c08a1d05c3fc789da118c0b7f0e6ac3147c0249d8908879d",
+        "morphplugin/target/scala-2.12/morphhdl-compiler-plugin_2.12-dev.jar": "0c47651eb822e7d554c158c0444c2047e2efffe0122cda3a964775108892a9f4"
+      },
+      "artifact_sha256": {},
+      "cleaned_artifact_sha256": {}
+    },
+    "frontend213": {
+      "result_manifest": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-frontend-213/results.json",
+      "result_manifest_sha256": "d00f4cafba8c21af1fc9168181c4f4327171a64b6200768f4147d54204346d7e",
+      "tests": 20,
+      "suites": {
+        "morphhdl.compiler.ConstructorParameterSyntaxTests": {
+          "tests": 9,
+          "report_sha256": "720ae64cf794f96aac9fa0321e0bc840f9a2c54f91749d078ed32917879f1738"
+        },
+        "morphhdl.compiler.InferredParameterSyntaxTests": {
+          "tests": 11,
+          "report_sha256": "0964207d13f2ee5fb800de2dce7449d635dcd65ca93112b1135cecd86a07342a"
+        }
+      },
+      "commands": [
+        {
+          "command": [
+            "java",
+            "-Xmx3G",
+            "-XX:ActiveProcessorCount=4",
+            "-cp",
+            "/home/kartik/projects/MorphHDL/morphplugin/target/scala-2.13/classes:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-library/2.13.12/scala-library-2.13.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest_2.13/3.2.14/scalatest_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalactic/scalactic_2.13/3.2.14/scalactic_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-compiler/2.13.12/scala-compiler-2.13.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm-tree/9.2/asm-tree-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/lihaoyi/sourcecode_2.13/0.3.0/sourcecode_2.13-0.3.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-reflect/2.13.12/scala-reflect-2.13.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/scopt/scopt_2.13/4.1.0/scopt_2.13-4.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/commons-io/commons-io/2.11.0/commons-io-2.11.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-core_2.13/3.2.14/scalatest-core_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-featurespec_2.13/3.2.14/scalatest-featurespec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-flatspec_2.13/3.2.14/scalatest-flatspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-freespec_2.13/3.2.14/scalatest-freespec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funsuite_2.13/3.2.14/scalatest-funsuite_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funspec_2.13/3.2.14/scalatest-funspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-propspec_2.13/3.2.14/scalatest-propspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-refspec_2.13/3.2.14/scalatest-refspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-wordspec_2.13/3.2.14/scalatest-wordspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-diagrams_2.13/3.2.14/scalatest-diagrams_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-matchers-core_2.13/3.2.14/scalatest-matchers-core_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-shouldmatchers_2.13/3.2.14/scalatest-shouldmatchers_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-mustmatchers_2.13/3.2.14/scalatest-mustmatchers_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/io/github/java-diff-utils/java-diff-utils/4.12/java-diff-utils-4.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/jline/jline/3.22.0/jline-3.22.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna/5.12.1/jna-5.12.1.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm/9.2/asm-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/openhft/affinity/3.23.2/affinity-3.23.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-simple/2.0.5/slf4j-simple-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/oshi/oshi-core/6.4.0/oshi-core-6.4.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-compatible/3.2.14/scalatest-compatible-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/modules/scala-xml_2.13/2.1.0/scala-xml_2.13-2.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-api/2.0.5/slf4j-api-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna-platform/5.12.1/jna-platform-5.12.1.jar",
+            "scala.tools.nsc.Main",
+            "-Yrangepos",
+            "-classpath",
+            "/home/kartik/projects/MorphHDL/morphplugin/target/scala-2.13/classes:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-library/2.13.12/scala-library-2.13.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest_2.13/3.2.14/scalatest_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalactic/scalactic_2.13/3.2.14/scalactic_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-compiler/2.13.12/scala-compiler-2.13.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm-tree/9.2/asm-tree-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/lihaoyi/sourcecode_2.13/0.3.0/sourcecode_2.13-0.3.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-reflect/2.13.12/scala-reflect-2.13.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/scopt/scopt_2.13/4.1.0/scopt_2.13-4.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/commons-io/commons-io/2.11.0/commons-io-2.11.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-core_2.13/3.2.14/scalatest-core_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-featurespec_2.13/3.2.14/scalatest-featurespec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-flatspec_2.13/3.2.14/scalatest-flatspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-freespec_2.13/3.2.14/scalatest-freespec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funsuite_2.13/3.2.14/scalatest-funsuite_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funspec_2.13/3.2.14/scalatest-funspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-propspec_2.13/3.2.14/scalatest-propspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-refspec_2.13/3.2.14/scalatest-refspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-wordspec_2.13/3.2.14/scalatest-wordspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-diagrams_2.13/3.2.14/scalatest-diagrams_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-matchers-core_2.13/3.2.14/scalatest-matchers-core_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-shouldmatchers_2.13/3.2.14/scalatest-shouldmatchers_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-mustmatchers_2.13/3.2.14/scalatest-mustmatchers_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/io/github/java-diff-utils/java-diff-utils/4.12/java-diff-utils-4.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/jline/jline/3.22.0/jline-3.22.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna/5.12.1/jna-5.12.1.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm/9.2/asm-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/openhft/affinity/3.23.2/affinity-3.23.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-simple/2.0.5/slf4j-simple-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/oshi/oshi-core/6.4.0/oshi-core-6.4.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-compatible/3.2.14/scalatest-compatible-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/modules/scala-xml_2.13/2.1.0/scala-xml_2.13-2.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-api/2.0.5/slf4j-api-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna-platform/5.12.1/jna-platform-5.12.1.jar",
+            "-d",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-frontend-213/classes",
+            "/home/kartik/projects/MorphHDL/morphplugin/src/test/scala/morphhdl/compiler/ConstructorParameterSyntaxTests.scala",
+            "/home/kartik/projects/MorphHDL/morphplugin/src/test/scala/morphhdl/compiler/InferredParameterSyntaxTests.scala",
+            "/home/kartik/projects/MorphHDL/morphplugin/src/test/scala/morphhdl/compiler/MorphHdlCompilerTestSupport.scala"
+          ],
+          "returncode": 0,
+          "seconds": 9.37129339400417,
+          "log_sha256": "7f1b36b9d0f52a5b40e1a4cfa9a294f461cd5d268c46fc16049d8e0ad8927f80"
+        },
+        {
+          "command": [
+            "java",
+            "-Xmx3G",
+            "-XX:ActiveProcessorCount=4",
+            "-Djava.io.tmpdir=/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-frontend-213/artifacts",
+            "-cp",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-frontend-213/classes:/home/kartik/projects/MorphHDL/morphplugin/target/scala-2.13/classes:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-library/2.13.12/scala-library-2.13.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest_2.13/3.2.14/scalatest_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalactic/scalactic_2.13/3.2.14/scalactic_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-compiler/2.13.12/scala-compiler-2.13.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm-tree/9.2/asm-tree-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/lihaoyi/sourcecode_2.13/0.3.0/sourcecode_2.13-0.3.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-reflect/2.13.12/scala-reflect-2.13.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/scopt/scopt_2.13/4.1.0/scopt_2.13-4.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/commons-io/commons-io/2.11.0/commons-io-2.11.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-core_2.13/3.2.14/scalatest-core_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-featurespec_2.13/3.2.14/scalatest-featurespec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-flatspec_2.13/3.2.14/scalatest-flatspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-freespec_2.13/3.2.14/scalatest-freespec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funsuite_2.13/3.2.14/scalatest-funsuite_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-funspec_2.13/3.2.14/scalatest-funspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-propspec_2.13/3.2.14/scalatest-propspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-refspec_2.13/3.2.14/scalatest-refspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-wordspec_2.13/3.2.14/scalatest-wordspec_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-diagrams_2.13/3.2.14/scalatest-diagrams_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-matchers-core_2.13/3.2.14/scalatest-matchers-core_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-shouldmatchers_2.13/3.2.14/scalatest-shouldmatchers_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-mustmatchers_2.13/3.2.14/scalatest-mustmatchers_2.13-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/io/github/java-diff-utils/java-diff-utils/4.12/java-diff-utils-4.12.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/jline/jline/3.22.0/jline-3.22.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna/5.12.1/jna-5.12.1.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/ow2/asm/asm/9.2/asm-9.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/openhft/affinity/3.23.2/affinity-3.23.2.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-simple/2.0.5/slf4j-simple-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/com/github/oshi/oshi-core/6.4.0/oshi-core-6.4.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scalatest/scalatest-compatible/3.2.14/scalatest-compatible-3.2.14.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/modules/scala-xml_2.13/2.1.0/scala-xml_2.13-2.1.0.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/org/slf4j/slf4j-api/2.0.5/slf4j-api-2.0.5.jar:/home/kartik/.cache/coursier/v1/https/repo1.maven.org/maven2/net/java/dev/jna/jna-platform/5.12.1/jna-platform-5.12.1.jar",
+            "org.scalatest.tools.Runner",
+            "-o",
+            "-u",
+            "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr13-16-frontend-213/xml",
+            "-s",
+            "morphhdl.compiler.ConstructorParameterSyntaxTests",
+            "-s",
+            "morphhdl.compiler.InferredParameterSyntaxTests"
+          ],
+          "returncode": 0,
+          "seconds": 15.466211011997075,
+          "log_sha256": "80e9f75613f53399debaa619fdc253da843c15d29cf7acb9bd916053e62bdcc7"
+        }
+      ],
+      "plugin_sha256": {
+        "idslplugin/target/scala-2.13/spinalhdl-idsl-plugin_2.13-dev.jar": "c52051bd012aa831ec743e585d57f53ab02b0f529a3fd04f5859ba4ccf5a87b9",
+        "morphplugin/target/scala-2.13/morphhdl-compiler-plugin_2.13-dev.jar": "9ce660d13c842a01929c23fee6e45cf6353ba54f70d5359018d76d788db91703"
+      },
+      "artifact_sha256": {},
+      "cleaned_artifact_sha256": {}
+    },
+    "inventory": {
+      "command": [
+        "python3",
+        "morphhdl/scripts/check-retained-parameterized-regressions.py",
+        "--self-test"
+      ],
+      "log": "/tmp/lwr13-16-inventory-final.log",
+      "log_sha256": "aaee97d2bcdbef1ac70d247558da62e177d9059083dfb764d92918a83bab8e5d",
+      "output": "Retained regression inventory: source and report positive controls and 9 rejection controls passed"
+    },
+    "layering": {
+      "command": [
+        "python3",
+        "morphhdl/scripts/check-typed-layering-ir.py",
+        "--self-test"
+      ],
+      "log": "/tmp/lwr13-16-layering-final.log",
+      "log_sha256": "e86c778d6ac72ee86444421d0ddb7c3ba0576eae7e2dfadf707d0ffa762a5757",
+      "output": "Increment 54 typed-layering/IR guard self-test passed"
+    },
+    "retirement": {
+      "command": [
+        "python3",
+        "morphhdl/scripts/check-production-retirement.py",
+        "--self-test"
+      ],
+      "log": "/tmp/lwr13-16-retirement-final.log",
+      "log_sha256": "0d2e002a27b457fb2e5a5255e7b18d9ef74fd3ad67cf64971d7a758b066b46bb",
+      "output": "Increment 53g production-retirement guard self-test passed"
+    }
+  },
+  "tools": {
+    "java -version": {
+      "command": [
+        "java",
+        "-version"
+      ],
+      "returncode": 0,
+      "version": [
+        "openjdk version \"21.0.5\" 2024-10-15",
+        "OpenJDK Runtime Environment (build 21.0.5+11-Ubuntu-1ubuntu122.04)",
+        "OpenJDK 64-Bit Server VM (build 21.0.5+11-Ubuntu-1ubuntu122.04, mixed mode, sharing)"
+      ]
+    },
+    "iverilog -V": {
+      "command": [
+        "iverilog",
+        "-V"
+      ],
+      "returncode": 0,
+      "version": [
+        "Icarus Verilog version 14.0 (devel) (af348e2)",
+        "",
+        "Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)"
+      ]
+    },
+    "verilator --version": {
+      "command": [
+        "verilator",
+        "--version"
+      ],
+      "returncode": 0,
+      "version": [
+        "Verilator 5.020 2024-01-01 rev (Debian 5.020-1)"
+      ]
+    },
+    "yosys -V": {
+      "command": [
+        "yosys",
+        "-V"
+      ],
+      "returncode": 0,
+      "version": [
+        "Yosys 0.41 (git sha1 c1ad37779, g++ 13.3.0-6ubuntu2~24.04.1 -fPIC -Os)"
+      ]
+    },
+    "questa": {
+      "vsim": null,
+      "vlog": null
+    }
+  },
+  "limitations": [
+    "Constructor inference covers direct native Component primary constructors with one non-implicit parameter list and plain arguments; val/var accessors, secondary/multiple lists and indirect inheritance use explicit body declarations.",
+    "Optional constructor formals support Option[Param[Int]] with absent zero and explicit presence forwarding. Other optional policies retain existing body APIs.",
+    "Direct scoped Bits reads retain existing ownership/domain and procedural-process limits; this does not infer arbitrary Scala or procedural loops.",
+    "Concrete partial child inputs require exact unconditional full coverage and proved partial widths. Symbolic partial bindings without that proof remain rejected.",
+    "Existing Vec.reduceBalancedTree topology and library BalancedTree bridge/order contracts are unchanged.",
+    "Questa is unavailable locally. Application integration parses approved unchanged Dan IP as Verilog-2005 for $clog2; generated RTL remains parsed as Verilog-2001.",
+    "This is focused local acceptance, not full CI, whole-branch qualification, formal coverage of all APIs, or customer acceptance."
+  ],
+  "historical_failures": "Earlier lwr13-16-* scratch runs retain the slice/mux/bit/partial-input failures and fixture/runner repairs. Only the final result manifests below qualify this source overlay.",
+  "build": {
+    "command": [
+      "sbt",
+      "++2.12.18",
+      "morph/Compile/compile",
+      "++2.13.12",
+      "morph/Compile/compile"
+    ],
+    "log": "/tmp/lwr13-16-literal-build.log",
+    "log_sha256": "d4212531846070fdfb838268987ddc70c29b595e9d3b61040302ea444ec5ddbc",
+    "note": "Final main-source build; fixtures compiled afresh by each recorded runner."
+  }
+}

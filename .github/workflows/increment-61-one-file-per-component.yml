@@ -55,6 +55,10 @@ on:
 
 permissions:
   contents: read
+  actions: read
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
 
 concurrency:
   group: increment-61-${{ github.event.pull_request.number || github.ref }}
@@ -80,6 +84,16 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Consume authenticated candidate provenance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 morphhdl/scripts/candidate_provenance_ci.py
+      - name: Reject altered source, evidence, ancestry and stale receipts
+        shell: bash
+        run: |
+          python3 morphhdl/scripts/test-candidate-provenance.py
+          python3 morphhdl/scripts/test-candidate-provenance-ci.py
       - name: Verify Increment 61 and the unchanged predecessor source contracts
         shell: bash
         run: |
@@ -90,16 +104,11 @@ jobs:
           git rev-parse HEAD > "$output/head.txt"
           git archive HEAD | gzip > "$output/source.tar.gz"
           python3 morphhdl/scripts/test-increment-61-publication-artifacts.py
-          python3 morphhdl/scripts/check-increment-61-source-review.py | tee "$output/review.log"
-          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test | tee -a "$output/review.log"
-          base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)
-          git worktree add --detach "$predecessor" "$base"
-          trap 'git worktree remove --force "$predecessor"' EXIT
-          (
-            cd "$predecessor"
-            python3 morphhdl/scripts/check-increment-60g-source-scope.py
-            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
-          ) | tee "$output/inherited.log"
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py | tee "$output/review.log"
+          python3 morphhdl/scripts/run-parameterized-inherited-audit.py morphhdl/scripts/check-increment-61-source-review.py --self-test | tee -a "$output/review.log"
+          # The producer authenticates the fixed Increment 61 predecessor and
+          # its immutable evidence; this is not historical suite execution.
+          python3 morphhdl/scripts/candidate_provenance_ci.py --consume | tee "$output/inherited.log"
           python3 morphhdl/scripts/check-native-source-preservation.py | tee "$output/native.log"
           python3 morphhdl/scripts/check-typed-native-source-overlay.py | tee "$output/overlay.log"
       - uses: actions/upload-artifact@v4

@@ -14,6 +14,7 @@ final class ElabInt private[core] (
   private[core] def this(expression: ElaborationIntegerExpression) =
     this(expression, None)
   ElabInt.validateExpression(expression, "ElabInt")
+  private[core] var packedRepresentation: Option[ElaborationPackedParameter] = None
 
   private[spinal] def witness: Int = projectedExpression("ElabInt witness").default.toInt
   def minimum: BigInt = if (ElaborationProductDomain.isRetained(expression))
@@ -77,30 +78,57 @@ final class ElabInt private[core] (
   ): ElaborationIntegerExpression =
     ElabInt.projectExpression(expression, role)
 
-  def +(that: ElabInt): ElabInt = ElabInt.add(this, that)
+  def +(that: ElabInt): ElabInt = NativeLocalParameters.calculated(ElabInt.add(this, that), "+", this, that)
   def +(that: Int): ElabInt = this + ElabInt.literal(that)
-  def -(that: ElabInt): ElabInt = ElabInt.subtract(this, that)
+  def -(that: ElabInt): ElabInt = NativeLocalParameters.calculated(ElabInt.subtract(this, that), "-", this, that)
   def -(that: Int): ElabInt = this - ElabInt.literal(that)
-  def *(that: ElabInt): ElabInt = ElabInt.multiply(this, that)
+  def *(that: ElabInt): ElabInt = NativeLocalParameters.calculated(ElabInt.multiply(this, that), "*", this, that)
   def *(that: Int): ElabInt = this * ElabInt.literal(that)
-  def /(that: ElabInt): ElabInt = ElabInt.divide(this, that)
+  def /(that: ElabInt): ElabInt = NativeLocalParameters.calculated(ElabInt.divide(this, that), "/", this, that)
   def /(that: Int): ElabInt = this / ElabInt.literal(that)
-  def %(that: ElabInt): ElabInt = ElabInt.modulo(this, that)
+  def %(that: ElabInt): ElabInt = NativeLocalParameters.calculated(ElabInt.modulo(this, that), "%", this, that)
   def %(that: Int): ElabInt = this % ElabInt.literal(that)
 
+  /** Logical shift of a non-negative parameter. A correlated distance needs
+    * proof from the active generate path, never a simulation-only requirement.
+    */
+  def >>(distance: ElabInt): ElabInt = {
+    if (distance.expression.minimum >= 0 && distance.expression.maximum <= 30)
+      this / distance.pow2
+    else {
+      if (!NativeSymbolicLegality.provenInActiveScope((distance >= 0) && (distance <= 30)))
+        ParameterizedVerilogException.fail("SPINAL-ELAB-INT-POW2-DOMAIN-UNSUPPORTED",
+          "shift distance must be proven within 0..30", distance.expression.sourceLocation)
+      // The certificate remains total on the original product domain: invalid
+      // distances produce zero, as with a Verilog logical integer shift. It
+      // therefore cannot export narrowed width/domain authority from this scope.
+      ElabInt.fromExpression(ElaborationProductDomain.integer(">>", expression, distance.expression))
+    }
+  }
+  def >>(distance: Int): ElabInt = this >> ElabInt.literal(distance)
+
+  /** Select a contiguous low-bit mask (0, 1, 3, 7, ...).
+    * Other masks are rejected rather than evaluated using a parameter witness.
+    */
+  def &(mask: Int): ElabInt = {
+    require(mask >= 0 && (BigInt(mask) & (BigInt(mask) + 1)) == 0,
+      "SPINAL-ELAB-INT-MASK-UNSUPPORTED: expected a non-negative contiguous low-bit mask")
+    this % ElabInt.fromBigInt(BigInt(mask) + 1)
+  }
+
   /** Typed ceiling logarithm which retains this bounded expression. */
-  def log2Up: ElabInt = ElabInt.log2UpValue(this)
+  def log2Up: ElabInt = NativeLocalParameters.calculated(ElabInt.log2UpValue(this), "log2Up", this)
 
   /** Minimum positive packed width which can address every value below this
     * positive bound. Unlike [[log2Up]], a bound of one has width one.
     */
-  def addressWidth: ElabInt = ElabInt.addressWidthValue(this)
+  def addressWidth: ElabInt = NativeLocalParameters.calculated(ElabInt.addressWidthValue(this), "addressWidth", this)
 
   /** Typed power-of-two predicate over this bounded expression. */
   def isPow2: ElabBool = ElabInt.isPow2Value(this)
 
   /** Typed integer value `2 ^ this`. */
-  def pow2: ElabInt = ElabInt.pow2Value(this)
+  def pow2: ElabInt = NativeLocalParameters.calculated(ElabInt.pow2Value(this), "pow2", this)
 
   def <(that: ElabInt): ElabBool = ElabInt.compare("<", this, that)
   def <(that: Int): ElabBool = this < ElabInt.literal(that)
@@ -753,6 +781,18 @@ object ElabInt {
     new ElabInt(withCompleteParameterRoots(expression))
   }
 
+  /** Read the retained width of one exact native leaf without exposing the
+    * mutable registry or its Option carrier to callback bytecode. This is a
+    * geometry query only; it cannot observe runtime hardware values. */
+  private[spinal] def widthOf(value: BaseType): ElabInt = {
+    if (value == null)
+      throw new IllegalArgumentException("typed width query target must not be null")
+    ParameterizedWidth.expressionOf(value) match {
+      case Some(expression) => fromExpression(expression)
+      case None             => literal(value.getBitsWidth)
+    }
+  }
+
   /** Test-only/internal constructor for malformed exact-domain fixtures which
     * need to exercise a deeper consumer diagnostic. Public callers must use
     * [[fromExpression]], where copied exact metadata is rejected.
@@ -1303,8 +1343,13 @@ object ElabInt {
   ): ElabInt = {
     if (parameter == null)
       throw new IllegalArgumentException("direct ElabInt parameter must not be null")
+    if (parameter.maximum - parameter.minimum + 1 > MaximumExactDomainSize) {
+      val result = fromExpression(ElaborationProductDomain.nativeCompactDeclaration(parameter, sourceLocation))
+      result.packedRepresentation = parameter.representation
+      return result
+    }
     val root = parameter.declarationRoot
-    fromSingleRootExpressionTrusted(
+    val result = fromSingleRootExpressionTrusted(
       ElaborationIntegerExpression(
         verilog = parameter.name,
         default = parameter.default,
@@ -1318,6 +1363,8 @@ object ElabInt {
         .boundedValues(parameter.minimum, parameter.maximum)
         .map(value => value -> value)
     )
+    result.packedRepresentation = parameter.representation
+    result
   }
 
   private[spinal] def projectExpression(
@@ -1386,7 +1433,7 @@ object ElabInt {
           expression.sourceLocation,
           role
         )
-        expression
+        NativeLocalParameters.projected(expression, expression
           .copy(
             default = projectedDefault,
             minimum = evaluated.min,
@@ -1399,7 +1446,7 @@ object ElabInt {
             representative,
             role,
             expression.sourceLocation
-          )
+          ))
       case None =>
         expression.parameterRoots.find(ElaborationDomainContext.constrains).foreach { root =>
           fail(
@@ -1451,7 +1498,7 @@ object ElabInt {
       .map { leaf =>
         ParameterizedWidth
           .expressionOf(leaf)
-          .map(fromExpression)
+          .map(expression => fromExpression(NativeFormalWidthProjection.inCurrentScope(leaf, expression)))
           .getOrElse(literal(leaf.getBitsWidth))
       }
       .reduceOption(_ + _)
@@ -2172,6 +2219,9 @@ object ElabInt {
           sourceLocation
         )
       }
+      if (parameter.representation == null || parameter.representation.exists(p =>
+          p == null || parameter.minimum < p.minimum || parameter.maximum > p.maximum))
+        fail("SPINAL-PARAM-REPRESENTATION-OVERFLOW", "parameter domain must fit its declared packed representation", sourceLocation)
       if (
         parameter.name == null ||
         !portableIdentifier.pattern.matcher(parameter.name).matches()

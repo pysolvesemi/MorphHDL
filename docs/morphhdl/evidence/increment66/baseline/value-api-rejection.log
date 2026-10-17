@@ -1,0 +1,32 @@
+Picked up JAVA_TOOL_OPTIONS: -Xmx3G -XX:ActiveProcessorCount=2
+Picked up JAVA_TOOL_OPTIONS: -Xmx3G -XX:ActiveProcessorCount=2
+[info] welcome to sbt 1.10.0 (Ubuntu Java 17.0.20.1)
+[info] loading settings for project morphhdl-build from plugin.sbt ...
+[info] loading project definition from /home/kartik/projects/MorphHDL/project
+[info] loading settings for project all from build.sbt ...
+[info] resolving key references (13792 settings) ...
+[info] set current project to SpinalHDL-all (in build file:/home/kartik/projects/MorphHDL/)
+[info] Setting Scala version to 2.13.12 on 14 projects.
+[info] Reapplying settings...
+[info] set current project to SpinalHDL-all (in build file:/home/kartik/projects/MorphHDL/)
+[info] compiling 1 Scala source to /home/kartik/projects/MorphHDL/core/target/scala-2.13/classes ...
+[warn] 1 deprecation; re-run with -deprecation for details
+[warn] one warning found
+[info] done compiling
+[info] compiling 1 Scala source to /home/kartik/projects/MorphHDL/morphhdl/target/scala-2.13/test-classes ...
+[error] /home/kartik/projects/MorphHDL/morphhdl/src/test/scala/morphhdl/examples/NativeSymbolicValueApiBaseline.scala:4:40: overloaded method apply with alternatives:
+[error]   (value: spinal.core.MaskedLiteral,filling: Boolean)spinal.core.UInt <and>
+[error]   (that: spinal.core.SInt,width: spinal.core.BitCount)spinal.core.UInt <and>
+[error]   (that: spinal.core.Bits,width: spinal.core.BitCount)spinal.core.UInt <and>
+[error]   (that: spinal.core.Bool,width: spinal.core.BitCount)spinal.core.UInt <and>
+[error]   (rangesValue: (Any, Any),_rangesValues: (Any, Any)*)spinal.core.UInt <and>
+[error]   (bitCount: spinal.core.BitCount,rangesValue: (Any, Any),_rangesValues: (Any, Any)*)spinal.core.UInt <and>
+[error]   (value: BigInt,width: spinal.core.BitCount)spinal.core.UInt <and>
+[error]   (value: Long,width: spinal.core.BitCount)spinal.core.UInt <and>
+[error]   (value: Int,width: spinal.core.BitCount)spinal.core.UInt
+[error]  cannot be applied to (spinal.core.ElabInt, spinal.core.BitCount)
+[error]   def value(busBytes: ElabInt): UInt = U(busBytes, 8 bits)
+[error]                                        ^
+[error] one error found
+[error] (morph / Test / compileIncremental) Compilation failed
+[error] Total time: 9 s, completed Oct 2, 2026, 2:17:27 AM

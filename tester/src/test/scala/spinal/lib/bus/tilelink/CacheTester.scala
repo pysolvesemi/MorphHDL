@@ -4,6 +4,7 @@ import spinal.core._
 import spinal.core.sim._
 import spinal.lib.bus.tilelink
 import tilelink._
+import tilelink.Param
 import tilelink.fabric.sim._
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core.Component

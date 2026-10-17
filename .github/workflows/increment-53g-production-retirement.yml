@@ -115,6 +115,11 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
+      - name: Install authenticated singleton-array simulator
+        uses: ./.github/actions/lightweight-simulator
+        with:
+          receipt-name: pinned-iverilog-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_attempt }}
+
       - name: Compile every production and test source
         run: sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
       - name: Run complete MorphHDL and native compatibility suites
@@ -156,6 +161,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install authenticated singleton-array simulator
+        uses: ./.github/actions/lightweight-simulator
+        with:
+          receipt-name: pinned-iverilog-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_attempt }}
+
       - name: Install pinned Mill
         run: |
           curl --fail --location --retry 5 --retry-all-errors \

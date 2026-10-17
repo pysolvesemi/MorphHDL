@@ -2085,6 +2085,10 @@ abstract class AssignmentExpression extends Expression {
   override def remapDrivingExpressions(func: (Expression) => Expression): Unit
   def getMinAssignedBits: AssignedRange //Bit that are allwas assigned
   def getMaxAssignedBits: AssignedRange //Bit that are allwas assigned
+  // Retained affine loops may assign several disjoint native bit intervals.
+  // Existing expressions keep their original single-range semantics.
+  def getMinAssignedRanges: Seq[AssignedRange] = Seq(getMinAssignedBits)
+  def getMaxAssignedRanges: Seq[AssignedRange] = Seq(getMaxAssignedBits)
   //  def getScopeBits: AssignedRange //Bit tht could be assigned
   //  def getOutBaseType: BaseType
   //  def clone(out : Node) : this.type

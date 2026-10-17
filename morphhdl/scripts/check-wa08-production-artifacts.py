@@ -86,7 +86,7 @@ def qualify_ordinary_named(output, first):
         reference = (first / (kind + "-disabled") / "generated.v").read_text()
         enabled = (first / (kind + "-enabled") / "generated.v").read_text()
         default = (first / (kind + "-default") / "generated.v").read_text()
-        assert enabled == default, (kind, "default does not match explicit enable")
+        assert reference == default, (kind, "default does not match explicit disable")
         assert enabled != reference, (kind, "public production path removed no named alias")
         assert "parameter integer WIDTH" in enabled, kind
         for name in expected_aliases:
@@ -257,7 +257,7 @@ def qualify_ordinary_named(output, first):
             "component_rename_invariant": True,
             "assignment_debug_metadata_preserved": True,
             "opaque_metadata_retained_without_source_tags": True,
-            "public_default_matches_enabled": True, "explicit_opt_out_retains_aliases": True,
+            "public_default_matches_disabled": True, "explicit_opt_out_retains_aliases": True,
             "parameter_width_bindings": list(range(1, 17)),
             "four_state_cases": total_four_state, "sequential_equivalence_cases": total_equivalence,
             "functional_mutations_rejected": 2}
@@ -273,11 +273,11 @@ def qualify_nested_unsigned_sums(output, first):
     }
     overflow = {mode: (first / ("nested-overflow-" + mode) / "generated.v").read_text()
                 for mode in ("default", "enabled", "disabled")}
-    assert fixed["default"] == fixed["enabled"], "fixed default differs from explicit enable"
-    assert parameterized["default"] == parameterized["enabled"], (
-        "parameterized default differs from explicit enable")
-    assert overflow["default"] == overflow["enabled"], (
-        "overflow default differs from explicit enable")
+    assert fixed["default"] == fixed["disabled"], "fixed default differs from explicit disable"
+    assert parameterized["default"] == parameterized["disabled"], (
+        "parameterized default differs from explicit disable")
+    assert overflow["default"] == overflow["disabled"], (
+        "overflow default differs from explicit disable")
     assert fixed["enabled"] != fixed["disabled"], "fixed wrapper fixture did not transform"
     assert parameterized["enabled"] != parameterized["disabled"], (
         "parameterized wrapper fixture did not transform")
@@ -310,7 +310,7 @@ def qualify_nested_unsigned_sums(output, first):
         declarations = set(re.findall(r"(?m)^\s*wire\s+\[17:0\]\s+([A-Za-z_][A-Za-z0-9_$]*)\s*;", source))
         assert set(ordered) <= declarations
         additions = declarations - set(ordered)
-        if mode != "disabled":
+        if mode == "enabled":
             assert not additions
             assert f"assign hTotal = ((({ordered[0]} + {ordered[1]}) + {ordered[2]}) + {ordered[3]});" in source
         else:
@@ -540,7 +540,7 @@ def qualify_nested_unsigned_sums(output, first):
             "overflow_enabled_add_wrapper_wires": 0,
             "overflow_max_value_cases": 1,
             "parameter_width_bindings": list(range(1, 17)),
-            "default_matches_enabled": True,
+            "default_matches_disabled": True,
             "explicit_opt_out_retains_legacy_wrappers": True,
             "four_state_cases": total_four_state,
             "formal_equivalence_cases": total_equivalence,
@@ -566,7 +566,7 @@ def main():
             first / (kind + "-disabled/generated.v")).read_bytes(), kind
     for kind, default in (("fifo", "plain"), ("generic", "default")):
         assert (first / (kind + "-" + default + "/generated.v")).read_bytes() == (
-            first / (kind + "-enabled/generated.v")).read_bytes(), kind
+            first / (kind + "-disabled/generated.v")).read_bytes(), kind
     # Exact symbolic RTL identity connects the real public API to the independently
     # generated production candidate proved over all 512 bindings by the pass CI.
     fifo = first / "fifo-enabled/generated.v"
@@ -648,7 +648,7 @@ def main():
     total_mutations = 1 + named_qualification["functional_mutations_rejected"] + \
         nested_qualification["functional_mutations_rejected"]
     report = {"deterministic_files": len(EXPECTED_GENERATED_ARTIFACTS),
-              "default_on_matches_enabled": True,
+              "default_off_matches_disabled": True,
               "explicit_opt_out_byte_identity": True,
               "fifo_matches_full_domain_proof_candidate": True, "four_state_cases": 16,
               "formal_mutation_rejected": True,

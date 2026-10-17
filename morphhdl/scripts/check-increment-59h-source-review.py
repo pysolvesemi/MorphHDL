@@ -169,6 +169,14 @@ def register_source_review(root: Path):
 
 
 def register_inherited_inventory(root: Path, paths: set[str], qualification_base: str) -> set[str]:
+    # The join can add production paths disjoint from the register layer. Its
+    # complete exact-source audit must restore those paths before subtraction
+    # of the older register/owner inventories; never just widen their allowlist.
+    register = register_source_review(root)
+    if register is not None:
+        join = register.join_source_review(root)
+        if join is not None:
+            paths = join.inherited_inventory(root, paths, qualification_base)
     reviewer = root / "morphhdl/scripts/check-wa07b-inherited-review.py"
     if reviewer.exists() or reviewer.is_symlink():
         require(reviewer.is_file() and not reviewer.is_symlink(), "missing regular WA-07b inherited reviewer")
@@ -206,11 +214,15 @@ def restore_rollout(root: Path, path: str, source: str) -> str:
 
 
 def restore_source(root: Path, path: str, source: str) -> str:
-    source = restore_rollout(root, path, source)
     """Leave unrelated historical hooks to their own exact source contracts."""
     register = register_source_review(root)
-    if register is not None:
+    joined = None if register is None else getattr(register, "join_source_review", lambda _: None)(root)
+    if joined is not None:
         source = register.restore_source(root, path, source)
+    else:
+        source = restore_rollout(root, path, source)
+        if register is not None:
+            source = register.restore_source(root, path, source)
     entries = load_contract(root)
     if path not in entries:
         return source
@@ -255,10 +267,15 @@ def verify_spans(root: Path, qualification_base: str = BASE) -> None:
         stage = subprocess.check_output(["git", "ls-files", "--stage", "--", path], cwd=root, text=True).split()
         require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
                 "59h reviewed source is not uniquely tracked: " + path)
-        current = restore_rollout(root, path, source.read_text()).encode()
-        if register is not None:
-            current = register.restore_source(root, path, current.decode()).encode()
-        restore_reviewed(entry, baseline, current)
+        current = source.read_text()
+        joined = None if register is None else getattr(register, "join_source_review", lambda _: None)(root)
+        if joined is not None:
+            current = register.restore_source(root, path, current)
+        else:
+            current = restore_rollout(root, path, current)
+            if register is not None:
+                current = register.restore_source(root, path, current)
+        restore_reviewed(entry, baseline, current.encode())
 
 
 def inherited_inventory(root: Path, paths: set[str], qualification_base: str) -> set[str]:

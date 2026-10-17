@@ -18,6 +18,9 @@ concurrency:
   group: morphhdl-external-boundary-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   baseline-proof:
     name: Baseline API proof Scala ${{ matrix.scala_version }}
@@ -35,6 +38,7 @@ jobs:
       - name: Check out complete history
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Compile and run the external boundary against Increment 0 native sources

@@ -1,0 +1,371 @@
+{
+  "schema_version": 1,
+  "base": "db54d01e5b21c7664f7a0de3795f061d77a3d259",
+  "base_tree": "ed73aee1ca0c667a1c32b181d95c431c22ea3719",
+  "files": [
+    {
+      "path": ".github/workflows/morphhdl-passes.yml",
+      "reason": "Route only the dedicated batch branch through the existing authenticated current-source and frozen static-check path. Preserve every native generation, Scala, simulation, formal job, matrix and timeout."
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/Component.scala",
+      "reason": "The normal native allocator must preserve explicit signal spellings when a propagated weak name occurs earlier. Move reservation before allocation; retain duplicate explicit-name diagnostics and the existing generated-name suffix allocator. This is a native backend naming correction, not an RTL expression change. The existing compiler member callback supplies ElabInt binding hints to exact component-owned local-parameter records; names do not confer identity or authority."
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElabInt.scala",
+      "reason": "Provide neutral typed integer and Boolean carriers. Preserve existing single-root coverage, root/schema identity, projection and arithmetic safety checks; route genuinely independent native arithmetic and predicates through private compositional proofs. Validate finished native owner scopes through the same authoritative single-root checker. Existing WA-11 Boolean encoding origins, integer sizing fences and single-root normalization remain intact. Separate native arithmetic/publication dispatch from explicit exact extrema queries. Keep exact/provenance validation and concrete/default width errors; use authenticated safe physical width only with a separate legality obligation. Capture typed arithmetic operands before normalization and retain presentation identity only through trusted unrestricted projection; no arithmetic, root or domain proof is changed."
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElabValue.scala",
+      "reason": "Relocate the existing typed unsigned hardware-value adapter unchanged into core so the public core U overload can delegate without a reverse module dependency."
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElaborationExactDomain.scala",
+      "reason": "Provide exact finite-domain reasoning for parameter-sensitive native operations. Expose only a read-only active-restriction query so deferred requirements cannot escape captured branches; exact-domain authority and projection checks are unchanged. Expose a read-only admitted-root query so exact native captured owners can validate retained obligations after dynamic scope restoration."
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElaborationProductDomain.scala",
+      "reason": "Private identity-bound compositional value-function proofs over authenticated declaration roots and schemas. Preserve all dependency axes including canceled and branch-restricted roots, join partially overlapping dependencies, compose attainable extrema for independent groups, and fail closed beyond bounded exact joint evaluation. Bind publication evidence to exact native owners without fabricating a single-root domain or enumerating large Cartesian products. Retain private expression-identity AST certificates and authentic root/schema/scope inventories independently of exact proof. Derive checked compositional publication enclosures without Cartesian calls; keep the existing stronger exact evaluator on demand and authenticate safe physical width as its own AST. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. Retain private, exact-condition-bound finite structural tuple evidence under the unchanged 65,536 tuple cap. Classify diagnostics under authenticated activation without granting integer or width authority; compact and oversized structural products remain rejected."
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ExternalParameterizedValueRegistry.scala",
+      "reason": "Relocate the existing exact value/leaf/assignment registry unchanged into core alongside its adapter. Preserve all freshness, owner and authority validation; this is not a new copyable proof mechanism."
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/Literal.scala",
+      "reason": "Add the explicit fixed-width unsigned ElabInt value overload, delegating to the existing exact typed value registry. Existing literal overloads and native arithmetic remain unchanged."
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/NativeLocalParameters.scala",
+      "reason": "Capture exact typed arithmetic operands and compiler-supplied member hints; select only live exact-owner uses, order declarations by operand identity, reject cycles, reserve collision-safe names, and render native local parameters without introducing proof authority. Restricted structural calculations retain direct expression publication. Component-owned state cannot leak names between generations or owners. Extend the existing component-local dependency graph with explicitly named packed unsigned declarations, exact owner checks, deterministic collision rejection and dependency ordering. Explicit names replace an automatic hint for the same expression; metadata never grants arithmetic authority."
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/NativeSymbolicLegality.scala",
+      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Originally reject mixed structural-scope obligations; now reject them without an exact activation owner, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. CDC-LEG-01 changes only native diagnostic presentation: allocate G_PARAMETER_LEGALITY_<index> in the existing component name scope and pass the escaped original message directly to $fatal(1, \"%s\", message). Domain classification, record ownership, ordering, fatal termination and synthesis guards are unchanged. Increment 65 replaces the structural-scope rejection only for exact runtime-issued owners: component-local records carry full activation, root inventories and transactional rollback. Scope classification can omit implied diagnostics; active false requirements stay deferred, while unconditionally false top-level requirements still reject. Validate finished owner identity before native synthesis-guarded fatal publication. Retain validated declaration-domain guards for the explicit native formal API so downstream overrides cannot silently leave the proved domain. Existing user requirements retain their prior classification, scope, escaping and fatal semantics."
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
+      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the historical deprecated factory aliases. Preserve recursive authored clone layout before copying metadata, retain exact native graph-derived scalar widths, and update fresh mux clone metadata only after the full native maximum-width proof. Retain private calculation and trusted projection-origin metadata on exact expression objects; public case-class copies deliberately inherit neither field. Add an internal typed-local owner marker to exact expression presentation metadata, preventing foreign constant dependencies without granting or changing width/domain authority."
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/TypedLocalUInt.scala",
+      "reason": "Provide immutable exact-owner packed unsigned local constants, checked width/range, eager dependencies, fresh native reference nodes and full-domain switch disjointness validation. Named references are not literals and cannot be folded to their default witness."
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+      "reason": "Retain native symbolic-legality publication and the generation-scoped signed declaration, cast, literal, resize and unsigned-transport callbacks. The typed expression planner controls optional wrapper suppression; every mandatory wrapper present before depth cutting remains, and CDC-WIRE-01 suppresses new depth wrappers only when complete expansion and all receiving widths are proven. Approved unsigned expression slices use a deterministic Verilog-2001 function with the full authoritative source input width and exact constant result range, preserving truncation and four-state semantics. Helper and argument names are allocated in the same namespace after reserving component/width parameter identities, and functions are cached by symbolic width and range. Signed/unknown or otherwise unproven expressions and the ordinary backend keep inherited emission. Qualification repair reserves declaration-local width names without composing finished branch domains, and passes the exact emitter owner when preserving a retained unsigned wrapper's authoritative logical range. All old public wrapper entry points and ordinary backend behavior remain intact. Emit dependency-ordered typed local parameters through the native localparams buffer after the parameterized backend prepares exact live uses. Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative."
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
+      "reason": "Preserve structured parameterized-Verilog diagnostics across the inherited Verilog elaboration retry boundary. Expose read-only per-context execution state before any phase runs without altering native phase order or behavior. Mechanically copy immutable named-constant reference tokens through ordinary anonymous carrier propagation and validate exact named-key disjointness before native parallel-case emission. Never fold a symbolic default witness or alter ordinary literal propagation and coverage checks."
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
+      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results. CDC-WIRE-01 qualification preserves the historical two-argument wrapper method and adds an internal owner-checked overload for retained unsigned symbolic carriers. The default backend remains on inherited concrete emission; signed declaration policy ranges retain precedence, with no new state in the historical interface. Add a default-disabled exact-occurrence scalar range callback so the native printer can reference module-local typed constants without changing ordinary concrete emission. Add owner-checked optional assignment/source/target/scope callbacks with storage confined to DeclarationPolicyOwner. Keep the historical interface stateless, preserve existing declaration and signedness hooks, and retain default native printing when no policy applies."
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/when.scala",
+      "reason": "Accept an immutable owner-checked unsigned local constant as one native switch key, requiring an exact selector width. Existing key consumers and scope construction remain unchanged."
+    },
+    {
+      "path": "frontend/src/main/scala/morphhdl/frontend/GenIndex.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "frontend/src/main/scala/morphhdl/frontend/HdlInt.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "frontend/src/main/scala/morphhdl/frontend/formalParam.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "frontend/src/main/scala/spinal/core/ExternalAnalyzedStructuralPublisher.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axi/Axi4SlaveFactory.scala",
+      "reason": "Declare the native AXI4 masked-address alignment for generic typed mappings without changing its transaction decoder. Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation."
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axilite/AxiLite4SlaveFactory.scala",
+      "reason": "Declare the native AXI4-Lite masked-address alignment for generic typed mappings without changing its transaction decoder. Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation."
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/misc/BusSlaveFactory.scala",
+      "reason": "Add explicit typed single-address overloads and mechanical mapping propagation while retaining every ordinary concrete and bus-family transaction algorithm. Add explicit named-address read/write/event/readAndWrite overloads through existing primitives and alignment checks. Prove promoted single-address cases disjoint over exact domains while preserving existing shared-address and double-read checks, concrete mappings and transaction algorithms."
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/misc/Misc.scala",
+      "reason": "Provide one generic exact typed single-address mapping for existing native bus decoders, with fail-closed complete-domain validation and identity-safe grouping. Retain the immutable public local-constant handle beside an existing exact typed address mapping. Exact-equivalent mappings preserve grouping. Nonzero address offsets keep the existing generic typed fallback; ordinary mapping classes are unchanged."
+    },
+    {
+      "path": "morphhdl-passes/scripts/check-boundary.sh",
+      "reason": "Recognize the dedicated batch branch only after its exact successor source seal and enumerated path inventory pass; preserve rejection of unreviewed cross-workspace paths."
+    },
+    {
+      "path": "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json",
+      "reason": "Refresh actual source digests while retaining all 98 inherited formal identities, schema and algorithm; current proof jobs remain mandatory."
+    },
+    {
+      "path": "morphhdl/contracts/increment-55-native-change-review.json",
+      "reason": "Exact reviewed-source contract, audit adapter or validation utility for this batch. Retain immutable historical review, current-byte/ancestry checks, native audit and all rejection controls; explicitly authenticate the two core relocations as deletions."
+    },
+    {
+      "path": "morphhdl/contracts/increment-62-wa08-source-overlay.json",
+      "reason": "Seal all current reviewed source identities and the two exact source relocations against immutable baseline and candidate commits; preserve dirty/index/ignored-source rejection."
+    },
+    {
+      "path": "morphhdl/contracts/native-source-preservation.json",
+      "reason": "Exact reviewed-source contract, audit adapter or validation utility for this batch. Retain immutable historical review, current-byte/ancestry checks, native audit and all rejection controls; explicitly authenticate the two core relocations as deletions."
+    },
+    {
+      "path": "morphhdl/contracts/parameter-extension-regression-cases.json",
+      "reason": "Explicitly enumerate 101 new testcase identities in 13 suites, their exact source hashes, and all 13 preserved plugin testcase identities. Old catalogs remain independently checked on copied reports."
+    },
+    {
+      "path": "morphhdl/contracts/parameter-extension-source-review.json",
+      "reason": "Exact reviewed-source contract, audit adapter or validation utility for this batch. Retain immutable historical review, current-byte/ancestry checks, native audit and all rejection controls; explicitly authenticate the two core relocations as deletions."
+    },
+    {
+      "path": "morphhdl/scripts/check-cdc-successor-source.py",
+      "reason": "Exact reviewed-source contract, audit adapter or validation utility for this batch. Retain immutable historical review, current-byte/ancestry checks, native audit and all rejection controls; explicitly authenticate the two core relocations as deletions."
+    },
+    {
+      "path": "morphhdl/scripts/check-cdc-wire-regressions.py",
+      "reason": "Add exact source-bound batch testcase identities to the inherited additive report adapter. Validate every original and copied report, preserve original XML, and reject missing, renamed, duplicated, failed or skipped cases."
+    },
+    {
+      "path": "morphhdl/scripts/check-cdc-wire-source-review.py",
+      "reason": "Exact reviewed-source contract, audit adapter or validation utility for this batch. Retain immutable historical review, current-byte/ancestry checks, native audit and all rejection controls; explicitly authenticate the two core relocations as deletions."
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-61-source-review.py",
+      "reason": "Exact reviewed-source contract, audit adapter or validation utility for this batch. Retain immutable historical review, current-byte/ancestry checks, native audit and all rejection controls; explicitly authenticate the two core relocations as deletions."
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-62-wa08-source-overlay.py",
+      "reason": "Exact reviewed-source contract, audit adapter or validation utility for this batch. Retain immutable historical review, current-byte/ancestry checks, native audit and all rejection controls; explicitly authenticate the two core relocations as deletions."
+    },
+    {
+      "path": "morphhdl/scripts/check-parameter-extension-source.py",
+      "reason": "Exact reviewed-source contract, audit adapter or validation utility for this batch. Retain immutable historical review, current-byte/ancestry checks, native audit and all rejection controls; explicitly authenticate the two core relocations as deletions."
+    },
+    {
+      "path": "morphhdl/scripts/check-typed-primitive-closure-boundary.sh",
+      "reason": "Exact reviewed-source contract, audit adapter or validation utility for this batch. Retain immutable historical review, current-byte/ancestry checks, native audit and all rejection controls; explicitly authenticate the two core relocations as deletions."
+    },
+    {
+      "path": "morphhdl/scripts/refresh-cdc-wire-source-seal.py",
+      "reason": "Exact reviewed-source contract, audit adapter or validation utility for this batch. Retain immutable historical review, current-byte/ancestry checks, native audit and all rejection controls; explicitly authenticate the two core relocations as deletions."
+    },
+    {
+      "path": "morphhdl/scripts/test-increment-62-wa08-source-overlay.py",
+      "reason": "Exact reviewed-source contract, audit adapter or validation utility for this batch. Retain immutable historical review, current-byte/ancestry checks, native audit and all rejection controls; explicitly authenticate the two core relocations as deletions."
+    },
+    {
+      "path": "morphhdl/scripts/validate-named-factory.py",
+      "reason": "Exact reviewed-source contract, audit adapter or validation utility for this batch. Retain immutable historical review, current-byte/ancestry checks, native audit and all rejection controls; explicitly authenticate the two core relocations as deletions."
+    },
+    {
+      "path": "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedHierarchyResizeWidth.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlEmitterParameterNames.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/NativeConditionalProcessEmitter.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/NativePublicationWidth.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogProcesses.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogVecs.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "morphhdl/src/test/scala/morphhdl/HierarchyParameterBindingTests.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/morphhdl/Increment66ToolEvidence.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/morphhdl/NativeConditionalProcessTests.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/morphhdl/NativeNamedFactoryTests.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/morphhdl/NativeTypedLocalConstantTests.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/morphhdl/SignednessBoundaryTests.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/morphhdl/TypedParameterizedVecTests.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/morphhdl/examples/DerivedLocalParameterArtifactWriter.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/morphhdl/examples/Increment66ArtifactWriter.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/morphhdl/examples/NamedConstantBaselineWriter.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/morphhdl/examples/ParameterExtensionsBaselineWriter.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/morphhdl/examples/ScopedLegalityArtifactWriter.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/morphhdl/examples/SymbolicHardwareValueArtifactWriter.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/NativeCdcFormalTests.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/NativeDerivedLocalParameterTests.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/NativeExplicitFormalTests.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/NativeFormalOwnershipTests.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/NativeLegalityPresentationTests.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/NativeResizeSimplificationTests.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/NativeScopedLegalityTests.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/NativeSymbolicHardwareValueTests.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/ParameterizedStructuralLexicalOwnerTests.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/SymbolicPublicationEvidenceTests.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/internals/NativeWidthPublicationSafetyTests.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphhdl/src/test/scala/spinal/core/internals/ParameterizedVerilogVecDeclarationTests.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponent.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponentTests.scala",
+      "reason": "Permanent acceptance or compatibility regression for the native parameter extensions; retains independent oracles, negative controls and tool-backed assertions. Reviewed source checkpoint b6e83061d and per-increment evidence identify the executed cases."
+    },
+    {
+      "path": "morphruntime/src/main/scala/spinal/core/ElabControl.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "morphruntime/src/main/scala/spinal/core/ElabFormalParameter.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "morphruntime/src/main/scala/spinal/core/ElabValue.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "morphruntime/src/main/scala/spinal/core/ExternalFormalParameterRegistry.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "morphruntime/src/main/scala/spinal/core/ExternalParameterizedValueRegistry.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "morphruntime/src/main/scala/spinal/core/NativeStructuralLegality.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "morphruntime/src/main/scala/spinal/core/ParameterizedProcess.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala",
+      "reason": "Generic typed frontend/runtime or native publication change for exact localparam dependencies, scoped legality, explicit formals, values or conditional loops. Ownership/domain authority and fail-closed unsupported paths remain explicit; see increment 64/65/66 API handoffs and native review."
+    },
+    {
+      "path": "repro/independent-parameters/check_symbolic_publication.py",
+      "reason": "Exact reviewed-source contract, audit adapter or validation utility for this batch. Retain immutable historical review, current-byte/ancestry checks, native audit and all rejection controls; explicitly authenticate the two core relocations as deletions."
+    },
+    {
+      "path": "repro/independent-parameters/test_symbolic_policy.py",
+      "reason": "Exact reviewed-source contract, audit adapter or validation utility for this batch. Retain immutable historical review, current-byte/ancestry checks, native audit and all rejection controls; explicitly authenticate the two core relocations as deletions."
+    }
+  ]
+}

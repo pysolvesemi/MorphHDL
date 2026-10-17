@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
+import tempfile
+import shutil
 
 
 REQUIRED_FILES = (
@@ -63,12 +65,10 @@ def validate(root: pathlib.Path) -> None:
     )
     if roadmap.count(unchecked_59a) + roadmap.count(checked_59a) != 1:
         raise AssertionError("roadmap must contain exactly one Increment 59a entry")
-    require_count(
-        roadmap,
-        "- [ ] **Increment 59b — Typed parameterized Vec reduceBalancedTree**",
-        1,
-        "roadmap Increment 59b entry",
-    )
+    unchecked_59b = "- [ ] **Increment 59b — Typed parameterized Vec reduceBalancedTree**"
+    checked_59b = unchecked_59b.replace("[ ]", "[x]", 1)
+    if roadmap.count(unchecked_59b) + roadmap.count(checked_59b) != 1:
+        raise AssertionError("roadmap must contain exactly one Increment 59b entry")
     require(
         roadmap,
         "**Dependencies:** Increment 59 implemented and merged.",
@@ -108,8 +108,10 @@ def validate(root: pathlib.Path) -> None:
         "blackBox.definitionName == ownerName",
         "ParameterizedBlackBoxGenericRegistry.recordsOf(selfReference)",
         "requireAuthoritativeIntegerDomain",
-        "parameter.minimum == 0",
-        "result >= 0 && result < rootValue",
+        "parameter.minimum >= 0 && parameter.maximum > parameter.minimum",
+        "rootValue > parameter.minimum && result >= parameter.minimum",
+        "result <= parameter.maximum && result < rootValue",
+        "selfReferences.foreach(reference => validateReference(owner, reference))",
         "evaluations.map(_._1).toSet == positiveValues",
         "SPINAL-PARAMETERIZED-VERILOG-RECURSION-METRIC-NONDECREASING",
         "SPINAL-PARAMETERIZED-VERILOG-RECURSION-BINDING-UNPROVEN",
@@ -193,6 +195,30 @@ def self_test() -> None:
             raise
     else:
         raise AssertionError("contract self-test failed to reject duplicate tokens")
+
+    # The successor contract must retain every child's strict decrease and
+    # full legal-domain bounds, independent of historical roadmap checkbox state.
+    root = pathlib.Path(__file__).resolve().parents[2]
+    with tempfile.TemporaryDirectory() as directory:
+        replica = pathlib.Path(directory)
+        for relative in (*REQUIRED_FILES, "docs/morphhdl/parameterized-verilog-todo.md"):
+            target = replica / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(root / relative, target)
+        validate(replica)
+        path = replica / "morphhdl/src/main/scala/spinal/core/internals/BoundedRecursiveModuleValidation.scala"
+        original = path.read_text()
+        for token in ("result <= parameter.maximum && result < rootValue",
+                      "rootValue > parameter.minimum && result >= parameter.minimum",
+                      "selfReferences.foreach(reference => validateReference(owner, reference))"):
+            path.write_text(original.replace(token, "REMOVED_BOUNDARY"))
+            try:
+                validate(replica)
+            except AssertionError:
+                pass
+            else:
+                raise AssertionError("missing recursion safety boundary accepted: " + token)
+        path.write_text(original)
 
 
 def main(argv: list[str]) -> int:

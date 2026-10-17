@@ -1,0 +1,93 @@
+[
+  {
+    "command": [
+      "javac",
+      "-version"
+    ],
+    "exit": 0,
+    "stdout": "javac 17.0.20.1\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "yosys",
+      "-V"
+    ],
+    "exit": 0,
+    "stdout": "Yosys 0.41 (git sha1 c1ad37779, g++ 13.3.0-6ubuntu2~24.04.1 -fPIC -Os)\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "sby",
+      "-h"
+    ],
+    "exit": 0,
+    "stdout": "usage: sby [options] [<jobname>.sby [tasknames] | <dirname>]\n\npositional arguments:\n  <jobname>.sby | <dirname>\n                        .sby file OR directory containing config.sby file\n  tasknames             tasks to run (only valid when <jobname>.sby is used)\n\noptions:\n  -h, --help            show this help message and exit\n  -d <dirname>          set workdir name. default: <jobname> or\n                        <jobname>_<taskname>. When there is more than one\n                        task, use --prefix instead\n  --prefix <dirname>    set the workdir name prefix. `_<taskname>` will be\n                        appended to the path for each task\n  -f                    remove workdir if it already exists\n  -b                    backup workdir if it already exists\n  -t                    run in a temporary workdir (remove when finished)\n  -T <taskname>         add taskname (useful when sby file is read from stdin)\n  -E                    throw an exception (incl stack trace) for most errors\n  -j <N>                maximum number of processes to run in parallel\n  --sequential          run tasks in sequence, not in parallel\n  --autotune            automatically find a well performing engine and engine\n                        configuration for each task\n  --autotune-config AUTOTUNE_CONFIG\n                        read an autotune configuration file (overrides the sby\n                        file's autotune options)\n  --yosys <path_to_executable>\n  --abc <path_to_executable>\n  --smtbmc <path_to_executable>\n  --witness <path_to_executable>\n  --suprove <path_to_executable>\n  --aigbmc <path_to_executable>\n  --avy <path_to_executable>\n  --btormc <path_to_executable>\n  --pono <path_to_executable>\n                        configure which executable to use for the respective\n                        tool\n  --dumpcfg             print the pre-processed configuration file\n  --dumptags            print the list of task tags\n  --dumptasks           print the list of tasks\n  --dumpdefaults        print the list of default tasks\n  --dumptaskinfo        output a summary of tasks as JSON\n  --dumpfiles           print the list of source files\n  --setup               set up the working directory and exit\n  --status              summarize the contents of the status database\n  --statusreset         reset the contents of the status database\n  --init-config-file INIT_CONFIG_FILE\n                        create a default .sby config file\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "yices-smt2",
+      "--version"
+    ],
+    "exit": 0,
+    "stdout": "Yices 2.6.2\nCopyright SRI International.\nLinked with GMP 6.2.1\nCopyright Free Software Foundation, Inc.\nBuild date: 2022-12-12\nPlatform: x86_64-pc-linux-gnu (release/static)\nRevision: 8509cfb5c294df3c0ac3a4814483f39c58879606\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "z3",
+      "--version"
+    ],
+    "exit": 0,
+    "stdout": "Z3 version 4.8.12 - 64 bit\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "boolector",
+      "--version"
+    ],
+    "exit": 0,
+    "stdout": "3.2.2\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "ghdl",
+      "--version"
+    ],
+    "exit": 0,
+    "stdout": "GHDL 4.1.0 (Ubuntu 4.1.0+dfsg-0ubuntu2.1) [Dunoon edition]\n Compiled with GNAT Version: 13.3.0\n static elaboration, mcode JIT code generator\nWritten by Tristan Gingold.\n\nCopyright (C) 2003 - 2024 Tristan Gingold.\nGHDL is free software, covered by the GNU General Public License.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "verilator",
+      "--version"
+    ],
+    "exit": 0,
+    "stdout": "Verilator 5.020 2024-01-01 rev (Debian 5.020-1)\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "iverilog",
+      "-V"
+    ],
+    "exit": 0,
+    "stdout": "Icarus Verilog version 12.0 (stable) ()\n\nCopyright (c) 2000-2021 Stephen Williams (steve@icarus.com)\n\n  This program is free software; you can redistribute it and/or modify\n  it under the terms of the GNU General Public License as published by\n  the Free Software Foundation; either version 2 of the License, or\n  (at your option) any later version.\n\n  This program is distributed in the hope that it will be useful,\n  but WITHOUT ANY WARRANTY; without even the implied warranty of\n  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n  GNU General Public License for more details.\n\n  You should have received a copy of the GNU General Public License along\n  with this program; if not, write to the Free Software Foundation, Inc.,\n  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.\n\nIcarus Verilog Preprocessor version 12.0 (stable) ()\n\nCopyright (c) 1999-2021 Stephen Williams (steve@icarus.com)\n\n  This program is free software; you can redistribute it and/or modify\n  it under the terms of the GNU General Public License as published by\n  the Free Software Foundation; either version 2 of the License, or\n  (at your option) any later version.\n\n  This program is distributed in the hope that it will be useful,\n  but WITHOUT ANY WARRANTY; without even the implied warranty of\n  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n  GNU General Public License for more details.\n\n  You should have received a copy of the GNU General Public License along\n  with this program; if not, write to the Free Software Foundation, Inc.,\n  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.\n\nIcarus Verilog Parser/Elaborator version 12.0 (stable) ()\n\nCopyright (c) 1998-2021 Stephen Williams (steve@icarus.com)\n\n  This program is free software; you can redistribute it and/or modify\n  it under the terms of the GNU General Public License as published by\n  the Free Software Foundation; either version 2 of the License, or\n  (at your option) any later version.\n\n  This program is distributed in the hope that it will be useful,\n  but WITHOUT ANY WARRANTY; without even the implied warranty of\n  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n  GNU General Public License for more details.\n\n  You should have received a copy of the GNU General Public License along\n  with this program; if not, write to the Free Software Foundation, Inc.,\n  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.\n\n FLAGS DLL vvp.tgt\nvvp.tgt: Icarus Verilog VVP Code Generator 12.0 (stable) ()\n\nCopyright (c) 2001-2021 Stephen Williams (steve@icarus.com)\n\n  This program is free software; you can redistribute it and/or modify\n  it under the terms of the GNU General Public License as published by\n  the Free Software Foundation; either version 2 of the License, or\n  (at your option) any later version.\n\n  This program is distributed in the hope that it will be useful,\n  but WITHOUT ANY WARRANTY; without even the implied warranty of\n  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n  GNU General Public License for more details.\n\n  You should have received a copy of the GNU General Public License along\n  with this program; if not, write to the Free Software Foundation, Inc.,\n  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.\n\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "python",
+      "-c",
+      "import sys,cocotb,yaml; print(sys.version); print(cocotb.__version__); print(yaml.__version__)"
+    ],
+    "exit": 0,
+    "stdout": "3.12.3 (main, Mar 23 2026, 19:04:32) [GCC 13.3.0]\n1.8.1\n6.0.3\n",
+    "stderr": ""
+  }
+]

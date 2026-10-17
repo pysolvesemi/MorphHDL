@@ -97,10 +97,13 @@ the test harness. Default/minimum/maximum admitted widths are 64/3/2112. The
 realistic fixture preserves three independent parameters in
 `dataBits + 7 + generationBits + lanes + 16 + 1`.
 
-Automatic derived-localparam factoring is deliberately a follow-up. It would
-add declaration naming, dependency ordering and scope ownership through native
-canonicalization and child binding. Direct expressions already satisfy this
-repair without adding a separate factoring transformation or emitter text pass.
+Increment 64 now retains named module-member `ElabInt` calculations through
+native compiler binding callbacks and emits dependency-ordered integer
+localparams. Scalar widths and typed child actuals can reference those locals;
+names carry no domain authority. Anonymous and restricted branch calculations
+keep their direct expressions. The example above records the earlier direct
+publication behavior; see [the current implementation](increment-64-derived-localparams.md)
+for supported factoring and its local validation status.
 
 ## Child actuals
 
@@ -164,11 +167,13 @@ the caller's original configuration. The unchanged external-boundary fixture
 still compiles the marker against the immutable Increment 0 native sources.
 
 Only an active native parameterized Component can retain a deferred obligation.
-Mixed requirements under a captured structural branch currently fail with
-`SPINAL-ELAB-REQUIRE-STRUCTURAL-SCOPE-UNSUPPORTED`. They need branch activation
-and transactional capture ownership before they can safely be deferred. The
-compiler does not incorrectly promote a branch-local requirement to a global
-one. Existing supported single-root structural branch projection remains intact.
+Increment 65 retains mixed requirements under exact captured structural owners.
+Finished owner validation preserves the complete activation path and capture
+rollback prevents leaked or duplicated obligations. Manually restricted domains
+without an issued owner still fail with
+`SPINAL-ELAB-REQUIRE-STRUCTURAL-SCOPE-UNSUPPORTED`. A branch-local requirement
+never becomes a global assumption. See the supported surface and local evidence
+in [the Increment 65 handoff](increment-65-scoped-legality.md).
 
 Parameter schemas are compiler admissibility contracts. This repair emits
 explicit symbolic requirements and uncertain-width positivity obligations; it
@@ -212,8 +217,10 @@ nonnegative dividend and a provably positive divisor in this native path.
 Existing per-root exact-domain limits remain. Certificates retain the current
 32-axis and 256-normalized-term resource limits. The stronger non-separable
 exact fallback is capped at 65,536 tuples; exceeding it rejects the requested
-proof, not ordinary otherwise-safe symbolic publication. Unsupported joint
-structural conditions reject explicitly. Single-root capability contracts in
+proof, not ordinary otherwise-safe symbolic publication. Increment 65 supports
+bounded exact joint structural predicates and identity-preserving child actuals;
+compact, oversized and otherwise unsupported joint structural conditions still
+reject explicitly. Single-root capability contracts in
 Counter, structural Vec/memory construction and library adapters are not
 silently widened by publication provenance.
 

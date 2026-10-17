@@ -1,0 +1,200 @@
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala
+index aba9411ce495a6396a79900f43eb944ceac2a70b..1ec30ec83eab77c3d837c6ac7333e78d2bfc0829 100644
+--- a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala
+@@ -457,8 +457,14 @@
+           fail("CARRIER-POLICY", "proved composite intermediates lost their native carrier policy")
+       })
+       val assignments = block.statements.collect { case a: AssignmentStatement => a }
+-      val observation = TypedBalancedReductionClosedGraph.observe(UnvalidatedBalancedCallback(
+-        0, Vector(left) ++ right.toVector ++ schema.hardwareInputs, result, block.declarations, assignments))
++      // The pair's graph was independently certified before replay. Preserve
++      // its conditional primitive inventory through this distinct template;
++      // the observer remains a freshness check, not an admission certificate.
++      val callback = UnvalidatedBalancedCallback(0,
++        Vector(left) ++ right.toVector ++ schema.hardwareInputs,
++        result, block.declarations, assignments, block.statements)
++      val observation = if (pair) TypedBalancedReductionClosedGraph.observeCombinational(callback)
++        else TypedBalancedReductionClosedGraph.observe(callback)
+       observations += (() => observation.requireUnchanged())
+       val anchorObservation = TypedBalancedReductionClosedGraph.observe(UnvalidatedBalancedCallback(
+         0, Vector(vector.vec.head), Vec(Vector(left) ++ right.toVector), anchors.declarations,
+@@ -548,9 +554,12 @@
+           fail("CARRIER-POLICY", "proved widening intermediates lost their native carrier policy")
+       })
+       val assignments = block.statements.collect { case a: AssignmentStatement => a }
+-      val observation = TypedBalancedReductionClosedGraph.observe(UnvalidatedBalancedCallback(
+-        0, Vector(left) ++ right.toVector ++ schema.hardwareInputs,
+-        result, block.declarations, assignments))
++      val callback = UnvalidatedBalancedCallback(0,
++        Vector(left) ++ right.toVector ++ schema.hardwareInputs,
++        result, block.declarations, assignments, block.statements)
++      val observation = if (rightWidths.nonEmpty)
++        TypedBalancedReductionClosedGraph.observeCombinational(callback)
++        else TypedBalancedReductionClosedGraph.observe(callback)
+       observations += (() => observation.requireUnchanged())
+       val anchorObservation = TypedBalancedReductionClosedGraph.observe(UnvalidatedBalancedCallback(
+         0, Vector(vector.vec.head), Vec(Vector(left) ++ right.toVector), anchors.declarations,
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeLeafReplay.scala b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeLeafReplay.scala
+index 764f6f7b1f2418101b024e77acb38a62481aefd5..881411e2ed6e4a5b82bf11e40cf0c86016ef7bfe 100644
+--- a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeLeafReplay.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeLeafReplay.scala
+@@ -7,6 +7,9 @@
+ /** A shape-changing composite callback is admitted only when every output
+   * leaf is an independent closed scalar graph of the corresponding two input
+   * leaves. Scalar replay remains the sole arithmetic and width authority.
++  * Exhaustive independent conditional fields reuse the shared scalar graph
++  * certificate, including its driver ordering and width transfer; no native
++  * saturation or conditional algorithm is copied into composite replay.
+   * Exact read-only runtime captures may participate as fixed graph roots;
+   * shared locals and cross-field reads remain rejected rather than being
+   * reconstructed as an aggregate-specific algorithm.
+@@ -19,7 +22,7 @@
+ 
+   final class Proof private[TypedBalancedReductionCompositeLeafReplay] (
+       val nativeResult: Data,
+-      val leaves: Vector[TypedBalancedReductionOperatorReplay.Proof]
++      val leaves: Vector[TypedBalancedReductionOperatorCertificate]
+   ) {
+     val resultWidths: Vector[Width] = leaves.map(_.resultWidth)
+     val operationKey: Vector[(Any, Any)] = leaves.map(proof => proof.operationKey -> proof.transferKey)
+@@ -45,7 +48,8 @@
+ 
+   def certify(callback: UnvalidatedBalancedCallback,
+       left: Vector[Evidence], right: Vector[Evidence],
+-      captures: Vector[Evidence] = Vector.empty): Proof = {
++      captures: Vector[Evidence] = Vector.empty,
++      conditionalGraph: Boolean = false): Proof = {
+     if (callback == null || left == null || right == null || captures == null ||
+         callback.operands == null || callback.operands.size != 2 || callback.result == null)
+       fail("ARITY", "widening certification needs one exact native pair callback")
+@@ -55,11 +59,35 @@
+ 
+     val usedDeclarations = new IdentityHashMap[BaseType, java.lang.Boolean]()
+     val usedAssignments = new IdentityHashMap[AssignmentStatement, java.lang.Boolean]()
++    val usedStatements = new IdentityHashMap[Statement, java.lang.Boolean]()
+ 
+     val proofs = outputs.indices.toVector.map { index =>
+       val declarations = new IdentityHashMap[BaseType, java.lang.Boolean]()
+       val assignments = new IdentityHashMap[AssignmentStatement, java.lang.Boolean]()
+       val visited = new IdentityHashMap[Expression, java.lang.Boolean]()
++      val whens = new IdentityHashMap[WhenStatement, java.lang.Boolean]()
++      val owner = left(index).owner
++
++      // A field's source cone includes its controlling expressions and native
++      // lexical owners, not merely the right-hand sides of its assignments.
++      // The enclosing composite observer independently proves that all effects
++      // are captured, live and lexical; this partition cannot grant scope or
++      // effect permission to a graph rejected by that observer.
++      def walkScope(scope: ScopeStatement): Unit = {
++        if (scope == null) fail("SCOPE", "a field driver lost its native lexical owner")
++        if (scope ne owner.dslBody) {
++          val statement = scope.parentStatement match {
++            case value: WhenStatement if conditionalGraph => value
++            case _ => fail("SCOPE", "field partition requires certified native conditional scopes")
++          }
++          if ((scope ne statement.whenTrue) && (scope ne statement.whenFalse))
++            fail("SCOPE", "field partition changed its exact native conditional arm")
++          if (whens.put(statement, java.lang.Boolean.TRUE) == null) {
++            walk(statement.cond)
++            walkScope(statement.parentScope)
++          }
++        }
++      }
+ 
+       def walk(expression: Expression): Unit = {
+         if (expression == null || visited.put(expression, java.lang.Boolean.TRUE) != null) return
+@@ -67,8 +95,10 @@
+           case leaf: BaseType if (leaf eq left(index).value) || (leaf eq right(index).value) =>
+           case leaf: BaseType if callback.declarations.exists(_ eq leaf) =>
+             declarations.put(leaf, java.lang.Boolean.TRUE)
++            if (conditionalGraph) walkScope(leaf.parentScope)
+             callback.assignments.filter(_.finalTarget eq leaf).foreach { assignment =>
+               assignments.put(assignment, java.lang.Boolean.TRUE)
++              if (conditionalGraph) walkScope(assignment.parentScope)
+               walk(assignment.source)
+             }
+           case _: BaseType => // Scalar replay rejects any unaudited external read.
+@@ -88,14 +118,26 @@
+           fail("SHARED-DRIVER", "independent widening leaves cannot share a native assignment")
+       }
+ 
++      val statementList = if (conditionalGraph) callback.statements.filter {
++        case value: BaseType => declarations.containsKey(value)
++        case value: AssignmentStatement => assignments.containsKey(value)
++        case value: WhenStatement => whens.containsKey(value)
++        case _ => false
++      } else Vector.empty
++      statementList.foreach(value => usedStatements.put(value, java.lang.Boolean.TRUE))
+       val partition = UnvalidatedBalancedCallback(callback.ordinal,
+-        Vector(left(index).value, right(index).value), outputs(index), declarationList, assignmentList)
+-      TypedBalancedReductionOperatorReplay.certify(
++        Vector(left(index).value, right(index).value), outputs(index), declarationList,
++        assignmentList, statementList)
++      if (conditionalGraph)
++        TypedBalancedReductionScalarGraphReplay.certify(
++          partition, Vector(left(index), right(index)), captures.map(_.value))
++      else TypedBalancedReductionOperatorReplay.certify(
+         partition, Vector(left(index), right(index)), captures)
+     }
+ 
+     if (usedDeclarations.size != callback.declarations.size ||
+-        usedAssignments.size != callback.assignments.size)
++        usedAssignments.size != callback.assignments.size ||
++        (conditionalGraph && usedStatements.size != callback.statements.size))
+       fail("UNCONSUMED-EFFECT", "shape-changing callback contains effects outside independent leaf graphs")
+     val proof = new Proof(callback.result, proofs)
+     proof.validateFreshness()
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
+index 2ff657fa2b81606a0c4051cfc22eb0e6851bc496..062873d6d2a21fa9e23c0cbd5fa8292d7e6b99aa 100644
+--- a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
+@@ -357,7 +357,8 @@
+   ) {
+     private[TypedBalancedReductionCompositeReplay] def operationKey: Any =
+       leafTransfer.map(_.operationKey).getOrElse(recipes.map(_.key))
+-    val hasWidening: Boolean = leafTransfer.nonEmpty
++    val hasWidening: Boolean = leafTransfer.nonEmpty &&
++      resultWidths.zip(inputShapes.head.widths).exists { case (a, b) => !sameWidth(a, b) }
+     def validateFreshness(): Unit = freshOnce(this) {
+       inputShapes.foreach(_.requireFreshness())
+       observation.requireUnchanged()
+@@ -416,7 +417,10 @@
+       fail("RESULT-SHAPE", "operator result must preserve the input recursive layout")
+     schema.foreach(_.validateBindings())
+     val captures = schema.toVector.flatMap(_.hardwareInputs)
+-    val observation = TypedBalancedReductionClosedGraph.observe(callback.copy(operands = callback.operands ++ captures))
++    // Scope closure does not authorize replay: every conditional value must
++    // still pass the independent native type/width and driver proof below.
++    val observation = TypedBalancedReductionClosedGraph.observeCombinational(
++      callback.copy(operands = callback.operands ++ captures))
+     val owner = inputs.head.evidence.head.owner
+     val inputLeaves = new IdentityHashMap[BaseType, (Int, Int)]()
+     inputs.zipWithIndex.foreach { case (shape, side) => shape.evidence.zipWithIndex.foreach {
+@@ -441,9 +445,10 @@
+     val originalWidths = inputs.head.widths
+     val shapeChanging = nativeResultWidths.size != originalWidths.size ||
+       nativeResultWidths.zip(originalWidths).exists { case (a, b) => !sameWidth(a, b) }
+-    if (shapeChanging) {
++    val conditionalGraph = callback.statements.exists(_.isInstanceOf[WhenStatement])
++    if (shapeChanging || conditionalGraph) {
+       val leafProof = TypedBalancedReductionCompositeLeafReplay.certify(
+-        callback, inputs(0).evidence, inputs(1).evidence, capturedEvidence)
++        callback, inputs(0).evidence, inputs(1).evidence, capturedEvidence, conditionalGraph)
+       if (leafProof.resultWidths.size != nativeResultWidths.size ||
+           leafProof.resultWidths.zip(nativeResultWidths).exists { case (a, b) => !sameWidth(a, b) })
+         fail("WIDENING-WIDTH", "independent leaf proof disagrees with the exact native result width")
+@@ -808,9 +813,10 @@
+       }
+       val shape = new Shape(callback.result, layout(callback.result), callback.result.flattenLocalName.toVector, evidence)
+       values.put(callback.result, shape)
+-      observations += TypedBalancedReductionClosedGraph.observe(
+-        if (callback.operands.size == 2) callback.copy(operands = callback.operands ++ schema.toVector.flatMap(_.hardwareInputs))
+-        else callback)
++      observations += (if (callback.operands.size == 2)
++        TypedBalancedReductionClosedGraph.observeCombinational(
++          callback.copy(operands = callback.operands ++ schema.toVector.flatMap(_.hardwareInputs)))
++        else TypedBalancedReductionClosedGraph.observe(callback))
+     })
+     freshnessRead {
+     val stages = captured.plan.stages.map { geometry =>

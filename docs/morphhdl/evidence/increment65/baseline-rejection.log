@@ -1,0 +1,34 @@
+Picked up JAVA_TOOL_OPTIONS: -Xmx3G -XX:ActiveProcessorCount=2
+Picked up JAVA_TOOL_OPTIONS: -Xmx3G -XX:ActiveProcessorCount=2
+[info] welcome to sbt 1.10.0 (Ubuntu Java 17.0.20.1)
+[info] loading settings for project morphhdl-build from plugin.sbt ...
+[info] loading project definition from /home/kartik/projects/MorphHDL/project
+[info] loading settings for project all from build.sbt ...
+[info] resolving key references (13792 settings) ...
+[info] set current project to SpinalHDL-all (in build file:/home/kartik/projects/MorphHDL/)
+[info] Setting Scala version to 2.13.12 on 14 projects.
+[info] Reapplying settings...
+[info] set current project to SpinalHDL-all (in build file:/home/kartik/projects/MorphHDL/)
+[info] compiling 1 Scala source to /home/kartik/projects/MorphHDL/core/target/scala-2.13/classes ...
+[warn] 1 deprecation; re-run with -deprecation for details
+[warn] one warning found
+[info] done compiling
+[info] compiling 1 Scala source to /home/kartik/projects/MorphHDL/morphhdl/target/scala-2.13/test-classes ...
+[warn] 1 deprecation; re-run with -deprecation for details
+[warn] one warning found
+[info] done compiling
+Picked up JAVA_TOOL_OPTIONS: -Xmx3G -XX:ActiveProcessorCount=2
+[info] NativeScopedLegalityTests:
+[Runtime] SpinalHDL dev    git head : 0c79f9384d119800463119b167d00abff611d0be
+[Runtime] JVM max memory : 3072.0MiB
+[Runtime] Current date : 2026.10.02 01:30:17
+[Progress] at 0.000 : Elaborate components
+[info] - historical OptionalPipeline scoped legality rejection
+[info]   + MorphVerilog single-source-generation failed: [SPINAL-ELAB-REQUIRE-STRUCTURAL-SCOPE-UNSUPPORTED] /home/kartik/projects/MorphHDL/morphhdl/src/test/scala/spinal/core/NativeScopedLegalityTests.scala:13: mixed symbolic legality under a structural branch needs an owner-scoped obligation
+[info] [SPINAL-ELAB-REQUIRE-STRUCTURAL-SCOPE-UNSUPPORTED] /home/kartik/projects/MorphHDL/morphhdl/src/test/scala/spinal/core/NativeScopedLegalityTests.scala:13: mixed symbolic legality under a structural branch needs an owner-scoped obligation 
+[info] Run completed in 1 second, 654 milliseconds.
+[info] Total number of tests run: 1
+[info] Suites: completed 1, aborted 0
+[info] Tests: succeeded 1, failed 0, canceled 0, ignored 0, pending 0
+[info] All tests passed.
+[success] Total time: 14 s, completed Oct 2, 2026, 1:30:18 AM

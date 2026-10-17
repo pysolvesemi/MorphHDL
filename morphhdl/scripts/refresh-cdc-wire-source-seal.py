@@ -64,7 +64,15 @@ def main() -> None:
     entries = []
     for path in sorted(paths):
         if path not in tree:
-            raise SystemExit('Unexpected deleted source in cumulative seal: '+path)
+            before = outer.frozen(ROOT, outer.BASE, path)
+            if before is None or (ROOT/path).exists() or (ROOT/path).is_symlink():
+                raise SystemExit('Deletion lacks an immutable baseline or is present: '+path)
+            old_entry = next((e for e in previous['files'] if e['path'] == path), None)
+            if old_entry is None:
+                raise SystemExit('Deletion requires an existing reviewed source entry: '+path)
+            entries.append({'path': path, 'mode': old_entry['mode'],
+                            'before_sha256': digest(before), 'after_sha256': None})
+            continue
         mode = tree[path][0]
         raw = outer.regular(ROOT, path, mode)
         if raw != git('show', head+':'+path):

@@ -1,0 +1,516 @@
+{
+  "schema": 1,
+  "task": "Implement all 86 Lightweight Scala RTL roadmap requirements",
+  "roadmap": "/home/kartik/projects/py_francis/display_controller/docs/plans/morphhdl-lightweight-scala-rtl-roadmap.md",
+  "working_directory": "/home/kartik/.local/state/morphhdl/worktrees/lightweight-scala-rtl",
+  "branch": "work/lightweight-scala-rtl",
+  "baseline_commit": "97e9fd781011b2ff33533cd31ca8396c87149f10",
+  "phase": "Targeted CI repair: JVM trait compatibility",
+  "completed_phases": [],
+  "remote_qualification": "Current candidate 7eccc0d74e3247915a4efa350a35c952c450389e has source and several behavioral gates passing; binary parity gates found new abstract trait storage requirements. Repair and successor qualification pending; no full CI or phase closure.",
+  "application_migration": "not started; requires qualified compiler",
+  "implemented_pending_qualification": [
+    "versioned semantics and read-only inventory of 86 requirements / 373 source files",
+    "RtlParam integer/Boolean declarations using native formal identity",
+    "ordinary zero-based symbolic until/to lowering with concrete-loop compatibility",
+    "Vec(scopedIndex) syntax through authenticated native selector",
+    "literal affine index arithmetic and guarded less-than selection",
+    "scoped equality with Scala integer specialization and fail-closed unsupported equality",
+    "statement-only scoped conditional joins; reject witness-valued host results",
+    "opt-in direct self-construction with inferred interface/formals and exact specialization forwarding",
+    "recursive scalar-element Vec port geometry substitution independent of native carrier capacity",
+    "authored recursive child names and class-derived default module identity",
+    "ordinary Bits(i * width, width bits) reads/writes using exact native finite packed proof",
+    "recursive Bundle/nested Vec schema comparison using exact retained field topology and substituted geometry",
+    "read-only nested affine projection retains parent loop/guard identities",
+    "generic signed/bitwise/Bundle callbacks and independent two-state adjacent-pair SAT fixtures",
+    "authored immutable staged local hardware names with explicit naming and keep priority preserved",
+    "SBT content-addressed plugin options with changed-artifact and cache-tampering controls",
+    "named recursive constructor bindings preserve authored evaluation order and exact parameter/specialization identities",
+    "explicit local helper return types propagate staging with lexical shadowing controls",
+    "unsupported symbolic reverse/by reject explicitly",
+    "optional integer formals distinguish omission from zero and retain presence through recursive publication",
+    "actual lightweight adjacent-pair BalancedTree library with generic typed operations, level bridges, optional mask registers, width parameters and direct recursive construction",
+    "native packed assignment retains exact authenticated Vec carriers",
+    "symbolic geometry helpers and concrete bridge-level loops retain staging; unstaged native equality fails explicitly",
+    "statement-valued symbolic else-if chains without terminal else retain ordered capture and reject Scala-only effects",
+    "typed Vec direction factories preserve input/output directions across braces, short and fill syntaxes",
+    "public reduction adapters forward authenticated native scalar Vec payload widths and optional pipeline masks",
+    "single-expression local parameter helpers infer symbolic types through forward lexical calls with ordinary shadowing preserved",
+    "direct parent-child scalar Vec boundaries adapt authenticated literal/narrow-domain capacities with exact driver receipts and formal identity mapping",
+    "Boolean recursive constructor formals retain exact declaration slots and named bindings without user integer conversions",
+    "Mill uses content-addressed tracked artifacts for both compiler plugins, matching SBT invalidation semantics",
+    "Exact guarded positive-stride whole-leaf Vec write partitions with complete domain coverage, non-overlap and competing-writer rejection",
+    "Scoped no-else statements preserve absent branch identity; finite loops inside native when/otherwise retain enclosing control and independent writes",
+    "Compiler-inferred recursive interfaces forward exact current-domain clock/reset/soft-reset/enable ports with binding tamper checks",
+    "Complete complementary static writes to a capture-local register normalize into a typed combinational next-value join while preserving storage, reset, clocks, attributes and feedback",
+    "Ordinary staged if/for reject direct host assignment, lexical compound mutation, mutable locals, early return and throw while retaining explicit-generate compatibility"
+  ],
+  "local_logs": [
+    "/tmp/lwr01-plugin-all.log",
+    "/tmp/lwr-initial-regression.log",
+    "/tmp/lwr-scoped-plugin-213.log",
+    "/tmp/lwr-affine-regression.log",
+    "/tmp/lwr-recursive-native-212-v5.log",
+    "/tmp/lwr-recursive-safety-212-v3.log",
+    "/tmp/lwr-recursive-regression.log",
+    "/tmp/lwr-words-regression.log",
+    "/tmp/lwr-aggregate-recursion-regression.log",
+    "/tmp/lwr-local-names-regression.log",
+    "/tmp/lwr-parameter-binding-regression.log",
+    "/tmp/lwr-library-tree-212.log",
+    "/tmp/lwr-library-tree-212-v2.log",
+    "/tmp/lwr-library-tree-212-v3.log",
+    "/tmp/lwr-library-tree-212-v4.log",
+    "/tmp/lwr-library-tree-212-v5.log",
+    "/tmp/lwr-library-expanded-212.log",
+    "/tmp/lwr-library-boundaries-212.log",
+    "/tmp/lwr-library-boundaries-212-v2.log",
+    "/tmp/lwr-library-cross-regression.log"
+  ],
+  "validation_note": "Earlier logs establish development evidence only. Re-run exact final source after all changes before publishing qualification claims.",
+  "next": [
+    "Extend aggregate recursive interfaces, ordinary packed-word access, helper inference, and callback/pipeline integration",
+    "Complete parameter/helper propagation, array/word/hierarchy and pipeline requirements with negative controls",
+    "Update source review manifests and test inventories; publish clean candidate and targeted CI before full CI",
+    "Migrate application/library only after qualified syntax; retain existing behavior and freeze comparison evidence",
+    "Close each of 86 requirements only with corresponding acceptance evidence"
+  ],
+  "coordination": "Main checkout is reserved for existing PR195 qualification monitor and its pending provenance repair. Do not disturb it. No new roadmap monitor exists yet.",
+  "foundation_commit": "add13aa283366e91579d0b48a0c91374c17f229c",
+  "local_validation": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "plugin_tests_per_scala": 34,
+    "native_tests_per_scala": 51,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/foundations"
+  },
+  "local_validation_direct_recursion": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "plugin_tests_per_scala": 38,
+    "native_tests_per_scala": 35,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/direct-recursion"
+  },
+  "local_validation_words": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "tests_per_scala": 17,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/words"
+  },
+  "local_validation_aggregate_recursion": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "tests_per_scala": 120,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/aggregate-recursion"
+  },
+  "local_validation_staged_naming": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "plugin_tests_per_scala": 38,
+    "native_tests_per_scala": 25,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/staged-naming"
+  },
+  "local_validation_parameter_bindings": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "plugin_tests_per_scala": 43,
+    "native_tests_per_scala": 26,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/parameter-bindings"
+  },
+  "local_validation_balanced_library": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "native_tests_per_scala": 147,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/library-candidate",
+    "tool_receipts": "Scala 2.12 final run includes commands, RTL input hashes and tool logs; 2.13 suite log records assertions; local development only"
+  },
+  "local_validation_statement_chains": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "plugin_tests_per_scala": 47,
+    "native_tests_per_scala": 22,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/statement-chains"
+  },
+  "recovery": {
+    "committed_head": "3a6ff06d25027f060bfd1fb473fb32c894a89183",
+    "note": "Temporary worktree disappeared during environment transition. Pending hierarchy-capacity edits and final test log unavailable; no passing claim for interrupted run. Reconstruct and revalidate. Worktree moved into persistent local state."
+  },
+  "local_validation_port_factories": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "tests_per_scala": 8,
+    "log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/port-factory-recovery.log",
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/port-factory-recovery",
+    "remote": "pending"
+  },
+  "local_validation_symbolic_adapters": {
+    "tests_per_scala": 21,
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/symbolic-adapter-final",
+    "log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/symbolic-adapter-final.log",
+    "scope": "UInt/SInt/Bits, counts through 17, widths 1/8/32/36/64, defaults 1/5, masks omitted/0/1/7/31, simulation/lint/synthesis/negative controls and inherited formal"
+  },
+  "local_validation_inferred_helpers": {
+    "compiler_tests_per_scala": 39,
+    "native_tests_per_scala": 15,
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/inferred-helpers",
+    "logs": [
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/inferred-helpers.log",
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/inferred-helpers-cross.log"
+    ]
+  },
+  "local_validation_hierarchy_capacity": {
+    "tests_per_scala": 194,
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/hierarchy-recovery-final",
+    "scope": "11 suites: positive hierarchy and sharing, tamper rejection, adapters, packed words, guarded publication and inherited hierarchy regressions"
+  },
+  "local_validation_boolean_recursion": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "compiler_tests_per_scala": 7,
+    "native_tests_per_scala": 19,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/boolean-recursion-final",
+    "logs": [
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/boolean-recursion.log",
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/boolean-recursion-final.log"
+    ]
+  },
+  "local_validation_mill": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "compiler_tests_per_scala": 7,
+    "native_tests_per_scala": 17,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/mill-validation",
+    "cache_checks": "stable artifact, changed artifact, tampered cache rejected"
+  },
+  "local_validation_affine_writes": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "compiler_tests_per_scala": 16,
+    "native_tests_per_scala": 127,
+    "log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/affine-writes-cross.log",
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/affine-writes-cross",
+    "remote": "pending"
+  },
+  "local_validation_affine_formal": {
+    "tests_per_scala": 4,
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/affine-formal",
+    "scope": "two-state flat-reference proof plus corrupted-reference rejection; X/Z simulation recorded separately"
+  },
+  "local_validation_nested_writes": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "tests_per_scala": 4,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/nested-writes",
+    "scope": "signed two-dimensional unit writes and inherited nested recursive tree; layout/geometry overrides, deterministic generation, simulation/lint/synthesis"
+  },
+  "local_validation_implicit_clocks": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "tests_per_scala": 32,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/implicit-clocks-final",
+    "scope": "11 clock tests plus existing recursion safety, optional parameters and BalancedTree registers/bridges; fresh simulation/lint/synthesis, local only"
+  },
+  "local_validation_guarded_registers": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "tests_per_scala": 163,
+    "suites": 11,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/guarded-registers-cross",
+    "scope": "guarded register and implicit-clock variants, affine read/write and register ownership negatives, existing loops, Gray decoder and library reduction regressions; remote pending",
+    "formal": {
+      "tests_per_scala": 1,
+      "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/guarded-registers-formal-cross",
+      "scope": "three two-state temporal-induction comparisons and one corrupted-reference rejection per Scala version"
+    }
+  },
+  "local_validation_direct_effects": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "compiler_tests_per_scala": 67,
+    "native_tests_per_scala": 96,
+    "native_suites": 9,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/staged-effects-v6",
+    "scope": "full plugin tests, native syntax/arrays/registers/clock tests, preserved escape and rollback controls; helper/callback purity remains open",
+    "fifo_followup": {
+      "tests_per_scala": 33,
+      "suites": 4,
+      "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/staged-effects-fifo-repaired",
+      "scope": "native StreamFifo/StreamFifoCC and concrete compatibility plus explicit strong/weak staged local names; original three naming failures retained in staged-effects-fifo.log"
+    }
+  },
+  "local_validation_helper_effects": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "compiler_tests_per_scala": 71,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/helper-this-effects.log",
+    "scope": "exact lexical helper call graph and unqualified-this field/method ownership, with shadowing; callback/external-helper purity remains open"
+  },
+  "mixed_index_development": {
+    "source_fix": "Vec transposition counts exact existing leaves instead of allocating unused nested typed storage",
+    "local_validation": {
+      "scala_versions": [
+        "2.12.18",
+        "2.13.12"
+      ],
+      "tests_per_scala": 55,
+      "suites": 9,
+      "scope": "mixed reads with invalid and XZ selectors, zero/nonzero initialized register joins, nested write identity controls, reductions, parameters, inferred helpers and names",
+      "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/helper-mixed-final",
+      "formal": "Each layout has three positive two-state flat-reference SAT profiles and one corrupted-reference rejection; separate reset/feedback induction remains in guarded-register tests"
+    },
+    "simulator_commit": "af348e2a468d3e58bf2aa10a5ae97734b59e48ea",
+    "remaining": "CI simulator enrollment and fresh exact-final-head qualification; system Icarus12 singleton unpacked alias failure retained"
+  },
+  "local_validation_mixed_writes": {
+    "base_commit": "3850396875c99708d7f5b5076584a7e0b331ef72",
+    "source_state": "uncommitted development changes; final source qualification pending",
+    "scala": "2.12.18",
+    "normalized_controls_passed": 4,
+    "original_shorthand_controls_passed": 4,
+    "checks": [
+      "deterministic generation",
+      "Icarus strict Verilog-2001 simulation on 36 geometry profiles, invalid addresses and X/Z",
+      "Verilator lint",
+      "Yosys synthesis, check and no latches"
+    ],
+    "logs": [
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/mixed-write-procedural-storage.log",
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/mixed-write-normalization.log"
+    ],
+    "cross_version_regression": "running; mixed-write-cross.log",
+    "remaining": [
+      "explicit native temporary-array driver bridges",
+      "independent whole-forwarding journal and tamper rejection tests",
+      "permanent decoded-write SAT regressions",
+      "final cross-version checks and source evidence"
+    ]
+  },
+  "local_validation_mixed_write_hardened": {
+    "base_commit": "3850396875c99708d7f5b5076584a7e0b331ef72",
+    "source_snapshot": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/mixed-write-resumed/source/manifest.json",
+    "log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/mixed-write-resumed.log",
+    "tool_receipts": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/mixed-write-resumed/tools/tools.jsonl",
+    "scala_2_12_18": "20/20 passed",
+    "scala_2_13_12": "20/20 passed",
+    "scope": "8 original/normalized conditional/unconditional packed/unpacked cases; 36 geometry profiles per artifact; four-state simulation, lint, synthesis, 24 positive SAT proofs and 8 deliberately corrupted-reference rejections per Scala version; 12 compiler safety cases",
+    "remote": "pending",
+    "interrupted_run": "mixed-write-hardened-v2.log has no completion result and is not passing evidence"
+  },
+  "local_validation_this_owner": {
+    "base_commit": "3850396875c99708d7f5b5076584a7e0b331ef72",
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "plugin_tests_per_scala": 76,
+    "native_tests_per_scala": 4,
+    "before_log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/this-owner-before.log",
+    "plugin_log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/this-owner-after-v2.log",
+    "native_log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/this-owner-native.log",
+    "source_and_tools": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/this-owner-native",
+    "scope": "exact unqualified/named this owner, local/nested/anonymous shadowing, parameterless helpers, transitive effect rejection; pair-geometry native generation/defaults 1/5 and overrides 1/2/3/5/7/8/15/16/17, simulation/lint/synthesis",
+    "combined_regression": "104/104 tests pass on each Scala version on mixed-write repair plus current integration ancestry",
+    "remote": "pending"
+  },
+  "local_validation_mixed_helper_regression": {
+    "base_commit": "57217a972320ab4ac83aa6bacef321d9eb1b405c",
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "tests_per_scala": 104,
+    "suites": 7,
+    "log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/mixed-helper-regression.log",
+    "source_and_tools": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/mixed-helper-regression",
+    "scope": "structural identity adversarial tests, inferred helpers, mixed indices, nested writes, named-field nested writes, affine writes, guarded registers",
+    "remote": "pending"
+  },
+  "local_validation_hardware_boolean_diagnostic": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "tests_per_scala": 11,
+    "before_log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/hardware-bool-before.log",
+    "after_log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/hardware-bool-after.log",
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/hardware-bool-after",
+    "scope": "actual core API negative compilation for bare/composed/negated/helper-returned/comparison Bool; Scala Boolean and native when controls; inferred helper RTL simulation/lint/synthesis",
+    "mill": "23/23 across four suites pass on each Scala version (worker totals 8 + 15); final source omits redundant implicitConversions import",
+    "remote": "pending",
+    "mill_logs": [
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lightweight-mill-final-212.log",
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lightweight-mill-final-213.log"
+    ],
+    "mill_evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lightweight-mill-final"
+  },
+  "local_validation_nested_capacity": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "tests_per_scala": 35,
+    "record_tests_per_scala": 8,
+    "logs": [
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/nested-capacity-integrated.log",
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/record-capacity.log"
+    ],
+    "scope": "exact coordinate mapping for nested Vec and records; Bool/Bits/UInt/SInt, widths1/8/36/64, named-field/packed boundaries, both layouts, four-state simulation, lint, synthesis, SAT and seven ownership mutations",
+    "broader_regression": "102/102 tests in seven suites pass on each supported Scala version after placing exact signed input reconstruction aliases before generate consumers",
+    "remote": "pending",
+    "regression_log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/nested-capacity-regression-v2.log",
+    "source_snapshot": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/nested-capacity-regression-v2/source",
+    "committed_followup": {
+      "commit": "56d5b356c3ed7b6b6feec548577a20c7a33cd974",
+      "tree": "51631d6c9c300752e1dad89c752fd2a915229d42",
+      "scala_versions": [
+        "2.12.18",
+        "2.13.12"
+      ],
+      "event_and_capacity_tests_per_scala": 29,
+      "signedness_tests_per_scala": 37,
+      "logs": [
+        "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/nested-signed-followup.log",
+        "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/signed-boundary-followup.log"
+      ],
+      "note": "First invocation omitted signedness suites due to wrong package selectors; corrected separate invocation ran both actual signedness suites."
+    }
+  },
+  "local_validation_callback_effects": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "plugin_tests_per_scala": 87,
+    "overload_followup_tests_per_scala": 12,
+    "library_tests_per_scala": 39,
+    "library_suites": 6,
+    "logs": [
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/callback-effects-plugin.log",
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/callback-effects-overloads.log",
+      "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/callback-library.log"
+    ],
+    "source_and_tools": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/callback-library",
+    "scope": "same-unit typed helper/callback effects; retained immutable capture, exact overload identity, library operations/bridges/registers/adapters/widths; opaque external purity remains open",
+    "guards": "current typed layering and retirement inventories include exact six plugin components; source checks and mutation selftests pass; no packaged-JAR result claimed",
+    "remote": "pending"
+  },
+  "local_validation_block_helpers": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "plugin_tests_per_scala": 90,
+    "native_tests_per_scala": 22,
+    "native_suites": 4,
+    "before_log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/block-helper-before.log",
+    "native_log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/block-helper-native.log",
+    "source_and_tools": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/block-helper-native",
+    "scope": "immutable parameter intermediates, nested lexical shadowing, helper/control/parameter/direct-recursion tests; freshly built pinned simulator; remote pending"
+  },
+  "pull_request": "https://github.com/pysolvesemi/MorphHDL/pull/196",
+  "target_branch": "parameterized-verilog",
+  "target_sha": "db54d01e5b21c7664f7a0de3795f061d77a3d259",
+  "monitoring": {
+    "state": "unavailable",
+    "id": null,
+    "reason": "No suitable general recurring task scheduler exposed; Pages/Sites-specific tools are not a repository continuation monitor."
+  },
+  "local_validation_callback_crossfile": {
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "plugin_tests_per_scala": 91,
+    "native_tests_per_scala": 13,
+    "native_suites": 3,
+    "log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/callback-crossunit-native.log",
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/callback-crossunit-native",
+    "before_log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/callback-crossunit-before.log",
+    "scope": "resolved source definitions indexed once per compilation Run; precise effect source in another file and pure helper control; native composites, width/ownership rejection and helper RTL; opaque external callback proof remains open"
+  },
+  "qualification_inventory": {
+    "suites": 311,
+    "registered_cases": 3363,
+    "source_hashes": 427,
+    "new_suites": 42,
+    "removed_suites": 0,
+    "note": "Registration inventory, not execution evidence. One affine-write negative case renamed to describe retained input/coverage rejection after valid affine writes became supported.",
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/retained-inventory"
+  },
+  "local_validation_callback_host_apis": {
+    "plugin_tests_per_scala": 97,
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "log": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/callback-host-api-after.log",
+    "scope": "Known host API effects by typed symbol identity; opaque purity remains open"
+  },
+  "local_validation_enrolled_a3274b97": {
+    "commit": "a3274b97a2e27a8674f473571805e4ae8c6ef65f",
+    "tree": "60838fd1f88820d09376db5c50cfbe2dbdc025f8",
+    "scala_versions": [
+      "2.12.18",
+      "2.13.12"
+    ],
+    "sbt_plugin_cases_per_scala": 97,
+    "sbt_native_cases_per_scala": 274,
+    "mill_plugin_cases_per_scala": 97,
+    "cleanup_profiles_per_scala": 22,
+    "cleaned_formal_proofs_per_scala": 4,
+    "cleaned_formal_rejection_controls_per_scala": 4,
+    "evidence": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl",
+    "remote": "not qualified"
+  }
+}

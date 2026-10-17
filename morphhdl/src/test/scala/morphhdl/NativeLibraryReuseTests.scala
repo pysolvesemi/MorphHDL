@@ -89,7 +89,7 @@ class NativeLibraryReuseTests extends AnyFunSuite {
     inTemporaryDirectory { directory =>
       val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
       val parameterized = emitMorph(directory, "native_pipes.v", new NativePipes(width))
-      val legacyConfig = MorphWireAssignmentPasses(config(directory), enabled = false)
+      val legacyConfig = config(directory)
       legacyConfig.netlistFileName = "native_pipes_legacy.v"
       MorphVerilog(legacyConfig)(new NativePipes(width))
       val legacy = read(directory.resolve("native_pipes_legacy.v"))
@@ -101,15 +101,21 @@ class NativeLibraryReuseTests extends AnyFunSuite {
           Vector("WIDTH" -> value), "pipes_legacy_" + value)
       }
 
+      // Only the reviewed operand sizing and condition events differ from
+      // the concrete body; retain exact equality for all other statements.
+      val sizedComparison = "({{((WIDTH > 8 ? WIDTH : 8) - (WIDTH)){1'b0}}, fixedLiteralInput} == {{((WIDTH > 8 ? WIDTH : 8) - 8){1'b0}}, 8'hff})"
+      assert(legacy.contains(sizedComparison), legacy)
       assert(
         module(concretize(legacy, "NativePipes", 8), "NativePipes") ==
           module(concrete, "NativePipes")
+            .replace("(fixedLiteralInput == 8'hff)", sizedComparison)
+            .replace("always @(*)", "always @(stream_m2sPipe_ready or stream_m2sPipe_valid or when_Stream_l682)")
       )
       assert(parameterized.contains("parameter integer WIDTH = 8"))
       Vector("fixedLiteralInput", "streamInPayload", "streamOutPayload", "flowInPayload", "flowOutPayload")
         .foreach(name => assert(hasWidth(parameterized, name, "[WIDTH-1:0]")))
       assert(parameterized.contains("always @(posedge clk)"))
-      assert(parameterized.contains("(fixedLiteralInput == 8'hff)"))
+      assert(parameterized.contains(sizedComparison), parameterized)
       assert(parameterized.contains("streamInReady") && parameterized.contains("streamOutReady"))
       assert(!parameterized.contains("ParamRTL"))
       compileOverride(directory, directory.resolve("native_pipes.v"), "NativePipes")
@@ -168,34 +174,19 @@ class NativeLibraryReuseTests extends AnyFunSuite {
       assert(hasWidth(parameterized, "gray", "[WIDTH-1:0]"))
       assert(hasWidth(parameterized, "binary", "[WIDTH-1:0]"))
       assert(!parameterized.contains("[32:0]"), parameterized)
-      // Cleanup may replace the decoded carrier with unnamed expression
-      // wrappers. Every retained vector still needs the exact typed geometry;
-      // a witness-width wrapper would truncate the WIDTH=65 specialization.
+      // One logarithmic stage array replaces the former maximum-width chain.
+      // Every scalar carrier still retains WIDTH rather than its witness size.
       val retainedVectorDeclarations =
         """(?m)^\s*(?:wire|reg)\s+\[([^\]]+)\]\s+([A-Za-z_][A-Za-z0-9_$]*)\s*;\s*$""".r
           .findAllMatchIn(parameterized)
-          .map(value => value.group(1).replaceAll("\\s+", "") -> value.group(2))
-          .toVector
-      assert(
-        retainedVectorDeclarations.forall(_._1 == "WIDTH-1:0"),
-        retainedVectorDeclarations.mkString(", ")
-      )
-      val assignments = """(?m)^\s*assign\s+([A-Za-z_][A-Za-z0-9_$]*)\s*=\s*([^;]+);""".r
-        .findAllMatchIn(parameterized).map(value => value.group(1) -> value.group(2)).toMap
-      val reachable = scala.collection.mutable.Set.empty[String]
-      def visit(name: String): Unit = if (reachable.add(name)) {
-        assignments.get(name).foreach { rhs =>
-          "[A-Za-z_][A-Za-z0-9_$]*".r.findAllIn(rhs).foreach(visit)
-        }
-      }
-      visit("binary")
-      val decodedExpressions = reachable.toVector.flatMap(assignments.get).mkString
-        .replaceAll("\\s+", "")
-      assert(decodedExpressions.contains("^") && reachable("gray"), parameterized)
-      Vector(1, 2, 4, 8, 16, 32, 64).foreach { shift =>
-        assert(decodedExpressions.contains(s">>>$shift)"),
-          s"typed fromGray omitted reachable shift-$shift:\n$parameterized")
-      }
+          .map(value => value.group(1).replaceAll("\\s+", "") -> value.group(2)).toVector
+      assert(retainedVectorDeclarations.filterNot(_._2 == "decode_stage").forall(_._1 == "WIDTH-1:0"),
+        retainedVectorDeclarations.mkString(", "))
+      assert(retainedVectorDeclarations.filter(_._2 == "decode_stage").map(_._1) ==
+        Vector("(WIDTH*((clog2(WIDTH,0)+1)))-1:0"), parameterized)
+      assert(parameterized.contains("i < clog2(WIDTH, 0)"), parameterized)
+      assert(parameterized.contains("1 << i") && parameterized.contains(" ^ prefix_shift"), parameterized)
+      assert(parameterized.contains("SELECTED_STAGE_INDEX = clog2(WIDTH, 0)"), parameterized)
 
       val concrete = emitConcrete(
         directory,

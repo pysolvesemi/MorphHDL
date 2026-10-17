@@ -1,6 +1,6 @@
 package spinal.lib.bus.tilelink
 
-import spinal.core._
+import spinal.core.{Param => _, _}
 import spinal.core.fiber.Fiber
 import spinal.lib._
 import spinal.lib.bus.misc.{AddressMapping, DefaultMapping, SizeMapping}

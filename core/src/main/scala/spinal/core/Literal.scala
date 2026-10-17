@@ -150,6 +150,10 @@ abstract class BitVectorLiteralFactory[T <: BitVector] {
   * Used to create a new Bits or cast to Bits
   */
 object B extends BitVectorLiteralFactory[Bits] {
+  def apply(value: ElabScopedIndex, width: BitCount): Bits = value.sizedRuntimeUInt(width).asBits
+  def apply(value: ElabInt, width: BitCount): Bits = U(value, width).asBits
+  def apply(value: ElabInt, width: ParameterizedBitCount): Bits = U(value, width).asBits
+
   /** Create an `Bits` hardware literal.
     *
     *  Bit count is inferred from the widest assignment statement after construction.
@@ -181,6 +185,15 @@ object B extends BitVectorLiteralFactory[Bits] {
   * Used to create a new UInt or cast to UInt
   */
 object U extends BitVectorLiteralFactory[UInt] {
+  def apply(value: ElabScopedIndex, width: BitCount): UInt = value.sizedRuntimeUInt(width)
+  /** Explicitly sized unsigned hardware value retaining its ElabInt authority.
+    * Width and value remain independent; unsupported values fail before emission.
+    */
+  def apply(value: ElabInt, width: BitCount): UInt =
+    ElabValue.uintLike(value, UInt(width), null)
+  def apply(value: ElabInt, width: ParameterizedBitCount): UInt =
+    ElabValue.uintLike(value, UInt(width), null)
+
   def apply(): UInt = new UInt()
   def apply(that: Bool): UInt = that.asUInt
   def apply(that: Bits): UInt = that.asUInt
@@ -204,6 +217,10 @@ object U extends BitVectorLiteralFactory[UInt] {
   * Used to create a new SInt or cast to SInt
   */
 object S extends BitVectorLiteralFactory[SInt] {
+  /** Materialize an authenticated signed parameter value without truncation. */
+  def apply(value:ElabInt,width:BitCount):SInt = ElabValue.sintLike(value,SInt(width),null)
+  def apply(value:ElabInt,width:ParameterizedBitCount):SInt = ElabValue.sintLike(value,SInt(width),null)
+
   def apply(): SInt = new SInt()
   def apply(that: Bool): SInt = that.asSInt
   def apply(that: Bits): SInt = that.asSInt

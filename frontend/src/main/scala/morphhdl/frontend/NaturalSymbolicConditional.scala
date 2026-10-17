@@ -92,7 +92,7 @@ object NaturalSymbolicConditional {
     }
   }
 
-  private val ElseIfMarkerPrefix = "morphhdl_else_if_"
+  private val ElseIfMarkerPrefix = "else_if_"
 
   private def resolvedNames(
       condition: HdlBool,

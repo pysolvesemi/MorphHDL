@@ -10,7 +10,41 @@ import scala.collection.mutable
   * both ordinary SpinalHDL alternatives for later Verilog generate lowering.
   */
 object ElabControl {
-  private val ElseIfMarkerPrefix = "morphhdl_else_if_"
+  /** Compiler-supplied lexical spelling for local hardware declarations.
+    * Native naming priorities preserve explicit user names. Names never grant
+    * ownership, width or structural access authority. Explicit weak names also
+    * precede this compiler-supplied fallback; unlike a source field callback,
+    * the fallback must not replace an existing authored local naming request.
+    */
+  def localValue[T](value: T, name: String): T = {
+    val owner = Component.current
+    if (owner != null && name != null && name.nonEmpty && !name.contains("$")) {
+      value match {
+        case data: Data if (data.component eq owner) && data.namePriority != Nameable.USER_WEAK =>
+          owner.valCallback(data, name)
+        case child: Component if (child.parent eq owner) && child.namePriority != Nameable.USER_WEAK =>
+          owner.valCallback(child, name)
+        case _ =>
+      }
+    }
+    value
+  }
+
+  /** Scoped finite guards join statements or authenticated Bool-valued branches. */
+  def selectScoped[T](condition: ElabScopedCondition, sourceFile: String, sourceLine: Int)
+      (ifTrue: => T)(ifFalse: => T)(implicit result: ElabScopedBranchResult[T]): T = {
+    require(condition != null, "scoped condition must not be null")
+    result(condition, AutomaticGenerateLabels.conditionalRole(Component.current, "guard_l" + sourceLine))(ifTrue)(ifFalse)
+  }
+
+  /** A missing source else is an authenticated empty alternative. The authored
+    * branch still goes through native capture and its side-effect checks. */
+  def generateScoped(condition: ElabScopedCondition, sourceFile: String, sourceLine: Int)(body: => Unit): Unit = {
+    require(condition != null, "scoped condition must not be null")
+    condition.capture(AutomaticGenerateLabels.conditionalRole(Component.current, "guard_l" + sourceLine), emptyFalse = true)(body)(())
+  }
+
+  private val ElseIfMarkerPrefix = "else_if_"
   private object GeneratedIfOrdinalStorageKey
 
   private final class GeneratedIfOrdinals {
@@ -67,6 +101,23 @@ object ElabControl {
       otherwise: () => T,
       otherwiseFile: String,
       otherwiseLine: Int
+  ): T = selectChain(alternatives, otherwise, otherwiseFile, otherwiseLine, false)
+
+  /** Statement chain with an absent final else. Only the terminal alternative
+    * is a one-sided generate; earlier alternatives retain ordered exclusion.
+    */
+  def generateSymbolicChain(
+      alternatives: Seq[(ElabBool, () => Unit, String, Int)],
+      sourceFile: String,
+      sourceLine: Int
+  ): Unit = selectChain(alternatives, () => (), sourceFile, sourceLine, true)
+
+  private def selectChain[T](
+      alternatives: Seq[(ElabBool, () => T, String, Int)],
+      otherwise: () => T,
+      otherwiseFile: String,
+      otherwiseLine: Int,
+      absentElse: Boolean
   ): T = {
     val ordered = Option(alternatives).getOrElse(Seq.empty).toVector
     if (ordered.isEmpty) {
@@ -101,7 +152,9 @@ object ElabControl {
             if (continuation) ordered(index + 1)._3 else otherwiseFile
           val falseLine =
             if (continuation) ordered(index + 1)._4 else otherwiseLine
-          captureOne(
+          if (absentElse && !continuation)
+            captureGenerate(condition, file, line, body)
+          else captureOne(
             condition,
             file,
             line,
@@ -164,6 +217,35 @@ object ElabControl {
         "structural requirement is not universally proven: " + String.valueOf(message), rendered(sourceFile, sourceLine))
   }
 
+  private final class PredicateCapture(component: Component, condition: ElabBool,
+      source: Option[String]) {
+    val projected = condition.projectedExpression("typed conditional")
+    private val exact = condition.expression.exactDomain
+    private val joint = if (exact.nonEmpty) None else {
+      if (!ElaborationProductDomain.isRetained(projected))
+        ParameterizedVerilogException.fail("SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING",
+          "typed conditional lacks authenticated exact evidence", source)
+      Some(ElaborationProductDomain.structuralPredicate(projected))
+    }
+    private val alternatives = exact.map { value =>
+      val admitted = ElaborationDomainContext.admitted(value)
+      Vector(admitted.filter(n => value.evaluate(n).contains(true)),
+        admitted.filter(n => value.evaluate(n).contains(false)))
+    }
+    if (alternatives.exists(_.exists(_.isEmpty)) || joint.exists(value =>
+        value.indices(0).isEmpty || value.indices(1).isEmpty))
+      ParameterizedVerilogException.fail("SPINAL-ELAB-CONTROL-DOMAIN-CLASSIFICATION-INCONSISTENT",
+        "typed conditional was captured although its active domain is constant", source)
+    val domain = joint.map(value => ParameterizedStructure.jointPredicateDomainOf(component, value))
+      .getOrElse(ParameterizedStructure.typedPredicateDomainOf(component, condition.expression))
+    def block(branch: Int, location: Option[String])(body: => Unit): ParameterizedStructuralBlock =
+      exact match {
+        case Some(value) => ParameterizedStructure.captureExactBlock(
+          component, value.root, alternatives.get(branch), location)(body)
+        case None => ParameterizedStructure.captureJointBlock(component, joint.get, branch, location)(body)
+      }
+  }
+
   private def captureOne[T](
       condition: ElabBool,
       sourceFile: String,
@@ -173,7 +255,7 @@ object ElabControl {
       continuation: Boolean,
       ifTrue: () => T,
       ifFalse: () => T
-  ): T = {
+  ): T = ParameterizedStructure.transaction(Component.current) {
     val component = Option(Component.current).getOrElse {
       fail(
         "SPINAL-ELAB-CONTROL-COMPONENT-MISSING",
@@ -182,35 +264,13 @@ object ElabControl {
       )
     }
     val source = Some(rendered(sourceFile, sourceLine))
-    val exact = condition.expression.exactDomain.getOrElse {
-      fail(
-        "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING",
-        s"typed conditional '${condition.expression.verilog}' lacks exact single-root evidence",
-        rendered(sourceFile, sourceLine)
-      )
-    }
-    val admitted = ElaborationDomainContext.admitted(exact)
-    val trueValues = admitted.filter(value => exact.evaluate(value).contains(true))
-    val falseValues = admitted.filter(value => exact.evaluate(value).contains(false))
-    if (trueValues.isEmpty || falseValues.isEmpty) {
-      fail(
-        "SPINAL-ELAB-CONTROL-DOMAIN-CLASSIFICATION-INCONSISTENT",
-        s"typed conditional '${condition.expression.verilog}' was captured although its active domain is constant",
-        rendered(sourceFile, sourceLine)
-      )
-    }
-    val projectedCondition = condition.projectedExpression("typed conditional")
+    val capture = new PredicateCapture(component, condition, source)
+    val projectedCondition = capture.projected
     val selectedWitness = condition.witness
-    val predicateDomain =
-      ParameterizedStructure.typedPredicateDomainOf(component, condition.expression)
+    val predicateDomain = capture.domain
     var trueValue: Option[T] = None
     var falseValue: Option[T] = None
-    val trueBlock = ParameterizedStructure.captureExactBlock(
-      component,
-      exact.root,
-      trueValues,
-      source
-    ) {
+    val trueBlock = capture.block(0, source) {
       trueValue = Some(ifTrue())
       ()
     }
@@ -219,16 +279,12 @@ object ElabControl {
       "typed-generate-if",
       Some(rendered(sourceFile, sourceLine))
     )
-    val falseBlock = ParameterizedStructure.captureExactBlock(
-      component,
-      exact.root,
-      falseValues,
-      Some(rendered(falseFile, falseLine))
-    ) {
+    val falseBlock = capture.block(1, Some(rendered(falseFile, falseLine))) {
       falseValue = Some(ifFalse())
       ()
     }
     val base = nextGeneratedIfBase(component, sourceFile, sourceLine)
+    AutomaticGenerateLabels.retain(component, trueBlock)
     ParameterizedStructure.registerIf(
       pending,
       projectedCondition,
@@ -247,7 +303,7 @@ object ElabControl {
       sourceFile: String,
       sourceLine: Int,
       body: () => T
-  ): T = {
+  ): T = ParameterizedStructure.transaction(Component.current) {
     val component = Option(Component.current).getOrElse {
       fail(
         "SPINAL-ELAB-CONTROL-COMPONENT-MISSING",
@@ -256,34 +312,12 @@ object ElabControl {
       )
     }
     val source = Some(rendered(sourceFile, sourceLine))
-    val exact = condition.expression.exactDomain.getOrElse {
-      fail(
-        "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING",
-        s"typed generate '${condition.expression.verilog}' lacks exact single-root evidence",
-        rendered(sourceFile, sourceLine)
-      )
-    }
-    val admitted = ElaborationDomainContext.admitted(exact)
-    val trueValues = admitted.filter(value => exact.evaluate(value).contains(true))
-    val falseValues = admitted.filter(value => exact.evaluate(value).contains(false))
-    if (trueValues.isEmpty || falseValues.isEmpty) {
-      fail(
-        "SPINAL-ELAB-CONTROL-DOMAIN-CLASSIFICATION-INCONSISTENT",
-        s"typed generate '${condition.expression.verilog}' was captured although its active domain is constant",
-        rendered(sourceFile, sourceLine)
-      )
-    }
-    val projectedCondition = condition.projectedExpression("typed generate")
+    val capture = new PredicateCapture(component, condition, source)
+    val projectedCondition = capture.projected
     val selectedWitness = condition.witness
-    val predicateDomain =
-      ParameterizedStructure.typedPredicateDomainOf(component, condition.expression)
+    val predicateDomain = capture.domain
     var capturedValue: Option[T] = None
-    val trueBlock = ParameterizedStructure.captureExactBlock(
-      component,
-      exact.root,
-      trueValues,
-      source
-    ) {
+    val trueBlock = capture.block(0, source) {
       capturedValue = Some(body())
       ()
     }
@@ -294,6 +328,7 @@ object ElabControl {
     )
     val falseBlock = ParameterizedStructuralSynthetic.emptyBlock(source)
     val base = nextGeneratedIfBase(component, sourceFile, sourceLine)
+    AutomaticGenerateLabels.retain(component, trueBlock)
     ParameterizedStructure.registerIf(
       pending,
       projectedCondition,
@@ -364,4 +399,58 @@ object ElabControl {
 
   private def fail(code: String, detail: String, source: String): Nothing =
     ParameterizedVerilogException.fail(code, detail, Some(source))
+}
+
+/** Result kinds whose branch ownership can be captured without a host witness. */
+sealed trait ElabScopedBranchResult[T] {
+  def apply(condition: ElabScopedCondition, role: String)(yes: => T)(no: => T): T
+}
+object ElabScopedBranchResult {
+  implicit object Statement extends ElabScopedBranchResult[Unit] {
+    def apply(condition: ElabScopedCondition, role: String)(yes: => Unit)(no: => Unit): Unit =
+      condition.capture(role)(yes)(no)
+  }
+  implicit object BooleanSignal extends ElabScopedBranchResult[Bool] {
+    def apply(condition: ElabScopedCondition, role: String)(yes: => Bool)(no: => Bool): Bool = {
+      // This is a combinational expression, not a conditionally updated
+      // storage element. Its consumers retain the enclosing runtime guard.
+      val context = DslScopeStack.set(Component.current.dslBody)
+      try {
+        val result = Bool()
+        def expression(body: => Bool): Bool = {
+          val component = Component.current
+          val declarations = new java.util.IdentityHashMap[BaseType, java.lang.Boolean]()
+          val statements = new java.util.IdentityHashMap[spinal.core.internals.Statement, java.lang.Boolean]()
+          component.dslBody.walkStatements(s => statements.put(s, java.lang.Boolean.TRUE))
+          val assignments = new java.util.IdentityHashMap[spinal.core.internals.DataAssignmentStatement, java.lang.Boolean]()
+          component.dslBody.walkStatements {
+            case value: BaseType => declarations.put(value, java.lang.Boolean.TRUE)
+            case assignment: spinal.core.internals.DataAssignmentStatement => assignments.put(assignment, java.lang.Boolean.TRUE)
+            case _ =>
+          }
+          val children = component.children.toVector
+          val value = body
+          if (component.children.toVector != children)
+            ParameterizedVerilogException.fail("SPINAL-SCOPED-BOOLEAN-RESULT-EFFECT",
+              "a scoped Bool expression cannot instantiate child components")
+          component.dslBody.walkStatements {
+            case signal: BaseType if signal.isReg && !declarations.containsKey(signal) =>
+              ParameterizedVerilogException.fail("SPINAL-SCOPED-BOOLEAN-RESULT-EFFECT",
+                "a scoped Bool expression cannot introduce registers")
+            case statement if !statements.containsKey(statement) && (statement.isInstanceOf[Mem[_]] || statement.isInstanceOf[MemPortStatement]) =>
+              ParameterizedVerilogException.fail("SPINAL-SCOPED-BOOLEAN-RESULT-EFFECT",
+                "a scoped Bool expression cannot introduce memory operations")
+            case assignment: spinal.core.internals.DataAssignmentStatement if !assignments.containsKey(assignment) &&
+                (declarations.containsKey(assignment.finalTarget) || (assignment.finalTarget.component ne component)) =>
+              ParameterizedVerilogException.fail("SPINAL-SCOPED-BOOLEAN-RESULT-EFFECT",
+                "a scoped Bool expression may construct local logic but cannot write an existing or foreign signal")
+            case _ =>
+          }
+          value
+        }
+        condition.capture(role) { result := expression(yes) } { result := expression(no) }
+        result
+      } finally context.restore()
+    }
+  }
 }

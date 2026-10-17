@@ -282,8 +282,11 @@ object ClockDomain {
         }
 
         //Lock for driver inferation
-        if (that.hasOnlyOneStatement && that.head.parentScope == that.rootScopeStatement && that.head.source.isInstanceOf[Bool] && that.head.source.asInstanceOf[Bool].isComb) {
-          sync ++= getSyncronous(that.head.source.asInstanceOf[Bool])(solved)
+        // Native pull represents the implicit top-level clock with an
+        // ExternalDriverTag rather than an assignment. Follow that exact alias
+        // using the same driver query as clock-domain tag resolution.
+        that.getSingleDriver.filter(_.isComb).foreach { driver =>
+          sync ++= getSyncronous(driver)(solved)
         }
 
         //Cache result

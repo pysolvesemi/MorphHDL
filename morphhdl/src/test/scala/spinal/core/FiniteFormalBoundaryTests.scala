@@ -427,8 +427,20 @@ class FiniteFormalBoundaryTests extends AnyFunSuite {
       )
       assert(
         java.util.Arrays.equals(typed, established),
-        "typed ElabInt literal child-formal RTL differs from the established HdlInt literal path"
+        "typed ElabInt literal child-formal RTL differs from the established HdlInt literal path\n" +
+          new String(typed, StandardCharsets.UTF_8) + "\nEstablished:\n" +
+          new String(established, StandardCharsets.UTF_8)
       )
+
+      // Published literal defaults must not enter canonical schema equality.
+      // Both actual orders still share one definition with exact overrides.
+      for ((left, right) <- Vector((2, 4), (4, 2))) {
+        val shared = emitText(directory.resolve("literal_sharing_" + left), "shared.v") {
+          new SameClassTypedTokenTop(ElabInt.literal(left), ElabInt.literal(right))
+        }
+        assert("module\\s+TypedTokenLeaf\\b".r.findAllMatchIn(shared).size == 1, shared)
+        assert(shared.contains(".CHILD_WIDTH(2)") && shared.contains(".CHILD_WIDTH(4)"), shared)
+      }
     }
   }
 

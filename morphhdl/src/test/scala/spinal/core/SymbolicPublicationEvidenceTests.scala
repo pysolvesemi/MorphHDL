@@ -91,7 +91,10 @@ class SymbolicPublicationEvidenceTests extends AnyFunSuite {
     assert(start >= 0 && end > start && fatal > start && fatal < end)
     assert(verilog.indexOf("$fatal(", fatal + 1) == -1)
     assert(!verilog.contains("$error("))
-    assert(verilog.contains("""$fatal(1, "%s", "MorphHDL parameter legality failed: A must be >= B; 100% literal %d %m");"""))
+    assert(verilog.contains("begin : G_PARAMETER_LEGALITY_0"))
+    assert(!verilog.contains("g_morphhdl_parameter_legality_"))
+    assert(!verilog.contains("MorphHDL parameter legality failed:"))
+    assert(verilog.contains("""$fatal(1, "%s", "A must be >= B; 100% literal %d %m");"""))
   }
   test("concrete and universally false requires still reject immediately") {
     failsWith("concrete false")(generate(new Component {
@@ -127,14 +130,19 @@ class SymbolicPublicationEvidenceTests extends AnyFunSuite {
       } {val wire=Bits(3 bits); wire:=0}
     }))
   }
-  test("mixed branch-scoped obligations are explicitly rejected rather than made global") {
+  test("mixed branch-scoped obligations retain their exact activation") {
     val a=p("A"); val b=p("B")
-    failsWith("SPINAL-ELAB-REQUIRE-STRUCTURAL-SCOPE-UNSUPPORTED")(generate(new Component {
+    val verilog = generate(new Component {
+      val source = in Bits(3 bits)
+      val observed = out Bits(3 bits)
       ElabControl.selectSymbolic(a>1,"test",1) {
         legality(a>=b,"branch-local")
-        val wire=Bits(3 bits); wire:=0
-      } {val wire=Bits(3 bits); wire:=0}
-    }))
+        observed := RegNext(source)
+      } { observed := source }
+    })
+    assert(verilog.contains("G_PARAMETER_LEGALITY_ACTIVE"), verilog)
+    assert(verilog.contains("branch-local"), verilog)
+    assert(verilog.contains("(A) > (1)"), verilog)
   }
   test("checked nondefault arithmetic overflow is not relaxed by symbolic publication") {
     val a=p("A",1); val b=p("B",1)
@@ -149,7 +157,8 @@ class SymbolicPublicationEvidenceTests extends AnyFunSuite {
       child.din:=din; observed:=child.observed
     })
     assert(verilog.contains("parameter integer WIDTH"))
-    assert(verilog.contains(".WIDTH((((A + B) % (A + 1)) + 1))"))
+    assert(verilog.contains("localparam integer WIDTH = (((A + B) % (A + 1)) + 1);"))
+    assert(verilog.contains(".WIDTH(WIDTH)"))
   }
   test("separate legality obligations cannot collapse same-named declaration identities") {
     failsWith("SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED") (generate(new Component {

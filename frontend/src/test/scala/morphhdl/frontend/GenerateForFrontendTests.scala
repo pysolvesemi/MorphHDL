@@ -116,8 +116,8 @@ class GenerateForFrontendTests extends AnyFunSuite {
     val second = capture().head.asInstanceOf[GenerateFor]
 
     assert(first == second)
-    assert(first.label.matches("g_generate_GenerateForFrontendTests_l[0-9]+"))
-    assert(first.indexName == first.label.replace("g_generate_", "gen_index_"))
+    assert(first.label.matches("g_GEN_[0-9]+"))
+    assert(first.indexName == first.label.replace("g_GEN_", "gen_index_"))
   }
 
   test("assigns unique deterministic names within one capture") {
@@ -133,11 +133,11 @@ class GenerateForFrontendTests extends AnyFunSuite {
     val generates = items.raw.map(_.asInstanceOf[GenerateFor])
 
     assert(generates.map(_.label).distinct.size == 2)
-    assert(generates.forall(_.label.matches("g_generate_GenerateForFrontendTests_l[0-9]+")))
-    assert(generates.forall(g => g.indexName == g.label.replace("g_generate_", "gen_index_")))
+    assert(generates.forall(_.label.matches("g_GEN_[0-9]+")))
+    assert(generates.forall(g => g.indexName == g.label.replace("g_GEN_", "gen_index_")))
   }
 
-  test("keeps bare names attached to source sites when construction order reverses") {
+  test("assigns bare names in elaboration order independently of source sites") {
     val lanes = HdlInt.param("LANES", default = 2, min = 1, max = 64)
     def first(): Unit = for (_ <- 0 until lanes) {
       emitInstance(name = "first_inst", moduleName = "PixelLane")
@@ -161,7 +161,8 @@ class GenerateForFrontendTests extends AnyFunSuite {
       }.toMap
     }
 
-    assert(labels(reverse = false) == labels(reverse = true))
+    assert(labels(reverse = false) == Map("first_inst" -> "g_GEN_1", "second_inst" -> "g_GEN_2"))
+    assert(labels(reverse = true) == Map("second_inst" -> "g_GEN_1", "first_inst" -> "g_GEN_2"))
   }
 
   test("rejects invalid and duplicate explicit generate names") {
@@ -304,7 +305,7 @@ class GenerateForFrontendTests extends AnyFunSuite {
         emitInstance(name = "lane_inst", moduleName = "PixelLane")
       }
     }
-    assert(recovered.raw.head.asInstanceOf[GenerateFor].label.startsWith("g_generate_"))
+    assert(recovered.raw.head.asInstanceOf[GenerateFor].label.startsWith("g_GEN_"))
   }
 
   test("discards a failed body before continuing a caught capture") {
@@ -326,7 +327,7 @@ class GenerateForFrontendTests extends AnyFunSuite {
 
     assert(recovered.raw.size == 1)
     val generate = recovered.raw.head.asInstanceOf[GenerateFor]
-    assert(generate.label.startsWith("g_generate_"))
+    assert(generate.label.startsWith("g_GEN_"))
     assert(generate.body.map(_.asInstanceOf[ModuleInstance].name) == Vector("complete_inst"))
   }
 
@@ -381,7 +382,7 @@ class GenerateForFrontendTests extends AnyFunSuite {
       val values = Vector(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS))
 
       assert(values.head == values.last)
-      assert(values.head.label.matches("g_generate_GenerateForFrontendTests_l[0-9]+"))
+      assert(values.head.label.matches("g_GEN_[0-9]+"))
     } finally {
       executor.shutdownNow()
     }

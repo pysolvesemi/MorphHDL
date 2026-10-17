@@ -8,9 +8,11 @@ on:
   pull_request:
     branches:
       - parameterized-verilog
+  workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: increment-55-concrete-compatibility-${{ github.workflow }}-${{ github.ref }}
@@ -44,7 +46,11 @@ jobs:
           base=''
           workflow=.github/workflows/increment-55-concrete-compatibility-audit.yml
 
-          if [[ "$EVENT_NAME" == pull_request ]]; then
+          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+            git fetch --no-tags origin parameterized-verilog
+            base="$(git merge-base HEAD origin/parameterized-verilog)"
+            run=true
+          elif [[ "$EVENT_NAME" == pull_request ]]; then
             if ! git cat-file -e "$PR_BASE:$workflow" 2>/dev/null; then
               base="$PR_BASE"
               run=true
@@ -85,6 +91,13 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
+      - name: Consume exact current-candidate provenance for dispatched qualification
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 morphhdl/scripts/candidate_provenance_ci.py
+
       - name: Validate approved native changes and retirement boundaries
         shell: bash
         run: |
@@ -118,8 +131,6 @@ jobs:
           bash -n morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
           bash -n morphhdl/scripts/check-typed-vec-boundary.sh
           bash -n morphhdl/scripts/check-external-structural-process-boundary.sh
-          bash -n morphhdl-passes/scripts/test-boundary-guard.sh
-          bash -n morphhdl-passes/scripts/check-boundary.sh
 
           python3 morphhdl/scripts/check-native-source-preservation.py --self-test
           python3 morphhdl/scripts/check-typed-native-source-overlay.py --self-test
@@ -139,7 +150,6 @@ jobs:
           bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
           bash morphhdl/scripts/check-typed-vec-boundary.sh
           bash morphhdl/scripts/check-external-structural-process-boundary.sh
-          bash morphhdl-passes/scripts/test-boundary-guard.sh
 
       - name: Verify the sealed exact Increment 55 delta
         shell: bash
@@ -147,6 +157,15 @@ jobs:
           BASE_COMMIT: ${{ needs.route.outputs.base }}
         run: |
           set -euo pipefail
+          # Historical increment-only file lists remain frozen. Dispatched
+          # successor qualification consumes the current exact-tree certificate.
+          if [[ "${{ github.event_name }}" == workflow_dispatch ]]; then
+            python3 morphhdl/scripts/candidate_provenance_ci.py --consume
+            python3 morphhdl/scripts/check-parameterized-integration-source.py
+            git diff --exit-code bfed00f992281d83dde20dfabf319d8f1ea0bc57 HEAD -- \
+              morphhdl/contracts/increment-55-source-scope.txt
+            exit 0
+          fi
           scope=morphhdl/contracts/increment-55-source-scope.txt
           sentinel='# INCREMENT-55-SOURCE-SCOPE-UNSEALED'
           todo=docs/morphhdl/parameterized-verilog-todo.md
@@ -304,6 +323,11 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
+      - name: Install authenticated singleton-array simulator
+        uses: ./.github/actions/lightweight-simulator
+        with:
+          receipt-name: pinned-iverilog-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_attempt }}
+
       - name: Compile every production and test source
         run: sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
 
@@ -351,6 +375,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install authenticated singleton-array simulator
+        uses: ./.github/actions/lightweight-simulator
+        with:
+          receipt-name: pinned-iverilog-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_attempt }}
 
       - name: Install pinned Mill
         shell: bash

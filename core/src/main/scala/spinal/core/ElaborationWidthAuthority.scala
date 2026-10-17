@@ -473,6 +473,56 @@ object ElaborationWidthAuthority {
     if (results.isEmpty) None else Some(results.max)
   }
 
+  /** Read-only bridge for private finite width certificates. The expression
+    * must already own a registry entry; callers cannot supply proof tables.
+    */
+  private[core] def finiteProductEvidence(expression: ElaborationIntegerExpression):
+      Option[(Vector[(ElaborationExactDomain[_], Vector[BigInt])], Map[Vector[BigInt], BigInt])] =
+    evidenceOf(expression).map { _ =>
+      val owned = source(expression)
+      (owned.axes.map(axis => (axis.domain, axis.values)), owned.values)
+    }
+
+  /** Compose an authenticated width with exact formal actuals. The bounded
+    * table proves the entire parent domain; rendering only renames the already
+    * authenticated expression's declaration tokens. It grants no new roots.
+    */
+  private[core] def substituteFormals(width: ElaborationIntegerExpression,
+      bindings: Vector[(ElaborationIntegerParameter, ElaborationIntegerExpression)]): ElaborationIntegerExpression = {
+    val role = "child width actual projection"
+    requireAuthoritative(width, role, Failure)
+    if (bindings.size != width.parameters.size || width.parameters.exists(p =>
+        bindings.count(entry => entry._1 eq p) != 1))
+      fail(Failure, role, "requires every exact formal declaration once", width.sourceLocation)
+    def finite(expression: ElaborationIntegerExpression): Evidence = {
+      requireAuthoritative(expression, role, Failure)
+      val declarations = expression.parameters.map(p => source(ElabInt.directParameter(p, expression.sourceLocation).expression))
+      val axes = merge(declarations, expression.sourceLocation)
+      val values = keys(axes).map { key =>
+        val result = evaluate(expression, axes.map(_.root).zip(key)).getOrElse(
+          fail(Failure, role, "actual lost evaluation evidence", expression.sourceLocation))
+        key -> result
+      }.toMap
+      Evidence(axes, values)
+    }
+    val actuals = bindings.map(entry => finite(entry._2))
+    val axes = merge(actuals, width.sourceLocation)
+    val values = keys(axes).map { key =>
+      val arguments = bindings.zip(actuals).map { case ((formal, _), actual) =>
+        val value = valueAt(actual, axes, key)
+        if (value < formal.minimum || value > formal.maximum)
+          fail(Failure, role, "actual escapes the formal domain", width.sourceLocation)
+        formal.declarationRoot -> value
+      }
+      key -> evaluate(width, arguments).getOrElse(
+        fail(Failure, role, "definition lost evaluation evidence", width.sourceLocation))
+    }.toMap
+    val names = bindings.map { case (formal, actual) => formal.name -> ("(" + actual.verilog + ")") }.toMap
+    val rendered = "[A-Za-z_$][A-Za-z0-9_$]*".r.replaceAllIn(width.verilog, token =>
+      java.util.regex.Matcher.quoteReplacement(names.getOrElse(token.matched, token.matched)))
+    publish(rendered, Evidence(axes, values), width.sourceLocation)
+  }
+
   /** Exact evaluation by declaration identity, for backend width proofs. */
   def evaluate(expression: ElaborationIntegerExpression,
                bindings: Vector[(ElaborationIntegerParameterRoot, BigInt)]): Option[BigInt] = {

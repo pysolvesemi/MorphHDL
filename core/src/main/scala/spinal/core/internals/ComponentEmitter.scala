@@ -56,9 +56,6 @@ abstract class ComponentEmitter {
   def mergeAsyncProcess: Boolean
   def readedOutputWrapEnable : Boolean = false
 
-  /** Backend-specific proof for this one condition-sharing request. */
-  def canInlineRepeatedWhenCondition(condition: Expression): Boolean = false
-
   val wrappedExpressionToName = mutable.HashMap[Expression, String]()
   val referencesOverrides     = mutable.HashMap[Nameable,Any]()
   var algoIdIncrementalOffset = 0
@@ -134,7 +131,11 @@ abstract class ComponentEmitter {
   }
 
   def commentTagsToString(host : SpinalTagReady, comment : String) : String = {
-    val strings = host.getTags().collect{case t : CommentTag => comment + t.comment.replace("\n","\n" + comment)}
+    val strings = host.getTags().collect { case t: CommentTag =>
+      if (comment.trim == "//" && RtlDocumentation.note(t).block)
+        RtlDocumentation.render(Vector(RtlDocumentation.note(t)), comment.takeWhile(_.isWhitespace)).stripSuffix("\n")
+      else comment + RtlDocumentation.text(t.comment).replace("\n", "\n" + comment)
+    }
     if(strings.isEmpty) "" else strings.mkString("\n") + "\n"
   }
 
@@ -215,7 +216,7 @@ abstract class ComponentEmitter {
           case target: BaseType if target.isComb => asyncStatement += s
           case target: BaseType if target.isReg  =>
             val mergeTarget =
-              if(spinalConfig.mergeSyncProcess && !target.hasTag(noBackendSyncMerge)) null
+              if(spinalConfig.mergeSyncProcess && !target.hasTag(noBackendSyncMerge) && !target.hasTag(structuralSyncSeparation)) null
               else target
             val group = syncGroups.getOrElseUpdate((target.clockDomain, s.rootScopeStatement, target.hasInit, mergeTarget), new SyncGroup(target.clockDomain, s.rootScopeStatement, target.hasInit, syncGroupInstanceCounter))
             syncGroupInstanceCounter += 1
@@ -387,7 +388,7 @@ abstract class ComponentEmitter {
       })
 
       if(!spinalConfig.inlineConditionalExpression) {
-        for ((c, n) <- whenCondOccurences if n > 1 && !canInlineRepeatedWhenCondition(c)) {
+        for ((c, n) <- whenCondOccurences if n > 1) {
           expressionToWrap += c
         }
       }

@@ -262,6 +262,7 @@ abstract class Component extends NameableByComponent with ContextUser with Scala
       }
     } else {
       ref match {
+        case value: ElabInt => NativeLocalParameters.bind(this, value, name)
         case component: Component if component.parent == this =>
           OwnableRef.proposal(ref, this)
           component.setName(name, Nameable.DATAMODEL_WEAK)

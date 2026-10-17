@@ -423,7 +423,10 @@ package morphhdl {
       val compact = parameterized.replaceAll("\\s+", "")
       assert(parameterized.contains("parameter integer WIDTH = 8"))
       assert(parameterized.contains("parameter integer DEPTH = 5"))
-      assert(parameterized.contains("parameter integer CHILD_WIDTH = 8"))
+      // A symbolic actual uses the child's canonical definition default, the
+      // admitted minimum. The instance below must still bind WIDTH explicitly;
+      // the parent witness must not become the shared definition's default.
+      assert(parameterized.contains("parameter integer CHILD_WIDTH = 1"))
       assert(parameterized.contains("module TypedPrimitiveClosureFormalTop #("))
       assert(parameterized.contains("module TypedPrimitiveClosureFormalChild #("))
       assert(compact.contains(".CHILD_WIDTH(WIDTH)"), parameterized)

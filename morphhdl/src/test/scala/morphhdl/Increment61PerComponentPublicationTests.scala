@@ -248,7 +248,7 @@ class Increment61PerComponentPublicationTests extends AnyFunSuite {
       assert(moduleDefinitions(recursive) == Vector("BoundedRecursivePower"))
       assert(recursive.contains("parameter integer N = 5"))
       assert(recursive.contains("BoundedRecursivePower #("))
-      assert(!recursive.contains("__morphhdl_recursive_reference_"))
+      assert(!recursive.contains("__recursive_reference_"))
       assert(
         read(directory.resolve("BoundedRecursivePower.lst"))
           .split("\n", -1)

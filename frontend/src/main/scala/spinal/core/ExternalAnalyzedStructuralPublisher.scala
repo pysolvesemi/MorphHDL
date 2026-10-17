@@ -185,18 +185,22 @@ final class ExternalAnalyzedStructuralPredicate private[core] (
   * carrier identities before invoking its one corresponding sink.
   */
 object ExternalAnalyzedStructuralPublisher {
+  def automaticRangeNames(component: Component): (String, String) =
+    AutomaticGenerateLabels.fresh(component)
+
   def captureProcessRange(
       analyzed: AnalyzedStructuralInteger,
       component: Component,
       operationIdentity: AnyRef,
       label: String,
       indexName: String,
-      sourceLocation: Option[String]
+      sourceLocation: Option[String],
+      automaticLabel: Boolean = false
   )(body: => Unit): Unit = {
     requireReference(analyzed, "analyzed process-range wrapper", sourceLocation)
     requireReference(component, "process-range component", sourceLocation)
     requireReference(operationIdentity, "process-range operation", sourceLocation)
-    val (_, count) = analyzed.claim(
+    val (countSource, count) = analyzed.claim(
       AnalyzedStructuralIntegerKind.ProcessRangeCount,
       Vector(component, operationIdentity)
     )
@@ -205,7 +209,9 @@ object ExternalAnalyzedStructuralPublisher {
       label,
       indexName,
       count,
-      sourceLocation
+      sourceLocation,
+      () => countSource.asInstanceOf[morphhdl.frontend.HdlInt].asElabInt,
+      automaticLabel
     )(body)
   }
 
@@ -404,7 +410,7 @@ object ExternalAnalyzedStructuralPublisher {
       AnalyzedStructuralIntegerKind.ProcessSliceOffset,
       targets
     )
-    val (_, widthExpression) = width.claim(
+    val (widthSource, widthExpression) = width.claim(
       AnalyzedStructuralIntegerKind.ProcessSliceWidth,
       targets
     )
@@ -412,7 +418,9 @@ object ExternalAnalyzedStructuralPublisher {
       source,
       result,
       offsetExpression,
-      widthExpression,
+      if (ParameterizedProcess.conditionalCaptureActive)
+        widthSource.asInstanceOf[morphhdl.frontend.HdlInt].asElabInt.expression
+      else widthExpression,
       sourceLocation
     )
   }

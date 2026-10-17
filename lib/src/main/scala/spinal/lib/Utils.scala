@@ -463,26 +463,16 @@ object fromGray {
         "SPINAL-FROM-GRAY-WIDTH-EXACT-DOMAIN-REQUIRED",
         requireExactExtrema = false
       )
-      // Parallel-prefix Gray decoding needs one XOR stage for every power of
-      // two below the widest admitted specialization. Shifts beyond a narrower
-      // specialization contribute zero, so deriving this fixed topology from
-      // the authoritative maximum is valid for the complete parameter domain.
-      // Explicit carriers keep every native operator result on the retained
-      // packed geometry instead of freezing a witness-width intermediate.
-      val maximumWidth = width.maximum
-      var decoded = ParameterizedExpressionCarrier.retain(UInt(width bits))
-      decoded := gray.asUInt
-      var shift = BigInt(1)
-      while (shift < maximumWidth) {
-        val shiftAmount = shift.toInt
-        val shifted = ParameterizedExpressionCarrier.retain(UInt(width bits))
-        shifted := decoded |>> shiftAmount
-        val next = ParameterizedExpressionCarrier.retain(UInt(width bits))
-        next := decoded ^ shifted
-        decoded = next
-        shift = shift << 1
+      val count = width.log2Up
+      if (count.maximum == 0) return gray.asUInt
+      val stages = Vec(UInt(width bits), count + 1)
+      stages.setWeakName("decode_stage")
+      stages(0) := gray.asUInt
+      ElabFiniteRange.foreach(count, "decode_prefix") { index =>
+        val previous = index.at(stages, 0)
+        index.at(stages, 1) := previous ^ index.shiftRightPowerOfTwo(previous)
       }
-      decoded
+      TypedVecStaticSelect(stages, count)
     }
   }
 }

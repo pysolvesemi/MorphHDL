@@ -78,7 +78,8 @@ final class SignednessBoundaryTests extends AnyFunSuite {
       })
       assert(signed(rtl, "widened"))
       assert(rtl.contains("a[(WIDTH)-1]"), rtl)
-      assert(rtl.contains("a[(WIDTH)-1:0]"), rtl)
+      assert(!rtl.contains("a[(WIDTH)-1:0]"), rtl)
+      assert(rtl.contains("{{(64 - WIDTH){a[(WIDTH)-1]}}, a}"), rtl)
     }
   }
 
