@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "44fa38b2daf91209efce03e948b6e826be237d86"
+      "approved_tree": "a9ce13ff335f70c8dbb0d44f54bde608728b74fb"
     },
     {
       "path": "idslpayload/src/main",
@@ -847,15 +847,16 @@
         "Increment 65: exact activation-scoped symbolic legality and bounded structural products",
         "CA-051\u2013CA-053 composition repair and targeted nested-regression closure, 14 October 2026",
         "Lightweight roadmap: guarded correlated mask shifts",
-        "LWR-28: configuration interval-domain inference"
+        "LWR-28: configuration interval-domain inference",
+        "LWR-29: correlated scalar value bounds"
       ],
-      "reason": "Private identity-bound compositional value-function proofs over authenticated declaration roots and schemas. Preserve all dependency axes including canceled and branch-restricted roots, join partially overlapping dependencies, compose attainable extrema for independent groups, and fail closed beyond bounded exact joint evaluation. Bind publication evidence to exact native owners without fabricating a single-root domain or enumerating large Cartesian products. Retain private expression-identity AST certificates and authentic root/schema/scope inventories independently of exact proof. Derive checked compositional publication enclosures without Cartesian calls; keep the existing stronger exact evaluator on demand and authenticate safe physical width as its own AST. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. Retain private, exact-condition-bound finite structural tuple evidence under the unchanged 65,536 tuple cap. Classify diagnostics under authenticated activation without granting integer or width authority; compact and oversized structural products remain rejected. CA-051: replay equality of two private retained packed-width certificates with exact roots, schemas and identical admitted domains. Equality grants no scope-use authority; native owner validation remains separate. Certify a total nonnegative logical right shift, including zero for invalid distances in the original product domain. Exact evaluation and conservative enclosure agree with Verilog integer shift semantics; no guard narrows exported geometry. LWR-28: Add private native declaration ingress using exact schema/root identity and support nonnegative compact intervals; retain external permits, copied-expression rejection and structural-proof limits.",
+      "reason": "Private identity-bound compositional value-function proofs over authenticated declaration roots and schemas. Preserve all dependency axes including canceled and branch-restricted roots, join partially overlapping dependencies, compose attainable extrema for independent groups, and fail closed beyond bounded exact joint evaluation. Bind publication evidence to exact native owners without fabricating a single-root domain or enumerating large Cartesian products. Retain private expression-identity AST certificates and authentic root/schema/scope inventories independently of exact proof. Derive checked compositional publication enclosures without Cartesian calls; keep the existing stronger exact evaluator on demand and authenticate safe physical width as its own AST. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. Retain private, exact-condition-bound finite structural tuple evidence under the unchanged 65,536 tuple cap. Classify diagnostics under authenticated activation without granting integer or width authority; compact and oversized structural products remain rejected. CA-051: replay equality of two private retained packed-width certificates with exact roots, schemas and identical admitted domains. Equality grants no scope-use authority; native owner validation remains separate. Certify a total nonnegative logical right shift, including zero for invalid distances in the original product domain. Exact evaluation and conservative enclosure agree with Verilog integer shift semantics; no guard narrows exported geometry. LWR-28: Add private native declaration ingress using exact schema/root identity and support nonnegative compact intervals; retain external permits, copied-expression rejection and structural-proof limits. LWR-29: Prove scalar carrier representability from authenticated normalized inequalities without changing independent domains or granting structural authority.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElaborationProductDomain.scala",
         "mode": "100644",
-        "blob": "ea52b28441efed8821d595dc93a5ee4189529636",
-        "sha256": "966d3d17b73bf74fe8353eec2e39c883f734e76bc4510b77ae5a021b12b553af"
+        "blob": "8e03d99e2fdf22a5408e65909d7357108aaf0641",
+        "sha256": "e71ab786692fd9b11309a58f9ede4d27bc656cc6c2c8a49ee072771b3eb58936"
       },
       "edits": []
     },
@@ -936,15 +937,16 @@
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
-        "Increment 66: native parameter and RTL readability extensions"
+        "Increment 66: native parameter and RTL readability extensions",
+        "LWR-29: correlated scalar value bounds"
       ],
-      "reason": "Relocate the existing exact value/leaf/assignment registry unchanged into core alongside its adapter. Preserve all freshness, owner and authority validation; this is not a new copyable proof mechanism.",
+      "reason": "Relocate the existing exact value/leaf/assignment registry unchanged into core alongside its adapter. Preserve all freshness, owner and authority validation; this is not a new copyable proof mechanism. LWR-29: Validate signed/unsigned scalar carrier ranges using local relational obligations while preserving exact-domain, width and identity checks.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ExternalParameterizedValueRegistry.scala",
         "mode": "100644",
-        "blob": "bf105bf5367c64e56c3a44645fcb4c6baa484fc3",
-        "sha256": "963ad519d531111ce22d23fc0d22a7a9888c38b1268f6230acb97336f7df4dcb"
+        "blob": "3b7c85f73d525ea9bf1218bafaf408b64e1505a2",
+        "sha256": "ccedbd935ccda6c6ee517cd7c81fb7fa001cd0b26a17903d2c399f28e03ac26f"
       },
       "edits": []
     },
@@ -1875,15 +1877,16 @@
         "Increment 65: exact activation-scoped symbolic legality and bounded structural products",
         "Increment 66: native parameter and RTL readability extensions",
         "Recursive unsigned reduction: strict Verilog-2001 domain termination",
-        "Lightweight roadmap: guarded correlated mask shifts"
+        "Lightweight roadmap: guarded correlated mask shifts",
+        "LWR-29: correlated scalar value bounds"
       ],
-      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Originally reject mixed structural-scope obligations; now reject them without an exact activation owner, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. CDC-LEG-01 changes only native diagnostic presentation: allocate G_PARAMETER_LEGALITY_<index> in the existing component name scope and pass the escaped original message directly to $fatal(1, \"%s\", message). Domain classification, record ownership, ordering, fatal termination and synthesis guards are unchanged. Increment 65 replaces the structural-scope rejection only for exact runtime-issued owners: component-local records carry full activation, root inventories and transactional rollback. Scope classification can omit implied diagnostics; active false requirements stay deferred, while unconditionally false top-level requirements still reject. Validate finished owner identity before native synthesis-guarded fatal publication. Retain validated declaration-domain guards for the explicit native formal API so downstream overrides cannot silently leave the proved domain. Existing user requirements retain their prior classification, scope, escaping and fatal semantics. Explicit portable domain termination uses standard display/finish tasks for the authenticated recursive packed-partition client; all pre-existing fatal guards and proof obligations retain their behavior. Runners require exact completion markers as well as process status. Expose only active authenticated structural predicate classification for operation preconditions. Deferred simulation obligations are never consulted or promoted into domain proof.",
+      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Originally reject mixed structural-scope obligations; now reject them without an exact activation owner, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. CDC-LEG-01 changes only native diagnostic presentation: allocate G_PARAMETER_LEGALITY_<index> in the existing component name scope and pass the escaped original message directly to $fatal(1, \"%s\", message). Domain classification, record ownership, ordering, fatal termination and synthesis guards are unchanged. Increment 65 replaces the structural-scope rejection only for exact runtime-issued owners: component-local records carry full activation, root inventories and transactional rollback. Scope classification can omit implied diagnostics; active false requirements stay deferred, while unconditionally false top-level requirements still reject. Validate finished owner identity before native synthesis-guarded fatal publication. Retain validated declaration-domain guards for the explicit native formal API so downstream overrides cannot silently leave the proved domain. Existing user requirements retain their prior classification, scope, escaping and fatal semantics. Explicit portable domain termination uses standard display/finish tasks for the authenticated recursive packed-partition client; all pre-existing fatal guards and proof obligations retain their behavior. Runners require exact completion markers as well as process status. Expose only active authenticated structural predicate classification for operation preconditions. Deferred simulation obligations are never consulted or promoted into domain proof. LWR-29: Expose same-component unconditional retained legality to scalar-carrier proof while preserving emitted guards, lexical ownership and scope restrictions.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/NativeSymbolicLegality.scala",
         "mode": "100644",
-        "blob": "23df00c71b5d8cf729a22025f7b40addd2e0b22b",
-        "sha256": "dba40b172a325451a461de9c88a13d964dd96d3e55ce999bd6f922f562150394"
+        "blob": "81787cf1d081255ba6b9ff941feabf8a1f79e327",
+        "sha256": "a0771859a0e964ee46f4936d73476d1e800438a91a435a0cc60c98709c2e2998"
       },
       "edits": []
     },
