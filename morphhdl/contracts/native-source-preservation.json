@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "a9ce13ff335f70c8dbb0d44f54bde608728b74fb"
+      "approved_tree": "f0bd143d5d5cf955ae2e870d2744a22fcd8a5dcd"
     },
     {
       "path": "idslpayload/src/main",
@@ -848,15 +848,16 @@
         "CA-051\u2013CA-053 composition repair and targeted nested-regression closure, 14 October 2026",
         "Lightweight roadmap: guarded correlated mask shifts",
         "LWR-28: configuration interval-domain inference",
-        "LWR-29: correlated scalar value bounds"
+        "LWR-29: correlated scalar value bounds",
+        "LWR-30: scalable native assignment widths"
       ],
-      "reason": "Private identity-bound compositional value-function proofs over authenticated declaration roots and schemas. Preserve all dependency axes including canceled and branch-restricted roots, join partially overlapping dependencies, compose attainable extrema for independent groups, and fail closed beyond bounded exact joint evaluation. Bind publication evidence to exact native owners without fabricating a single-root domain or enumerating large Cartesian products. Retain private expression-identity AST certificates and authentic root/schema/scope inventories independently of exact proof. Derive checked compositional publication enclosures without Cartesian calls; keep the existing stronger exact evaluator on demand and authenticate safe physical width as its own AST. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. Retain private, exact-condition-bound finite structural tuple evidence under the unchanged 65,536 tuple cap. Classify diagnostics under authenticated activation without granting integer or width authority; compact and oversized structural products remain rejected. CA-051: replay equality of two private retained packed-width certificates with exact roots, schemas and identical admitted domains. Equality grants no scope-use authority; native owner validation remains separate. Certify a total nonnegative logical right shift, including zero for invalid distances in the original product domain. Exact evaluation and conservative enclosure agree with Verilog integer shift semantics; no guard narrows exported geometry. LWR-28: Add private native declaration ingress using exact schema/root identity and support nonnegative compact intervals; retain external permits, copied-expression rejection and structural-proof limits. LWR-29: Prove scalar carrier representability from authenticated normalized inequalities without changing independent domains or granting structural authority.",
+      "reason": "Private identity-bound compositional value-function proofs over authenticated declaration roots and schemas. Preserve all dependency axes including canceled and branch-restricted roots, join partially overlapping dependencies, compose attainable extrema for independent groups, and fail closed beyond bounded exact joint evaluation. Bind publication evidence to exact native owners without fabricating a single-root domain or enumerating large Cartesian products. Retain private expression-identity AST certificates and authentic root/schema/scope inventories independently of exact proof. Derive checked compositional publication enclosures without Cartesian calls; keep the existing stronger exact evaluator on demand and authenticate safe physical width as its own AST. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. Retain private, exact-condition-bound finite structural tuple evidence under the unchanged 65,536 tuple cap. Classify diagnostics under authenticated activation without granting integer or width authority; compact and oversized structural products remain rejected. CA-051: replay equality of two private retained packed-width certificates with exact roots, schemas and identical admitted domains. Equality grants no scope-use authority; native owner validation remains separate. Certify a total nonnegative logical right shift, including zero for invalid distances in the original product domain. Exact evaluation and conservative enclosure agree with Verilog integer shift semantics; no guard narrows exported geometry. LWR-28: Add private native declaration ingress using exact schema/root identity and support nonnegative compact intervals; retain external permits, copied-expression rejection and structural-proof limits. LWR-29: Prove scalar carrier representability from authenticated normalized inequalities without changing independent domains or granting structural authority. LWR-30: Use authenticated conservative enclosure and bounded exact fallback for optional width equality, preserving exact-domain APIs and rejecting unproved large-domain relations.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElaborationProductDomain.scala",
         "mode": "100644",
-        "blob": "8e03d99e2fdf22a5408e65909d7357108aaf0641",
-        "sha256": "e71ab786692fd9b11309a58f9ede4d27bc656cc6c2c8a49ee072771b3eb58936"
+        "blob": "4e2d3fff215c9ae4621ae05a6f8e32e4a6f74887",
+        "sha256": "9b33f078dbcb1c4146f6a8bd5f09c7db97509065e42d52f9c9c2b56f68c40583"
       },
       "edits": []
     },
@@ -5454,9 +5455,10 @@
       "change": "modified",
       "classification": "backend-isolation-hook",
       "introduced_by": [
-        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation",
+        "LWR-30: scalable native assignment widths"
       ],
-      "reason": "Snapshot optional region documentation at native statement/scope construction without modifying statement ownership or expressions.",
+      "reason": "Snapshot optional region documentation at native statement/scope construction without modifying statement ownership or expressions. LWR-30: Retain assignment source locations independently of emitted comments for actionable diagnostics; copied metadata grants no publication authority.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/Statement.scala",
         "mode": "100644",
@@ -5466,8 +5468,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/Statement.scala",
         "mode": "100644",
-        "blob": "f857f6f84814e74556106eb88999b16194021d50",
-        "sha256": "857cb03073aa1c1017ce02dc87c9ba1aaec7821f9c87366d7b16212eb563e9c6"
+        "blob": "229e4099b0ee5ed59434ca3a469f20fd0afa4763",
+        "sha256": "8874231c29df38bbe29bbc8f259e3aa7cf58e444e4b7e08bfa0f9acd103f7d6f"
       },
       "edits": [
         {
@@ -5512,6 +5514,75 @@
             {
               "side": "approved",
               "text": " with RtlDocumentationAnchor",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lwr30-statement-3",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/Statement.scala",
+          "reason": "Retain assignment source locations independently of emitted comments for actionable diagnostics; copied metadata grants no publication authority.",
+          "baseline_span": {
+            "start": 9621,
+            "end": 9621,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 9680,
+            "end": 9876,
+            "sha256": "314c77d62244ad3be8846094f99cd842c567c4103ba416451e08f2be9c47dcae"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  // Diagnostic provenance is independent of optional emitted line comments.\n  // It never grants width, ownership or assignment authority.\n  private[spinal] var diagnosticLocation: String = null\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lwr30-statement-4",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/Statement.scala",
+          "reason": "Retain assignment source locations independently of emitted comments for actionable diagnostics; copied metadata grants no publication authority.",
+          "baseline_span": {
+            "start": 9670,
+            "end": 9670,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 9925,
+            "end": 9983,
+            "sha256": "67b8eeea0005464e04bf6c445ae69a1573c7733c2c50af7bfe7f418b1a64646a"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "    diagnosticLocation = s\"${loc.file}.scala:${loc.line}\"\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lwr30-statement-5",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/Statement.scala",
+          "reason": "Retain assignment source locations independently of emitted comments for actionable diagnostics; copied metadata grants no publication authority.",
+          "baseline_span": {
+            "start": 9765,
+            "end": 9765,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 10078,
+            "end": 10332,
+            "sha256": "3d63b592614a3ff2e13c13d1c7666a1669a91cece8c079e5d4200a73c5ce8b59"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "    this\n  }\n\n  override def setScalaLocated(source: ScalaLocated): this.type = {\n    super.setScalaLocated(source)\n    source match {\n      case assignment: AssignmentStatement => diagnosticLocation = assignment.diagnosticLocation\n      case _ =>\n    }\n",
               "count": 1
             }
           ]
