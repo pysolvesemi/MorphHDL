@@ -486,6 +486,14 @@
       "mode": "100644",
       "sha256": "b9fd0a423229dfd15c07fdee3d6750f447c905091295eefc5871436083b1c746"
     },
+    "docs/morphhdl/lightweight-scala-rtl/precompiled-reduction-labels.json": {
+      "mode": "100644",
+      "sha256": "8697131b5635ced685728faaaccdf65f49244d2e7f1efb581bc3d341d8bc84a4"
+    },
+    "docs/morphhdl/lightweight-scala-rtl/precompiled-reduction-labels.md": {
+      "mode": "100644",
+      "sha256": "d9a6d942a6d4b033ccc9fa14d937a3bb87c756e606ec0322e07ca067cc6f34fb"
+    },
     "docs/morphhdl/lightweight-scala-rtl/progress.json": {
       "mode": "100644",
       "sha256": "c6a10122f7f97e7edf3d9a4792b9af98b341dca6bc6f37d32f5a4b4f1ab49418"
@@ -1018,7 +1026,7 @@
     },
     "morphhdl/contracts/retained-parameterized-regressions.json": {
       "mode": "100644",
-      "sha256": "968aca14d93c1618a610379d48c8d2af09e1b7e84967d6c96f6f27681941ab21"
+      "sha256": "b2886f9709a5eb2642a88a9cde4cd7570a67060254799a8ddf04e8c16056c771"
     },
     "morphhdl/examples/contracts/symbolic_data_shapes.v": {
       "mode": "100644",
@@ -1104,6 +1112,10 @@
       "mode": "100755",
       "sha256": "e6011df8529a2963d524e2cc798c2820e099f5c5732b7a638e6adb34dc8aabfa"
     },
+    "morphhdl/scripts/check-precompiled-reduction-labels.py": {
+      "mode": "100755",
+      "sha256": "faf24b60e02d3c2a8091db944f9b131b9cbc60bab2deb74949dfb96007c01a0c"
+    },
     "morphhdl/scripts/check-production-retirement.py": {
       "mode": "100755",
       "sha256": "4938985e5ce5bc61ff7100598e7946f8c7ec3f8df65ca531859b50326814e07b"
@@ -1114,7 +1126,7 @@
     },
     "morphhdl/scripts/check-retained-parameterized-regressions.py": {
       "mode": "100644",
-      "sha256": "b3155ddcc2b9af3a0859cebf520baf18ca7d579bdd5f95ea2f86cabb057fcc66"
+      "sha256": "6b8d65a3174aace564aff1301bcabbb48b35c82315ecd3217766d84db6741501"
     },
     "morphhdl/scripts/check-symbolic-recursive-width.py": {
       "mode": "100644",
@@ -1805,6 +1817,10 @@
     "morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala": {
       "mode": "100644",
       "sha256": "85b2d2d36e419e7b6e7fd7e9e5be3d3daec450267b5ff4f02d3de1c9ac3809c4"
+    },
+    "morphhdl/src/test/scala/morphhdl/PrecompiledReductionLabelTests.scala": {
+      "mode": "100644",
+      "sha256": "7f538b1daef5b9b943820645b411de8691448ea2046108d5f2f8dedca3daced7"
     },
     "morphhdl/src/test/scala/morphhdl/ProcessExpressionLineageTests.scala": {
       "mode": "100644",
