@@ -766,6 +766,13 @@
         "literal constructor width 1 retains the complete override domain",
         "literal constructor width 64 retains the complete override domain"
       ],
+      "morphhdl.CorrelatedValueBoundsTests": [
+        "child-owned relational contracts authorize symbolic unsigned subtraction and reject invalid overrides",
+        "parent bindings preserve child contract and non-default values",
+        "missing or disjunctive positivity and undersized carriers remain rejected",
+        "a parent-only constraint cannot authorize the public child",
+        "compact timeout value fits its correlated logarithmic carrier across overrides"
+      ],
       "morphhdl.CorrelatedVecPublicationTests": [
         "finite packed direct child ports count=1 bits=1",
         "finite packed direct child ports count=1 bits=8",
@@ -4468,6 +4475,7 @@
     "morphhdl/src/test/scala/morphhdl/ConfigurationDomainInferenceTests.scala": "33bdf3f841f3d49b98b0b72a34768ad10a7ee7a8364f1f772bc077fa386a9347",
     "morphhdl/src/test/scala/morphhdl/ConstantAggregateTests.scala": "3857dfc8a220a698f16a8e96da68503c945786599e1c15c75d7d5516e02b2818",
     "morphhdl/src/test/scala/morphhdl/ConstructorParameterTests.scala": "5291cd053ea1a78f6817527426177a4990948560634df2ca2b1084bb413afd74",
+    "morphhdl/src/test/scala/morphhdl/CorrelatedValueBoundsTests.scala": "318448847df6ddea2454b59a1fde491c13327e6c36a2daf66f6169301494da6b",
     "morphhdl/src/test/scala/morphhdl/CorrelatedVecPublicationTests.scala": "bf05989f87340b3adf5736aaa616f381f62ec1520eb3fce7b3593fd28edf4b91",
     "morphhdl/src/test/scala/morphhdl/DerivedConfigurationParameterTests.scala": "e59ef3ca9b8005f6c6503ea09f3dd9974e88ed22cee93b9fdfd5b210f4aeb549",
     "morphhdl/src/test/scala/morphhdl/DerivedWidthContractFixture.scala": "76d8cecf59436f684baac6dea2c09b6c5add58b721dc48daf37162fe882140d9",

@@ -1368,7 +1368,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         (root, _) => ParameterizedStructure.requireCompactDeclarationOwner(
           component, value, root, role, source)
       ).get
-      val (minimum, maximum) = owned.publicationRange
+      val (legalMinimum, legalMaximum) = NativeSymbolicLegality.valueRange(component, record.expression)
+      val (ownerMinimum, ownerMaximum) = owned.publicationRange
+      val minimum = ownerMinimum.max(legalMinimum)
+      val maximum = ownerMaximum.min(legalMaximum)
       val minimumWidth = ParameterizedWidth.expressionOf(value).map { width =>
         // A valid carrier can be literal, single-root, or compositional. Use
         // the existing common owner validator instead of demanding a product
@@ -1380,7 +1383,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       val signed = value.isInstanceOf[SInt]
       if (!signed && minimum < 0) fail("SPINAL-PARAMETERIZED-VERILOG-VALUE-DOMAIN-UNSUPPORTED",
         s"$role reaches negative value $minimum in its live owner", source)
-      if (minimumWidth < 1 || BigInt(maximum.bitLength.max(minimum.bitLength) + (if(signed) 1 else 0)) > minimumWidth)
+      val correlatedWidth = !signed && ParameterizedWidth.expressionOf(value).exists(width =>
+        ElaborationProductDomain.fitsUnsignedLogWidth(record.expression, width))
+      if (minimumWidth < 1 || (!correlatedWidth && BigInt(maximum.bitLength.max(minimum.bitLength) + (if(signed) 1 else 0)) > minimumWidth))
         fail("SPINAL-PARAMETERIZED-VERILOG-VALUE-WIDTH-INSUFFICIENT",
           s"$role reaches $maximum outside its live carrier minimum width $minimumWidth", source)
       return

@@ -1,11 +1,27 @@
 package spinal.core
 
-/** Native, simulation-only parameter legality. This registry is not proof that
-  * an obligation holds, nor may structural consumers use it to narrow a domain.
+/** Native parameter legality, enforced by retained simulation guards. This
+  * registry is not proof that an obligation holds, nor may structural consumers
+  * use it to narrow a domain. Scalar value carriers may use unconditional local
+  * contracts to prove their representability over the guarded legal domain.
   * Only authenticated typed expressions can enter; records belong to the exact
   * live Component identity. No copyable public annotation grants this authority.
   */
 object NativeSymbolicLegality {
+  /** Only this component's unconditional, retained contracts restrict the legal
+    * values of its scalar carriers. Parent and generate-branch requirements are
+    * deliberately excluded. The original guards remain mandatory publication.
+    */
+  private[spinal] def valueRange(component: Component,
+      expression: ElaborationIntegerExpression): (BigInt, BigInt) = {
+    if (!ElaborationProductDomain.isRetained(expression))
+      return expression.minimum -> expression.maximum
+    val obligations = records(component).filter(record => record.scope.isEmpty &&
+      record.encoded.completedParameterRoots.exists(root => expression.completedParameterRoots.exists(_ eq root)))
+    if (obligations.isEmpty) return expression.minimum -> expression.maximum
+    obligations.foreach(record => validate(record))
+    ElaborationProductDomain.legalValueRange(expression, obligations.map(_.condition))
+  }
   private object Enabled
   /** Backend mode setup; this flag alone grants no expression or proof authority. */
   def configure(config: SpinalConfig, enabled: Boolean): SpinalConfig = {

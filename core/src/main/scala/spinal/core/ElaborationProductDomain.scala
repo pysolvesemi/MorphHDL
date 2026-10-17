@@ -881,6 +881,74 @@ private[spinal] object ElaborationProductDomain {
     val proof = source(value)
     evaluate(proof, bindings)
   }
+
+  /** Enclose a value over an explicitly constrained legal domain. This query
+    * does not change the expression certificate or grant structural authority.
+    * Only normalized, identity-authenticated comparisons are used; unsupported
+    * predicates (notably disjunctions) contribute no facts.
+    */
+  private[core] def legalValueRange(value: ElaborationIntegerExpression,
+      conditions: Vector[ElaborationBooleanExpression]): (BigInt, BigInt) = {
+    // The caller authenticates construction or completed declaration ownership.
+    // Do not reopen a construction scope during post-capture publication.
+    val target = certificate(value).getOrElse(fail(Missing, "legal value range lacks its private certificate", value.sourceLocation))
+    ElabInt.validateExpression(value, "legal value range")
+    validateInventory(value.parameters, value.completedParameterRoots, target, "legal value range", value.sourceLocation)
+    val limits = checkedEnclosure(target, value.sourceLocation)
+    var minimum = limits.minimum
+    var maximum = limits.maximum
+    def lowerBound(form: Form, bound: BigInt, axes: Vector[Axis]): Unit = {
+      // target = form + (target-form), or -form + (target+form).
+      // Normalization cancels only atoms with the same authenticated roots.
+      val remainder = enclosure(TrustedExpressionEvidence(target.form - form, axes), value.sourceLocation)
+      val complement = enclosure(TrustedExpressionEvidence(target.form + form, axes), value.sourceLocation)
+      minimum = minimum.max(bound + remainder.minimum)
+      maximum = maximum.min(complement.maximum - bound)
+    }
+    def assume(form: Form, axes: Vector[Axis]): Unit = form.terms.toVector match {
+      case Vector((Operation("&&", Vector(left, right)), coefficient))
+          if form.constant == 0 && coefficient == 1 =>
+        assume(left, axes); assume(right, axes)
+      case Vector((Operation("<", Vector(left, right)), coefficient))
+          if form.constant == 0 && coefficient == 1 => lowerBound(right - left, 1, axes)
+      case Vector((Operation("<", Vector(left, right)), coefficient))
+          if form.constant == 1 && coefficient == -1 => lowerBound(left - right, 0, axes)
+      case _ => ()
+    }
+    conditions.foreach { condition =>
+      val guard = source(condition)
+      // A full-domain contract is not a new projection certificate for a
+      // scoped value. Leave such proofs to the existing scoped validators.
+      if (guard.axes.forall(axis => target.axes.find(_.root eq axis.root).forall(_.sameScope(axis)))) {
+        val axes = merge(Vector(target, guard), value.sourceLocation)
+        assume(guard.form, axes)
+      }
+    }
+    // Contradictory contracts never authorize an otherwise invalid carrier.
+    if (minimum > maximum) limits.minimum -> limits.maximum else minimum -> maximum
+  }
+
+  /** For nonnegative values, v < n implies v fits ceil(log2(n)) bits.
+    * This is an AST proof, not enumeration or a comparison of witness widths.
+    * The caller separately validates positivity, carrier width and ownership.
+    */
+  private[spinal] def fitsUnsignedLogWidth(value: ElaborationIntegerExpression,
+      width: ElaborationIntegerExpression): Boolean = {
+    val proofs = for (v <- certificate(value); w <- certificate(width)) yield (v, w)
+    proofs.exists { case (v, w) =>
+      ElabInt.validateExpression(value, "unsigned value sizing")
+      ElabInt.validateExpression(width, "unsigned carrier sizing")
+      validateInventory(value.parameters, value.completedParameterRoots, v, "unsigned value sizing", value.sourceLocation)
+      validateInventory(width.parameters, width.completedParameterRoots, w, "unsigned carrier sizing", width.sourceLocation)
+      w.form.terms.toVector match {
+        case Vector((Operation("log2Up", Vector(bound)), coefficient))
+            if w.form.constant == 0 && coefficient == 1 =>
+          val axes = merge(Vector(v, w), value.sourceLocation)
+          enclosure(TrustedExpressionEvidence(bound - v.form, axes), value.sourceLocation).minimum >= 1
+        case _ => false
+      }
+    }
+  }
   private def evaluate(proof: TrustedExpressionEvidence, bindings: Vector[(Root, BigInt)]): Option[BigInt] = {
     if (bindings.map(_._1).distinct.size != bindings.size) return None
     if (proof.axes.exists(axis => !bindings.find(_._1 eq axis.root).exists(entry => axis.containsValue(entry._2)))) None

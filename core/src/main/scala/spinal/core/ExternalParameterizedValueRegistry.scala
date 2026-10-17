@@ -105,9 +105,10 @@ object ExternalParameterizedValueRegistry {
 
     val source = sourceLocation.orElse(expression.sourceLocation)
     val valueDomain = exactValueDomain(expression)
+    val (legalMinimum, legalMaximum) = NativeSymbolicLegality.valueRange(value.component, expression)
     val signed = value.isInstanceOf[SInt]
     def requiredBits(number:BigInt):BigInt = BigInt(number.bitLength + (if(signed) 1 else 0))
-    if ((!signed && expression.minimum < 0) || expression.maximum < expression.minimum) {
+    if ((!signed && legalMinimum < 0) || legalMaximum < legalMinimum) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-VALUE-DOMAIN-UNSUPPORTED",
         s"retained UInt expression '${expression.verilog}' has invalid unsigned domain [${expression.minimum}, ${expression.maximum}]",
@@ -143,6 +144,11 @@ object ExternalParameterizedValueRegistry {
       )
     }
 
+    // Compact symbolic domains cannot be enumerated pointwise. Authenticate
+    // the common logarithmic-counter relation before using a cross product.
+    if (!signed && legalMinimum >= 0 && retainedWidth.exists(width =>
+        ElaborationProductDomain.fitsUnsignedLogWidth(expression, width))) return
+
     val pointwise = for {
       values <- valueDomain
       width <- retainedWidth
@@ -171,8 +177,8 @@ object ExternalParameterizedValueRegistry {
       case None =>
         val maximumValue = valueDomain
           .flatMap(_.evaluations.map(_._2).reduceOption(_ max _))
-          .getOrElse(expression.maximum)
-        val minimumValue = valueDomain.flatMap(_.evaluations.map(_._2).reduceOption(_ min _)).getOrElse(expression.minimum)
+          .getOrElse(legalMaximum)
+        val minimumValue = valueDomain.flatMap(_.evaluations.map(_._2).reduceOption(_ min _)).getOrElse(legalMinimum)
         val requiredWidth = requiredBits(maximumValue).max(requiredBits(minimumValue))
         if (requiredWidth > minimumWidth) {
           fail(
