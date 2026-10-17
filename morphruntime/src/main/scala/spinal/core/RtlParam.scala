@@ -64,8 +64,8 @@ object RtlParam {
     inferredInt(name,ElabInt.literal(actual),minimum,maximum)
 
   def inferredInt(name:String, actual:ElabInt, minimum:BigInt, maximum:BigInt):ElabInt = {
-    require(minimum<=maximum && maximum-minimum+1<=ElaborationExactDomain.MaximumDomainSize,
-      "MORPHDL-PARAM-DOMAIN-UNPROVEN: authored constraints must establish a finite domain of at most 65536 values")
+    require(minimum>=0 && minimum<=maximum && maximum<=Int.MaxValue,
+      "MORPHDL-PARAM-DOMAIN-UNPROVEN: authored constraints must establish a finite nonnegative Int domain")
     int(name,actual,minimum,maximum)
   }
 

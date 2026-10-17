@@ -1343,6 +1343,11 @@ object ElabInt {
   ): ElabInt = {
     if (parameter == null)
       throw new IllegalArgumentException("direct ElabInt parameter must not be null")
+    if (parameter.maximum - parameter.minimum + 1 > MaximumExactDomainSize) {
+      val result = fromExpression(ElaborationProductDomain.nativeCompactDeclaration(parameter, sourceLocation))
+      result.packedRepresentation = parameter.representation
+      return result
+    }
     val root = parameter.declarationRoot
     val result = fromSingleRootExpressionTrusted(
       ElaborationIntegerExpression(

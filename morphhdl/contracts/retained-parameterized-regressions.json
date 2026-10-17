@@ -714,6 +714,12 @@
         "generic Option recursive example mode=bridge default=1",
         "generic Option recursive example mode=bridge default=5"
       ],
+      "morphhdl.ConfigurationDomainInferenceTests": [
+        "production CDC domains publish large compact formals and retain override guards",
+        "large scalar admission does not admit oversized physical ports",
+        "public expression summaries cannot manufacture compact declaration authority",
+        "host shift distance masking and overflow determine emitted domains exactly"
+      ],
       "morphhdl.ConstantAggregateTests": [
         "CA-001 contextual zero assignments retain native width",
         "CA-002 constant register Vec writes retain switch control",
@@ -3881,7 +3887,12 @@
         "a configuration field named value is distinct from its authenticated wrapper read",
         "explicit foreign field and local types cannot conceal effectful conversions",
         "derived fields reject outer-this reads instead of capturing same-named local roots",
-        "own-this derived fields and component accesses preserve lexical ownership"
+        "own-this derived fields and component accesses preserve lexical ownership",
+        "literal shifts and Int overflow are folded before symbolic constraints",
+        "sparse disjunction and dependent bounds establish conservative finite envelopes",
+        "a disjunction with an unbounded arm cannot manufacture a finite domain",
+        "symbolic shifts are not confused with host literal operations",
+        "overflowed negative upper bounds and cyclic unknown bounds are rejected"
       ],
       "morphhdl.compiler.ConstructorParameterSyntaxTests": [
         "constructor-only formals accept renamed imports named defaults and Int actuals",
@@ -4454,6 +4465,7 @@
     "morphhdl/src/test/scala/morphhdl/ComparisonRoutingContractFixture.scala": "3c97bad965df0b5939bcf30bbf5a4da1776ab2e92ffe2cec852f8bb1ba7e4a0d",
     "morphhdl/src/test/scala/morphhdl/ConditionalForwardingContractFixture.scala": "17e178ecd03bad24bdddbe29c98d376be7f51b95eea47b633006dd6d0ceb1b7e",
     "morphhdl/src/test/scala/morphhdl/ConditionalWidthContractFixture.scala": "10492466f4281597a997518d2da81166a1c5998f8dc7fcf327fc0d878612642d",
+    "morphhdl/src/test/scala/morphhdl/ConfigurationDomainInferenceTests.scala": "33bdf3f841f3d49b98b0b72a34768ad10a7ee7a8364f1f772bc077fa386a9347",
     "morphhdl/src/test/scala/morphhdl/ConstantAggregateTests.scala": "3857dfc8a220a698f16a8e96da68503c945786599e1c15c75d7d5516e02b2818",
     "morphhdl/src/test/scala/morphhdl/ConstructorParameterTests.scala": "5291cd053ea1a78f6817527426177a4990948560634df2ca2b1084bb413afd74",
     "morphhdl/src/test/scala/morphhdl/CorrelatedVecPublicationTests.scala": "bf05989f87340b3adf5736aaa616f381f62ec1520eb3fce7b3593fd28edf4b91",
@@ -4783,7 +4795,7 @@
     "morphhdl/src/test/scala/spinal/lib/CounterSingleAuthorityParityTests.scala": "9eedbe0f3ce7a457d4c79ab2c9fc3aa1cb02c932436bc76d30d8ada2ca6780f5",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala": "24b185c3ef7939be404500704e955d598c2493ee7c3a1f737d0cf16267d9c362",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrV1Spec.scala": "835224bc5028bc192976dd96e08906add489d4824d328397466a7e4dd7f31493",
-    "morphplugin/src/test/scala/morphhdl/compiler/ConfigurationParameterSyntaxTests.scala": "61dfd3c95626f5e01eaa6ac6d09b4d6161e1fd556f1e6be4deaecc2b1c6d2b24",
+    "morphplugin/src/test/scala/morphhdl/compiler/ConfigurationParameterSyntaxTests.scala": "0c02f0a49e28b2e249891af293c29a5a81a2ed93e5126ffd33f4d772ab9076f3",
     "morphplugin/src/test/scala/morphhdl/compiler/ConstructorParameterSyntaxTests.scala": "ca45bf6806815f8697baa50acf2d2bb0090f9bd1cdf858476d85b2d59b263b33",
     "morphplugin/src/test/scala/morphhdl/compiler/DirectRecursiveSyntaxTests.scala": "583a6a612a15cfc4b80c1fa9a613314c4917c77db7ccadb35b60851c40d3815a",
     "morphplugin/src/test/scala/morphhdl/compiler/InferredParameterSyntaxTests.scala": "d7c7badff17f887b6ff23690e241072b4c059faec9c6abc47f3d19d0081aa943",

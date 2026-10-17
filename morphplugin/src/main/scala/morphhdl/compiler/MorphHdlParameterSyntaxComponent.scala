@@ -20,16 +20,22 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
     Select(Select(Select(Ident(termNames.ROOTPKG),TermName("spinal")),TermName("core")),TermName(n))
   private def coreType(n: String): Tree =
     Select(Select(Select(Ident(termNames.ROOTPKG),TermName("spinal")),TermName("core")),TypeName(n))
-  private def constant(t: Tree): Option[BigInt] = t match {
-    case Literal(Constant(n: Int)) => Some(BigInt(n))
-    case Apply(Select(v,n),Nil) if n.decodedName.toString == "unary_-" => constant(v).map(-_)
-    case Select(v,n) if n.decodedName.toString == "unary_-" => constant(v).map(-_)
-    case Apply(Select(a,n),List(b)) => for(x<-constant(a);y<-constant(b);z<- n.decodedName.toString match {
+  // Literal-only Scala Int operations use JVM sizing, overflow and masked shift
+  // distances. Symbolic ElabInt arithmetic is deliberately a separate grammar.
+  private def hostInteger(t: Tree): Option[Int] = t match {
+    case Literal(Constant(n: Int)) => Some(n)
+    case Apply(Select(v,n),Nil) if n.decodedName.toString == "unary_-" => hostInteger(v).map(-_)
+    case Select(v,n) if n.decodedName.toString == "unary_-" => hostInteger(v).map(-_)
+    case Apply(Select(a,n),List(b)) => for(x<-hostInteger(a);y<-hostInteger(b);z<- n.decodedName.toString match {
       case "+" => Some(x+y);case "-" => Some(x-y);case "*" => Some(x*y)
-      case "/" if y!=0 => Some(x/y);case _ => None
+      case "/" if y!=0 => Some(x/y);case "%" if y!=0 => Some(x%y)
+      case "<<" => Some(x << y);case ">>" => Some(x >> y);case ">>>" => Some(x >>> y)
+      case "&" => Some(x & y);case "|" => Some(x | y);case "^" => Some(x ^ y)
+      case _ => None
     }) yield z
     case _ => None
   }
+  private def constant(t: Tree): Option[BigInt] = hostInteger(t).map(BigInt(_))
   override def newPhase(previous: Phase): Phase = new StdPhase(previous) {
     private var schemaRun: global.Run = null
     private var sourceTrees = Vector.empty[Tree]
@@ -303,16 +309,6 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
       // Constant body fields keep Scala Int specialization semantics, including
       // per-operation overflow; references must not reinterpret them as symbolic
       // arithmetic (or read a forward field before Scala initializes it).
-      def hostInteger(t:Tree):Option[Int]=t match {
-        case Literal(Constant(n:Int))=>Some(n)
-        case Select(a,n) if n.decodedName.toString=="unary_-"=>hostInteger(a).map(-_)
-        case Apply(Select(a,n),Nil) if n.decodedName.toString=="unary_-"=>hostInteger(a).map(-_)
-        case Apply(Select(a,n),List(b))=>for(x<-hostInteger(a);y<-hostInteger(b);z<-n.decodedName.toString match {
-          case "+"=>Some(x+y);case "-"=>Some(x-y);case "*"=>Some(x*y)
-          case "/" if y!=0=>Some(x/y);case "%" if y!=0=>Some(x%y);case _=>None
-        })yield z
-        case _=>None
-      }
       def derived(schema:ConfigSchema, field:ValDef, active:Set[ValDef]=Set.empty, predicate:Boolean=false):Tree = {
         Option(derivedExpressions.get(field)).getOrElse {
           def reject(t:Tree, detail:String):Tree={
@@ -362,7 +358,9 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
               case _=>None
             }
             t match {
-              case Literal(Constant(n:Int))=>Apply(Select(core("ElabInt"),TermName("literal")),List(Literal(Constant(n))))
+              case _ if hostInteger(t).nonEmpty=>Apply(Select(core("ElabInt"),TermName("literal")),List(Literal(Constant(hostInteger(t).get))))
+              case Apply(Select(_,op),_) if Set("<<",">>",">>>","&","|","^")(op.decodedName.toString)=>
+                reject(t,"symbolic integer shift/bitwise operation is unsupported; only literal host operations may be folded")
               case Ident(n) if env.contains(n.decodedName.toString)=>env(n.decodedName.toString).duplicate
               case Ident(n) if calls.isEmpty && members.contains(n.decodedName.toString)=>
                 derived(schema,members(n.decodedName.toString),active+field).duplicate
@@ -759,15 +757,39 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
               }
             }
             bounds=declarations.map(v=>v.name.decodedName.toString ->
-              (if(kind(v.tpt).contains("SInt")) BigInt(Int.MinValue) else BigInt(0),BigInt(Int.MaxValue))).toMap
+              (if(kind(v.tpt).contains("SInt")) BigInt(Int.MinValue) else BigInt(0),BigInt(Int.MaxValue)+1)).toMap
+            // Abstract intervals, not value enumeration. Unknown endpoints stay
+            // outside Int until an authored bound proves them. OR joins branch
+            // envelopes; the original predicate remains an emitted legality guard.
+            def interval(t:Tree):Option[(BigInt,BigInt)]=number(t).map(n=>(n,n)).orElse(t match {
+              case Ident(n)=>bounds.get(n.decodedName.toString).filter {case(l,h)=>l<=h && l.isValidInt && h.isValidInt}
+              case Select(a,n) if n.decodedName.toString=="pow2"=>interval(a).filter {case(l,h)=>l>=0 && h<=30}.map {case(l,h)=>(BigInt(1)<<l.toInt,BigInt(1)<<h.toInt)}
+              case Apply(Select(a,n),Nil) if n.decodedName.toString=="pow2"=>interval(Select(a,n))
+              case Apply(Select(a,n),List(b))=>for(x<-interval(a);y<-interval(b);r<-n.decodedName.toString match {
+                case "+"=>Some((x._1+y._1,x._2+y._2))
+                case "-"=>Some((x._1-y._2,x._2-y._1))
+                case "*"=>val v=Seq(x._1*y._1,x._1*y._2,x._2*y._1,x._2*y._2);Some((v.min,v.max))
+                case "/" if y._1>0 || y._2<0=>val v=Seq(x._1/y._1,x._1/y._2,x._2/y._1,x._2/y._2);Some((v.min,v.max))
+                case _=>None
+              })yield r
+              case _=>None
+            })
             def constrain(condition:Tree):Unit=condition match {
               case Apply(Select(a,n),List(b)) if n.decodedName.toString=="&&" =>constrain(a);constrain(b)
-              case Apply(Select(Ident(name),op),List(rhs)) if bounds.contains(name.decodedName.toString) && number(rhs).nonEmpty =>
-                val key=name.decodedName.toString;val (lo,hi)=bounds(key);val value=number(rhs).get
+              case Apply(Select(a,n),List(b)) if n.decodedName.toString=="||" =>
+                val before=bounds;val beforeDynamic=dynamicBounds
+                constrain(a);val left=bounds
+                bounds=before;dynamicBounds=beforeDynamic
+                constrain(b);val right=bounds
+                bounds=before.map {case(k,_)=>k -> (left(k)._1.min(right(k)._1),left(k)._2.max(right(k)._2))}
+                // Runtime constructor bounds may not escape just one OR arm.
+                dynamicBounds=beforeDynamic
+              case Apply(Select(Ident(name),op),List(rhs)) if bounds.contains(name.decodedName.toString) && interval(rhs).nonEmpty =>
+                val key=name.decodedName.toString;val (lo,hi)=bounds(key);val (low,high)=interval(rhs).get
                 bounds += key -> (op.decodedName.toString match {
-                  case ">=" => (lo.max(value),hi);case ">" => (lo.max(value+1),hi)
-                  case "<=" => (lo,hi.min(value));case "<" => (lo,hi.min(value-1))
-                  case "==" | "elabEq" => (lo.max(value),hi.min(value));case _ => (lo,hi)
+                  case ">=" => (lo.max(low),hi);case ">" => (lo.max(low+1),hi)
+                  case "<=" => (lo,hi.min(high));case "<" => (lo,hi.min(high-1))
+                  case "==" | "elabEq" => (lo.max(low),hi.min(high));case _ => (lo,hi)
                 })
               case Apply(Select(Ident(name),op),List(rhs @ Ident(limit)))
                   if bounds.contains(name.decodedName.toString) && constructorLimits(limit.decodedName.toString) =>
@@ -786,10 +808,12 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
                 })
               case _ =>
             }
-            if(declarations.nonEmpty) template.body.foreach {
-              case call @ Apply(fun,args) if path(fun).lastOption.contains("require") && (builtinRequire(call) || copiedRequires.containsKey(call)) && args.nonEmpty =>constrain(args.head)
-              case _ =>
+            val requirements=template.body.collect {
+              case call @ Apply(fun,args) if path(fun).lastOption.contains("require") && (builtinRequire(call) || copiedRequires.containsKey(call)) && args.nonEmpty =>args.head
             }
+            // A bounded number of monotone passes resolves dependency chains,
+            // independent of declaration order and domain cardinality.
+            if(declarations.nonEmpty) for(_ <- 0 to declarations.size) requirements.foreach(constrain)
             try super.transform(template) finally { bounds=old; dynamicBounds=oldDynamic }
           case value:ValDef if kind(value.tpt).nonEmpty && arguments(value.rhs).nonEmpty =>
             val k=kind(value.tpt).get
@@ -809,18 +833,18 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
                 case "Boolean" => Apply(Select(core("RtlParam"),TermName("bool")),List(name,actual))
                 case "Int" =>
                   val (lo,hi)=bounds.getOrElse(value.name.decodedName.toString,(BigInt(0),BigInt(Int.MaxValue)))
-                  if(lo>hi || !lo.isValidInt || !hi.isValidInt || (hi-lo+1>65536 && !dynamicBounds.contains(value.name.decodedName.toString))) {
-                    reporter.error(value.pos,"MORPHDL-PARAM-DOMAIN-UNPROVEN: provide unconditional require constraints proving a finite domain of at most 65536 values; the default is not a domain bound")
+                  if(lo>hi || !lo.isValidInt || (!hi.isValidInt && !dynamicBounds.contains(value.name.decodedName.toString))) {
+                    reporter.error(value.pos,"MORPHDL-PARAM-DOMAIN-UNPROVEN: provide unconditional require constraints proving a finite Int domain; the default is not a domain bound")
                     value.rhs
                   } else {
-                    val parameters=List(name,actual) ++ boundArguments(value.name.decodedName.toString,lo,hi)
+                    val parameters=List(name,actual) ++ boundArguments(value.name.decodedName.toString,lo,hi.min(BigInt(Int.MaxValue)))
                     Apply(Select(core("RtlParam"),TermName(if(optional)"optional" else "inferredInt")),
                       if(optional) parameters :+ transform(supplied(1)) else parameters)
                   }
                 case "UInt" | "Bits" | "SInt" =>
                   val (lo,hi)=bounds.getOrElse(value.name.decodedName.toString,
                     (if(k=="SInt")BigInt(Int.MinValue) else BigInt(0),BigInt(Int.MaxValue)))
-                  Apply(Select(core("RtlParam"),TermName("packed")),List(name,actual) ++ boundArguments(value.name.decodedName.toString,lo,hi) :+ Literal(Constant(k)))
+                  Apply(Select(core("RtlParam"),TermName("packed")),List(name,actual) ++ boundArguments(value.name.decodedName.toString,lo,hi.min(BigInt(Int.MaxValue))) :+ Literal(Constant(k)))
                 case _ =>
                   reporter.error(value.pos,s"MORPHDL-PARAM-TYPE-UNSUPPORTED: Param[$k] declaration is not supported")
                   value.rhs

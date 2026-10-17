@@ -173,12 +173,26 @@ private[spinal] object ElaborationProductDomain {
   private def fail(code: String, detail: String, location: Option[String]): Nothing =
     ParameterizedVerilogException.fail(code, s"$Role $detail", location)
 
-  /** The only compact ingress: a one-use permit for a bare frontend
+  /** External compact ingress: a one-use permit for a bare frontend
     * declaration AST, not a public expression summary or sampled table.
     */
   private[core] def compactDeclaration(value: ElaborationIntegerExpression,
       sourceIdentity: AnyRef, permit: ExternalCompilerPermit): ElaborationIntegerExpression = {
     ExternalCompilerPermit.requireAnalyzedCompactDeclaration(permit, value, sourceIdentity)
+    retainCompactDeclaration(value)
+  }
+
+  /** Native formals own the declaration object; callers cannot supply an
+    * expression summary or inherit authority by copying one. */
+  private[core] def nativeCompactDeclaration(parameter: ElaborationIntegerParameter,
+      location: Option[String]): ElaborationIntegerExpression = {
+    val value = ElaborationIntegerExpression(parameter.name, parameter.default,
+      parameter.minimum, parameter.maximum, Vector(parameter), sourceLocation = location,
+      parameterRoots = Vector(parameter.declarationRoot))
+    retainCompactDeclaration(value)
+  }
+
+  private def retainCompactDeclaration(value: ElaborationIntegerExpression): ElaborationIntegerExpression = {
     ElabInt.validateExpression(value, "compact parameter declaration")
     if (ElaborationDomainContext.hasActiveRestrictions)
       fail("SPINAL-ELAB-DOMAIN-COMPACT-SCOPE-UNSUPPORTED",
@@ -191,13 +205,13 @@ private[spinal] object ElaborationProductDomain {
       case Vector(declaration) => declaration
       case _ => fail(Missing, "compact ingress lost its exact root", value.sourceLocation)
     }
-    if (schema.minimum < 1 || !schema.maximum.isValidInt ||
+    if (schema.minimum < 0 || !schema.maximum.isValidInt ||
         schema.maximum - schema.minimum + 1 <= MaximumJointValues ||
         value.default != schema.default || value.minimum != schema.minimum || value.maximum != schema.maximum ||
         value.verilog != schema.name || root.name != schema.name ||
         value.generateIndex.nonEmpty || value.exactDomain.nonEmpty || value.projectionProvenance.nonEmpty)
       fail("SPINAL-ELAB-DOMAIN-COMPACT-DECLARATION-INVALID",
-        "compact ingress requires an unchanged positive Int-sized direct declaration", value.sourceLocation)
+        "compact ingress requires an unchanged nonnegative Int-sized direct declaration", value.sourceLocation)
     root.bindAuthoritativeSchema(schema, "compact parameter declaration", value.sourceLocation)
     retain(value, TrustedExpressionEvidence(atom(CompactLeaf(root)), Vector(Axis.compact(root, schema))))
     value

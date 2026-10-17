@@ -10,8 +10,8 @@ package spinal.core {
  class rtlParamName(val name:String) extends scala.annotation.StaticAnnotation
  trait Param[T]
  object Param {def apply(n:Int):ElabInt=new ElabInt}
- class ElabInt {def elabEq(n:ElabInt):ElabBool=new ElabBool;def elabEq(n:Int):ElabBool=new ElabBool;def >=(n:ElabInt):ElabBool=new ElabBool;def <=(n:ElabInt):ElabBool=new ElabBool;def pow2:ElabInt=this; def *(n:ElabInt):ElabInt=this;def +(n:ElabInt):ElabInt=this;def >=(n:Int):ElabBool=new ElabBool;def <=(n:Int):ElabBool=new ElabBool;def +(n:Int):ElabInt=this}
- class ElabBool {def &&(b:ElabBool):ElabBool=this}
+ class ElabInt {def <(n:ElabInt):ElabBool=new ElabBool;def <(n:Int):ElabBool=new ElabBool;def elabEq(n:ElabInt):ElabBool=new ElabBool;def elabEq(n:Int):ElabBool=new ElabBool;def >=(n:ElabInt):ElabBool=new ElabBool;def <=(n:ElabInt):ElabBool=new ElabBool;def pow2:ElabInt=this; def *(n:ElabInt):ElabInt=this;def +(n:ElabInt):ElabInt=this;def >=(n:Int):ElabBool=new ElabBool;def <=(n:Int):ElabBool=new ElabBool;def +(n:Int):ElabInt=this}
+ class ElabBool {def &&(b:ElabBool):ElabBool=this;def ||(b:ElabBool):ElabBool=this}
  object ConstructorParam {
    def integer(v:Int):ElabInt=new ElabInt;def integer(v:ElabInt):ElabInt=v
    class Integer(val value:ElabInt)
@@ -321,4 +321,50 @@ package spinal.core {
     assert(errors.isEmpty,errors.mkString("\n"))
   }
 
+
+  test("literal shifts and Int overflow are folded before symbolic constraints") {
+    for(expression<-Seq("1 << 24","1 << 32","1 << -32","(-1 >>> 31)","(2147483647 + 1) >>> 30","(1 << 31) / -2147483648")) {
+      val errors=check(s"""package probe {import spinal.core._
+        case class Config(n:Param[Int]) {require(n>=1 && n<=($expression))}
+        class Child(c:Config) extends Component {val result:ElabInt=c.n}
+      }""")
+      assert(errors.isEmpty,errors.mkString("\n"))
+    }
+  }
+  test("sparse disjunction and dependent bounds establish conservative finite envelopes") {
+    val errors=check("""package probe {import spinal.core._
+      case class Config(lanes:Param[Int],depth:Param[Int],threshold:Param[Int],timeout:Param[Int]) {
+        require(threshold>=0 && threshold<capacity)
+        require(lanes==1 || lanes==4)
+        val capacity=depth.pow2+1
+        require(depth>=2 && depth<=16)
+        require(timeout>=32 && timeout<=(1 << 24))
+      }
+      class Child(c:Config) extends Component {val result:ElabInt=c.threshold}
+    }""")
+    assert(errors.isEmpty,errors.mkString("\n"))
+  }
+  test("a disjunction with an unbounded arm cannot manufacture a finite domain") {
+    val errors=check("""package probe {import spinal.core._
+      case class Config(n:Param[Int]) {require(n==1 || n>=4)}
+      class Child(c:Config) extends Component {val result:ElabInt=c.n}
+    }""")
+    assert(errors.exists(_.message.contains("PARAM-DOMAIN-UNPROVEN")),errors.mkString("\n"))
+  }
+  test("symbolic shifts are not confused with host literal operations") {
+    val errors=check("""package probe {import spinal.core._
+      case class Config(n:Param[Int]) {require(n>=1 && n<=8);val shifted=1 << n}
+      class Child(c:Config) extends Component {val result:ElabInt=c.shifted}
+    }""")
+    assert(errors.exists(_.message.contains("symbolic integer shift")),errors.mkString("\n"))
+  }
+  test("overflowed negative upper bounds and cyclic unknown bounds are rejected") {
+    for(body<-Seq("require(n>=1 && n<=(1 << 31))", "require(n>=1 && n<m);require(m>=1 && m<n)")) {
+      val errors=check(s"""package probe {import spinal.core._
+        case class Config(n:Param[Int],m:Param[Int]) {$body}
+        class Child(c:Config) extends Component {val result:ElabInt=c.n}
+      }""")
+      assert(errors.exists(_.message.contains("PARAM-DOMAIN-UNPROVEN")),errors.mkString("\n"))
+    }
+  }
 }

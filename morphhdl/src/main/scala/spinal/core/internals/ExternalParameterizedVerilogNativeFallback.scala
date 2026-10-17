@@ -2609,6 +2609,13 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       }
     }
 
+    // A native formal capability authenticates the scalar declaration even
+    // when its value domain is larger than the hardware width limit. This is
+    // exact declaration identity, not a matching name or public schema copy.
+    private def hasNativeFormalOwner(parameter: ElaborationIntegerParameter): Boolean =
+      ExternalFormalParameterRegistry.completeTypedBindingsOf(component)
+        .exists(entry => entry.binding.formal eq parameter)
+
     private def validateParameters(): Unit = {
       val portableIdentifier = "[A-Za-z_][A-Za-z0-9_]*".r
       val namedDeclarations = declarations.distinct.flatMap { value =>
@@ -2637,11 +2644,11 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           (parameter.minimum < 0 && !parameter.representation.exists(_.signed)) || parameter.maximum < parameter.minimum ||
           parameter.default < parameter.minimum || parameter.default > parameter.maximum ||
           parameter.maximum > BigInt(Int.MaxValue) ||
-          (parameter.maximum > BigInt(pc.config.bitVectorWidthMax) && !hasCompactParameterOwner(parameter))
+          (parameter.maximum > BigInt(pc.config.bitVectorWidthMax) && !hasNativeFormalOwner(parameter) && !hasCompactParameterOwner(parameter))
         ) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-DOMAIN-INVALID",
-            s"parameter '${parameter.name}' must have a non-negative bounded domain no larger than SpinalConfig.bitVectorWidthMax=${pc.config.bitVectorWidthMax}, with its default inside that domain",
+            s"parameter '${parameter.name}' must have an authenticated bounded scalar domain or remain within SpinalConfig.bitVectorWidthMax=${pc.config.bitVectorWidthMax}, with its default inside that domain",
             parameterSourceLocation(parameter)
           )
         }
