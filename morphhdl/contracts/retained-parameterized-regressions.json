@@ -3108,6 +3108,9 @@
         "schema diagnostics identify default domain and missing parameter boundaries",
         "schema diagnostics identify port direction type width presence and retained geometry"
       ],
+      "spinal.core.internals.HierarchyBindingSnapshotTests": [
+        "read-only binding snapshots reuse proofs only for exact components and expire on exit"
+      ],
       "spinal.core.internals.HierarchyResizeSourceWidthTests": [
         "auto-resize source-width authority rejects stale drivers, kind, direction, use and owner",
         "ordinary child auto-resize retains the parent root and exact complete width domain",
@@ -4750,6 +4753,7 @@
     "morphhdl/src/test/scala/spinal/core/WholeRowForwardingSafetyTests.scala": "674903663b316f9abefe08ec369a8bc303d7676157241263ea2f043055074dbe",
     "morphhdl/src/test/scala/spinal/core/internals/BalancedCompositeCountedHardware.scala": "4b0d2eef6e665bca7c3e36a0287dec6c93f86a46c332d4521333b449287ce392",
     "morphhdl/src/test/scala/spinal/core/internals/BalancedCompositeHardware.scala": "1a8800b55e9c991e06069b1c3a19f01016fdc34da51abcdf2a59744b710c78b3",
+    "morphhdl/src/test/scala/spinal/core/internals/HierarchyBindingSnapshotTests.scala": "2b072a1a0efa3975562eb7fe492addc618d4b80e859ef029423c29545fdc8a8d",
     "morphhdl/src/test/scala/spinal/core/internals/HierarchyResizeSourceWidthTests.scala": "02df02dc713bafb1336a7806e0611d8f864f6b7216da2c50f87fbfe02c39938d",
     "morphhdl/src/test/scala/spinal/core/internals/IndependentParameterPublicationTests.scala": "ef7cfaa257f1654568d897e028ccf5f23f0aa5eb13a0b4c40e5bbb3db5acee11",
     "morphhdl/src/test/scala/spinal/core/internals/NativePublicationWidthTests.scala": "08bd35a90951bc840f42bc194b612016bd2f5a4bcc1c568afc5e809c835a4389",

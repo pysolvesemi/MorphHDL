@@ -7,6 +7,35 @@ import spinal.core._
   * legacy widths retain their existing rules. This is never a source-ref lookup.
   */
 private[internals] object NativeWidthFormalSchema {
+  // Only the read-only hierarchy analysis transaction may reuse these proofs.
+  // Identity keys deliberately distinguish equal-schema components. The entire
+  // snapshot is discarded on exit (including failure), before any later phase
+  // can move a declaration, change a captured scope, or replace width metadata.
+  private val bindingSnapshot = new ThreadLocal[
+    java.util.IdentityHashMap[Component, Vector[ExternalTypedFormalBinding]]]
+
+  private[internals] def withBindingSnapshot[T](body: => T): T = {
+    val previous = bindingSnapshot.get()
+    bindingSnapshot.set(new java.util.IdentityHashMap[Component, Vector[ExternalTypedFormalBinding]])
+    try body
+    finally {
+      if (previous == null) bindingSnapshot.remove()
+      else bindingSnapshot.set(previous)
+    }
+  }
+
+  def bindings(component: Component): Vector[ExternalTypedFormalBinding] = {
+    val snapshot = bindingSnapshot.get()
+    if (snapshot == null) return computeBindings(component)
+    val previous = snapshot.get(component)
+    if (previous != null) previous
+    else {
+      val result = computeBindings(component)
+      snapshot.put(component, result)
+      result
+    }
+  }
+
   /** Native declaration/connection site, before the emitter chooses canonical
     * definitions. A child's port is rendered in its parent's actual namespace.
     */
@@ -70,7 +99,7 @@ private[internals] object NativeWidthFormalSchema {
     expression.parameters.nonEmpty && expression.parameters.forall(p => declared.exists(_.binding.formal eq p))
   }
 
-  def bindings(component: Component): Vector[ExternalTypedFormalBinding] = {
+  private def computeBindings(component: Component): Vector[ExternalTypedFormalBinding] = {
     val declared = ExternalFormalParameterRegistry.completeTypedBindingsOf(component)
     if (declared.isEmpty) return Vector.empty
     val ports = component.getOrdredNodeIo.toVector.flatMap(portBinding)
@@ -128,8 +157,16 @@ private[internals] object NativeWidthFormalSchema {
 
   def witness(canonical: Component, actual: Component,
       parameter: ElaborationIntegerParameter): ElaborationIntegerParameter =
-    bindings(actual).find(entry => parameterCompatible(canonical, actual, parameter, entry.binding.formal))
-      .map(_.binding.formal).getOrElse(parameter)
+    {
+      val candidates = bindings(actual)
+      val definitions = bindings(canonical).filter(_.binding.formal eq parameter)
+      if (definitions.size != 1) parameter
+      else {
+        candidates.find(entry => compatible(definitions.head, entry) &&
+          candidates.count(_.binding.formal eq entry.binding.formal) == 1)
+          .map(_.binding.formal).getOrElse(parameter)
+      }
+    }
 
   def definitionParameters(component: Component,
       parameters: Vector[ElaborationIntegerParameter],

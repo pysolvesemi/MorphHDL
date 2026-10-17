@@ -327,7 +327,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       component: Component,
       pc: PhaseContext,
       canonicalOf: Component => Component
-  ): Plan = {
+  ): Plan = NativeWidthFormalSchema.withBindingSnapshot {
     val assignments = ArrayBuffer.empty[DataAssignmentStatement]
     component.dslBody.walkLeafStatements {
       case assignment: DataAssignmentStatement => assignments += assignment
