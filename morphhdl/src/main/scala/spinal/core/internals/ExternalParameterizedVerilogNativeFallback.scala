@@ -2738,9 +2738,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                     targetWidth,
                     sourceWidth
                   )
-                val provenCompleteDomainEquivalent =
+                lazy val provenCompleteDomainEquivalent =
                   isProvenCompleteDomainWidthEquivalence(
-                    targetWidth,
+                    assignment, targetWidth,
                     sourceWidth
                   )
                 val provenInvariantZero =
@@ -2760,7 +2760,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                 ) {
                   fail(
                     "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
-                    s"assignment to '${target.getName()}' crosses symbolic width expressions '${targetWidth.render}' and '${sourceWidth.render}'",
+                    assignmentWidthContext(assignment, targetWidth, sourceWidth),
                     ParameterizedWidth.sourceLocationOf(target)
                   )
                 }
@@ -2774,7 +2774,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                 ) {
                   fail(
                     "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
-                    s"assignment to symbolic signal '${target.getName()}' uses concrete-width expression ${sourceWidth.render}; explicit domain-safe conversion is required",
+                    assignmentWidthContext(assignment, targetWidth, sourceWidth) + "; explicit domain-safe conversion is required",
                     ParameterizedWidth.sourceLocationOf(target)
                   )
                 }
@@ -2855,11 +2855,26 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       * maximum/minimum across alternative assignment widths; disjoint partial
       * exact tables therefore contribute only where each arm has evidence.
       */
+    private def assignmentWidthContext(assignment: DataAssignmentStatement,
+        left: WidthExpr, right: WidthExpr): String = {
+      val domains = (left.parameters ++ right.parameters).distinct.map(p =>
+        s"${p.name}=[${p.minimum},${p.maximum}] default=${p.default}").mkString(", ")
+      s"module '${component.definitionName}', assignment to '${assignment.finalTarget.getName()}', " +
+        s"source '${assignment.source}', target width '${left.render}', source width '${right.render}', " +
+        s"parameter domains: $domains; assignment location: ${Option(assignment.diagnosticLocation).orElse(Option(assignment.locationString)).orElse(ParameterizedWidth.sourceLocationOf(assignment.finalTarget)).getOrElse(assignment.getScalaLocationLong)}"
+    }
+
     private def isProvenCompleteDomainWidthEquivalence(
+        assignment: DataAssignmentStatement,
         left: WidthExpr,
         right: WidthExpr
-    ): Boolean =
+    ): Boolean = try {
       isProvenCompleteDomainWidthRelation(left, right, "==")(_ == _)
+    } catch {
+      case error: ParameterizedVerilogException =>
+        fail(error.code, assignmentWidthContext(assignment, left, right) + ": " + error.detail,
+          ParameterizedWidth.sourceLocationOf(assignment.finalTarget).orElse(error.sourceLocation))
+    }
 
     /** Prove unsigned narrowing/equality over one complete typed root. */
     private def isProvenCompleteDomainWidthNarrowOrEqual(
@@ -3027,7 +3042,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                   if retainedNativeResult && (value.component eq component) &&
                     ParameterizedWidth.expressionOf(value).exists(_.parameters.nonEmpty) &&
                     isProvenCompleteDomainWidthEquivalence(
-                      targetWidth, widthInference.ofBase(value)) =>
+                      assignment, targetWidth, widthInference.ofBase(value)) =>
                 Some(ModularUIntFacts(1, 0))
               case operator: Operator.BitVector.Add if operator.getTypeObject == TypeUInt =>
                 combine(visit(operator.left), visit(operator.right))

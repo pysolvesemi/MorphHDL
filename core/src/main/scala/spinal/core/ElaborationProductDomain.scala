@@ -830,9 +830,34 @@ private[spinal] object ElaborationProductDomain {
     val l = source(left); val r = source(right)
     val location = left.sourceLocation.orElse(right.sourceLocation)
     val axes = merge(Vector(l, r), location)
-    bounds(l.form, axes, location).minimum > 0 &&
-      bounds(r.form, axes, location).minimum > 0 &&
-      bounds(operation(operator, l.form, r.form), axes, location).minimum == 1
+    def limits(form: Form): Enclosure = enclosure(TrustedExpressionEvidence(form, axes), location)
+    // Native width inference builds max/min nodes for literal operands and
+    // alternative drivers. Remove a dominated arm only over the authenticated
+    // complete domain; never infer equivalence from the construction default.
+    def simplify(form: Form): Form = form.terms.foldLeft(literal(form.constant)) {
+      case (result, (Operation(op, operands), coefficient)) =>
+        val args = operands.map(simplify)
+        val reduced = op match {
+          case "max" | "min" =>
+            val a = limits(args(0)); val b = limits(args(1))
+            if (args(0) == args(1)) args(0)
+            else if (a.minimum >= b.maximum) if (op == "max") args(0) else args(1)
+            else if (b.minimum >= a.maximum) if (op == "max") args(1) else args(0)
+            else atom(Operation(op, args))
+          case _ => atom(Operation(op, args))
+        }
+        result + reduced.scale(coefficient)
+      case (result, (value, coefficient)) => result + atom(value).scale(coefficient)
+    }
+    val a = simplify(l.form); val b = simplify(r.form)
+    if (limits(a).minimum <= 0 || limits(b).minimum <= 0) return false
+    val comparison = operation(operator, a, b)
+    val enclosed = limits(comparison)
+    val participating = relevant(comparison.roots, axes)
+    if (enclosed.minimum == 1) true
+    else if (enclosed.maximum == 0) false
+    else if (participating.exists(_.compact) || domainSize(participating) > MaximumJointValues) false
+    else bounds(comparison, axes, location).minimum == 1
   }
   private[core] def provesRelation(left: ElaborationIntegerExpression,
       right: ElaborationIntegerExpression)(relation: (BigInt, BigInt) => Boolean): Boolean = {
@@ -972,8 +997,16 @@ private[spinal] object ElaborationProductDomain {
     def evaluate(bindings: Vector[(Root, BigInt)]): Option[BigInt] = ElaborationProductDomain.evaluate(proof, bindings)
     def sameDomain(that: OwnerProof): Boolean = sameAxes(proof.axes, that.proof.axes)
     def equivalent(that: OwnerProof): Boolean = sameDomain(that) && {
-      val difference = bounds(proof.form - that.proof.form, proof.axes, sourceLocation)
-      difference.minimum == 0 && difference.maximum == 0
+      val form = proof.form - that.proof.form
+      val enclosed = enclosure(TrustedExpressionEvidence(form, proof.axes), sourceLocation)
+      val participating = relevant(form.roots, proof.axes)
+      if (enclosed.minimum == 0 && enclosed.maximum == 0) true
+      else if (enclosed.minimum > 0 || enclosed.maximum < 0) false
+      else if (participating.exists(_.compact) || domainSize(participating) > MaximumJointValues) false
+      else {
+        val difference = bounds(form, proof.axes, sourceLocation)
+        difference.minimum == 0 && difference.maximum == 0
+      }
     }
     def nonNegativeDifference(that: OwnerProof): Boolean = {
       val axes = merge(Vector(proof, that.proof), sourceLocation)

@@ -1954,6 +1954,11 @@
         "region comments remain inside reset and clock enable structure",
         "singleton record element documentation retains its element coordinate"
       ],
+      "morphhdl.ScalableAssignmentWidthTests": [
+        "large timeout counter preserves symbolic initialized and clear-to-zero assignment widths",
+        "dominated alternative widths publish equivalent parameterized transports",
+        "default-equal but domain-mismatched assignments fail with actionable context"
+      ],
       "morphhdl.ScalarFormalReuseTests": [
         "incompatible scalar formal domain or body cannot share one forced definition domain=false",
         "incompatible scalar formal domain or body cannot share one forced definition domain=true",
@@ -2826,6 +2831,12 @@
         "recursive partition rejects altered source lineage",
         "recursive partition rejects altered target lineage",
         "recursive partition rejects altered width lineage"
+      ],
+      "spinal.core.ScalableWidthProofTests": [
+        "logarithmic width identity and dominated min/max are proved without enumerating timeout tuples",
+        "default-equal logarithms and unrelated roots do not authorize a width match",
+        "logarithmic boundary values retain their complete parameter geometry",
+        "copied certificates and nonpositive widths retain rejection"
       ],
       "spinal.core.ScalarStructuralIdentityAdversarialTests": [
         "a removed scalar-operator driver cannot be replaced by the same result operands and text",
@@ -4596,6 +4607,7 @@
     "morphhdl/src/test/scala/morphhdl/RepositoryTestResources.scala": "6c7951371f5b09e65bc6a3a59440eb5b5fafa12c682f905f552a20022f70abbc",
     "morphhdl/src/test/scala/morphhdl/RtlDocumentationTests.scala": "4e11699ea3f8fe684f82bcde3c4d59f66e855741b0c1e935685856b078a1767e",
     "morphhdl/src/test/scala/morphhdl/RuntimeMuxContractFixture.scala": "0db2014836a7c603af006ef34bdc9ca1571e94ea75c69aeaf9fe8e50d20a4939",
+    "morphhdl/src/test/scala/morphhdl/ScalableAssignmentWidthTests.scala": "dd067a7c22f17f5f3a615714aafc28f90f208b64754bb5e7e25079bbad323f58",
     "morphhdl/src/test/scala/morphhdl/ScalarFormalReuseTests.scala": "7a77e6ddd068fabe3d6ab10898f1ef0bdeb5a944ac66dae0cb009bc91cc4e239",
     "morphhdl/src/test/scala/morphhdl/ScopedProcessExtensionTests.scala": "98f0f890dba2b7607348c0e69c174365e0d25461a5ba51b0d93c590ae44d5f64",
     "morphhdl/src/test/scala/morphhdl/ScopedProcessTests.scala": "ae4c27d7601117f81eb41ed0751afb5abee0cdefc87cedaa800be568b4b60e47",
@@ -4704,6 +4716,7 @@
     "morphhdl/src/test/scala/spinal/core/ParameterizedStructureTestAccess.scala": "8856cb0e2136d8f65274a2ff93b3451e449b2f150e21016964556b69212067bb",
     "morphhdl/src/test/scala/spinal/core/ProceduralIdentityAdversarialTests.scala": "8d2c661561461c9d9148f1c05a23c0b725e9346fb7e171685a6579088bccbf73",
     "morphhdl/src/test/scala/spinal/core/RecursivePartitionSafetyTests.scala": "e022224a4b6253c60d523c1ab5fdd76b32de0da32fcab78f4806b3b87a53807a",
+    "morphhdl/src/test/scala/spinal/core/ScalableWidthProofTests.scala": "611fa5a1fe5801f94beb6325d071a0088598a2c5968eb3a3977421c6d8533698",
     "morphhdl/src/test/scala/spinal/core/ScalarStructuralIdentityAdversarialTests.scala": "08dd822c71dddc96ebe8f4c47d574f18b8120f67807261db5f3a8768450f1339",
     "morphhdl/src/test/scala/spinal/core/SignednessBoundaryFixture.scala": "09719ced8e01c5a84d585fec706af74503173d16f794b567e82d8e7ceb2cfbda",
     "morphhdl/src/test/scala/spinal/core/StructuralIdentityAdversarialTests.scala": "4142c1db86a42d0ebe8101db068304d059f9514ba5b41109b10360b322cf125d",

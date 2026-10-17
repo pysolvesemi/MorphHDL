@@ -318,9 +318,22 @@ object AssignmentStatement{
 abstract class AssignmentStatement extends LeafStatement with StatementDoubleLinkedContainerElement[BaseType, AssignmentStatement]{
   var target, source: Expression = null
   var locationString : String = null
+  // Diagnostic provenance is independent of optional emitted line comments.
+  // It never grants width, ownership or assignment authority.
+  private[spinal] var diagnosticLocation: String = null
 
   def setLocation(loc : Location): this.type ={
+    diagnosticLocation = s"${loc.file}.scala:${loc.line}"
     if(globalData.config.genLineComments) locationString = s"@ ${loc.file}.scala l${loc.line}"
+    this
+  }
+
+  override def setScalaLocated(source: ScalaLocated): this.type = {
+    super.setScalaLocated(source)
+    source match {
+      case assignment: AssignmentStatement => diagnosticLocation = assignment.diagnosticLocation
+      case _ =>
+    }
     this
   }
 
