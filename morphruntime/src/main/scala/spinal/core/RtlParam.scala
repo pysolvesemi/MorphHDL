@@ -114,8 +114,10 @@ object RtlParam {
   def optional(name:String, actual:Option[ElabInt], minimum:BigInt, maximum:BigInt, absent:Int):ElabInt =
     optional(name,optionalActual(actual),minimum,maximum,absent)
   def optional(name:String, actual:ElabInt, minimum:BigInt, maximum:BigInt, absent:Int):ElabInt = {
-    require(minimum<=maximum && maximum-minimum+1<=ElaborationExactDomain.MaximumDomainSize,
-      "MORPHDL-PARAM-DOMAIN-UNPROVEN: optional parameter needs a finite legal domain")
+    // ElabFormalParameter validates active Int bounds; absence retains the
+    // existing literal fallback contract. Neither path needs enumeration.
+    require(minimum<=maximum,
+      "MORPHDL-PARAM-DOMAIN-UNPROVEN: optional parameter needs an ordered finite legal domain")
     optionalInt(name,actual,minimum,maximum,absent)
   }
   def recursiveOptionalBinding(formal:ElabInt, actual:Option[ElabInt]):(ElabInt,ElabInt) =

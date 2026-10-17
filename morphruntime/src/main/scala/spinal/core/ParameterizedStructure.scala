@@ -3195,9 +3195,8 @@ object ParameterizedStructure {
     * one exact typed root. A declaration absent from captured blocks is treated
     * as module-scope only after its JVM identity is found in the component AST.
     */
-  /** Compact publication currently admits only a real module-scope native
-    * declaration. Do not fabricate a finite universe for the older projection
-    * API or let a captured declaration borrow module-scope authority.
+  /** Compact intervals remain unchanged under authenticated branches on other
+    * roots. No finite universe or narrowed compact projection is fabricated.
     */
   private[core] def requireCompactDeclarationOwner(component: Component,
       declaration: BaseType, root: ElaborationIntegerParameterRoot,
@@ -3206,7 +3205,8 @@ object ParameterizedStructure {
       fail("SPINAL-ELAB-PROJECTION-OBJECT-NULL", s"$role has a null compact publication owner", sourceLocation)
     if ((declaration.component ne component) || !allStatementsOf(component).exists(_ eq declaration))
       fail("SPINAL-ELAB-DOMAIN-COMPACT-OWNER-MISSING", s"$role declaration is absent from its exact native owner", sourceLocation)
-    if (capturedDeclarations(regionsOf(component)).exists(value => value.declaration eq declaration))
+    val paths = capturedDeclarations(regionsOf(component)).filter(value => value.declaration eq declaration)
+    if (paths.size > 1 || paths.exists(_.path.exists(_.region.parameterRoots.exists(_ eq root))))
       fail("SPINAL-ELAB-DOMAIN-COMPACT-OWNER-UNSUPPORTED", s"$role needs explicit compact structural-owner projection", sourceLocation)
   }
 
@@ -3387,7 +3387,11 @@ object ParameterizedStructure {
       if (!enclosing.children.exists(_ eq current))
         fail("SPINAL-ELAB-DOMAIN-COMPACT-OWNER-MISSING",
           s"$role lost its enclosing instance identity", location)
-      if (capturedChildren(regionsOf(enclosing)).exists(_.child eq current))
+      val paths = capturedChildren(regionsOf(enclosing)).filter(_.child eq current)
+      val independentSelfEdge = (current eq child) &&
+        ElabRecursiveComponent.authenticatesReference(child, parent) && paths.size == 1 &&
+        paths.head.path.forall(step => !step.region.parameterRoots.exists(_ eq root))
+      if (paths.nonEmpty && !independentSelfEdge)
         fail("SPINAL-ELAB-DOMAIN-COMPACT-OWNER-UNSUPPORTED",
           s"$role needs explicit compact structural-owner projection", location)
       current = enclosing

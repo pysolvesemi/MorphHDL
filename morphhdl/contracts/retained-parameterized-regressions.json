@@ -822,6 +822,24 @@
       "morphhdl.CounterSingleAuthorityParityTests": [
         "typed Counter specializations match independent concrete policy matrices"
       ],
+      "morphhdl.CsrMigrationLoopTests": [
+        "ordinary Vec length retains exact geometry symbolic=false",
+        "ordinary Vec length retains exact geometry symbolic=true",
+        "ordinary nonzero register range 1 until 17",
+        "ordinary nonzero register range 16 until 17",
+        "ordinary nonzero register range 17 until 17",
+        "ordinary nonzero register range 18 until 17",
+        "nonzero inclusive combinational slice preserves endpoints",
+        "optional compact domain actual=None",
+        "optional compact domain actual=Some(0)",
+        "optional compact domain actual=Some(1)",
+        "optional compact domain actual=Some(2147483647)",
+        "compact optional recursive forwarding presence=false",
+        "compact optional recursive forwarding presence=true",
+        "compact optional rejects outside Int domain -1",
+        "compact optional rejects outside Int domain 2147483648",
+        "compact recursive scalar must remain unchanged"
+      ],
       "morphhdl.DerivedConfigurationParameterTests": [
         "nested derived fields retain symbolic geometry, overrides and deterministic output",
         "distinct defaults use the same symbolic derivation",
@@ -4097,7 +4115,14 @@
         "Seq transformations retain host collection indexing",
         "Vec views of existing scalar ports retain host ownership",
         "nested filtered inclusive topology remains host elaboration",
-        "explicitly retained bound rejects host collection topology with a specific diagnostic"
+        "explicitly retained bound rejects host collection topology with a specific diagnostic",
+        "immutable nonzero start 1",
+        "immutable nonzero start p.bytes",
+        "reject effectful start var bytes:Int=1",
+        "reject effectful start def bytes:Int=1",
+        "immutable Vec length owner",
+        "reject unstable Vec length owner var vec=new Vec",
+        "reject unstable Vec length owner def vec=new Vec"
       ],
       "morphhdl.compiler.ParameterHdlNameTests": [
         "normalize parameter declaration path num_bytes",
@@ -4523,6 +4548,7 @@
     "morphhdl/src/test/scala/morphhdl/ConstructorParameterTests.scala": "5291cd053ea1a78f6817527426177a4990948560634df2ca2b1084bb413afd74",
     "morphhdl/src/test/scala/morphhdl/CorrelatedValueBoundsTests.scala": "318448847df6ddea2454b59a1fde491c13327e6c36a2daf66f6169301494da6b",
     "morphhdl/src/test/scala/morphhdl/CorrelatedVecPublicationTests.scala": "bf05989f87340b3adf5736aaa616f381f62ec1520eb3fce7b3593fd28edf4b91",
+    "morphhdl/src/test/scala/morphhdl/CsrMigrationLoopTests.scala": "cf585de7eda028d841373891d4c59ac1fe6b61249edf7a9b78447e3b2cad2c8d",
     "morphhdl/src/test/scala/morphhdl/DerivedConfigurationParameterTests.scala": "e59ef3ca9b8005f6c6503ea09f3dd9974e88ed22cee93b9fdfd5b210f4aeb549",
     "morphhdl/src/test/scala/morphhdl/DerivedWidthContractFixture.scala": "76d8cecf59436f684baac6dea2c09b6c5add58b721dc48daf37162fe882140d9",
     "morphhdl/src/test/scala/morphhdl/DescendingPriorityProcessTests.scala": "55610b85ccadb4ebf82e40d0784c69b61b70aa8b4fe863963e8d953dc9be7e83",
@@ -4866,7 +4892,7 @@
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlFrontendSymbolicEqualitySafetyComponentTests.scala": "61d8fb7fb5892ec9b48b3d74360204d432b030b52387bd4779d225d62a5ab34a",
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponentTests.scala": "3dc3d84549cfcfd48d9da00444babb522cdd8326f6811053cccd14085af7b5a0",
     "morphplugin/src/test/scala/morphhdl/compiler/NativeSymbolicEqualitySafetyTests.scala": "0595a578953516bf7d8c036515f7d3bb2a6534347a0acb20a9075bca6e096ca5",
-    "morphplugin/src/test/scala/morphhdl/compiler/OrdinaryLoopSyntaxTests.scala": "a5d684075792b702992d17cd04b52121324e0529e01d4aba6426acd578ab5b8c",
+    "morphplugin/src/test/scala/morphhdl/compiler/OrdinaryLoopSyntaxTests.scala": "4b0bf5ad3f2a1d475c2b3e5220d88cd9a2acb0713483e4e4057c6a9b5043ca76",
     "morphplugin/src/test/scala/morphhdl/compiler/ParameterHdlNameTests.scala": "669e6244b0bfa3e773ca3a234a30c44b38786cfab291f4b66bb747cc380b08b6",
     "paramrtl/src/test/scala/morphhdl/paramrtl/AddressWidthExpressionTests.scala": "b194d35db36483b350c998a39c22e0932b758ca603fc9f06d3b571cd016de4d8",
     "paramrtl/src/test/scala/morphhdl/paramrtl/AsynchronousEnabledRegisterValidatorTests.scala": "b3b9ed7d77d4d5031a47a1dbebaec496b5f2434a3ae9db6472dd7c511c70a5de",

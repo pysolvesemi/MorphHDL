@@ -31,6 +31,10 @@ final class MorphHdlConstantLoopBoundsComponent(val global: Global) extends Plug
                 method.symbol.fullName == "spinal.core.ElabFiniteRange.foreachConstant" =>
               if (!pure(bound)) reporter.error(bound.pos,
                 "MORPHDL-CONSTANT-LOOP-BOUND-UNSUPPORTED: preserved ordinary loop bounds must be literals or immutable fields; mutable fields and effectful getters are unsupported")
+            case Apply(method, List(first, second, _)) if method.symbol != null && method.symbol != NoSymbol &&
+                Set("spinal.core.ElabFiniteRange.foreachConstantFrom", "spinal.core.ElabFiniteRange.foreachVecLength")(method.symbol.fullName) =>
+              if (!pure(first) || !pure(second)) reporter.error(tree.pos,
+                "MORPHDL-CONSTANT-LOOP-BOUND-UNSUPPORTED: preserved range geometry requires immutable owners and bounds")
             case _ =>
           }
           super.traverse(tree)

@@ -1100,6 +1100,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global, ordinar
             Scan.traverse(tree); found
           }
           def constantBoundShape(t: Tree): Boolean = expressionKind(t) == ScalaIntegerBinding || (t match {
+            case Ident(_) => true // symbol/type and immutability are checked after typer
             case Select(_, _) if syntaxPath(t).exists(_.size >= 2) => true
             case Apply(Select(left, op), List(right)) if Set("+", "-", "*", "/", "%")(decoded(op)) =>
               constantBoundShape(left) && constantBoundShape(right)
@@ -1160,10 +1161,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global, ordinar
           HostTopology.traverse(body.body)
           if (isTypedInteger(end) && hostTopology)
             reporter.error(original.pos,"MORPHDL-TYPED-RANGE-HOST-TOPOLOGY: explicitly retained loops cannot index host collections or use filtered host traversal; use a native Vec or a separate host loop")
-          val ordinaryHardware = start match {
-            case Literal(Constant(0)) => true
-            case _ => false
-          }
+          val ordinaryHardware = constantBoundShape(start)
           if (isTypedInteger(end) || (ordinaryLoops() && ordinaryHardware && !hostTopology && !sharedScalarWriter && hardwareBody(body.body) &&
               constantBoundShape(end))) {
             typedRanges.put(original, java.lang.Boolean.valueOf(isTypedInteger(end)))
@@ -1631,21 +1629,24 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global, ordinar
 
     private def rewriteRange(original: Tree, start: Tree, operator: Name,
         end: Tree, body: Tree): Tree = {
-      start match {
-        case Literal(Constant(0)) =>
-        case _ => global.reporter.error(start.pos,
-          "MORPHDL-TYPED-RANGE-START-UNSUPPORTED: symbolic finite ranges currently require a literal zero start")
-      }
       val constant = !classified.typedRanges.get(original).booleanValue
+      val zeroStart = start match { case Literal(Constant(0)) => true; case _ => false }
+      if (!constant && !zeroStart) global.reporter.error(start.pos,
+        "MORPHDL-TYPED-RANGE-START-UNSUPPORTED: symbolic finite ranges currently require a literal zero start")
       val count = if (decoded(operator) == "to")
         Apply(Select(transform(end), TermName("$plus")), List(Literal(Constant(1))))
       else transform(end)
       val core = Select(Select(Ident(termNames.ROOTPKG), TermName("spinal")), TermName("core"))
-      val method = Select(Select(core, TermName("ElabFiniteRange")),
-        TermName(if (constant) "foreachConstant" else "foreachDefault"))
-      val arguments = if (constant) List(transform(end), Literal(Constant(decoded(operator) == "to"))) else List(count)
-      Apply(Apply(method, arguments),
-        List(staged(body))).setPos(original.pos)
+      val inclusive = Literal(Constant(decoded(operator) == "to"))
+      val (name, arguments) = if (!constant) ("foreachDefault", List(count))
+      else end match {
+        case Select(vector, length) if decoded(length) == "length" =>
+          ("foreachVecLength", List(transform(vector), transform(start), inclusive))
+        case _ if zeroStart => ("foreachConstant", List(transform(end), inclusive))
+        case _ => ("foreachConstantFrom", List(transform(start), transform(end), inclusive))
+      }
+      val method = Select(Select(core, TermName("ElabFiniteRange")), TermName(name))
+      Apply(Apply(method, arguments), List(staged(body))).setPos(original.pos)
     }
 
     private def rejectStagedEffect(tree: Tree, effect: String): Tree = {

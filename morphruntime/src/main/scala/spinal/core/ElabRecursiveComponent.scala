@@ -170,6 +170,19 @@ object ElabRecursiveComponent {
     new Declaration(owner, slots, interface)
   }
 
+  /** Exact compiler-created self-edge; spelling alone never grants authority. */
+  private[core] def authenticatesReference(child: Component, owner: Component): Boolean = child match {
+    case reference: BlackBox => reference.userCache.get(Key).exists { value =>
+      val edge = value.asInstanceOf[Edge]
+      if ((edge.owner ne owner) || (edge.reference ne reference)) false
+      else {
+        validateIdentity(reference, edge.formals.map(_.parameters.head))
+        true
+      }
+    }
+    case _ => false
+  }
+
   private[spinal] def validateIdentity(reference: BlackBox,
       parameters: => Vector[ElaborationIntegerParameter]): Unit =
     reference.userCache.get(Key).foreach { value =>

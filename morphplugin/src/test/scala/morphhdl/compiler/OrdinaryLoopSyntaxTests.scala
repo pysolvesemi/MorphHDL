@@ -7,17 +7,21 @@ class OrdinaryLoopSyntaxTests extends AnyFunSuite {
   private val definitions = """
 package spinal.core {
   class rtlHardwareCallback extends scala.annotation.StaticAnnotation
+  class Vec { def length:Int=4 }
   class ElabInt
-  class ElabFiniteIndex
+  class ElabScopedIndex
+  class ElabFiniteIndex extends ElabScopedIndex
   object ElabControl { def localValue[T](v:T,name:String):T=v }
   object ElabFiniteRange {
+    def foreachVecLength(vector:Vec,start:Int,inclusive:Boolean)(@rtlHardwareCallback body:ElabScopedIndex=>Unit):Unit=()
+    def foreachConstantFrom(start:Int,end:Int,inclusive:Boolean)(@rtlHardwareCallback body:ElabScopedIndex=>Unit):Unit=()
     def foreachConstant(end:Int,inclusive:Boolean)(@rtlHardwareCallback body:ElabFiniteIndex=>Unit):Unit=()
   }
 }
 package probe {
   import spinal.core._
   class Wire {def :=(v:Boolean):Unit=()}
-  class Wires {def apply(i:ElabFiniteIndex):Wire=new Wire}
+  class Wires {def apply(i:ElabScopedIndex):Wire=new Wire}
 """
   private def check(body:String)=compile(definitions+body+"}", "OrdinaryLoopProbe.scala")
   for(bound<-Seq("4","p.bytes","p.bytes + 1","0","-1")) test(s"immutable ordinary hardware bound $bound") {
@@ -78,6 +82,23 @@ package probe {
       for(i<-0 until count) values(i):=true
     }""")
     assert(errors.exists(_.message.contains("TYPED-RANGE-HOST-TOPOLOGY")),errors.mkString("\n"))
+  }
+
+
+  for(start<-Seq("1","p.bytes")) test(s"immutable nonzero start $start") {
+    assert(check(s"case class Config(bytes:Int);class C(p:Config){val out=new Wires;for(i<-$start until 5)out(i):=true}").isEmpty)
+  }
+  for(member<-Seq("var bytes:Int=1","def bytes:Int=1")) test(s"reject effectful start $member") {
+    val errors=check(s"class Config {$member};class C(p:Config){val out=new Wires;for(i<-p.bytes until 5)out(i):=true}")
+    assert(errors.exists(_.message.contains("CONSTANT-LOOP-BOUND-UNSUPPORTED")),errors.mkString("\n"))
+  }
+
+  test("immutable Vec length owner") {
+    assert(check("class C {val vec=new Vec;val out=new Wires;for(i<-0 until vec.length)out(i):=true}").isEmpty)
+  }
+  for(member<-Seq("var vec=new Vec","def vec=new Vec")) test(s"reject unstable Vec length owner $member") {
+    val errors=check(s"class C {$member;val out=new Wires;for(i<-0 until vec.length)out(i):=true}")
+    assert(errors.exists(_.message.contains("CONSTANT-LOOP-BOUND-UNSUPPORTED")),errors.mkString("\n"))
   }
 
 }

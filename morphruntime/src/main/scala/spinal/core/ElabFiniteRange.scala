@@ -583,6 +583,25 @@ object ElabFiniteRange {
     foreachDefault(ElabInt.literal(length.max(0).toInt))(body)
   }
 
+  /** Retain immutable host range endpoints without exposing a witness index. */
+  def foreachConstantFrom(start: Int, end: Int, inclusive: Boolean)
+      (@rtlHardwareCallback body: ElabScopedIndex => Unit): Unit = {
+    val count = (BigInt(end) - start + (if (inclusive) 1 else 0)).max(0)
+    require(count <= Int.MaxValue, "SPINAL-CONSTANT-LOOP-BOUND-OVERFLOW: range exceeds Int domain")
+    require(start >= 0 || count == 0, "SPINAL-CONSTANT-LOOP-START-UNSUPPORTED: active hardware indices must be nonnegative")
+    foreachDefault(ElabInt.literal(count.toInt))(i => body(i + start))
+  }
+
+  /** The Vec identity, not its elaborated carrier count, owns this bound. */
+  def foreachVecLength[T <: Data](vector: Vec[T], start: Int, inclusive: Boolean)
+      (@rtlHardwareCallback body: ElabScopedIndex => Unit): Unit = {
+    require(vector != null && start >= 0, "SPINAL-CONSTANT-LOOP-START-UNSUPPORTED: Vec range requires nonnegative start")
+    val depth = ParameterizedVec.shapeOf(vector).map(s => ElabInt.fromExpression(s.depth))
+      .getOrElse(ElabInt.literal(vector.length))
+    val count = depth - start + (if (inclusive) 1 else 0)
+    foreachDefault(count)(i => body(i + start))
+  }
+
   def foreachDefault(count: ElabInt)(body: ElabFiniteIndex => Unit): Unit =
     foreachImpl(count, "GEN", automaticLabel = true)(body)
 

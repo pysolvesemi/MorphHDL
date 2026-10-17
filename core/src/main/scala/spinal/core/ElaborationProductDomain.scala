@@ -247,8 +247,9 @@ private[spinal] object ElaborationProductDomain {
   private def active(proof: TrustedExpressionEvidence, role: String, location: Option[String]): TrustedExpressionEvidence = {
     val axes = proof.axes.map { axis =>
       if (axis.compact) {
-        // This first compact ingress deliberately grants no branch projection.
-        if (ElaborationDomainContext.hasActiveRestrictions)
+        // An unrelated finite branch does not restrict this declaration's
+        // interval. Never project a compact axis using enumerated evidence.
+        if (ElaborationDomainContext.constrains(axis.root))
           fail("SPINAL-ELAB-DOMAIN-COMPACT-SCOPE-UNSUPPORTED",
             s"$role cannot use a compact declaration under structural restrictions", location)
         axis

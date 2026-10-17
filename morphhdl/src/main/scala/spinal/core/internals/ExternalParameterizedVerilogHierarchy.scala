@@ -503,10 +503,11 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
           if value.expression.parameters.nonEmpty =>
         val role = s"BlackBox integer generic '${value.name}' of instance '$instanceName'"
         if (ElaborationProductDomain.isRetained(value.expression)) {
-          ElaborationProductDomain.owner(value.expression, role, value.sourceLocation) { (root, universe) =>
-            ParameterizedStructure.exactChildDomainOf(
-              parent, blackBox, root, universe, role, value.sourceLocation).values
-          }.get
+          ElaborationProductDomain.ownerWithCompact(value.expression, role, value.sourceLocation)(
+            (root, universe) => ParameterizedStructure.exactChildDomainOf(
+              parent, blackBox, root, universe, role, value.sourceLocation).values,
+            (root, schema) => ParameterizedStructure.requireCompactChildOwner(
+              parent, blackBox, root, schema, role, value.sourceLocation)).get
         } else {
           val ownerEvaluation = ParameterizedStructure.projectedChildEvaluationOf(
             parent, blackBox, value.expression, role, value.sourceLocation

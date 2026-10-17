@@ -119,7 +119,27 @@ private[spinal] object BoundedRecursiveModuleValidation {
         None
       )
 
-    val classified = integerBindings.map { binding =>
+    // Compact scalar domains are not recursion metrics. Admit only unchanged
+    // exact definition formals on authenticated native self-edges, without
+    // inventing an enumerated domain for the finite metric/port validator.
+    val (compactBindings, finiteBindings) = integerBindings.partition(binding =>
+      binding.expression.parameters.exists(p => ElaborationProductDomain.hasCompactParameter(binding.expression, p)))
+    compactBindings.foreach { binding =>
+      val role = s"preserved compact recursive generic '${binding.name}'"
+      val formal = MorphHdlExternalParameterizedVerilog.componentParameters(owner)
+        .find(_.name == binding.name).getOrElse(fail(
+          "SPINAL-PARAMETERIZED-VERILOG-RECURSION-BINDING-UNPROVEN", role + " has no formal", binding.sourceLocation))
+      ElaborationProductDomain.ownerWithCompact(binding.expression, role, binding.sourceLocation)(
+        (root, universe) => ParameterizedStructure.exactChildDomainOf(owner, selfReference,
+          root, universe, role, binding.sourceLocation).values,
+        (root, schema) => ParameterizedStructure.requireCompactChildOwner(owner, selfReference,
+          root, schema, role, binding.sourceLocation))
+      if (!ElabRecursiveComponent.authenticatesReference(selfReference, owner) ||
+          !ElabInt.equivalentExpression(binding.expression, ElabInt.directParameter(formal, binding.sourceLocation).expression))
+        fail("SPINAL-PARAMETERIZED-VERILOG-RECURSION-BINDING-UNPROVEN",
+          role + " must preserve its exact formal unchanged", binding.sourceLocation)
+    }
+    val classified = finiteBindings.map { binding =>
       val role = s"recursive generic '${binding.name}' of '$ownerName'"
       // A provisional expression table is insufficient: the surviving child
       // itself must be owned by the narrowing generate branch. This catches
