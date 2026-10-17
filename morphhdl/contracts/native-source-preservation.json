@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "f0bd143d5d5cf955ae2e870d2744a22fcd8a5dcd"
+      "approved_tree": "9ac9a71bfbb2163b983003b6eb5a1b4ab3cb655a"
     },
     {
       "path": "idslpayload/src/main",
@@ -849,15 +849,16 @@
         "Lightweight roadmap: guarded correlated mask shifts",
         "LWR-28: configuration interval-domain inference",
         "LWR-29: correlated scalar value bounds",
-        "LWR-30: scalable native assignment widths"
+        "LWR-30: scalable native assignment widths",
+        "LWR-33: authenticated compound child-output aliases"
       ],
-      "reason": "Private identity-bound compositional value-function proofs over authenticated declaration roots and schemas. Preserve all dependency axes including canceled and branch-restricted roots, join partially overlapping dependencies, compose attainable extrema for independent groups, and fail closed beyond bounded exact joint evaluation. Bind publication evidence to exact native owners without fabricating a single-root domain or enumerating large Cartesian products. Retain private expression-identity AST certificates and authentic root/schema/scope inventories independently of exact proof. Derive checked compositional publication enclosures without Cartesian calls; keep the existing stronger exact evaluator on demand and authenticate safe physical width as its own AST. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. Retain private, exact-condition-bound finite structural tuple evidence under the unchanged 65,536 tuple cap. Classify diagnostics under authenticated activation without granting integer or width authority; compact and oversized structural products remain rejected. CA-051: replay equality of two private retained packed-width certificates with exact roots, schemas and identical admitted domains. Equality grants no scope-use authority; native owner validation remains separate. Certify a total nonnegative logical right shift, including zero for invalid distances in the original product domain. Exact evaluation and conservative enclosure agree with Verilog integer shift semantics; no guard narrows exported geometry. LWR-28: Add private native declaration ingress using exact schema/root identity and support nonnegative compact intervals; retain external permits, copied-expression rejection and structural-proof limits. LWR-29: Prove scalar carrier representability from authenticated normalized inequalities without changing independent domains or granting structural authority. LWR-30: Use authenticated conservative enclosure and bounded exact fallback for optional width equality, preserving exact-domain APIs and rejecting unproved large-domain relations.",
+      "reason": "Private identity-bound compositional value-function proofs over authenticated declaration roots and schemas. Preserve all dependency axes including canceled and branch-restricted roots, join partially overlapping dependencies, compose attainable extrema for independent groups, and fail closed beyond bounded exact joint evaluation. Bind publication evidence to exact native owners without fabricating a single-root domain or enumerating large Cartesian products. Retain private expression-identity AST certificates and authentic root/schema/scope inventories independently of exact proof. Derive checked compositional publication enclosures without Cartesian calls; keep the existing stronger exact evaluator on demand and authenticate safe physical width as its own AST. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. Retain private, exact-condition-bound finite structural tuple evidence under the unchanged 65,536 tuple cap. Classify diagnostics under authenticated activation without granting integer or width authority; compact and oversized structural products remain rejected. CA-051: replay equality of two private retained packed-width certificates with exact roots, schemas and identical admitted domains. Equality grants no scope-use authority; native owner validation remains separate. Certify a total nonnegative logical right shift, including zero for invalid distances in the original product domain. Exact evaluation and conservative enclosure agree with Verilog integer shift semantics; no guard narrows exported geometry. LWR-28: Add private native declaration ingress using exact schema/root identity and support nonnegative compact intervals; retain external permits, copied-expression rejection and structural-proof limits. LWR-29: Prove scalar carrier representability from authenticated normalized inequalities without changing independent domains or granting structural authority. LWR-30: Use authenticated conservative enclosure and bounded exact fallback for optional width equality, preserving exact-domain APIs and rejecting unproved large-domain relations. LWR-33: Consume only authenticated private finite-width certificates for product-domain comparison; retain exact roots and active domains.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElaborationProductDomain.scala",
         "mode": "100644",
-        "blob": "4e2d3fff215c9ae4621ae05a6f8e32e4a6f74887",
-        "sha256": "9b33f078dbcb1c4146f6a8bd5f09c7db97509065e42d52f9c9c2b56f68c40583"
+        "blob": "870aa4692ed8cbd70e17cb618bb0177b65bb1823",
+        "sha256": "538d86b538cce26f7773409c0ca313988f70da760f9f6f121bafff6857f5e4d4"
       },
       "edits": []
     },
@@ -902,15 +903,16 @@
       "introduced_by": [
         "Increment 59d: generic symbolic result-width provenance and widening reductions",
         "Independent-parameter domain composition corrective repair (2026-09-14)",
-        "PR188: separate symbolic publication provenance from structural proof"
+        "PR188: separate symbolic publication provenance from structural proof",
+        "LWR-33: authenticated compound child-output aliases"
       ],
-      "reason": "Retain the reviewed finite width-specific evaluator and its identity authority. Also consume private compositional product proofs for large independent packed widths, exact attainable extrema, fixed typed relations, branch projection and conditional widths; never turn rendered expressions, copied summaries, or default tuples into proof authority. Clarify that symbolic publication certificates and the retained finite-table/exact-query paths are distinct; no executable change to this file in the symbolic rework.",
+      "reason": "Retain the reviewed finite width-specific evaluator and its identity authority. Also consume private compositional product proofs for large independent packed widths, exact attainable extrema, fixed typed relations, branch projection and conditional widths; never turn rendered expressions, copied summaries, or default tuples into proof authority. Clarify that symbolic publication certificates and the retained finite-table/exact-query paths are distinct; no executable change to this file in the symbolic rework. LWR-33: Project compound child widths through exact formal actuals with exhaustive bounded domain proof; expose a read-only authenticated finite-evidence bridge.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElaborationWidthAuthority.scala",
         "mode": "100644",
-        "blob": "35d2e7729b4d24ee3eb23a8dff2547d62e55aea1",
-        "sha256": "b038d210f10e9e38488c3ba41e4e21b695a0bd1ebdf488605cdb1e2c8f922f27"
+        "blob": "5e43698b6e53d9c65c53bae3817b3486d27dad9e",
+        "sha256": "2858d67a600f73b967b8335972ecc2619805e382378dd85beab5fe81fe5e5d66"
       },
       "edits": []
     },
@@ -1834,15 +1836,16 @@
       "classification": "typed-support-file",
       "introduced_by": [
         "Lightweight child-port width projection repair",
-        "LWR-13\u201316: constructor formals and scoped port/index compositions"
+        "LWR-13\u201316: constructor formals and scoped port/index compositions",
+        "LWR-33: authenticated compound child-output aliases"
       ],
-      "reason": "Resolve immediate child-port direct formal widths through sealed exact component/formal/actual identities for explicit width queries. Preserve child-local declarations and reject unrelated or unbound roots without witness or name substitution. LWR-13\u201316: Expose exact projection into a specified parent scope for native clone and publication sites; preserve immediate-child formal and actual declaration identities.",
+      "reason": "Resolve immediate child-port direct formal widths through sealed exact component/formal/actual identities for explicit width queries. Preserve child-local declarations and reject unrelated or unbound roots without witness or name substitution. LWR-13\u201316: Expose exact projection into a specified parent scope for native clone and publication sites; preserve immediate-child formal and actual declaration identities. LWR-33: Project immediate child port compound widths to parent scope using exact retained formal identities, preserving direct-formal behavior.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/NativeFormalWidthProjection.scala",
         "mode": "100644",
-        "blob": "ab480560595b7863cf3f25ff03d904b8d77581c5",
-        "sha256": "719ff8cf2f73b60aa780c0901b9c738f1aff35c959e679bcf1573fd9a9813003"
+        "blob": "f5e069c8917470ca48d30621ab5c81cc89c7683c",
+        "sha256": "868a19bf162fc581301df2c397729a96a5a43bac4ec5be8f5a50c3ee86e789d4"
       },
       "edits": []
     },

@@ -720,6 +720,10 @@
         "generic Option recursive example mode=bridge default=1",
         "generic Option recursive example mode=bridge default=5"
       ],
+      "morphhdl.CompoundOutputAliasTests": [
+        "compound child output clones preserve literal and symbolic actuals for native packed types",
+        "unrelated same-witness roots and mismatched widths remain rejected"
+      ],
       "morphhdl.ConfigurationDomainInferenceTests": [
         "production CDC domains publish large compact formals and retain override guards",
         "large scalar admission does not admit oversized physical ports",
@@ -2577,6 +2581,9 @@
       "spinal.core.CompactChildOwnerTests": [
         "compact child ownership requires exact parent declaration and child identities",
         "forged compound actual certificates remain rejected"
+      ],
+      "spinal.core.CompoundWidthProjectionSafetyTests": [
+        "compound substitution requires exact complete declarations and authenticated bounded actuals"
       ],
       "spinal.core.ElaborationWidthAuthorityTests": [
         "copying or fabricating public width metadata cannot copy private authority",
@@ -4495,6 +4502,7 @@
     "morphhdl/src/test/scala/morphhdl/CompactGenerateLabelTests.scala": "aa1077f5191aa2c00fc45d3b3762f2717990ec6f3ff2df1a41f52b036781cf63",
     "morphhdl/src/test/scala/morphhdl/CompactReductionExampleTests.scala": "15e5999a710469e78e23a7c6d9823edd5e97b383810cc748e6db904c7bb28463",
     "morphhdl/src/test/scala/morphhdl/ComparisonRoutingContractFixture.scala": "3c97bad965df0b5939bcf30bbf5a4da1776ab2e92ffe2cec852f8bb1ba7e4a0d",
+    "morphhdl/src/test/scala/morphhdl/CompoundOutputAliasTests.scala": "231393b352a3bb5326dd5a3be14a79390cdfb7e5ceb6c7b6064974ac2cd90564",
     "morphhdl/src/test/scala/morphhdl/ConditionalForwardingContractFixture.scala": "17e178ecd03bad24bdddbe29c98d376be7f51b95eea47b633006dd6d0ceb1b7e",
     "morphhdl/src/test/scala/morphhdl/ConditionalWidthContractFixture.scala": "10492466f4281597a997518d2da81166a1c5998f8dc7fcf327fc0d878612642d",
     "morphhdl/src/test/scala/morphhdl/ConfigurationDomainInferenceTests.scala": "33bdf3f841f3d49b98b0b72a34768ad10a7ee7a8364f1f772bc077fa386a9347",
@@ -4705,6 +4713,7 @@
     "morphhdl/src/test/scala/spinal/core/CdcWireGeometryControl.scala": "176221233cc8a8fa99fe3061de8d957ff3e77db80d5da461a3999456df945621",
     "morphhdl/src/test/scala/spinal/core/CentralTypedAuthorityAdversarialTests.scala": "5a19050731152e5cf0807caeb62fa3b012027ee938c616c5bb99501c3a7a25da",
     "morphhdl/src/test/scala/spinal/core/CompactChildOwnerTests.scala": "866cf3192691b18bacf217e8dba438b9fea6a155a8e772020b25ac50c556d67b",
+    "morphhdl/src/test/scala/spinal/core/CompoundWidthProjectionSafetyTests.scala": "37dcacd26e12d5fb2ab9c8d1e53576d70bdced204d70307d07d68b05ad0d1ced",
     "morphhdl/src/test/scala/spinal/core/ElaborationWidthAuthorityTests.scala": "335785d47b15b57f1b8f6fb4a51a8da03b985ea7cd498f64c4a305902bfb1fc3",
     "morphhdl/src/test/scala/spinal/core/FiniteAffineVecReadTests.scala": "6e3032c32892c55d72c377b6608472984f083e076ce7fb37e9a8832a373e1842",
     "morphhdl/src/test/scala/spinal/core/FiniteBitsIndexTests.scala": "9ced75fe09eb94a5db6182f0013d9f01ed8a2a1d1dea3402d4dc591b3dbb7530",

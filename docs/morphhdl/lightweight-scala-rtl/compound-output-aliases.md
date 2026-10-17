@@ -24,3 +24,31 @@ Focused evidence and the isolated production replay are recorded in the adjacent
 `compound-output-aliases.json`. Historical LWR-32 failure evidence is unchanged.
 Application Scala and delivery RTL are unchanged. No full CI or full qualification
 is required by LWR-33; Questa is unavailable in this environment.
+
+## Fresh focused results (18 October 2026)
+
+Both Scala 2.12.18 and 2.13.12 builds pass, with 90 tests passing per version
+(180 total). Coverage includes literal/symbolic aliases, separate equal-schema
+children, all three packed types, minimum/maximum overrides, deterministic output,
+X/Z and randomized simulation, strict Verilog-2001 compilation, Verilator lint,
+Yosys synthesis/checks, and retained ownership/domain/width rejection tests.
+All 62 unchanged application Scala sources compile with both plugins.
+
+The isolated `GenerateDisplayControllerTop <temporary-dir> 32 128 16` replay
+succeeds in **455.625 seconds**, peak RSS **3,229,524 KiB**, at the unchanged
+600-second timeout and 65,536-bit limit. It publishes 77 artifacts and resolves
+the reported `cdc.m_live_payload` connection rejection. The generation log retains
+Spinal's diagnostic retry and its `live.partialGeneration` unassigned-register
+warning. No application tags or source changes suppress that warning.
+
+Full-top Verilator lint exits zero with 11 warnings: seven TIMESCALEMOD, three
+WIDTHEXPAND and one UNOPTFLAT on `formatter.ranks`. This is not warning-free lint.
+Icarus SystemVerilog compilation passes. Full-top strict Verilog-2001 compilation
+rejects the existing external `axivdisplay.v` localparams in its parameter-port
+list; no library source was changed. Full application simulation and synthesis
+are not claimed. The focused alias fixtures pass those behavioral/synthesis checks.
+
+Commands, logs, tested source hashes, artifact hashes and thread snapshots are
+retained under `/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr33-20261018/`.
+`publication.json` records the final commit/tree, branch/dependency synchronization
+and six current-source integrity checks separately from historical evidence.
