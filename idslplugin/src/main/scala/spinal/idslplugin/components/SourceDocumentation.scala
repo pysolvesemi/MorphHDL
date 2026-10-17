@@ -4,7 +4,7 @@ import scala.collection.mutable
 
 /** Source lexer: comments inside quoted literals are never documentation. */
 private[idslplugin] object SourceDocumentation {
-  final case class Comment(start: Int, end: Int, text: String, scaladoc: Boolean, standalone: Boolean, marked: Boolean = false)
+  final case class Comment(start: Int, end: Int, text: String, scaladoc: Boolean, standalone: Boolean, marked: Boolean = false, block: Boolean = false)
   def scan(source: String): Vector[Comment] = {
     val result = mutable.ArrayBuffer.empty[Comment]
     var i = 0
@@ -28,7 +28,7 @@ private[idslplugin] object SourceDocumentation {
           val raw = source.substring(start + (if (doc) 3 else 2), math.max(start + (if (doc) 3 else 2), i - 2))
           val text = raw.replace("\r\n", "\n").replace('\r', '\n').split("\n", -1)
             .map(_.replaceFirst("^\\s*\\* ?", "")).mkString("\n").trim
-          result += Comment(start, i, text, doc, standalone(start))
+          result += Comment(start, i, text, doc, standalone(start), block = true)
         }
       } else if (source.startsWith("\"\"\"", i)) {
         val end = source.indexOf("\"\"\"", i + 3)
@@ -50,11 +50,13 @@ private[idslplugin] object SourceDocumentation {
       } else i += 1
     }
     // Keep ordinary comments in the token stream so they cannot change lexical
-    // attachment boundaries. Only an exact, leading RTL: opts into publication.
+    // attachment boundaries. Markers must be leading and @rtl must be a whole token.
     result.toVector.map { comment =>
       val normalized = comment.text.trim
-      if (normalized.startsWith("RTL:"))
-        comment.copy(text = normalized.substring(4).trim, marked = true)
+      if (normalized == "@rtl" || normalized.startsWith("@rtl") && normalized.length > 4 && normalized(4).isWhitespace)
+        comment.copy(text = normalized.substring(4).replaceFirst("^[ \t]*", "").replaceFirst("\\s+$", ""), marked = true)
+      else if (normalized.startsWith("RTL:"))
+        comment.copy(text = normalized.substring(4).trim, marked = true, block = false)
       else comment
     }
   }

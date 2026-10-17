@@ -212,6 +212,60 @@ class RtlDocumentationTests extends AnyFunSuite {
     assert(!both.contains("Scala-only comment") && !both.contains("not a comment"), both)
   }
 
+  class AtRtlComments extends Component { /* @rtl Module contract */
+    setDefinitionName("Top")
+    val WIDTH = RtlParam.int("WIDTH", 8, 1, 16)
+    // @rtl Input contract
+    val x = in Bits(WIDTH bits)
+    /** @rtl first line comment
+      * second line comment
+      *
+      * third line comment
+      */
+    val y = out Bits(WIDTH bits)
+    /* @rtl
+     * Opening on next line
+     */
+    val saved = Reg(Bits(WIDTH bits)) init(0)
+    /* @rtl Update saved word
+     * with input data
+     */
+    when(x.orR) { saved := x }
+    y := saved
+    /* @rtl Nested /* prose */ stays inert */
+    val kept = Bits(WIDTH bits).dontSimplifyIt()
+    kept := x
+    // @rtlExtra Excluded lookalike
+    val hidden = Bits(WIDTH bits).dontSimplifyIt()
+    hidden := kept
+    y.doc("Explicit text /* remains line prose */")
+  }
+  test("at-rtl comments preserve block style first-line placement and hardware across publication modes") {
+    for (morph <- Seq(false, true); split <- Seq(false, true)) {
+      val plain = emit(morph = morph, split = split)(new AtRtlComments)
+      val rtl = emit(morph = morph, split = split, auto = true, scaladoc = true)(new AtRtlComments)
+      assert(tokens(plain) == tokens(rtl), rtl)
+      assert(rtl.contains("/* Module contract */"), rtl)
+      assert(rtl.contains("// Input contract"), rtl)
+      assert(rtl.contains("/* first line comment\n   * second line comment\n   *\n   * third line comment\n   */"), rtl)
+      assert(rtl.contains("/*\n   * Opening on next line\n   */"), rtl)
+      assert(rtl.contains("/* Update saved word"), rtl)
+      assert(rtl.contains("/* Nested / * prose * / stays inert */"), rtl)
+      assert(rtl.contains("// Explicit text /* remains line prose */"), rtl)
+      assert(!rtl.contains("@rtl") && !rtl.contains("Excluded lookalike"), rtl)
+      assert(rtl == emit(morph = morph, split = split, auto = true, scaladoc = true)(new AtRtlComments))
+      val checked = Files.createTempDirectory("at-rtl-tools-")
+      Files.write(checked.resolve("Top.v"), rtl.getBytes(UTF_8))
+      for (command <- Seq(
+          Seq("iverilog", "-g2001", "-s", "Top", "-o", "compiled", "Top.v"),
+          Seq("verilator", "--lint-only", "--language", "1364-2001", "-Wno-fatal", "-DSYNTHESIS", "Top.v"),
+          Seq("yosys", "-Q", "-T", "-p", "read_verilog Top.v; hierarchy -check -top Top; proc; check -assert; select -assert-none t:$dlatch"))) {
+        val result = Increment66ToolEvidence.run(checked, command)
+        assert(result._1 == 0, command.mkString(" ") + "\n" + result._2)
+      }
+    }
+  }
+
   class MarkedComments extends Component {
     setDefinitionName("Top")
     val WIDTH = RtlParam.int("WIDTH", 8, 1, 16)

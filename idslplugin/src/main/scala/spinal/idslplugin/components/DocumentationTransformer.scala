@@ -50,7 +50,7 @@ class DocumentationTransformer(val global: Global) extends PluginComponent with 
     private def wrapRegion(value: Tree, notes: List[SourceDocumentation.Comment]): Tree =
       notes.foldRight(value) { (note, result) =>
         val module = rootMirror.staticModule("spinal.core.RtlDocumentation")
-        val select = Select(gen.mkAttributedRef(module), TermName("markedRegion"))
+        val select = Select(gen.mkAttributedRef(module), TermName(if (note.block) "markedBlockRegion" else "markedRegion"))
         val call = Apply(Apply(TypeApply(select, List(TypeTree(result.tpe))), List(
           Literal(Constant(note.text)), Literal(Constant(note.scaladoc)))), List(result))
         localTyper.typed(atPos(value.pos)(call))

@@ -96,6 +96,17 @@ class DocumentationPluginTests extends AnyFunSuite {
       .filter(_.marked).map(_.text) == Vector("trailing contract"))
   }
 
+  test("at-rtl markers retain block style and opening-line placement without accepting lookalikes") {
+    import spinal.idslplugin.components.SourceDocumentation
+    val source = "// @rtl line\r\n/* @rtl first\r\n * second\r\n *\r\n * fourth\r\n */\n" +
+      "/** @rtl\n * next-line\n */\n// @rtlExtra no\n// @RTL no\n// prose @rtl no\n// @rtl: no\n" +
+      "val s = \"// @rtl quoted\"\n/* RTL: legacy */\n// @rtl\n"
+    val notes = SourceDocumentation.scan(source).filter(_.marked)
+    assert(notes.map(_.text) == Vector("line", "first\nsecond\n\nfourth", "\nnext-line", "legacy", ""))
+    assert(notes.map(_.block) == Vector(false, true, true, false, false))
+    assert(notes(2).scaladoc)
+  }
+
   test("comment-only recompilation updates embedded metadata and requires no runtime source") {
     def source(note: String) = core + s"""object Probe {
       val value = new spinal.core.Data // RTL: $note

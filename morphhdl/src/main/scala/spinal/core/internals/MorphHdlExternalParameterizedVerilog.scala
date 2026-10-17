@@ -292,15 +292,15 @@ object MorphHdlExternalParameterizedVerilog {
           // Lower their retained arithmetic through the same portable helper.
           ExternalParameterizedVerilogNativeFallback.lowerRetainedIntegerHelpers(NativeBranchOutputForwarding.publish(component, NativeLateSequentialMerge.publish(component, withArrays)), component.definitionName)
         }
-        val documented = NativeFiniteStatementLineage.finish(component, RtlDocumentation.finishPublication(component, RtlDocumentation.publish(rewritten, ParameterizedVerilogVecs.documentationBindings(component, pc))))
+        val documented = NativeFiniteStatementLineage.finish(component, RtlDocumentation.finishPublication(component, RtlDocumentation.publishNotes(rewritten, ParameterizedVerilogVecs.documentationBindings(component, pc))))
         val named = NativeGenerateIndexNames.publish(component, NativeAreaLocalNames.publish(component, documented, pc))
         val formatted = if (ParameterizedVerilogStructural.hasRegions(component)) NativeStructuralIndentation.publish(named) else named
         Some(name -> formatted.split("\n", -1).toVector)
-      } else if (RtlDocumentation.declarationBindings(component).nonEmpty || RtlDocumentation.emissions(component).nonEmpty) {
+      } else if (RtlDocumentation.declarationNotes(component).nonEmpty || RtlDocumentation.emissions(component).nonEmpty) {
         val publication = if (pc.config.oneFilePerComponent) splitPublications(name) else consolidated.get
         val block = if (pc.config.oneFilePerComponent) publication.blocks.head else blockByName(name)
         val text = publication.lines.slice(block.start, block.end + 1).mkString("\n")
-        Some(name -> RtlDocumentation.finishPublication(component, RtlDocumentation.publish(text, RtlDocumentation.declarationBindings(component))).split("\n", -1).toVector)
+        Some(name -> RtlDocumentation.finishPublication(component, RtlDocumentation.publishNotes(text, RtlDocumentation.declarationNotes(component))).split("\n", -1).toVector)
       } else None
     }.toMap
 

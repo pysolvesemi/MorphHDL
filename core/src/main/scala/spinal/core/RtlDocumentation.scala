@@ -47,6 +47,31 @@ object rtlDoc {
 }
 
 object RtlDocumentation {
+  /** Rendering style is metadata; explicit .doc/rtlDoc strings stay line comments. */
+  final case class Note(content: String, block: Boolean = false) {
+    def signature: String = (if (block) "block:" else "line:") + content
+  }
+  def note(tag: CommentTag): Note = tag match {
+    case t: RtlDocTag => Note(text(t.comment), t.origin.endsWith("-block"))
+    case t => Note(text(t.comment))
+  }
+  def notes(host: SpinalTagReady, projections: Boolean = true): Vector[Note] =
+    host.getTags().toVector.collect {
+      case t: RtlDocTag if projections || !t.projection => note(t)
+      case t: CommentTag if !t.isInstanceOf[RtlDocTag] => note(t)
+    }.filter(_.content.nonEmpty)
+  def render(comments: Seq[Note], indent: String = ""): String = comments.map { note =>
+    if (!note.block) lines(Vector(note.content), indent)
+    else {
+      // Scala block comments nest; Verilog comments do not. Keep embedded
+      // delimiters as inert prose rather than allowing comment termination.
+      val rows = text(note.content).replace("/*", "/ *").replace("*/", "* /").split("\n", -1)
+      if (rows.length == 1) indent + "/* " + rows.head + " */\n"
+      else indent + "/*" + (if (rows.head.isEmpty) "" else " " + rows.head) + "\n" +
+        rows.tail.map(row => indent + " *" + (if (row.isEmpty) "" else " " + row) + "\n").mkString + indent + " */\n"
+    }
+  }.mkString
+
   // Elaboration-owned identity storage keeps documentation off the JVM trait
   // interface: existing compiled Statement implementations require no new fields.
   private object AnchorRegions
@@ -61,7 +86,8 @@ object RtlDocumentation {
     } else require(notes.isEmpty, "RTL region documentation requires an elaboration context")
   }
 
-  final class RegionNote(val content: String) {
+  final class RegionNote(val content: String, val block: Boolean = false) {
+    def note: Note = Note(content, block)
     private[spinal] val component = Component.current
     private[spinal] var valid = false
     private[spinal] var generatedOwners = Vector.empty[AnyRef]
@@ -78,11 +104,17 @@ object RtlDocumentation {
     if (if (scaladoc) options.captureScaladoc else options.captureScalaComments) region(message)(body)
     else body
   }
-  def region[T](message: String)(body: => T): T = {
+  def markedBlockRegion[T](message: String, scaladoc: Boolean)(body: => T): T = {
+    val options = RtlDocumentationOptions.of(GlobalData.get.config)
+    if (if (scaladoc) options.captureScaladoc else options.captureScalaComments) styledRegion(message, true)(body)
+    else body
+  }
+  def region[T](message: String)(body: => T): T = styledRegion(message, false)(body)
+  private def styledRegion[T](message: String, block: Boolean)(body: => T): T = {
     val content = text(message)
     if (content.isEmpty) return body
     val previous = regions.get()
-    val note = new RegionNote(content)
+    val note = new RegionNote(content, block)
     regions.set(previous :+ note)
     try {
       val result = body
@@ -104,7 +136,7 @@ object RtlDocumentation {
     claimGenerated(host, members)
   }
   private[spinal] def generatedLines(host: RtlDocumentationAnchor, indent: String): String =
-    lines(host.rtlDocumentation.filter(n => n.valid && n.generatedOwners.exists(_ eq host)).map(_.content), indent)
+    render(host.rtlDocumentation.filter(n => n.valid && n.generatedOwners.exists(_ eq host)).map(_.note), indent)
 
   /** Exact emission envelopes transport free-standing comments with their owner
     * through relocation. They are internal handoff markers, removed at publication. */
@@ -145,7 +177,7 @@ object RtlDocumentation {
   def attach[T](value: T, message: String, origin: String = "explicit", location: String = "", definition: Boolean = false): T = {
     val content = text(message)
     val legacyAutomatic = origin == "scala" || origin == "scaladoc"
-    val automatic = legacyAutomatic || origin == "rtl-scala" || origin == "rtl-scaladoc"
+    val automatic = legacyAutomatic || origin == "rtl-scala" || origin == "rtl-scaladoc" || origin == "rtl-scala-block" || origin == "rtl-scaladoc-block"
     val options = RtlDocumentationOptions.of(GlobalData.get.config)
     if (origin == "unavailable") return value // Legacy unmarked source without ranges.
     if (origin == "rtl-unavailable") {
@@ -153,7 +185,7 @@ object RtlDocumentation {
       return value
     }
     val enabled = !legacyAutomatic && (!automatic ||
-      (if (origin == "rtl-scaladoc") options.captureScaladoc else options.captureScalaComments))
+      (if (origin == "rtl-scaladoc" || origin == "rtl-scaladoc-block") options.captureScaladoc else options.captureScalaComments))
     if (enabled && content.nonEmpty) {
       val tag = new RtlDocTag(content, origin, location)
       value match {
@@ -185,15 +217,22 @@ object RtlDocumentation {
   def lines(comments: Seq[String], indent: String = ""): String =
     comments.flatMap(text(_).split("\n", -1)).map(indent + "// " + _ + "\n").mkString
 
+  // Preserve the existing plain-text helpers for source/binary callers.
   def declarationBindings(component: Component, excluded: Set[BaseType] = Set.empty,
-      seen: mutable.Set[RtlDocTag] = mutable.HashSet.empty[RtlDocTag]): Map[String, Vector[String]] = {
-    val result = mutable.LinkedHashMap.empty[String, Vector[String]]
+      seen: mutable.Set[RtlDocTag] = mutable.HashSet.empty[RtlDocTag]): Map[String, Vector[String]] =
+    declarationNotes(component, excluded, seen).map { case (name, values) => name -> values.map(_.content) }
+  def publish(source: String, bindings: Map[String, Vector[String]]): String =
+    publishNotes(source, bindings.map { case (name, values) => name -> values.map(Note(_)) })
+
+  def declarationNotes(component: Component, excluded: Set[BaseType] = Set.empty,
+      seen: mutable.Set[RtlDocTag] = mutable.HashSet.empty[RtlDocTag]): Map[String, Vector[Note]] = {
+    val result = mutable.LinkedHashMap.empty[String, Vector[Note]]
     component.dslBody.walkStatements {
       case value: BaseType if value.component == component && !value.isSuffix && !excluded(value) =>
         val notes = value.getTags().toVector.collect {
-          case t: RtlDocTag if !t.projection || seen.add(t) => t.comment
-          case t: CommentTag if !t.isInstanceOf[RtlDocTag] => text(t.comment)
-        }.filter(_.nonEmpty)
+          case t: RtlDocTag if !t.projection || seen.add(t) => note(t)
+          case t: CommentTag if !t.isInstanceOf[RtlDocTag] => note(t)
+        }.filter(_.content.nonEmpty)
         if (notes.nonEmpty && value.getName() != null) result(value.getName()) = notes
       case _ =>
     }
@@ -202,7 +241,7 @@ object RtlDocumentation {
 
   /** Names are obtained from live declarations/retained layout plans, not guessed
     * from source spelling. Missing declarations correspond to removed hardware. */
-  def publish(source: String, bindings: Map[String, Vector[String]]): String = {
+  def publishNotes(source: String, bindings: Map[String, Vector[Note]]): String = {
     if (bindings.isEmpty) return source
     val declaration = "^([ \\t]*)(?:\\(\\*.*?\\*\\)\\s*)*(?:(?:input|output|inout)\\s+)?(?:wire|reg)\\b.*".r
     source.split("\n", -1).map { line =>
@@ -213,8 +252,8 @@ object RtlDocumentation {
           }
           require(matches.size <= 1, "ambiguous RTL documentation declaration")
           matches.headOption.map { case (_, notes) =>
-            if (notes.size == 1 && !notes.head.contains("\n") && notes.head.length <= 80) line + " // " + notes.head
-            else lines(notes, indent) + line
+            if (notes.size == 1 && !notes.head.block && !notes.head.content.contains("\n") && notes.head.content.length <= 80) line + " // " + notes.head.content
+            else render(notes, indent) + line
           }.getOrElse(line)
         case _ => line
       }
@@ -232,13 +271,13 @@ object RtlDocumentation {
     component.dslBody.walkStatements { statement =>
       val notes = statement.rtlDocumentation.filter(n => n.valid && (n.component eq component)).map { note =>
         val id = noteIds.getOrElseUpdate(note, noteIds.size)
-        encode(Vector(id.toString, note.content, encode(note.generatedOwners.map(ownerSignature))))
+        encode(Vector(id.toString, note.note.signature, encode(note.generatedOwners.map(ownerSignature))))
       }
       if (notes.nonEmpty) regions += encode(notes)
     }
-    val declarations = declarationBindings(component).toVector.sortBy(_._1).map {
-      case (name, notes) => encode(name +: notes)
+    val declarations = declarationNotes(component).toVector.sortBy(_._1).map {
+      case (name, notes) => encode(name +: notes.map(_.signature))
     }
-    encode(Vector(encode(comments(component.definition)), encode(declarations), encode(regions.toVector)))
+    encode(Vector(encode(notes(component.definition).map(_.signature)), encode(declarations), encode(regions.toVector)))
   }
 }

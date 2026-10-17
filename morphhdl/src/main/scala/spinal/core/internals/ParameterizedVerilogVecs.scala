@@ -2569,7 +2569,7 @@ private[internals] object ParameterizedVerilogVecs {
     lines.mkString("\n")
   }
 
-  def documentationBindings(component: Component, pc: PhaseContext): Map[String, Vector[String]] = {
+  def documentationBindings(component: Component, pc: PhaseContext): Map[String, Vector[RtlDocumentation.Note]] = {
     val plans = analyze(component, publicationVectors(component), pc).filter(_.projection.isEmpty)
     val layoutLeaves = plans.flatMap(_.leaves.map(_.value)).toSet
     val firstProjection = scala.collection.mutable.Map.empty[RtlDocTag, BaseType]
@@ -2583,15 +2583,15 @@ private[internals] object ParameterizedVerilogVecs {
     }
     val deferredGroups = firstProjection.collect { case (tag, leaf) if layoutLeaves(leaf) => tag }.toSet
     val documentedGroups = scala.collection.mutable.HashSet.empty[RtlDocTag] ++ deferredGroups
-    val result = scala.collection.mutable.Map.empty[String, Vector[String]] ++
-      RtlDocumentation.declarationBindings(component, layoutLeaves, documentedGroups)
+    val result = scala.collection.mutable.Map.empty[String, Vector[RtlDocumentation.Note]] ++
+      RtlDocumentation.declarationNotes(component, layoutLeaves, documentedGroups)
     documentedGroups --= deferredGroups
     plans.foreach { plan =>
       def containsLayout(data: Data): Boolean = (data eq plan.vector) || (data match {
         case aggregate: MultiData => aggregate.elements.exists { case (_, field) => containsLayout(field) }
         case _ => false
       })
-      val aggregate = RtlDocumentation.comments(plan.vector, projections = false)
+      val aggregate = RtlDocumentation.notes(plan.vector, projections = false)
       val fields = plan.layout.map(_.fields.map(_.name)).getOrElse(Vector(plan.name))
       fields.zipWithIndex.foreach { case (name, ordinal) =>
         val leaves = plan.leaves.filter(leaf => plan.layout.forall(_.fieldForLeaf(leaf.leafIndex).name == name))
@@ -2599,9 +2599,9 @@ private[internals] object ParameterizedVerilogVecs {
           leaf.value.getTags().toVector.collect {
             case t: RtlDocTag if !t.projection || ((t.aggregate ne plan.vector) && firstProjection.get(t).forall(_ eq leaf.value) && documentedGroups.add(t)) =>
               val containsPlan = t.projection && t.aggregate != null && containsLayout(t.aggregate)
-              if (containsPlan) t.comment else s"Element ${leaf.elementIndex}, field ${leaf.leafIndex}: ${t.comment}"
+              if (containsPlan) RtlDocumentation.note(t) else RtlDocumentation.note(t).copy(content = s"Element ${leaf.elementIndex}, field ${leaf.leafIndex}: ${t.comment}")
             case t: CommentTag if !t.isInstanceOf[RtlDocTag] =>
-              s"Element ${leaf.elementIndex}, field ${leaf.leafIndex}: ${t.comment}"
+              RtlDocumentation.Note(s"Element ${leaf.elementIndex}, field ${leaf.leafIndex}: ${t.comment}")
           }
         }
         val all = (if (ordinal == 0) aggregate else Vector.empty) ++ notes

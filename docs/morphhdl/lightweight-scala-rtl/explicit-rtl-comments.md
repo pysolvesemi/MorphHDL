@@ -1,25 +1,39 @@
 # Explicit source comments (LWR-18)
 
-Only an exact leading `RTL:` marker opts a Scala comment into generated hardware
+An exact leading `@rtl` token opts a Scala comment into generated hardware
 documentation. Enable `RtlDocumentationOptions(captureScalaComments = true)` and
 compile with the IDSL plugin and `-Yrangepos`:
 
 ```scala
 // Implementation detail: this stays in Scala.
-// RTL: Sticky timeout indication; reset clears it.
+// @rtl Sticky timeout indication; reset clears it.
 val fault = Reg(Bool()) init(False)
 
-/* RTL:
- * Pair adjacent lanes.
+/* @rtl Pair adjacent lanes.
  * Preserve the final unpaired lane.
  */
 val paired = makePairs()
 ```
 
-The marker and conventional block-comment stars do not appear in Verilog.
-`/** RTL: ... */` additionally requires `captureScaladoc = true`. Ordinary
+The marker is removed. `// @rtl` emits a Verilog line comment; `/* @rtl` and
+`/** @rtl` emit Verilog block comments. The first text remains on the opening
+line if authored there; an opening newline remains a newline. Conventional leading
+stars and indentation are normalized, and internal blank lines are preserved:
+
+```verilog
+/* Pair adjacent lanes.
+ * Preserve the final unpaired lane.
+ */
+```
+
+Scala permits nested block comments but Verilog does not. Embedded `/*` and `*/`
+in comment prose become `/ *` and `* /` to prevent terminating or nesting the
+emitted comment. This escaping changes documentation only.
+
+`RTL:` remains a compatibility alias with its previous line-comment rendering.
+`/** @rtl ... */` (or legacy `/** RTL: ... */`) additionally requires `captureScaladoc = true`. Ordinary
 Scaladoc is excluded even with that flag enabled. Empty markers emit nothing;
-`rtl:` and markers inside prose, strings or character literals do not opt in.
+`@RTL`, `@rtlExtra`, `@rtl:`, `rtl:` and markers inside prose, strings or character literals do not opt in.
 Unmarked comments adjacent to marked comments remain unpublished and preserve
 lexical attachment boundaries. Detached comments and ambiguous same-line
 declarations retain the existing ownership rules; use `.doc` for ambiguity.
@@ -43,3 +57,7 @@ CRLF, block stars, quoted marker text, source deletion and recompilation, range
 position diagnostics, explicit APIs, direct/helper aliases, module sharing, pruned
 owners, library-generated synchronizers, deterministic emission and unchanged
 non-comment RTL tokens. See `explicit-rtl-comments-receipt.json` for exact checks.
+
+The `@rtl` extension has additional style, blank-line, opening-line, nested-delimiter
+and legacy-compatibility regressions. Its fresh evidence is recorded in
+`at-rtl-comments-receipt.json`; the earlier LWR-18 receipt remains historical.

@@ -951,13 +951,13 @@ object MorphVerilog {
         } else {
           // The native banner is discarded, but the first module's definition
           // documentation belongs to its retained Component identity.
-          val definitionNotes = scala.collection.mutable.ArrayBuffer.empty[Vector[String]]
+          val definitionNotes = scala.collection.mutable.ArrayBuffer.empty[Vector[spinal.core.RtlDocumentation.Note]]
           report.toplevel.walkComponents { component =>
             if (component.definitionName == moduleNames.head)
-              definitionNotes += spinal.core.RtlDocumentation.comments(component.definition)
+              definitionNotes += spinal.core.RtlDocumentation.notes(component.definition)
           }
           require(definitionNotes.distinct.size == 1, "first published module has ambiguous documentation ownership")
-          val prefix = spinal.core.RtlDocumentation.lines(definitionNotes.head)
+          val prefix = spinal.core.RtlDocumentation.render(definitionNotes.head)
           Right(prefix + lines.slice(firstModule, lastEndmodule + 1).mkString("\n") + "\n")
         }
       }

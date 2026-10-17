@@ -29,7 +29,7 @@ class SourceDocumentationTransformer(val global: Global) extends PluginComponent
       val column = comment.start - unit.source.lineToOffset(line)
       val location = s"${unit.source.file.path}:${line + 1}:${column + 1}"
       Apply(Select(New(tpe), termNames.CONSTRUCTOR), List(Literal(Constant(comment.text)),
-        Literal(Constant(if (comment.scaladoc) "rtl-scaladoc" else "rtl-scala")), Literal(Constant(location))))
+        Literal(Constant(if (comment.block) { if (comment.scaladoc) "rtl-scaladoc-block" else "rtl-scala-block" } else if (comment.scaladoc) "rtl-scaladoc" else "rtl-scala")), Literal(Constant(location))))
     }
     def notes(tree: Tree, mods: Modifiers, header: Boolean): List[Tree] = {
       if (global.useOffsetPositions && comments.exists(_.marked)) {

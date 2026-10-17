@@ -52,7 +52,7 @@ class ComponentEmitterVerilog(
   private val emittedRegionNotes = mutable.HashSet.empty[RtlDocumentation.RegionNote]
   private def emitRegionNotes(host: RtlDocumentationAnchor, b: StringBuilder, indent: String): Unit = {
     val notes = host.rtlDocumentation.filter(n => n.valid && (n.component eq component) && n.generatedOwners.isEmpty && emittedRegionNotes.add(n))
-    b ++= RtlDocumentation.lines(notes.map(_.content), indent)
+    b ++= RtlDocumentation.render(notes.map(_.note), indent)
   }
 
 
@@ -80,7 +80,7 @@ class ComponentEmitterVerilog(
       |endmodule
       |""".stripMargin
     if (spinalConfig.flags.contains(RtlDocumentation.Deferred)) rtl
-    else RtlDocumentation.publish(rtl, RtlDocumentation.declarationBindings(component))
+    else RtlDocumentation.publishNotes(rtl, RtlDocumentation.declarationNotes(component))
   }
 
 
