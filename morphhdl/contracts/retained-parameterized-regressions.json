@@ -1819,6 +1819,17 @@
         "a native adapter invocation rejects an unproven second symbolic root",
         "typed native StreamWidthAdapter emits one parameterized top covering all three native modes"
       ],
+      "morphhdl.PrecompiledReductionLabelTests": [
+        "separately compiled reduction keeps automatic branch ownership sum default=1 split=false",
+        "separately compiled reduction keeps automatic branch ownership sum default=1 split=true",
+        "separately compiled reduction keeps automatic branch ownership sum default=16 split=false",
+        "separately compiled reduction keeps automatic branch ownership sum default=16 split=true",
+        "separately compiled reduction keeps automatic branch ownership or default=1 split=false",
+        "separately compiled reduction keeps automatic branch ownership or default=1 split=true",
+        "separately compiled reduction keeps automatic branch ownership or default=16 split=false",
+        "separately compiled reduction keeps automatic branch ownership or default=16 split=true",
+        "explicit consumer labels and reserved declaration names remain distinct"
+      ],
       "morphhdl.PublicationDecisionTests": [
         "native separation report identifies logic differences without changing RTL",
         "publication failure returns structured code and source location and releases capture",
@@ -4621,6 +4632,7 @@
     "morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala": "85b2d2d36e419e7b6e7fd7e9e5be3d3daec450267b5ff4f02d3de1c9ac3809c4",
     "morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala": "0eb60d07a03a73b99a71cac9e52c4bd29ee8c5e9ecca950777e729286c3f404b",
     "morphhdl/src/test/scala/morphhdl/ParameterizedWireContractFixture.scala": "72d5584335a3139ece5b6f936715322b32d8d37d6e5e343e7e9d6128d631fce6",
+    "morphhdl/src/test/scala/morphhdl/PrecompiledReductionLabelTests.scala": "7f538b1daef5b9b943820645b411de8691448ea2046108d5f2f8dedca3daced7",
     "morphhdl/src/test/scala/morphhdl/ProcessExpressionLineageTests.scala": "0d5d884b771a18e0adb4d41d7b7a74aa6ef0ec73b971176fb03e2a7f7ab9c3b2",
     "morphhdl/src/test/scala/morphhdl/PublicationDecisionTests.scala": "e7693affa99b9570684e67f1c4c280079cec5d24d00e99878a906559afefed35",
     "morphhdl/src/test/scala/morphhdl/PureSIntCastTests.scala": "c2d8d0eeaba13d3c41c19b7081c5a011f8030cc2eeb92e23dd2f4ace198b0ef6",
