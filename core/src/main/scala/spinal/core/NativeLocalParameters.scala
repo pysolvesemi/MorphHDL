@@ -11,7 +11,7 @@ import scala.collection.mutable.ArrayBuffer
 object NativeLocalParameters {
   private[core] final case class Calculation(operator: String,
       operands: Vector[ElaborationIntegerExpression])
-  private final case class Binding(expression: ElaborationIntegerExpression, hint: String, packedWidth: Option[Int] = None)
+  private final case class Binding(expression: ElaborationIntegerExpression, hint: String, packedWidth: Option[Int] = None, integer: Boolean = false)
   private class State {
     val bindings = ArrayBuffer.empty[Binding]
     val names = new IdentityHashMap[ElaborationIntegerExpression, String]()
@@ -78,10 +78,19 @@ object NativeLocalParameters {
     if (automatic < 0) retained.bindings += explicit else retained.bindings.update(automatic, explicit)
   }
 
-  private[spinal] def typedExpressions(owner: Component): Vector[ElaborationIntegerExpression] =
-    existing(owner).toVector.flatMap(_.bindings.filter(_.packedWidth.nonEmpty).map(_.expression))
+  private[core] def bindInteger(owner: Component, value: ElabInt, hint: String): ElabInt = {
+    val copied = value + ElabInt.literal(0)
+    bindTyped(owner, copied, hint, 32)
+    val retained=state(owner)
+    val index=retained.bindings.indexWhere(_.expression eq copied.expression)
+    retained.bindings.update(index,retained.bindings(index).copy(integer=true))
+    copied
+  }
 
-  private[spinal] def hasTyped(owner: Component): Boolean = typedExpressions(owner).nonEmpty
+  private[spinal] def typedExpressions(owner: Component): Vector[ElaborationIntegerExpression] =
+    existing(owner).toVector.flatMap(_.bindings.filter(_.packedWidth.nonEmpty).map(_.expression)) ++ NativeParameterConstants.expressions(owner)
+
+  private[spinal] def hasTyped(owner: Component): Boolean = typedExpressions(owner).nonEmpty || NativeParameterConstants.nonEmpty(owner)
 
   private def name(hint: String): String = {
     val words = hint.replaceAll("([a-z0-9])([A-Z])", "$1_$2")
@@ -135,6 +144,10 @@ object NativeLocalParameters {
     existing(owner).flatMap(value => Option(value.names.get(origin(expression))))
 
   /** Width of a published local's declaration, not its current value witness. */
+  private[core] def declarationWidth(owner: Component, expression: ElaborationIntegerExpression): Option[Int] =
+    existing(owner).flatMap(_.bindings.find(_.expression eq origin(expression)))
+      .map(_.packedWidth.getOrElse(32))
+
   private[spinal] def referenceWidth(owner: Component,
       expression: ElaborationIntegerExpression): Option[Int] =
     existing(owner).filter(value => value.names.containsKey(origin(expression)))
@@ -174,11 +187,13 @@ object NativeLocalParameters {
   private[core] def declarations(owner: Component): String = existing(owner).map { retained =>
     retained.ordered.map { expression =>
       val packed = retained.bindings.find(_.expression eq expression).flatMap(_.packedWidth)
-      val kind = packed.map(width => s"[${width - 1}:0]").getOrElse("integer")
+      val integer=retained.bindings.find(_.expression eq expression).exists(_.integer)
+      val kind = if(integer) "integer" else packed.map(width => s"[${width - 1}:0]").getOrElse("integer")
       val sizingName = Option(retained.sizingNames.get(expression))
       val intermediate = sizingName.map(name =>
         s"  localparam [31:0] $name = ${render(owner, expression, true)};\n").getOrElse("")
       val rhs = packed match {
+        case _ if integer => render(owner, expression, true)
         case Some(width) if expression.parameters.isEmpty && expression.localCalculation.isEmpty => s"${width}'d${expression.default}"
         case Some(width) if sizingName.nonEmpty && width < 32 => s"${sizingName.get}[${width-1}:0]"
         // The sized operand also fixes the width of a zero-valued parameter

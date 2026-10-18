@@ -7,6 +7,59 @@ package spinal.core
 @scala.annotation.compileTimeOnly("Param[T] requires the MorphHDL compiler plugin")
 sealed trait Param[T]
 object Param {
+  /** `local` defaults to false for declaration syntax. Explicit options require
+    * a compiler-owned declaration so a name and lexical owner are available.
+    */
+  @scala.annotation.compileTimeOnly("Param local options require an immutable declaration and the MorphHDL compiler plugin")
+  def apply[T](value:T, local:Boolean):T =
+    throw new UnsupportedOperationException("unlowered parameter declaration")
+  @scala.annotation.compileTimeOnly("Param local options require an immutable declaration and the MorphHDL compiler plugin")
+  def apply[T](value:T, name:String, local:Boolean):T =
+    throw new UnsupportedOperationException("unlowered parameter declaration")
+
+  /** Declaration lowering shared by annotations and inferred factory declarations. */
+  def declareInt(name:String,value:Int,local:Boolean,minimum:BigInt,maximum:BigInt):ElabInt =
+    declareInt(name,ElabInt.literal(value),local,minimum,maximum)
+  def declareInt(name:String,value:ElabInt,local:Boolean,minimum:BigInt,maximum:BigInt):ElabInt = {
+    require(value != null,"SPINAL-PARAM-CONSTANT-INVALID: null or cyclic parameter initializer")
+    require(local || value.expression.typedLocalOwner == null,
+      "SPINAL-PARAM-LOCAL-FORWARD: a private local cannot become a public formal")
+    if(local) declare(name,value,true) else RtlParam.int(name,value,minimum,maximum)
+  }
+  def declare(name:String, value:Int, local:Boolean):ElabInt = declare(name,ElabInt.literal(value),local)
+  def declare(name:String, value:Boolean, local:Boolean):ElabBool = declare(name,ElabBool.literal(value),local)
+  def declare(name:String, value:ElabBool, local:Boolean):ElabBool = {
+    require(value != null,"SPINAL-PARAM-CONSTANT-INVALID: null or cyclic Boolean initializer")
+    if(local) declare(name,value.toElabInt,true).elabEq(1) else RtlParam.bool(name,value)
+  }
+  def declare(name:String, value:ElabInt, local:Boolean):ElabInt = {
+    require(Component.current != null && (DslScopeStack.get eq Component.current.dslBody),
+      "SPINAL-PARAM-DECLARATION-SCOPE: parameters need an unconditional Component declaration")
+    require(value != null && (local || value.expression.typedLocalOwner == null),
+      "SPINAL-PARAM-LOCAL-FORWARD: a private local cannot become a public formal")
+    if(local) NativeLocalParameters.bindInteger(Component.current,value,name)
+    else RtlParam.int(name,value,0,Int.MaxValue)
+  }
+  def declare[T <: BaseType](name:String, value:T, local:Boolean):T = {
+    if(local) NativeParameterConstants.declare(name,value)
+    else {
+      val (actual,kind)=value match {
+        case b:BitVector => (apply(b),b match {case _:Bits=>"Bits";case _:UInt=>"UInt";case _:SInt=>"SInt"})
+        case b:Bool =>
+          val literal=b.head match {
+            case spinal.core.internals.DataAssignmentStatement(_,v:spinal.core.internals.BoolLiteral) => v.value
+            case _=>throw new IllegalArgumentException("SPINAL-PARAM-LITERAL-REQUIRED: Bool default must be a literal")
+          }
+          val formal=RtlParam.packed(name,U(if(literal)1 else 0,1 bits),0,1,"UInt")
+          return NativeParameterConstants.declare(name,value,Some(formal))
+        case _=>throw new IllegalArgumentException("SPINAL-PARAM-TYPE-UNSUPPORTED")
+      }
+      val representation=actual.packedRepresentation.get
+      val formal=RtlParam.packed(name,actual,representation.minimum,representation.maximum,kind)
+      NativeParameterConstants.declare(name,value,Some(formal))
+    }
+  }
+
   /** Forward an optional constructor formal with its exact declared presence.
     * The effective value in the component body is zero when absent.
     */
@@ -28,6 +81,7 @@ object Param {
     * Hardware signals and inferred-width literals cannot become parameters.
     */
   def apply(value: BitVector): ElabInt = {
+    NativeParameterConstants.formalActual(value).foreach(v => return v)
     import spinal.core.internals.{BitVectorLiteral, DataAssignmentStatement}
     require(value != null && value.isTypeNode && !value.isIo && !value.isReg,
       "SPINAL-PARAM-LITERAL-REQUIRED: packed defaults must be literal values")

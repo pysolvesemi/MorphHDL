@@ -33,6 +33,12 @@ import spinal.idslplugin.Location
 
 
 package object core extends BaseTypeFactory with BaseTypeCast {
+  /** Semantic declaration annotations resolved by the MorphHDL frontend. */
+  @scala.annotation.compileTimeOnly("@param requires the MorphHDL compiler plugin")
+  type param = HdlParameterAnnotation
+  @scala.annotation.compileTimeOnly("@localparam requires the MorphHDL compiler plugin")
+  type localparam = HdlLocalParameterAnnotation
+
 
   import languageFeature.implicitConversions
 

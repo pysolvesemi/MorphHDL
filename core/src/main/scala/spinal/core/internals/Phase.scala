@@ -1822,17 +1822,19 @@ class PhaseSimplifyNodes(pc: PhaseContext) extends PhaseNetlist{
     //propagate literals over one basetype
     walkStatements{s =>
       s.remapDrivingExpressions{
-        case e : BaseType if e.isComb && !e.isNamed && e.isDirectionLess && Statement.isSomethingToFullStatement(e) => e.head match {
+        case e : BaseType if e.isComb && (!e.isNamed || NativeParameterConstants.isCarrier(e)) && e.isDirectionLess && Statement.isSomethingToFullStatement(e) => e.head match {
           case DataAssignmentStatement(_, lit : Literal) =>
             val replacement = lit.clone // An Expression can occur only once in the graph.
             ParameterizedVec.recordStaticLiteralNormalization(s, e, lit, replacement)
             replacement
           case DataAssignmentStatement(_, local: TypedLocalUInt.Reference) => local.fresh
+          case DataAssignmentStatement(_, local: NativeParameterConstants.Reference) => local.fresh
           case _ => e
         }
         case e => e
       }
     }
+    walkComponents(NativeParameterConstants.lower)
   }
 }
 
@@ -2401,6 +2403,7 @@ class PhaseCompletSwitchCases extends PhaseNetlist{
     walkStatements{
       case s: SwitchStatement =>
         TypedLocalUInt.validateSwitch(s)
+        NativeParameterConstants.validateSwitch(s)
         var failed = false
         s.elements.foreach{element =>
           if(element.keys.size > 1){

@@ -66,9 +66,10 @@ object ElabValue {
     val expression=ElaborationPublicationValue.projected(value,"typed SInt value",
       "SPINAL-PARAMETERIZED-VERILOG-VALUE-EXACT-DOMAIN-REQUIRED",requireProjectedExactExtrema=true)
     ExternalParameterizedValueRegistry.validateCarrierDomain(prototype,expression,expression.sourceLocation)
+    NativeParameterConstants.fromLocal(value,prototype).foreach(result=>return result)
     val width=prototype.getBitsWidth
     val retainedWidth=ParameterizedWidth.expressionOf(prototype).filter(_.parameters.nonEmpty)
-    if(expression.parameters.isEmpty && retainedWidth.isEmpty) S(expression.default,width bits)
+    if(expression.parameters.isEmpty && retainedWidth.isEmpty && expression.typedLocalOwner == null) S(expression.default,width bits)
     else {
       val result=retainedWidth.map(w=>SInt(ElabInt.fromExpression(w).bits)).getOrElse(SInt(width bits))
       result.setName(retainedValueName(stableName))
@@ -111,13 +112,14 @@ object ElabValue {
         prototypeWidth,
         s"typed UInt constant $witness cannot be represented by an unsigned carrier"
       )
-    if (expression.parameters.nonEmpty || symbolicPrototype)
+    if (expression.parameters.nonEmpty || symbolicPrototype || expression.typedLocalOwner != null)
       ExternalParameterizedValueRegistry.validateCarrierDomain(
         prototype,
         expression,
         expression.sourceLocation
       )
-    if (expression.parameters.isEmpty && !symbolicPrototype)
+    NativeParameterConstants.fromLocal(value,prototype).foreach(result=>return result)
+    if (expression.parameters.isEmpty && !symbolicPrototype && expression.typedLocalOwner == null)
       U(witness, width bits)
     else {
       val result = prototypeWidth match {
@@ -135,7 +137,7 @@ object ElabValue {
       result.assignFrom(
         spinal.core.internals.UIntLiteral(witness, null, width)
       )
-      if (expression.parameters.nonEmpty || symbolicPrototype)
+      if (expression.parameters.nonEmpty || symbolicPrototype || expression.typedLocalOwner != null)
         ExternalParameterizedValueRegistry.attach(
           result,
           expression,

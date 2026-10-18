@@ -20,6 +20,7 @@ final class MorphHdlPlugin(val global: Global) extends Plugin {
   override val components: List[PluginComponent] =
     List(
       new MorphHdlParameterSyntaxComponent(global),
+      new MorphHdlParameterConstantEffects(global),
       new MorphHdlCallbackEffectComponent(global),
       new MorphHdlDirectRecursiveComponent(global),
       new MorphHdlAreaCollectionComponent(global),

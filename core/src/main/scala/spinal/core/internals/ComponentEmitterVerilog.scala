@@ -145,6 +145,7 @@ class ComponentEmitterVerilog(
 
   def emitArchitecture(): Unit = {
     localparams ++= NativeLocalParameters.declarations(component)
+    localparams ++= NativeParameterConstants.declarations(component)
     endModule ++= NativeSymbolicLegality.render(component,
       name => component.localNamingScope.allocateName(name))
     definitionAttributes ++= emitSyntaxAttributes(component.definition.instanceAttributes)
@@ -916,6 +917,7 @@ class ComponentEmitterVerilog(
             def checkPure(o : Expression): Boolean = o match {
               case l: Literal => true
               case _: TypedLocalUInt.Reference => true
+              case _: NativeParameterConstants.Reference => true
               case k: SwitchStatementKeyBool => k.key != null
               case _ => false
             }
@@ -985,6 +987,7 @@ class ComponentEmitterVerilog(
                 case _ => {
                   def emitIsCond(that: Expression): String = that match {
                     case e: TypedLocalUInt.Reference => e.render(component)
+    case e: NativeParameterConstants.Reference => e.render(component)
                     case e: BitVectorLiteral => emitBitVectorLiteral(e)
 //                    case e: BitVectorLiteral => s"${e.getWidth}'b${e.getBitsStringOn(e.getWidth, 'x')}"
                     case e: BoolLiteral => if (e.value) "1'b1" else "1'b0"
@@ -1842,6 +1845,7 @@ end
     case  e: BaseType                                 => refImpl(e)
 
     case e: TypedLocalUInt.Reference => e.render(component)
+    case e: NativeParameterConstants.Reference => e.render(component)
     case  e: BoolLiteral                              => boolLiteralImpl(e)
     case  e: BitVectorLiteral                         => emitBitVectorLiteral(e)
     case  e: EnumLiteral[_]                           => emitEnumLiteralWrap(e)

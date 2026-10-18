@@ -73,6 +73,7 @@ object NativeWidthProvenance {
     case value if value != null && value.getTypeObject == TypeBool => constant(1)
     case value: EnumEncoded =>
       NativeEnumExpressionAuthority.resolve(value).flatMap(authority => constant(authority.width))
+    case value: NativeParameterConstants.Reference => value.widthExpression.orElse(constant(value.getWidth))
     case data: BitVector =>
       ParameterizedWidth.expressionOf(data).map(NativeFormalWidthProjection.inCurrentScope(data, _)) match {
         case some @ Some(value) if value.exactDomain.nonEmpty => some

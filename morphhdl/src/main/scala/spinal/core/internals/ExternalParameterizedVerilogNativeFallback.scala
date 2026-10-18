@@ -1135,15 +1135,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         }
       }
     reference.map { case (name, sourceWidth) =>
-      val width = ParameterizedWidth.expressionOf(value)
-      val text = width.map(_.verilog).getOrElse(value.getBitsWidth.toString)
-      val minimum = width.map(_.minimum).getOrElse(BigInt(value.getBitsWidth))
-      val maximum = width.map(_.maximum).getOrElse(BigInt(value.getBitsWidth))
-      val extension = if(value.isInstanceOf[SInt] && expression.minimum < 0) s"$name[${sourceWidth-1}]" else "1'b0"
-      if (minimum == sourceWidth && maximum == sourceWidth) name
-      else if (maximum <= sourceWidth) s"$name[($text)-1:0]"
-      else if (minimum >= sourceWidth) s"{{(($text)-$sourceWidth){$extension}},$name}"
-      else s"{{((($text)>$sourceWidth)?(($text)-$sourceWidth):0){$extension}},$name[((($text)<$sourceWidth)?($text):$sourceWidth)-1:0]}"
+      NativeParameterValueSizing.reference(name,sourceWidth,ParameterizedWidth.expressionOf(value),
+        value.getBitsWidth,value.isInstanceOf[SInt],expression.minimum)
     }.getOrElse("(" + expression.verilog + ")")
   }
 
@@ -3816,6 +3809,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         case access: BitVectorBitAccessFixed       => inferFixedBit(access)
         case _: BitVectorBitAccessFloating         => WidthLiteral(1)
         case local: TypedLocalUInt.Reference => WidthLiteral(local.getWidth)
+        case local: NativeParameterConstants.Reference => local.widthExpression.map(retained).getOrElse(WidthLiteral(local.getWidth))
         case literal: BitVectorLiteral             =>
           ExternalParameterizedNativeGeometry.widthOf(component, literal)
             .map(retained).getOrElse(WidthLiteral(literal.getWidth))

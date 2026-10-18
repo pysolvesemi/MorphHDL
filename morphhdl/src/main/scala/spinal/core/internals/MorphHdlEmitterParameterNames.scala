@@ -15,6 +15,7 @@ object MorphHdlEmitterParameterNames {
       require(allocation >= 0, "parameter publication needs native name allocation")
       phases.insert(allocation, new PhaseMisc {
         override def impl(pc: PhaseContext): Unit = pc.walkComponents { component =>
+          spinal.core.NativeParameterConstants.retireAdapters(component)
           spinal.core.ElabAreaLocalNames.capture(component)
           ParameterizedVerilogVecs.capturePackedTransportNames(component)
         }
@@ -206,6 +207,7 @@ final class MorphHdlEmitterParameterNames extends PhaseMisc {
       uses += entry.index.expression
     }
     NativeLocalParameters.prepare(component, uses.toVector)
+    spinal.core.NativeParameterConstants.prepare(component)
   }
   }
 }

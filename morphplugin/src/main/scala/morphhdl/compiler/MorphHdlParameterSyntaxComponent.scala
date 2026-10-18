@@ -114,7 +114,7 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
             val primary=if(provider.isModule)provider.moduleClass.info else provider.info
             val pkg=primary.packageObject
             val infos=if(pkg==NoSymbol)List(primary)else List(primary,pkg.moduleClass.info)
-            val tracked=names++componentNames++rtlParamNames++typeNames.keySet++Set("Param","RtlParam","Component","UInt","Bits","SInt","rtlParamName","ElabInt")
+            val tracked=names++componentNames++rtlParamNames++typeNames.keySet++Set("Param","RtlParam","Component","UInt","Bits","SInt","Bool","Area","param","localparam","rtlParamName","ElabInt","ElabBool")
             Some(tracked.filter(n=>infos.exists(i=>i.nonPrivateMember(TermName(n))!=NoSymbol || i.nonPrivateMember(TypeName(n))!=NoSymbol)))
           }
         } catch { case scala.util.control.NonFatal(_)=>None }
@@ -140,7 +140,7 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
           val p=path(t).filterNot(n=>n=="_root_" || n=="<root>")
           val rooted=path(t).headOption.exists(n=>n=="_root_" || n=="<root>")
           val nativeKind=if(p.size==1)typeNames.get(p.head)
-            else if(p.size==3 && p.take(2)==List("spinal","core") && (rooted || !blocked("spinal")) && Set("UInt","Bits","SInt","rtlParamName","ElabInt")(p.last))Some(p.last)
+            else if(p.size==3 && p.take(2)==List("spinal","core") && (rooted || !blocked("spinal")) && Set("UInt","Bits","SInt","Bool","Area","param","localparam","rtlParamName","ElabInt","ElabBool")(p.last))Some(p.last)
             else if(p.size==2 && p.head=="scala" && (rooted || !blocked("scala")) && Set("Int","Boolean","Option")(p.last))Some(p.last)
             else None
           if((p==List("spinal","core","Component") && (rooted || !blocked("spinal"))) ||
@@ -170,11 +170,11 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
                   if(!hidden("Component") && !blocked("Component") && !ambiguous("Component"))componentNames += "Component"
                   if(!hidden("RtlParam") && !blocked("RtlParam") && !ambiguous("RtlParam"))rtlParamNames += "RtlParam"
                   if(!hidden("Param") && !blocked("Param") && !ambiguous("Param"))names += "Param"
-                  for(k<-Seq("UInt","Bits","SInt","rtlParamName","ElabInt") if !hidden(k) && !blocked(k) && !ambiguous(k))typeNames += k->k
+                  for(k<-Seq("UInt","Bits","SInt","Bool","Area","param","localparam","rtlParamName","ElabInt","ElabBool") if !hidden(k) && !blocked(k) && !ambiguous(k))typeNames += k->k
                 }
                 else if(from=="_") {
                   val hidden=selectors.map(_.name.decodedName.toString).toSet
-                  val conflicts=wildcardExports(q).getOrElse(names++componentNames++rtlParamNames++typeNames.keySet++Set("Param","RtlParam","Component","UInt","Bits","SInt","rtlParamName","ElabInt")) -- hidden
+                  val conflicts=wildcardExports(q).getOrElse(names++componentNames++rtlParamNames++typeNames.keySet++Set("Param","RtlParam","Component","UInt","Bits","SInt","Bool","Area","param","localparam","rtlParamName","ElabInt","ElabBool")) -- hidden
                   ambiguous ++= conflicts
                   names --= conflicts
                   componentNames --= conflicts
@@ -188,7 +188,7 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
                   if(isCore && from=="Component" && to!="_" && !blocked(to))componentNames += to
                   if(isCore && from=="RtlParam" && to!="_" && !blocked(to))rtlParamNames += to
                   if(isCore && from=="Param" && to!="_" && !blocked(to)) names += to
-                  if(isCore && Set("UInt","Bits","SInt","rtlParamName","ElabInt")(from) && to!="_" && !blocked(to))typeNames += to->from
+                  if(isCore && Set("UInt","Bits","SInt","Bool","Area","param","localparam","rtlParamName","ElabInt","ElabBool")(from) && to!="_" && !blocked(to))typeNames += to->from
                   if(path(q).filterNot(_=="_root_")==List("scala") && Set("Int","Boolean","Option")(from) && to!="_" && !blocked(to))typeNames += to->from
                 }
               }
@@ -600,6 +600,22 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
       }
       retainedSchemas = true
       object Rewrite extends Transformer {
+        private var declarationPath=List.empty[String]
+        private var scalarKinds=Map.empty[String,String]
+        private def scalarKind(t:Tree):Option[String]=t match {
+          case Literal(Constant(_:Int))=>Some("Int")
+          case Literal(Constant(_:Boolean))=>Some("Boolean")
+          case Ident(n)=>scalarKinds.get(n.decodedName.toString)
+          case Select(_:This,n)=>scalarKinds.get(n.decodedName.toString)
+          case Apply(Ident(n),_)=>scalarKinds.get(n.decodedName.toString)
+          case Apply(Select(a,n),_) if Set("literal","fromBigInt")(n.decodedName.toString) =>
+            Option(recognizedKinds.get(a)).filter(Set("ElabInt","ElabBool"))
+          case Select(a,n) if Set("log2Up","addressWidth","pow2")(n.decodedName.toString)=>
+            scalarKind(a).filter(Set("Int","ElabInt")).map(_=>"ElabInt")
+          case Apply(Select(a,n),List(b)) if Set("+","-","*","/","%","<<",">>")(n.decodedName.toString)=>
+            scalarKind(a).orElse(scalarKind(b)).filter(Set("Int","ElabInt"))
+          case _=>None
+        }
         private val parameterOrigins = new java.util.IdentityHashMap[Tree, String]()
         private val configurationOrigins = new java.util.IdentityHashMap[Tree, ConfigurationFormalPath]()
         private var bounds=Map.empty[String,(BigInt,BigInt)]
@@ -615,7 +631,109 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
             }
           List(combine(lo,lower,"max"),combine(hi,upper,"min"))
         }
+        private object NamedOption {
+          def unapply(t:Tree):Option[(Tree,Tree)] =
+            if(Set("AssignOrNamedArg","NamedArg")(t.productPrefix) && t.children.size==2)
+              Some(t.children.head -> t.children(1)) else None
+        }
+        private def declarationAnnotation(t:Tree):Option[String]=t match {
+          case Apply(Select(New(tpt),_),Nil) => Option(recognizedKinds.get(tpt)).filter(Set("param","localparam"))
+          case _=>None
+        }
+        private def lightweight(v:ValDef):Option[Tree] = {
+          val annotations=v.mods.annotations.flatMap(declarationAnnotation)
+          val supplied=arguments(v.rhs)
+          val inferred=supplied.nonEmpty && kind(v.tpt).isEmpty && !v.mods.hasFlag(Flag.PARAMACCESSOR)
+          val hasLocal=supplied.exists(_.exists {
+            case NamedOption(Ident(n),_)=>n.decodedName.toString=="local"
+            case _=>false
+          })
+          if(annotations.isEmpty && !inferred && !hasLocal) return None
+          def error(message:String):Unit=reporter.error(v.pos,"MORPHDL-PARAM-DECLARATION: "+message)
+          if(v.mods.hasFlag(Flag.MUTABLE) || v.mods.hasFlag(Flag.LAZY) || v.mods.hasFlag(Flag.PARAMACCESSOR))
+            error("parameter annotations require an immutable eager module declaration")
+          if(annotations.size>1 || (annotations.nonEmpty && supplied.nonEmpty))
+            error("conflicting parameter annotations or annotation/factory options")
+          var local=annotations.contains("localparam")
+          var name:Tree=Literal(Constant(ParameterHdlNames.inferred((declarationPath :+ v.name.decodedName.toString).mkString("."))))
+          var actual:Tree=v.rhs
+          supplied.foreach { args=>
+            val named=args.collect {case NamedOption(Ident(n),_)=>n.decodedName.toString}
+            if(named.distinct.size!=named.size)error("duplicate parameter options")
+            val positional=args.filter {case NamedOption(_,_)=>false;case _=>true}
+            if(positional.isEmpty || positional.size>2) error("expected a value and optional explicit HDL name")
+            if(positional.nonEmpty)actual=positional.head
+            if(positional.size==2)name=positional(1)
+            args.foreach {
+              case NamedOption(Ident(n),rhs) if n.decodedName.toString=="local"=>rhs match {
+                case Literal(Constant(b:Boolean))=>local=b
+                case _=>error("local must be a literal Boolean")
+              }
+              case NamedOption(Ident(n),rhs) if n.decodedName.toString=="name"=>name=rhs
+              case NamedOption(_,_)=>error("unknown parameter option")
+              case _=>
+            }
+          }
+          v.mods.annotations.foreach {
+            case Apply(Select(New(tpt),_),List(n)) if Option(recognizedKinds.get(tpt)).contains("rtlParamName")=>name=n
+            case _=>
+          }
+          if(kind(v.tpt).nonEmpty && !local && annotations.isEmpty) {
+            val factory=v.rhs match {case Apply(f,_)=>f;case _=>core("Param")}
+            return Some(transform(treeCopy.ValDef(v,v.mods,v.name,v.tpt,
+              Apply(factory,List(actual,name)).setPos(v.rhs.pos))))
+          }
+          object Effects extends Traverser {
+            override def traverse(t:Tree):Unit=t match {
+              case _:Block | _:Assign | _:New | _:Function | _:Return | _:Throw =>
+                error("effectful initializers are not constant declarations; use a literal or pure elaboration expression")
+              case _=>super.traverse(t)
+            }
+          }
+          Effects.traverse(actual)
+          val mods=Modifiers(v.mods.flags,v.mods.privateWithin,v.mods.annotations.filterNot(a=>declarationAnnotation(a).nonEmpty))
+          val isInteger = constant(actual).nonEmpty || scalarKind(actual).exists(Set("Int","ElabInt")) || kind(v.tpt).contains("Int") ||
+            Option(recognizedKinds.get(v.tpt)).exists(Set("Int","ElabInt"))
+          val rhs=if(isInteger) {
+            val (lo,hi)=bounds.getOrElse(v.name.decodedName.toString,(BigInt(0),BigInt(Int.MaxValue)))
+            Apply(Select(core("Param"),TermName("declareInt")),List(name,transform(actual),Literal(Constant(local))) ++
+              boundArguments(v.name.decodedName.toString,lo,hi.min(BigInt(Int.MaxValue))))
+          } else Apply(Select(core("Param"),TermName("declare")),List(name,transform(actual),Literal(Constant(local))))
+          val tpt=if(isInteger)coreType("ElabInt")
+            else if(scalarKind(actual).exists(Set("Boolean","ElabBool")))coreType("ElabBool")
+            else if(kind(v.tpt).nonEmpty)EmptyTree else Option(recognizedKinds.get(v.tpt)) match {
+            case Some("Int")=>coreType("ElabInt")
+            case Some("Boolean")=>coreType("ElabBool")
+            case _=>v.tpt
+          }
+          Some(treeCopy.ValDef(v,mods,v.name,tpt,rhs).setPos(v.pos))
+        }
+        private def lightweightCandidate(v:ValDef):Boolean =
+          v.mods.annotations.exists(a=>declarationAnnotation(a).nonEmpty) ||
+          arguments(v.rhs).exists(args=> (kind(v.tpt).isEmpty && !v.mods.hasFlag(Flag.PARAMACCESSOR)) || args.exists {
+            case NamedOption(Ident(n),_)=>n.decodedName.toString=="local"
+            case _=>false
+          })
+        private def areaParent(t:Tree):Boolean=t match {
+          case Apply(f,_)=>areaParent(f)
+          case Select(New(tpt),_)=>areaParent(tpt)
+          case _=>Option(recognizedKinds.get(t)).contains("Area")
+        }
+        private def areaValue(t:Tree):Boolean=t match {
+          case Block(stats,_)=>stats.exists {case c:ClassDef=>c.impl.parents.exists(areaParent);case _=>false}
+          case _=>false
+        }
         override def transform(t:Tree):Tree=t match {
+          case v:ValDef if areaValue(v.rhs)=>
+            val saved=declarationPath;declarationPath :+= v.name.decodedName.toString
+            try super.transform(v) finally declarationPath=saved
+          case c:ClassDef if declarationPath.nonEmpty && c.impl.parents.exists(components.containsKey)=>
+            val saved=declarationPath;declarationPath=Nil
+            try transform(c) finally declarationPath=saved
+          case v:ValDef if lightweightCandidate(v) => lightweight(v).get
+          case d:DefDef if d.mods.annotations.exists(a=>declarationAnnotation(a).nonEmpty) =>
+            reporter.error(d.pos,"MORPHDL-PARAM-DECLARATION: annotations require an immutable value, not a method")
+            d
           case cls: ClassDef if configClasses(cls) =>
             val body=cls.impl.body.map {
               case ctor: DefDef if ctor.name==termNames.CONSTRUCTOR =>
@@ -847,6 +965,14 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
                 treeCopy.Template(cls.impl,cls.impl.parents,cls.impl.self,body)))
             }
           case template: Template =>
+            val oldKinds=scalarKinds
+            template.body.foreach {
+              case v:ValDef=>kind(v.tpt).orElse(Option(recognizedKinds.get(v.tpt))).orElse(scalarKind(v.rhs))
+                .filter(Set("Int","ElabInt","Boolean","ElabBool")).foreach(k=>scalarKinds += v.name.decodedName.toString -> k)
+              case d:DefDef=>Option(recognizedKinds.get(d.tpt)).filter(Set("Int","ElabInt","Boolean","ElabBool"))
+                .foreach(k=>scalarKinds += d.name.decodedName.toString -> k)
+              case _=>
+            }
             val old=bounds
             val oldDynamic=dynamicBounds
             dynamicBounds=Map.empty
@@ -855,17 +981,17 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
                 Set(List("Int"),List("scala","Int"))(path(v.tpt).filterNot(_=="_root_")) => v.name.decodedName.toString
             }.toSet
             val constants=template.body.collect {
-              case v:ValDef if !v.mods.hasFlag(Flag.MUTABLE) && constant(v.rhs).nonEmpty =>
+              case v:ValDef if !v.mods.hasFlag(Flag.MUTABLE) && !lightweightCandidate(v) && constant(v.rhs).nonEmpty =>
                 v.name.decodedName.toString -> constant(v.rhs).get
             }.toMap
             def number(t:Tree):Option[BigInt]=constant(t).orElse(t match {
               case Ident(n)=>constants.get(n.decodedName.toString)
               case _=>None
             })
-            val declarations=template.body.collect {case v:ValDef if kind(v.tpt).nonEmpty && arguments(v.rhs).nonEmpty=>v}
+            val declarations=template.body.collect {case v:ValDef if (kind(v.tpt).nonEmpty && arguments(v.rhs).nonEmpty) || lightweightCandidate(v)=>v}
             val names = scala.collection.mutable.LinkedHashMap.empty[String, String]
             declarations.foreach { declaration =>
-              val supplied = arguments(declaration.rhs).get
+              val supplied = arguments(declaration.rhs).getOrElse(List(declaration.rhs))
               val optional = declaration.rhs match {
                 case Apply(Select(_, n), _) => n.decodedName.toString == "optional"
                 case _ => false
@@ -942,7 +1068,7 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
             // A bounded number of monotone passes resolves dependency chains,
             // independent of declaration order and domain cardinality.
             if(declarations.nonEmpty) for(_ <- 0 to declarations.size) requirements.foreach(constrain)
-            try super.transform(template) finally { bounds=old; dynamicBounds=oldDynamic }
+            try super.transform(template) finally { bounds=old; dynamicBounds=oldDynamic; scalarKinds=oldKinds }
           case value:ValDef if kind(value.tpt).nonEmpty && arguments(value.rhs).nonEmpty =>
             val k=kind(value.tpt).get
             val supplied=arguments(value.rhs).get

@@ -1842,6 +1842,24 @@
         "packed declarations reject contradictory types domains and overflow",
         "packed defaults reject hardware sources and implicit literal sizing"
       ],
+      "morphhdl.ParameterAnnotationTests": [
+        "annotations and factory locals preserve CSR encodings without constant wires",
+        "typed direct use retains signed values, wide literals and parameter derived values",
+        "constant ownership and mutable source rejection 0",
+        "constant ownership and mutable source rejection 1",
+        "constant ownership and mutable source rejection 2",
+        "constant ownership and mutable source rejection 3",
+        "constant ownership and mutable source rejection 4",
+        "symbolic widths, integer locals, nested names and explicit overrides remain symbolic",
+        "invalid width, collisions, local promotion and overlapping keys fail 0",
+        "invalid width, collisions, local promotion and overlapping keys fail 1",
+        "invalid width, collisions, local promotion and overlapping keys fail 2",
+        "invalid width, collisions, local promotion and overlapping keys fail 3",
+        "invalid width, collisions, local promotion and overlapping keys fail 4",
+        "typed public values forward through existing constructor parameters",
+        "typed local keys retain ordered case semantics including X and Z",
+        "constant arithmetic retains each intermediate modular width"
+      ],
       "morphhdl.ParameterMaskTests": [
         "readable parameter shifts and low masks retain override semantics",
         "correlated logarithmic shifts use the authenticated generate guard",
@@ -4174,6 +4192,12 @@
         "typed native Vec callback uses ordinary scope bridge start=0",
         "typed native Vec callback uses ordinary scope bridge start=1"
       ],
+      "morphhdl.compiler.ParameterAnnotationSyntaxTests": [
+        "annotation imports, qualified forms and inferred factories share declaration lowering",
+        "conflicting annotations, mutable declarations and runtime flags are rejected",
+        "uppercase and foreign annotation spellings do not grant parameter authority",
+        "source-visible pure helpers are accepted and effectful or cyclic helpers are rejected"
+      ],
       "morphhdl.compiler.ParameterHdlNameTests": [
         "normalize parameter declaration path num_bytes",
         "normalize parameter declaration path numBytes",
@@ -4704,6 +4728,7 @@
     "morphhdl/src/test/scala/morphhdl/OrdinaryLoopCornerTests.scala": "bde1aaad3157ee8a3919a552b2d0ded4547d4358b08e4e72b53d471f0d050aad",
     "morphhdl/src/test/scala/morphhdl/OrdinaryStatementLoopTests.scala": "754278197a201967433ce23cfc6d0fda3d429933857854cf61b7ccdfd0323f5e",
     "morphhdl/src/test/scala/morphhdl/PackedParameterTests.scala": "073e29b145a02d579611591c010ed7a72788268ea876fcc508bbb7e66a2783ce",
+    "morphhdl/src/test/scala/morphhdl/ParameterAnnotationTests.scala": "319ce3fefc5c2b9e227899f24f669cb350eca76f9da72ae9ca389c51c96109c9",
     "morphhdl/src/test/scala/morphhdl/ParameterForwardingContractFixture.scala": "1d81e70b0761d2d5b24179af2b474cac96b66fbf67a913b1c56da0b153031110",
     "morphhdl/src/test/scala/morphhdl/ParameterMaskTests.scala": "df7c6f00dc335445d2c44e768f7d98266f826075f6982594f8844936f4db9ddf",
     "morphhdl/src/test/scala/morphhdl/ParameterizedCounterContractFixture.scala": "14ca6ef96558969bf772a2b4a772d627cfe4b59849b0da4d6925a2f608897be1",
@@ -4946,6 +4971,7 @@
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponentTests.scala": "3dc3d84549cfcfd48d9da00444babb522cdd8326f6811053cccd14085af7b5a0",
     "morphplugin/src/test/scala/morphhdl/compiler/NativeSymbolicEqualitySafetyTests.scala": "0595a578953516bf7d8c036515f7d3bb2a6534347a0acb20a9075bca6e096ca5",
     "morphplugin/src/test/scala/morphhdl/compiler/OrdinaryLoopSyntaxTests.scala": "ca1b9d434785161563f8b52cb9673b96f3d524790d5d0da1472e78d2cab73021",
+    "morphplugin/src/test/scala/morphhdl/compiler/ParameterAnnotationSyntaxTests.scala": "a621d7209dcbe12b4ebf1eb3d752a4cd3740de5d475e40c4753358bba52aa107",
     "morphplugin/src/test/scala/morphhdl/compiler/ParameterHdlNameTests.scala": "669e6244b0bfa3e773ca3a234a30c44b38786cfab291f4b66bb747cc380b08b6",
     "paramrtl/src/test/scala/morphhdl/paramrtl/AddressWidthExpressionTests.scala": "b194d35db36483b350c998a39c22e0932b758ca603fc9f06d3b571cd016de4d8",
     "paramrtl/src/test/scala/morphhdl/paramrtl/AsynchronousEnabledRegisterValidatorTests.scala": "b3b9ed7d77d4d5031a47a1dbebaec496b5f2434a3ae9db6472dd7c511c70a5de",
