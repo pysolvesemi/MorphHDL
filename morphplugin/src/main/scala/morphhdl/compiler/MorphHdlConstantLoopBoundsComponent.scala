@@ -41,6 +41,32 @@ final class MorphHdlConstantLoopBoundsComponent(val global: Global) extends Plug
         }
       }
       Check.traverse(unit.body)
+      // Resolve native Vec identity after typer, rather than guessing from an
+      // indexed source spelling (Bits and Vec have the same surface syntax).
+      // Only ordinary compiler bridges opt into conservative runtime-scope
+      // expansion; explicitly typed loops keep their original capture contract.
+      def usesVec(tree: Tree): Boolean = tree.exists(t => t.tpe != null &&
+        t.tpe != NoType && t.tpe.baseClasses.exists(_.fullName == "spinal.core.Vec"))
+      object GuardedVecLoops extends Transformer {
+        override def transform(tree: Tree): Tree = tree match {
+          case outer @ Apply(inner @ Apply(method @ Select(owner, _), args), List(callback))
+              if method.symbol != null && method.symbol != NoSymbol &&
+                Set("spinal.core.ElabFiniteRange.foreachConstant",
+                  "spinal.core.ElabFiniteRange.foreachConstantFrom")(method.symbol.fullName) && usesVec(callback) =>
+            val name = if (method.symbol.name.toString == "foreachConstant")
+              "foreachGuardedVecConstant" else "foreachGuardedVecConstantFrom"
+            val symbol = owner.tpe.member(TermName(name))
+            if (symbol == NoSymbol) {
+              reporter.error(tree.pos, "MORPHDL-CONSTANT-LOOP-BRIDGE-MISSING: runtime lacks guarded Vec bridge")
+              super.transform(tree)
+            } else {
+              val selected = gen.mkAttributedSelect(transform(owner), symbol).setPos(method.pos)
+              treeCopy.Apply(outer, treeCopy.Apply(inner, selected, args.map(transform)), List(transform(callback)))
+            }
+          case _ => super.transform(tree)
+        }
+      }
+      unit.body = GuardedVecLoops.transform(unit.body)
     }
   }
 }

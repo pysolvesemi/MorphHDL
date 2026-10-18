@@ -988,6 +988,22 @@
         "Gray stage definitions share independent width actuals split=true reverse=true unpacked=false",
         "Gray stage definitions share independent width actuals split=true reverse=true unpacked=true"
       ],
+      "morphhdl.GuardedOrdinaryLoopTests": [
+        "mixed guarded ordinary writers preserve priority preserve=false layout=PackedVector bound=zero",
+        "mixed guarded ordinary writers preserve priority preserve=false layout=PackedVector bound=nonzero",
+        "mixed guarded ordinary writers preserve priority preserve=false layout=PackedVector bound=length",
+        "mixed guarded ordinary writers preserve priority preserve=false layout=UnpackedArray bound=zero",
+        "mixed guarded ordinary writers preserve priority preserve=false layout=UnpackedArray bound=nonzero",
+        "mixed guarded ordinary writers preserve priority preserve=false layout=UnpackedArray bound=length",
+        "mixed guarded ordinary writers preserve priority preserve=true layout=PackedVector bound=zero",
+        "mixed guarded ordinary writers preserve priority preserve=true layout=PackedVector bound=nonzero",
+        "mixed guarded ordinary writers preserve priority preserve=true layout=PackedVector bound=length",
+        "mixed guarded ordinary writers preserve priority preserve=true layout=UnpackedArray bound=zero",
+        "mixed guarded ordinary writers preserve priority preserve=true layout=UnpackedArray bound=nonzero",
+        "mixed guarded ordinary writers preserve priority preserve=true layout=UnpackedArray bound=length",
+        "guarded expansion retains complete assignment conflict diagnostics",
+        "guarded expansion does not hide an undriven combinational lane"
+      ],
       "morphhdl.GuardedVecPublicationTests": [
         "composed guarded word publication signed=false unpacked=false words=4",
         "composed guarded word publication signed=false unpacked=false words=8",
@@ -4122,7 +4138,9 @@
         "reject effectful start def bytes:Int=1",
         "immutable Vec length owner",
         "reject unstable Vec length owner var vec=new Vec",
-        "reject unstable Vec length owner def vec=new Vec"
+        "reject unstable Vec length owner def vec=new Vec",
+        "typed native Vec callback uses ordinary scope bridge start=0",
+        "typed native Vec callback uses ordinary scope bridge start=1"
       ],
       "morphhdl.compiler.ParameterHdlNameTests": [
         "normalize parameter declaration path num_bytes",
@@ -4564,6 +4582,7 @@
     "morphhdl/src/test/scala/morphhdl/GenericExpressionAndStreamTests.scala": "ebfd6e8bd6fd88402bba9af9534100206fb5719313a9aea5fc063d43b4ac6722",
     "morphhdl/src/test/scala/morphhdl/GenericProcessLoweringTests.scala": "046ba7e5d752b4db52ba189ff8d69d1d024c9cda1656e6e3a7859a54da112e2d",
     "morphhdl/src/test/scala/morphhdl/GrayStageSharingTests.scala": "60fdf76f872a6d31ad41a2a01229e97f065b8e06573bca6102e3556ec4644eab",
+    "morphhdl/src/test/scala/morphhdl/GuardedOrdinaryLoopTests.scala": "b3a8ab00b6ee09feb46d55c0df87875c1d94ac8c33a502f29b1410a88e115286",
     "morphhdl/src/test/scala/morphhdl/GuardedVecPublicationTests.scala": "ee64456dc0196404065eb56e58e8bd37ea7e116ea7d0ba56d1e3f0b6b3238312",
     "morphhdl/src/test/scala/morphhdl/HardTypeParameterGeometryTests.scala": "36cdc02ded0a076f8f7ed9f6eb91cba3f7f546d2b2d5baa455976470013d0320",
     "morphhdl/src/test/scala/morphhdl/HierarchyParameterBindingTests.scala": "ded556d070b92fab5462ce47bd30d2f1a30cd41a7abfa39b4d428493603b1152",
@@ -4892,7 +4911,7 @@
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlFrontendSymbolicEqualitySafetyComponentTests.scala": "61d8fb7fb5892ec9b48b3d74360204d432b030b52387bd4779d225d62a5ab34a",
     "morphplugin/src/test/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponentTests.scala": "3dc3d84549cfcfd48d9da00444babb522cdd8326f6811053cccd14085af7b5a0",
     "morphplugin/src/test/scala/morphhdl/compiler/NativeSymbolicEqualitySafetyTests.scala": "0595a578953516bf7d8c036515f7d3bb2a6534347a0acb20a9075bca6e096ca5",
-    "morphplugin/src/test/scala/morphhdl/compiler/OrdinaryLoopSyntaxTests.scala": "4b0bf5ad3f2a1d475c2b3e5220d88cd9a2acb0713483e4e4057c6a9b5043ca76",
+    "morphplugin/src/test/scala/morphhdl/compiler/OrdinaryLoopSyntaxTests.scala": "ca1b9d434785161563f8b52cb9673b96f3d524790d5d0da1472e78d2cab73021",
     "morphplugin/src/test/scala/morphhdl/compiler/ParameterHdlNameTests.scala": "669e6244b0bfa3e773ca3a234a30c44b38786cfab291f4b66bb747cc380b08b6",
     "paramrtl/src/test/scala/morphhdl/paramrtl/AddressWidthExpressionTests.scala": "b194d35db36483b350c998a39c22e0932b758ca603fc9f06d3b571cd016de4d8",
     "paramrtl/src/test/scala/morphhdl/paramrtl/AsynchronousEnabledRegisterValidatorTests.scala": "b3b9ed7d77d4d5031a47a1dbebaec496b5f2434a3ae9db6472dd7c511c70a5de",

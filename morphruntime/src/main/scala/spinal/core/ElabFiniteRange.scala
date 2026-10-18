@@ -577,19 +577,34 @@ object ElabFiniteRange {
         .getOrElse(Vector.empty)
 
   /** Compiler bridge for a checked ordinary immutable Int range. */
-  def foreachConstant(end: Int, inclusive: Boolean)(@rtlHardwareCallback body: ElabFiniteIndex => Unit): Unit = {
+  def foreachConstant(end: Int, inclusive: Boolean)(@rtlHardwareCallback body: ElabFiniteIndex => Unit): Unit =
+    foreachConstantImpl(end, inclusive, guardedVec = false)(body)
+
+  /** Post-typer bridge: the callback contains an authenticated native Vec access. */
+  def foreachGuardedVecConstant(end: Int, inclusive: Boolean)(@rtlHardwareCallback body: ElabFiniteIndex => Unit): Unit =
+    foreachConstantImpl(end, inclusive, guardedVec = true)(body)
+
+  private def foreachConstantImpl(end: Int, inclusive: Boolean, guardedVec: Boolean)(body: ElabFiniteIndex => Unit): Unit = {
     val length = if (inclusive) BigInt(end) + 1 else BigInt(end)
     require(length <= Int.MaxValue, "SPINAL-CONSTANT-LOOP-BOUND-OVERFLOW: inclusive range exceeds Int domain")
-    foreachDefault(ElabInt.literal(length.max(0).toInt))(body)
+    foreachImpl(ElabInt.literal(length.max(0).toInt), "GEN", automaticLabel = true, ordinaryVec = guardedVec)(body)
   }
 
   /** Retain immutable host range endpoints without exposing a witness index. */
   def foreachConstantFrom(start: Int, end: Int, inclusive: Boolean)
-      (@rtlHardwareCallback body: ElabScopedIndex => Unit): Unit = {
+      (@rtlHardwareCallback body: ElabScopedIndex => Unit): Unit =
+    foreachConstantFromImpl(start, end, inclusive, guardedVec = false)(body)
+
+  def foreachGuardedVecConstantFrom(start: Int, end: Int, inclusive: Boolean)
+      (@rtlHardwareCallback body: ElabScopedIndex => Unit): Unit =
+    foreachConstantFromImpl(start, end, inclusive, guardedVec = true)(body)
+
+  private def foreachConstantFromImpl(start: Int, end: Int, inclusive: Boolean, guardedVec: Boolean)
+      (body: ElabScopedIndex => Unit): Unit = {
     val count = (BigInt(end) - start + (if (inclusive) 1 else 0)).max(0)
     require(count <= Int.MaxValue, "SPINAL-CONSTANT-LOOP-BOUND-OVERFLOW: range exceeds Int domain")
     require(start >= 0 || count == 0, "SPINAL-CONSTANT-LOOP-START-UNSUPPORTED: active hardware indices must be nonnegative")
-    foreachDefault(ElabInt.literal(count.toInt))(i => body(i + start))
+    foreachImpl(ElabInt.literal(count.toInt), "GEN", automaticLabel = true, ordinaryVec = guardedVec)(i => body(i + start))
   }
 
   /** The Vec identity, not its elaborated carrier count, owns this bound. */
@@ -599,7 +614,7 @@ object ElabFiniteRange {
     val depth = ParameterizedVec.shapeOf(vector).map(s => ElabInt.fromExpression(s.depth))
       .getOrElse(ElabInt.literal(vector.length))
     val count = depth - start + (if (inclusive) 1 else 0)
-    foreachDefault(count)(i => body(i + start))
+    foreachImpl(count, "GEN", automaticLabel = true, ordinaryVec = true)(i => body(i + start))
   }
 
   def foreachDefault(count: ElabInt)(body: ElabFiniteIndex => Unit): Unit =
@@ -608,7 +623,7 @@ object ElabFiniteRange {
   def foreach(count: ElabInt, role: String)(body: ElabFiniteIndex => Unit): Unit =
     foreachImpl(count, role, automaticLabel = false)(body)
 
-  private def foreachImpl(count: ElabInt, role: String, automaticLabel: Boolean)
+  private def foreachImpl(count: ElabInt, role: String, automaticLabel: Boolean, ordinaryVec: Boolean = false)
       (body: ElabFiniteIndex => Unit): Unit = {
     if (count == null)
       throw new IllegalArgumentException("typed finite count must not be null")
@@ -638,7 +653,12 @@ object ElabFiniteRange {
       "SPINAL-ELAB-FINITE-RANGE-EXACT-DOMAIN-REQUIRED"
     )
 
-    val preserveConstant = expression.parameters.isEmpty && expression.default > 0 &&
+    // Ordinary constant Vec loops inside an existing runtime branch must retain the
+    // original native statement order. Structural capture isolates that branch
+    // and cannot safely claim its mixed scalar/loop writers. Decide before any
+    // capture or alias allocation; explicit typed and symbolic loops are unchanged.
+    val guardedOrdinary = ordinaryVec && Option(Component.current).exists(c => DslScopeStack.get ne c.dslBody)
+    val preserveConstant = !guardedOrdinary && expression.parameters.isEmpty && expression.default > 0 &&
       ParameterizedStructure.captureEnabled && VerilogAggregateOptions.current.preserveConstantLoops
     if (expression.parameters.isEmpty && !preserveConstant) {
       var index = 0

@@ -7,12 +7,14 @@ class OrdinaryLoopSyntaxTests extends AnyFunSuite {
   private val definitions = """
 package spinal.core {
   class rtlHardwareCallback extends scala.annotation.StaticAnnotation
-  class Vec { def length:Int=4 }
+  class Vec { def length:Int=4; def apply(i:ElabScopedIndex):probe.Wire=new probe.Wire }
   class ElabInt
   class ElabScopedIndex
   class ElabFiniteIndex extends ElabScopedIndex
   object ElabControl { def localValue[T](v:T,name:String):T=v }
   object ElabFiniteRange {
+    def foreachGuardedVecConstant(end:Int,inclusive:Boolean)(@rtlHardwareCallback body:ElabFiniteIndex=>Unit):Unit=()
+    def foreachGuardedVecConstantFrom(start:Int,end:Int,inclusive:Boolean)(@rtlHardwareCallback body:ElabScopedIndex=>Unit):Unit=()
     def foreachVecLength(vector:Vec,start:Int,inclusive:Boolean)(@rtlHardwareCallback body:ElabScopedIndex=>Unit):Unit=()
     def foreachConstantFrom(start:Int,end:Int,inclusive:Boolean)(@rtlHardwareCallback body:ElabScopedIndex=>Unit):Unit=()
     def foreachConstant(end:Int,inclusive:Boolean)(@rtlHardwareCallback body:ElabFiniteIndex=>Unit):Unit=()
@@ -24,6 +26,10 @@ package probe {
   class Wires {def apply(i:ElabScopedIndex):Wire=new Wire}
 """
   private def check(body:String)=compile(definitions+body+"}", "OrdinaryLoopProbe.scala")
+  for(start<-Seq(0,1)) test(s"typed native Vec callback uses ordinary scope bridge start=$start") {
+    val errors=check(s"class C {val out=new Vec;for(i<-$start until 4)out(i):=true}")
+    assert(errors.isEmpty, errors.mkString("\n"))
+  }
   for(bound<-Seq("4","p.bytes","p.bytes + 1","0","-1")) test(s"immutable ordinary hardware bound $bound") {
     val errors=check(s"""case class Config(bytes:Int)
       class C(p:Config) {val out=new Wires;for(i<-0 until $bound) out(i):=true}
