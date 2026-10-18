@@ -65,6 +65,7 @@ EXPECTED_RULES_SHA256 = (
 )
 EXPECTED_PLUGIN_COMPONENTS = (
     "MorphHdlParameterSyntaxComponent",
+    "MorphHdlParameterConstantEffects",
     "MorphHdlCallbackEffectComponent",
     "MorphHdlDirectRecursiveComponent",
     "MorphHdlAreaCollectionComponent",
