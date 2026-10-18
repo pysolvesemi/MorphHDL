@@ -367,4 +367,70 @@ package spinal.core {
       assert(errors.exists(_.message.contains("PARAM-DOMAIN-UNPROVEN")),errors.mkString("\n"))
     }
   }
+  test("whole-object promotion preserves ordinary host types and imported schemas") {
+    val errors=check("""package models {case class Video(count:Int=4);case class Config(video:Video=Video())}
+      package probe {import spinal.core._;import models.{Config=>Settings}
+        class Child(c:Param[Settings]) extends Component {
+          require(c.video.count>=1 && c.video.count<=8);val result:ElabInt=c.video.count
+        }
+        class Concrete(c:Settings) extends Component {val result:Int=c.video.count}
+        object Calls {val c=Settings();val host:Int=c.video.count;val child=new Child(c);val concrete=new Concrete(c)}
+      }""")
+    assert(errors.isEmpty,errors.mkString("\n"))
+  }
+  for((shape,diagnostic)<-Seq(
+    "case class Config(count:Int)" -> "PARAM-DOMAIN-UNPROVEN",
+    "case class Config(var count:Int)" -> "c.count",
+    "class Config(val count:Int) {lazy val delayed:Int=count}" -> "c.delayed",
+    "class Config(val count:Int) {def effect:Int={println(1);count}}" -> "c.effect",
+    "case class Config(label:String)" -> "c.label",
+    "class Config(val next:Config)" -> "cyclic configuration schema"
+  )) test("whole-object rejects unsupported schema: "+shape) {
+    val errors=check(s"""package probe {import spinal.core._;$shape
+      class Child(c:Param[Config]) extends Component {}}
+    """)
+    assert(errors.exists(_.message.contains(diagnostic)),errors.mkString("\n"))
+  }
+  test("whole-object field names retain collision checks") {
+    val errors=check("""package probe {import spinal.core._
+      case class Config(numBytes:Int,num_bytes:Int)
+      class Child(c:Param[Config]) extends Component {
+        require(c.numBytes>=1 && c.numBytes<=8);require(c.num_bytes>=1 && c.num_bytes<=8)
+      }}""")
+    assert(errors.exists(_.message.contains("PARAM-NAME-COLLISION")),errors.mkString("\n"))
+  }
+  test("whole-object immutable public-val class and mixed explicit leaves") {
+    val errors=check("""package probe {import spinal.core._
+      class Config(val count:Int,val width:Param[Int])
+      class Child(c:Param[Config]) extends Component {
+        require(c.count>=1 && c.count<=8);require(c.width>=1 && c.width<=16)
+        val result:ElabInt=c.count+c.width
+      }
+      object Calls {val child=new Child(new Config(4,8))}}
+    """)
+    assert(errors.isEmpty,errors.mkString("\n"))
+  }
+  for(reverse<-Seq(false,true))test(s"whole-object source schemas across files reverse=$reverse") {
+    val schema="package models {case class Config(count:Int=4)}"
+    val consumer="""package probe {import spinal.core._;import models.Config
+      class Child(c:Param[Config]=Config()) extends Component {
+        require(c.count>=1 && c.count<=8);val result:ElabInt=c.count}
+      object Calls {val child=new Child()}}"""
+    val sources=List("Definitions.scala"->definitions,"Schema.scala"->schema,"Consumer.scala"->consumer)
+    val ordered=if(reverse)sources.reverse else sources
+    val errors=compile(ordered.head._2,ordered.head._1,ordered.tail)
+    assert(errors.isEmpty,errors.mkString("\n"))
+  }
+  for((shape,tpe)<-Seq("case class Config[T](count:T)"->"Config[Int]",
+    ""->"java.io.File"))test("whole-object generic or binary-only schemas fail closed: "+tpe) {
+    val errors=check(s"""package probe {import spinal.core._;$shape
+      class Child(c:Param[$tpe]) extends Component {}}""")
+    assert(errors.exists(_.message.contains("PARAM-CONFIG-SCHEMA")),errors.mkString("\n"))
+  }
+  test("whole-object effectful derived field is rejected without evaluating it") {
+    val errors=check("""package probe {import spinal.core._
+      case class Config(count:Int) {val derived={println("must not execute");count+1}}
+      class Child(c:Param[Config]) extends Component {require(c.count>=1 && c.count<=8)}}""")
+    assert(errors.exists(_.message.contains("CONFIG-DERIVED-UNSUPPORTED")),errors.mkString("\n"))
+  }
 }

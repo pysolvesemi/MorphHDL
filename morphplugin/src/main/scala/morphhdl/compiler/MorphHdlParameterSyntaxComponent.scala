@@ -57,6 +57,7 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
     private val sourceHelpers = scala.collection.mutable.LinkedHashMap.empty[List[String], Vector[DefDef]]
     private val helperObjects = scala.collection.mutable.Map.empty[List[String], ModuleDef]
     private val helperImports = new java.util.IdentityHashMap[Tree, Vector[List[String]]]()
+    private val wholeSourceSchemas = scala.collection.mutable.LinkedHashSet.empty[List[String]]
     private val sharedConfigClasses = scala.collection.mutable.Set.empty[ClassDef]
     override def apply(unit: CompilationUnit): Unit = {
       if (schemaRun ne currentRun) {
@@ -65,7 +66,7 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
         sharedRecognized.clear(); sharedFactories.clear(); sharedComponents.clear(); sharedKinds.clear()
         sharedSchemas.clear(); ambiguousSchemas.clear(); schemaImports.clear(); sharedComponentClasses.clear(); sharedConfigClasses.clear()
         configurationRequirements.clear(); canonicalConfigurationRequires.clear(); derivedExpressions.clear(); sourceHelpers.clear(); helperImports.clear(); helperObjects.clear()
-        resolvedSchemas=false; retainedSchemas=false
+        wholeSourceSchemas.clear(); resolvedSchemas=false; retainedSchemas=false
       }
       // Resolve source spellings lexically before rewriting them. An import in
       // another package/block must never grant a declaration parameter authority.
@@ -232,6 +233,7 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
               (if(names.size==1)wildcard.map(_++names)else Vector.empty)
             schemaImports.put(tpt,candidates)
           }
+          tpt match { case AppliedTypeTree(_,args)=>args.foreach(captureType); case _=> }
         }
         override def traverse(tree: Tree): Unit = tree match {
           case Import(qualifier,selectors)=>
@@ -271,6 +273,7 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
             }
             val old=owner; owner=owner :+ ("$method:" + method.name.decodedName.toString)
             scope(super.traverse(tree)); owner=old
+          case value:ValDef=>captureType(value.tpt);super.traverse(value)
           case block:Block=>scope(super.traverse(block))
           case _ => super.traverse(tree)
         }
@@ -296,6 +299,129 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
             if(ambiguousSchemas(schema.owner)) reporter.error(tpt.pos,
               "MORPHDL-CONFIG-SHAPE-UNSUPPORTED: ambiguous local configuration declaration; use a uniquely owned class")
             schema
+          }
+        }
+      }
+      // A whole-object opt-in gets a separate source-owned schema. Do not
+      // rewrite the ordinary configuration type: it may also be used as host
+      // Scala data, or by components which did not opt in.
+      if (!retainedSchemas) {
+        val wholeTypes = new java.util.IdentityHashMap[Tree, Tree]()
+        val additions = new java.util.IdentityHashMap[ClassDef, List[Tree]]()
+        val promoted = scala.collection.mutable.LinkedHashMap.empty[List[String], List[String]]
+        def qualified(names: List[String], asType: Boolean): Tree = {
+          val prefix = names.init.foldLeft[Tree](Ident(termNames.ROOTPKG))((q,n) => Select(q,TermName(n)))
+          Select(prefix, if(asType) TypeName(names.last) else TermName(names.last))
+        }
+        def reject(tree: Tree, location: List[String], reason: String): Unit =
+          reporter.error(tree.pos, "MORPHDL-PARAM-CONFIG-SCHEMA: " + location.mkString(".") + ": " + reason)
+        def promote(schema: ConfigSchema, location: List[String], active: Set[List[String]]): Option[List[String]] = {
+          if(active(schema.owner)) { reject(schema.definition,location,"cyclic configuration schema"); return None }
+          promoted.get(schema.owner) match { case some @ Some(_) => return some; case _ => }
+          if(schema.owner.exists(_.startsWith("$method:")) || schema.definition.tparams.nonEmpty ||
+              schema.owner.init.inits.exists(o => schemas.contains(o) && !helperObjects.contains(o))) {
+            reject(schema.definition,location,"generic, method-local and inner-class configuration schemas are unsupported"); return None
+          }
+          val source = schema.definition
+          val accessors=source.impl.body.collect { case v:ValDef if v.mods.hasFlag(Flag.PARAMACCESSOR) => v }
+          accessors.foreach { f =>
+            if(f.mods.hasFlag(Flag.MUTABLE) || f.mods.hasFlag(Flag.LOCAL) || f.mods.hasFlag(Flag.PRIVATE) || f.mods.hasFlag(Flag.PROTECTED))
+              reject(f,location :+ f.name.decodedName.toString,"configuration constructor fields must be immutable public vals")
+          }
+          source.impl.body.foreach {
+            case f:ValDef if f.mods.hasFlag(Flag.MUTABLE) || f.mods.hasFlag(Flag.LAZY) =>
+              reject(f,location :+ f.name.decodedName.toString,"mutable and lazy configuration fields are unsupported")
+            case d:DefDef if d.name!=termNames.CONSTRUCTOR =>
+              reject(d,location :+ d.name.decodedName.toString,"configuration getters/methods are unsupported; use source-owned pure helpers")
+            case _ =>
+          }
+          var suffix=0
+          var name="RtlParamConfig$" + source.name.decodedName.toString
+          while(schemas.contains(schema.owner.init :+ name) || helperObjects.contains(schema.owner.init :+ name)) {
+            suffix+=1;name="RtlParamConfig$" + source.name.decodedName.toString + "$" + suffix
+          }
+          val key=schema.owner.init :+ name
+          val fieldTypes=scala.collection.mutable.Map.empty[Name,Tree]
+          schema.fields.foreach { f =>
+            val fieldPath=location :+ f.name.decodedName.toString
+            parameterType(f.tpt) match {
+              case Some((k,false)) if Set("Int","Boolean")(k) => fieldTypes(f.name)=f.tpt.duplicate
+              case Some(_) => reject(f,fieldPath,"whole-object schemas support only Int and Boolean parameter leaves")
+              case None => Option(recognizedKinds.get(f.tpt)) match {
+                case Some(k) if Set("Int","Boolean")(k) =>
+                  fieldTypes(f.name)=AppliedTypeTree(coreType("Param"),List(f.tpt.duplicate))
+                case _ => configuration(f.tpt,schema.owner.init) match {
+                  case Some(child) => promote(child,fieldPath,active+schema.owner).foreach(k=>fieldTypes(f.name)=qualified(k,true))
+                  case None => reject(f,fieldPath,"unsupported leaf or unavailable source schema (binary-only schemas are unsupported)")
+                }
+              }
+            }
+          }
+          if(fieldTypes.size!=schema.fields.size) return None
+          promoted(schema.owner)=key
+          wholeSourceSchemas += schema.owner
+          val body=source.impl.body.map {
+            case ctor:DefDef if ctor.name==termNames.CONSTRUCTOR =>
+              treeCopy.DefDef(ctor,ctor.mods,ctor.name,ctor.tparams,
+                ctor.vparamss.map(_.map(f=>treeCopy.ValDef(f,f.mods,f.name,fieldTypes(f.name).duplicate,f.rhs.duplicate))),
+                ctor.tpt.duplicate,ctor.rhs.duplicate)
+            case f:ValDef if f.mods.hasFlag(Flag.PARAMACCESSOR) =>
+              treeCopy.ValDef(f,f.mods,f.name,fieldTypes(f.name).duplicate,f.rhs.duplicate)
+            case other=>other.duplicate
+          }
+          val copy=treeCopy.ClassDef(source,source.mods,TypeName(name),Nil,
+            treeCopy.Template(source.impl,source.impl.parents.map(_.duplicate),source.impl.self.duplicate,body))
+          val value=TermName("value")
+          val convert=DefDef(Modifiers(Flag.IMPLICIT),TermName("fromConfiguration"),Nil,
+            List(List(ValDef(Modifiers(Flag.PARAM),value,qualified(schema.owner,true),EmptyTree))),
+            qualified(key,true),Apply(Select(New(qualified(key,true)),termNames.CONSTRUCTOR),
+              schema.fields.map(f=>Select(Ident(value),f.name))))
+          val moduleConstructor=DefDef(Modifiers(),termNames.CONSTRUCTOR,Nil,List(Nil),TypeTree(),
+            Block(List(Apply(Select(Super(This(global.typeNames.EMPTY),global.typeNames.EMPTY),termNames.CONSTRUCTOR),Nil)),
+              Literal(Constant(()))))
+          val companion=ModuleDef(Modifiers(),TermName(name),Template(List(qualified(List("scala","AnyRef"),true)),
+            noSelfType,List(moduleConstructor,convert)))
+          additions.put(source,List(copy,companion))
+          Some(key)
+        }
+        componentClasses.foreach { case (owner, cls) =>
+          val fields=cls.impl.body.flatMap {
+            case ctor:DefDef if ctor.name==termNames.CONSTRUCTOR=>ctor.vparamss.flatten
+            case f:ValDef if f.mods.hasFlag(Flag.PARAMACCESSOR)=>List(f)
+            case _=>Nil
+          }
+          fields.foreach { f=>f.tpt match {
+            case AppliedTypeTree(factory,List(arg)) if isParam(factory) && kind(f.tpt).contains("unsupported source type") =>
+              configuration(arg,owner.init) match {
+                case Some(schema)=>promote(schema,List(f.name.decodedName.toString),Set.empty).foreach(k=>wholeTypes.put(f.tpt,qualified(k,true)))
+                case None=>reject(f,List(f.name.decodedName.toString),"Param[Config] requires a non-generic configuration schema in this compiler run")
+              }
+            case _=>
+          }}
+        }
+        if(!wholeTypes.isEmpty) {
+          object Expand extends Transformer {
+            private def stats(trees:List[Tree]):List[Tree]=trees.flatMap {
+              case cls:ClassDef=>transform(cls) :: Option(additions.get(cls)).getOrElse(Nil)
+              case other=>List(transform(other))
+            }
+            override def transform(t:Tree):Tree=t match {
+              case x if wholeTypes.containsKey(x)=>wholeTypes.get(x).duplicate.setPos(x.pos)
+              case p:PackageDef=>treeCopy.PackageDef(p,p.pid,stats(p.stats))
+              case template:Template=>treeCopy.Template(template,template.parents.map(transform),template.self,stats(template.body))
+              case _=>super.transform(t)
+            }
+          }
+          currentRun.units.foreach(u=>u.body=Expand.transform(u.body))
+          sourceTrees=currentRun.units.map(_.body).toVector
+          sourceTrees.foreach(Resolve.traverse)
+          schemas.clear(); ambiguousSchemas.clear(); componentClasses.clear(); schemaImports.clear()
+          helperObjects.clear(); sourceHelpers.clear(); helperImports.clear(); canonicalConfigurationRequires.clear()
+          sourceTrees.foreach { tree=>
+            Schemas.traverse(tree)
+            val resolver=new MorphHdlTypedElaborationControlComponent(global,()=>false)
+            val calls=resolver.canonicalPredefCalls(tree.asInstanceOf[resolver.global.Tree]).keySet().iterator()
+            while(calls.hasNext)canonicalConfigurationRequires.put(calls.next().asInstanceOf[Tree],true)
           }
         }
       }
@@ -466,6 +592,8 @@ final class MorphHdlParameterSyntaxComponent(val global: Global) extends PluginC
         schema.fields.foreach(field=>configuration(field.tpt,schema.owner.init)
           .filter(containsParameters(_)).foreach(retainConfiguration(_,seen+schema.owner)))
       }
+      if (!retainedSchemas) wholeSourceSchemas.toVector.flatMap(schemas.get)
+        .filter(containsParameters(_)).foreach(retainConfiguration(_,Set.empty))
       if (!retainedSchemas) componentClasses.foreach { case (owner, cls) =>
         schemas(owner).fields.foreach(field=>configuration(field.tpt,owner.init)
           .filter(containsParameters(_)).foreach(retainConfiguration(_,Set.empty)))

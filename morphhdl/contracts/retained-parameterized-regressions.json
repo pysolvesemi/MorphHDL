@@ -2580,6 +2580,15 @@
         "symbolic Vec element child bindings compile kind=child-local unpacked=true",
         "unrecorded raw carrier access still fails without a construction alias"
       ],
+      "morphhdl.WholeConfigurationParameterTests": [
+        "ordinary configurations remain host values while whole-object opt-in emits scalar formals",
+        "nested whole-object child forwarding retains parameter overrides and derived widths",
+        "same actual object in two fields preserves independent paths",
+        "whole-object recursive copy retains decreasing symbolic count and generic definition",
+        "whole-object illegal defaults retain domain validation",
+        "derived pure helpers constraints and ordinary loops use promoted leaves",
+        "mixed explicit leaves and named promoted leaves publish once with deterministic output"
+      ],
       "morphhdl.WidthCompositionTests": [
         "concrete compound child connection direction=input mismatch=false",
         "concrete compound child connection direction=input mismatch=true",
@@ -3977,7 +3986,21 @@
         "sparse disjunction and dependent bounds establish conservative finite envelopes",
         "a disjunction with an unbounded arm cannot manufacture a finite domain",
         "symbolic shifts are not confused with host literal operations",
-        "overflowed negative upper bounds and cyclic unknown bounds are rejected"
+        "overflowed negative upper bounds and cyclic unknown bounds are rejected",
+        "whole-object promotion preserves ordinary host types and imported schemas",
+        "whole-object rejects unsupported schema: case class Config(count:Int)",
+        "whole-object rejects unsupported schema: case class Config(var count:Int)",
+        "whole-object rejects unsupported schema: class Config(val count:Int) {lazy val delayed:Int=count}",
+        "whole-object rejects unsupported schema: class Config(val count:Int) {def effect:Int={println(1);count}}",
+        "whole-object rejects unsupported schema: case class Config(label:String)",
+        "whole-object rejects unsupported schema: class Config(val next:Config)",
+        "whole-object field names retain collision checks",
+        "whole-object immutable public-val class and mixed explicit leaves",
+        "whole-object source schemas across files reverse=false",
+        "whole-object source schemas across files reverse=true",
+        "whole-object generic or binary-only schemas fail closed: Config[Int]",
+        "whole-object generic or binary-only schemas fail closed: java.io.File",
+        "whole-object effectful derived field is rejected without evaluating it"
       ],
       "morphhdl.compiler.ConstructorParameterSyntaxTests": [
         "constructor-only formals accept renamed imports named defaults and Int actuals",
@@ -4732,6 +4755,7 @@
     "morphhdl/src/test/scala/morphhdl/TypedStreamWidthAdapterFormalEquivalenceTests.scala": "69fa3081097de7dd33445219dc182d3aefcc8ceab5750b233692a0761c672564",
     "morphhdl/src/test/scala/morphhdl/VecElabIntApplyTests.scala": "355afba617d0a112665e3de3e6d5b33ae5c9f28489b9a669dba107a319157061",
     "morphhdl/src/test/scala/morphhdl/VecWordPublicationTests.scala": "9f0dd3ed4801f1f72c593ad550b3812e7587c0100734134fb5dd1fc99ccf80b5",
+    "morphhdl/src/test/scala/morphhdl/WholeConfigurationParameterTests.scala": "ad52c29eb25b00b643f67b00d0e3a25fe6b97942bb0dc041b2722bf81cf9035c",
     "morphhdl/src/test/scala/morphhdl/WidthCompositionTests.scala": "646049bc551801f1753a9ff6e4c9863cf607d34853f6abab349b7c36267cdeb7",
     "morphhdl/src/test/scala/morphhdl/examples/DerivedLocalParameterArtifactWriter.scala": "6b30f5a2db964a2ae7fe6916ab2577c9cde6afaa977e6aed6d4db05f00912bdb",
     "morphhdl/src/test/scala/morphhdl/examples/Increment66ArtifactWriter.scala": "4e8769ad10f574c0b2a46d522028fc456a38c9a0dd097602c1d7fe11e0b6c1ec",
@@ -4900,7 +4924,7 @@
     "morphhdl/src/test/scala/spinal/lib/CounterSingleAuthorityParityTests.scala": "9eedbe0f3ce7a457d4c79ab2c9fc3aa1cb02c932436bc76d30d8ada2ca6780f5",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala": "24b185c3ef7939be404500704e955d598c2493ee7c3a1f737d0cf16267d9c362",
     "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrV1Spec.scala": "835224bc5028bc192976dd96e08906add489d4824d328397466a7e4dd7f31493",
-    "morphplugin/src/test/scala/morphhdl/compiler/ConfigurationParameterSyntaxTests.scala": "0c02f0a49e28b2e249891af293c29a5a81a2ed93e5126ffd33f4d772ab9076f3",
+    "morphplugin/src/test/scala/morphhdl/compiler/ConfigurationParameterSyntaxTests.scala": "9fb9a10a64fcde50477ff2e8a8ddb695d8251e5ec49d8e7a8aaf877af09890de",
     "morphplugin/src/test/scala/morphhdl/compiler/ConstructorParameterSyntaxTests.scala": "ca45bf6806815f8697baa50acf2d2bb0090f9bd1cdf858476d85b2d59b263b33",
     "morphplugin/src/test/scala/morphhdl/compiler/DirectRecursiveSyntaxTests.scala": "583a6a612a15cfc4b80c1fa9a613314c4917c77db7ccadb35b60851c40d3815a",
     "morphplugin/src/test/scala/morphhdl/compiler/InferredParameterSyntaxTests.scala": "d7c7badff17f887b6ff23690e241072b4c059faec9c6abc47f3d19d0081aa943",
