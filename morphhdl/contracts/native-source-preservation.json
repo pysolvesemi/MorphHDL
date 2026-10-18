@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "aee9c04495e51663e73f2b04a92fa65ae0b2ac26"
+      "approved_tree": "810561594b89eaa92e103e16b4c0e06b215c8c44"
     },
     {
       "path": "idslpayload/src/main",
@@ -804,15 +804,16 @@
       "classification": "typed-support-file",
       "introduced_by": [
         "Increment 66: native parameter and RTL readability extensions",
-        "CA-018: user-requested neutral generated helper names"
+        "CA-018: user-requested neutral generated helper names",
+        "LWR-39: parameter annotations"
       ],
-      "reason": "Relocate the existing typed unsigned hardware-value adapter unchanged into core so the public core U overload can delegate without a reverse module dependency. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged.",
+      "reason": "Relocate the existing typed unsigned hardware-value adapter unchanged into core so the public core U overload can delegate without a reverse module dependency. CA-018 changes compiler-generated naming stems only; native storage, dataflow, provenance and width algorithms are unchanged. LWR-39: Preserve owned integer-local references through typed hardware adaptation instead of replacing literal locals by their witness values.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElabValue.scala",
         "mode": "100644",
-        "blob": "95fc86d9bc039dd1bb9cf07ba12346901205d7ae",
-        "sha256": "6f439586ff1d9a895c437051265b56abb5e890f202d5aa5e48b78bdafa3d6d92"
+        "blob": "8d1f7d100b393aea0f0b99fa95dda72b626349df",
+        "sha256": "40d1195824f500be080e89d534917bb824fcb4eae78d7dba22c7b5b2d15d9278"
       },
       "edits": []
     },
@@ -968,6 +969,23 @@
         "mode": "100644",
         "blob": "17a509a3e1c3e2bcbd61fef3b6cf90e46a7148eb",
         "sha256": "77971adc2eccc122759e654c53d39837efe46d664ff04515bd5b53be5d57f0bd"
+      },
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/HdlParameterAnnotations.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "LWR-39: parameter annotations"
+      ],
+      "reason": "Define declaration annotation markers consumed by the authenticated compiler frontend.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/HdlParameterAnnotations.scala",
+        "mode": "100644",
+        "blob": "aa9d65d8a30769dc977955be9d19fe7609654847",
+        "sha256": "944ab74f469d37bbefa1207faf982e16d3980eb9277ca278237f6bb88a08b93d"
       },
       "edits": []
     },
@@ -1138,9 +1156,10 @@
       "classification": "typed-overload",
       "introduced_by": [
         "Increment 66: native parameter and RTL readability extensions",
-        "LWR-22\u201324: ordinary loops, immutable configuration formals and late synchronous grouping"
+        "LWR-22\u201324: ordinary loops, immutable configuration formals and late synchronous grouping",
+        "LWR-39: parameter annotations"
       ],
-      "reason": "Add typed U/B/S value materialization overloads through the authenticated value registry; existing concrete literal overloads remain unchanged. LWR-22\u201324: Add explicitly sized B/U scoped-index overloads delegated to authenticated finite-index values; reject narrowing instead of extracting Scala witnesses.",
+      "reason": "Add typed U/B/S value materialization overloads through the authenticated value registry; existing concrete literal overloads remain unchanged. LWR-22\u201324: Add explicitly sized B/U scoped-index overloads delegated to authenticated finite-index values; reject narrowing instead of extracting Scala witnesses. LWR-39: Delegate literal Int plus authenticated symbolic width constructors to the existing typed value authority.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/Literal.scala",
         "mode": "100644",
@@ -1150,15 +1169,15 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/Literal.scala",
         "mode": "100644",
-        "blob": "19480d1f94066e2a85ef2b6d217d3a866bf534c3",
-        "sha256": "2c497963fe34eb187793d4b0358ad1940f2faaa28cf8d5d5107f04dc74a7137a"
+        "blob": "93a27412ebfa1d9e7da52cfcef994d709e6f9f5a",
+        "sha256": "18c1cbcec950867544a914ac2daac99b23772b768a29019bdf067d7afdd4e6ad"
       },
       "edits": [
         {
-          "id": "lwr22-24-literal-1",
+          "id": "lwr39-literal-1",
           "kind": "overload",
           "owner": "core/src/main/scala/spinal/core/Literal.scala",
-          "reason": "Add explicitly sized B/U scoped-index overloads delegated to authenticated finite-index values; reject narrowing instead of extracting Scala witnesses.",
+          "reason": "Delegate literal Int plus authenticated symbolic width constructors to the existing typed value authority.",
           "baseline_span": {
             "start": 7463,
             "end": 7463,
@@ -1166,59 +1185,59 @@
           },
           "approved_span": {
             "start": 7463,
-            "end": 7727,
-            "sha256": "e8969ef7d6db7828a962e7a61e0f38a1931d60719c899568a7fba093d3773af6"
+            "end": 7826,
+            "sha256": "c41bf9645361743a9d8df759ec0025a363dd9989c966e1a1500bd4f4e07a3cdb"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "  def apply(value: ElabScopedIndex, width: BitCount): Bits = value.sizedRuntimeUInt(width).asBits\n  def apply(value: ElabInt, width: BitCount): Bits = U(value, width).asBits\n  def apply(value: ElabInt, width: ParameterizedBitCount): Bits = U(value, width).asBits\n\n",
+              "text": "  def apply(value: Int, width: ParameterizedBitCount): Bits = apply(ElabInt.literal(value), width)\n  def apply(value: ElabScopedIndex, width: BitCount): Bits = value.sizedRuntimeUInt(width).asBits\n  def apply(value: ElabInt, width: BitCount): Bits = U(value, width).asBits\n  def apply(value: ElabInt, width: ParameterizedBitCount): Bits = U(value, width).asBits\n\n",
               "count": 1
             }
           ]
         },
         {
-          "id": "lwr22-24-literal-2",
+          "id": "lwr39-literal-2",
           "kind": "overload",
           "owner": "core/src/main/scala/spinal/core/Literal.scala",
-          "reason": "Add explicitly sized B/U scoped-index overloads delegated to authenticated finite-index values; reject narrowing instead of extracting Scala witnesses.",
+          "reason": "Delegate literal Int plus authenticated symbolic width constructors to the existing typed value authority.",
           "baseline_span": {
             "start": 8759,
             "end": 8759,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 9023,
-            "end": 9502,
-            "sha256": "4265f20e9a0bc9c27daa5d303cfc4991e53203bece335f6e4f6efd52dbecc374"
+            "start": 9122,
+            "end": 9700,
+            "sha256": "d743078fdcfe8e97132f983d2b16afd01fe1bfb0aa0de4072ca469b1d9ee2825"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "  def apply(value: ElabScopedIndex, width: BitCount): UInt = value.sizedRuntimeUInt(width)\n  /** Explicitly sized unsigned hardware value retaining its ElabInt authority.\n    * Width and value remain independent; unsupported values fail before emission.\n    */\n  def apply(value: ElabInt, width: BitCount): UInt =\n    ElabValue.uintLike(value, UInt(width), null)\n  def apply(value: ElabInt, width: ParameterizedBitCount): UInt =\n    ElabValue.uintLike(value, UInt(width), null)\n\n",
+              "text": "  def apply(value: Int, width: ParameterizedBitCount): UInt = apply(ElabInt.literal(value), width)\n  def apply(value: ElabScopedIndex, width: BitCount): UInt = value.sizedRuntimeUInt(width)\n  /** Explicitly sized unsigned hardware value retaining its ElabInt authority.\n    * Width and value remain independent; unsupported values fail before emission.\n    */\n  def apply(value: ElabInt, width: BitCount): UInt =\n    ElabValue.uintLike(value, UInt(width), null)\n  def apply(value: ElabInt, width: ParameterizedBitCount): UInt =\n    ElabValue.uintLike(value, UInt(width), null)\n\n",
               "count": 1
             }
           ]
         },
         {
-          "id": "lightweight-literal-sint",
+          "id": "lwr39-literal-3",
           "kind": "overload",
-          "owner": "spinal.core typed sint literal factories",
-          "reason": "Materialize explicitly sized typed values through authenticated native value lineage; preserve existing concrete literal factories.",
+          "owner": "core/src/main/scala/spinal/core/Literal.scala",
+          "reason": "Delegate literal Int plus authenticated symbolic width constructors to the existing typed value authority.",
           "baseline_span": {
             "start": 9651,
             "end": 9651,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 10394,
-            "end": 10673,
-            "sha256": "2e47541e378252def5c98c90dc45659cb47e246a0e6177c35ff3405e3e359af7"
+            "start": 10592,
+            "end": 10970,
+            "sha256": "b2dc33c17ca551288cbdfad1a9c5634a3bbf94bbf75692b95c0c312665848a38"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "  def apply(value:ElabInt,width:ParameterizedBitCount):SInt = ElabValue.sintLike(value,SInt(width),null)",
+              "text": "  def apply(value: Int, width: ParameterizedBitCount): SInt = apply(ElabInt.literal(value), width)\n  /** Materialize an authenticated signed parameter value without truncation. */\n  def apply(value:ElabInt,width:BitCount):SInt = ElabValue.sintLike(value,SInt(width),null)\n  def apply(value:ElabInt,width:ParameterizedBitCount):SInt = ElabValue.sintLike(value,SInt(width),null)\n\n",
               "count": 1
             }
           ]
@@ -1858,15 +1877,50 @@
         "Increment 64: typed native derived local parameters",
         "Increment 66: native parameter and RTL readability extensions",
         "Compiler repair batch CA-005 through CA-010 and focused lint findings, 4 October 2026",
-        "Qualification closure: named-local arithmetic lint, 4 October 2026"
+        "Qualification closure: named-local arithmetic lint, 4 October 2026",
+        "LWR-39: parameter annotations"
       ],
-      "reason": "Capture exact typed arithmetic operands and compiler-supplied member hints; select only live exact-owner uses, order declarations by operand identity, reject cycles, reserve collision-safe names, and render native local parameters without introducing proof authority. Restricted structural calculations retain direct expression publication. Component-owned state cannot leak names between generations or owners. Extend the existing component-local dependency graph with explicitly named packed unsigned declarations, exact owner checks, deterministic collision rejection and dependency ordering. Explicit names replace an automatic hint for the same expression; metadata never grants arithmetic authority. Publish explicitly sized typed UInt local constants through compiler-owned 32-bit integer intermediates, preserving exact expression dependencies and signed 32-bit elaboration domains before slicing or extending to the declared packed width. When a packed local is reused by ElabInt arithmetic, publish its exact nonnegative Int-domain value as a signed 32-bit operand: zero-extend narrow declarations, sign the 32-bit view, or select the low 32 bits of a wider zero-extended declaration. Keep ordinary hardware uses packed. Wider local declarations use an explicitly sized 32-bit expression before zero extension, including zero-valued parameter aliases; no lint warning is suppressed and no domain, ownership or dependency validation is bypassed.",
+      "reason": "Capture exact typed arithmetic operands and compiler-supplied member hints; select only live exact-owner uses, order declarations by operand identity, reject cycles, reserve collision-safe names, and render native local parameters without introducing proof authority. Restricted structural calculations retain direct expression publication. Component-owned state cannot leak names between generations or owners. Extend the existing component-local dependency graph with explicitly named packed unsigned declarations, exact owner checks, deterministic collision rejection and dependency ordering. Explicit names replace an automatic hint for the same expression; metadata never grants arithmetic authority. Publish explicitly sized typed UInt local constants through compiler-owned 32-bit integer intermediates, preserving exact expression dependencies and signed 32-bit elaboration domains before slicing or extending to the declared packed width. When a packed local is reused by ElabInt arithmetic, publish its exact nonnegative Int-domain value as a signed 32-bit operand: zero-extend narrow declarations, sign the 32-bit view, or select the low 32 bits of a wider zero-extended declaration. Keep ordinary hardware uses packed. Wider local declarations use an explicitly sized 32-bit expression before zero extension, including zero-valued parameter aliases; no lint warning is suppressed and no domain, ownership or dependency validation is bypassed. LWR-39: Publish integer local declarations and retain parameter dependencies from native typed constants.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/NativeLocalParameters.scala",
         "mode": "100644",
-        "blob": "fe6e866d18bf7f65f96ee461d30954af0e3d83c6",
-        "sha256": "751b31fb907b3cdb632c7b6f46b3574e63167276fc6ac9f6a4e6bb900fd1e77d"
+        "blob": "5248b75ead02926439a5cf923075b50baf733bcb",
+        "sha256": "edafdfca4e5f3d81ec144d148e63323b1d8b989335675835cc3cbd13bdcd7d52"
+      },
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/NativeParameterConstants.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "LWR-39: parameter annotations"
+      ],
+      "reason": "Capture immutable typed constant graphs using exact native owners, assignments, domains and geometry; emit localparams with sized intermediate semantics and reject runtime sources, mutation and unsafe switch keys.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/NativeParameterConstants.scala",
+        "mode": "100644",
+        "blob": "cb28e661d66c5cb20126e21af593d6067d29fc78",
+        "sha256": "dd1046c513e543bcca9eaab0acd9e2f3c8e0f10f09367149394ef101d954301a"
+      },
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/NativeParameterValueSizing.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "LWR-39: parameter annotations"
+      ],
+      "reason": "Share existing Verilog-2001 parameter-reference sizing without granting expression authority.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/NativeParameterValueSizing.scala",
+        "mode": "100644",
+        "blob": "0c56fb43c23735133d7c75d64be2e636f2fc0b19",
+        "sha256": "f88f586e9a674defc10cb772adfec8605304dd3fdc93dc085f82c8a4a58010c7"
       },
       "edits": []
     },
@@ -1923,15 +1977,16 @@
         "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup",
         "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI",
         "Enum-condition repair: resolved native enum packed-width authority",
-        "LWR-13\u201316: constructor formals and scoped port/index compositions"
+        "LWR-13\u201316: constructor formals and scoped port/index compositions",
+        "LWR-39: parameter annotations"
       ],
-      "reason": "Retain immutable native width provenance through construction, casts, resize, widening, mux, source-relative saturation ranges/results and all-ones literals. Freshness compares complete width functions and exact root/domain identities, including under narrowed singleton domains; native operators and inference remain authoritative. After existing copyCloneMetadata completes at the actual native cloneOf seam, notify the invocation-local Vec zero observer of that exact source/result pair; metadata copying alone cannot create clone ancestry or enable zero construction. Derive width provenance from exact native scalar IR and transfer it at construction/clone/mux seams; retain exact-node msb evidence while preserving the original native operators, memory representation and concrete width inference. Delegate clone geometry validation to the recursive authored-layout checker before transferring exact scalar or Vec metadata. CDC-WIRE-01 derives exact symbolic result width for Bool-valued expressions, fixed and variable shifts, and ranged access using the existing typed width authority. Shift amounts remain self-determined; no concrete construction witness substitutes for a symbolic width domain. Qualification adds an explicit optional late-evidence query without changing construction-time widthOf behavior. Only SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION and SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED indicate unavailable optional proof and retain the original graph; malformed metadata and every unrelated compiler error still propagate. Resolved enum values derive width only from the exact native enum definition and encoding authority; unresolved or anticipated encodings remain unrepresented. No width, branch, projection or parameter authority is invented. LWR-13\u201316: Project child formal widths before native scalar inference. Derive conditional/mux geometry only from proved full-leaf source widths; partial assignments supply no such proof and native latch/driver checks remain authoritative.",
+      "reason": "Retain immutable native width provenance through construction, casts, resize, widening, mux, source-relative saturation ranges/results and all-ones literals. Freshness compares complete width functions and exact root/domain identities, including under narrowed singleton domains; native operators and inference remain authoritative. After existing copyCloneMetadata completes at the actual native cloneOf seam, notify the invocation-local Vec zero observer of that exact source/result pair; metadata copying alone cannot create clone ancestry or enable zero construction. Derive width provenance from exact native scalar IR and transfer it at construction/clone/mux seams; retain exact-node msb evidence while preserving the original native operators, memory representation and concrete width inference. Delegate clone geometry validation to the recursive authored-layout checker before transferring exact scalar or Vec metadata. CDC-WIRE-01 derives exact symbolic result width for Bool-valued expressions, fixed and variable shifts, and ranged access using the existing typed width authority. Shift amounts remain self-determined; no concrete construction witness substitutes for a symbolic width domain. Qualification adds an explicit optional late-evidence query without changing construction-time widthOf behavior. Only SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION and SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED indicate unavailable optional proof and retain the original graph; malformed metadata and every unrelated compiler error still propagate. Resolved enum values derive width only from the exact native enum definition and encoding authority; unresolved or anticipated encodings remain unrepresented. No width, branch, projection or parameter authority is invented. LWR-13\u201316: Project child formal widths before native scalar inference. Derive conditional/mux geometry only from proved full-leaf source widths; partial assignments supply no such proof and native latch/driver checks remain authoritative. LWR-39: Transfer exact stored width authority from authenticated constant-reference expression nodes.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/NativeWidthProvenance.scala",
         "mode": "100644",
-        "blob": "268fee0866d628a8839692702b0784e3658d3c96",
-        "sha256": "c9718c0f398ee4d6a421f582dcf188445f970fee3ad898ad6ef41b14ae862e51"
+        "blob": "586b3fbea3b6c466b0128022624d1f4a1be4f325",
+        "sha256": "a14aef4f4fa992db44b222c1e934fa13cfcc5d1580ce59c86438964c53a9e87e"
       },
       "edits": []
     },
@@ -3510,9 +3565,10 @@
       "introduced_by": [
         "Increment 53d: typed StreamWidthAdapter architecture",
         "CA-021: ordinary-import parameter-constant Vec indexing",
-        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition"
+        "Lightweight Scala RTL roadmap: authenticated native authoring and hierarchy composition",
+        "LWR-39: parameter annotations"
       ],
-      "reason": "Expose parameter-preserving widthOf and scalar Vec indexing while preserving native and frontend structural overload resolution. Lightweight roadmap: Keep literal-left affine operations in the authenticated scoped-index domain.",
+      "reason": "Expose parameter-preserving widthOf and scalar Vec indexing while preserving native and frontend structural overload resolution. Lightweight roadmap: Keep literal-left affine operations in the authenticated scoped-index domain. LWR-39: Expose lowercase annotation aliases without a Param/param filesystem class-name collision.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/core.scala",
         "mode": "100644",
@@ -3522,29 +3578,52 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/core.scala",
         "mode": "100644",
-        "blob": "b336c071d6f4d97ff11d537ccd7e7c957da89423",
-        "sha256": "536cf16c6753946be65f4f9d1d67d131bdd0761c20d398b2c8f3ad893e504b41"
+        "blob": "a923422d08d4de40ab525a9b273ee70fe1e4d8bf",
+        "sha256": "f024c39c8619c69c31f1e4fa4237226a74591c6d1e401a116fc4d1c087cc0eb6"
       },
       "edits": [
         {
-          "id": "lightweight-core-0",
-          "kind": "overload",
-          "owner": "native core authoring boundary",
-          "reason": "Keep literal-left affine operations in the authenticated scoped-index domain.",
+          "id": "lwr39-core-1",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/core.scala",
+          "reason": "Expose lowercase annotation aliases without a Param/param filesystem class-name collision.",
           "baseline_span": {
-            "start": 2140,
-            "end": 2140,
+            "start": 2008,
+            "end": 2008,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 2140,
-            "end": 2695,
-            "sha256": "874fae954bcbbcf0e47ba6c778918a1dc5b99c89134c38fb54182eb79c48e171"
+            "start": 2008,
+            "end": 2345,
+            "sha256": "23ac7344a9bc87dba8b469f36664baa47f56e8cfa5d777ca7ef15ac8ed6e4bee"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "  /** Parameter-preserving counterpart of [[widthOf]] for typed native APIs. */\n  def widthOfExpr[T <: Data](that: T): ElabInt = ElabInt.packedWidthOf(that)\n\n  /** Parameter-constant scalar Vec reads, available with spinal.core._.\n    * Keep this an extension: a native member would take precedence over the\n    * frontend's structural index extension after its HdlInt-to-ElabInt conversion.\n    */\n  implicit final class ElabVecOps[T <: BaseType](private val vector: Vec[T]) {\n    def apply(index: ElabInt): T = TypedVecStaticSelect(vector, index)\n  }\n\n\n",
+              "text": "  /** Semantic declaration annotations resolved by the MorphHDL frontend. */\n  @scala.annotation.compileTimeOnly(\"@param requires the MorphHDL compiler plugin\")\n  type param = HdlParameterAnnotation\n  @scala.annotation.compileTimeOnly(\"@localparam requires the MorphHDL compiler plugin\")\n  type localparam = HdlLocalParameterAnnotation\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lwr39-core-2",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/core.scala",
+          "reason": "Expose lowercase annotation aliases without a Param/param filesystem class-name collision.",
+          "baseline_span": {
+            "start": 2139,
+            "end": 2139,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 2476,
+            "end": 3031,
+            "sha256": "f0294babe1cbdef4020a0c52639834cc6feec468482cdb6044fbcc4fe1ca6b88"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "\n  /** Parameter-preserving counterpart of [[widthOf]] for typed native APIs. */\n  def widthOfExpr[T <: Data](that: T): ElabInt = ElabInt.packedWidthOf(that)\n\n  /** Parameter-constant scalar Vec reads, available with spinal.core._.\n    * Keep this an extension: a native member would take precedence over the\n    * frontend's structural index extension after its HdlInt-to-ElabInt conversion.\n    */\n  implicit final class ElabVecOps[T <: BaseType](private val vector: Vec[T]) {\n    def apply(index: ElabInt): T = TypedVecStaticSelect(vector, index)\n  }\n\n",
               "count": 1
             }
           ]
@@ -3560,8 +3639,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 4499,
-            "end": 4701,
+            "start": 4836,
+            "end": 5038,
             "sha256": "72d2bd7a254d46429749ca6aca54c53a98307cda7d3584e8012d95a8fed6a361"
           },
           "required_exact_text": [
@@ -3674,9 +3753,10 @@
         "CA-049: complete guarded static packed assignment publication",
         "LWR-22\u201324: ordinary loops, immutable configuration formals and late synchronous grouping",
         "LWR-26: ordinary affine range and host-topology compatibility",
-        "ATRTL: explicit source comment style"
+        "ATRTL: explicit source comment style",
+        "LWR-39: parameter annotations"
       ],
-      "reason": "Retain native symbolic-legality publication and the generation-scoped signed declaration, cast, literal, resize and unsigned-transport callbacks. The typed expression planner controls optional wrapper suppression; every mandatory wrapper present before depth cutting remains, and CDC-WIRE-01 suppresses new depth wrappers only when complete expansion and all receiving widths are proven. Approved unsigned expression slices use a deterministic Verilog-2001 function with the full authoritative source input width and exact constant result range, preserving truncation and four-state semantics. Helper and argument names are allocated in the same namespace after reserving component/width parameter identities, and functions are cached by symbolic width and range. Signed/unknown or otherwise unproven expressions and the ordinary backend keep inherited emission. Qualification repair reserves declaration-local width names without composing finished branch domains, and passes the exact emitter owner when preserving a retained unsigned wrapper's authoritative logical range. All old public wrapper entry points and ordinary backend behavior remain intact. Emit dependency-ordered typed local parameters through the native localparams buffer after the parameterized backend prepares exact live uses. Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative. Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. CA-005 adds explicit native ANSI-port context while preserving body declaration behavior. Include actual ANSI context and parameter-aware unsigned native temporary/operand publication. Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative. Route BOOT initial assignments through the existing default-disabled owner-bound source publication hook, retaining the exact init statement; preserve ordinary literal emission when the hook returns no replacement. CA-023 preserves child-owned symbolic memory geometry before native identity comparison using optional exact-owner hooks. Enum report formatting follows the existing native enum-string setting and falls back to numeric encoding when disabled. CA-049: retain one exact native serialization of authenticated complete static packed processes, including constant-only bodies. The opt-in policy defaults false, validates the exact emitter and statement inventory, and requires every retained assignment to become a continuous driver before publication. Ordinary native constant-function emission is unchanged. LWR-22\u201324: Expose native synchronous rendering through an optional authenticated publication callback; preserve the original renderer as the default and replay authority. LWR-26: Forward an optional continuous-assignment publication suffix hook, preserving exact finite-write lineage through optimization without changing ordinary native output. ATRTL: Publish typed documentation styles for declaration and procedural-region ownership.",
+      "reason": "Retain native symbolic-legality publication and the generation-scoped signed declaration, cast, literal, resize and unsigned-transport callbacks. The typed expression planner controls optional wrapper suppression; every mandatory wrapper present before depth cutting remains, and CDC-WIRE-01 suppresses new depth wrappers only when complete expansion and all receiving widths are proven. Approved unsigned expression slices use a deterministic Verilog-2001 function with the full authoritative source input width and exact constant result range, preserving truncation and four-state semantics. Helper and argument names are allocated in the same namespace after reserving component/width parameter identities, and functions are cached by symbolic width and range. Signed/unknown or otherwise unproven expressions and the ordinary backend keep inherited emission. Qualification repair reserves declaration-local width names without composing finished branch domains, and passes the exact emitter owner when preserving a retained unsigned wrapper's authoritative logical range. All old public wrapper entry points and ordinary backend behavior remain intact. Emit dependency-ordered typed local parameters through the native localparams buffer after the parameterized backend prepares exact live uses. Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative. Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. CA-005 adds explicit native ANSI-port context while preserving body declaration behavior. Include actual ANSI context and parameter-aware unsigned native temporary/operand publication. Retain exact owner-bound default-disabled publication hooks for symbolic declaration and child connection ranges, BlackBox generic actuals, native conditional event dependencies, unsigned/signed operand sizing and shrinking constant shifts. Preserve ordinary native emission when no policy is installed; keep native arithmetic, process ordering and instance bindings authoritative. Route BOOT initial assignments through the existing default-disabled owner-bound source publication hook, retaining the exact init statement; preserve ordinary literal emission when the hook returns no replacement. CA-023 preserves child-owned symbolic memory geometry before native identity comparison using optional exact-owner hooks. Enum report formatting follows the existing native enum-string setting and falls back to numeric encoding when disabled. CA-049: retain one exact native serialization of authenticated complete static packed processes, including constant-only bodies. The opt-in policy defaults false, validates the exact emitter and statement inventory, and requires every retained assignment to become a continuous driver before publication. Ordinary native constant-function emission is unchanged. LWR-22\u201324: Expose native synchronous rendering through an optional authenticated publication callback; preserve the original renderer as the default and replay authority. LWR-26: Forward an optional continuous-assignment publication suffix hook, preserving exact finite-write lineage through optimization without changing ordinary native output. ATRTL: Publish typed documentation styles for declaration and procedural-region ownership. LWR-39: Emit authenticated typed constants and their exact expression references, including switch keys.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
@@ -3686,8 +3766,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
-        "blob": "be14881a1cf11bb85a7a6a661ab389d9fccb5580",
-        "sha256": "288cf85d96a06a0a23e6807ea843741a5c402bdc940cb465e974f586d1eda4b9"
+        "blob": "e400c7f8c4249d5e106a2237234b4260f0186a73",
+        "sha256": "5659f75f1f93f80f5210343a16c2ff8c338ed3df582e8b9cd5f8fe60c703a297"
       },
       "edits": [
         {
@@ -3806,10 +3886,10 @@
           ]
         },
         {
-          "id": "symbolic-legality-native-emission-01",
+          "id": "lwr39-componentemitterverilog-6",
           "kind": "backend-isolation",
-          "owner": "spinal.core.internals.ComponentEmitterVerilog.emitArchitecture",
-          "reason": "Emit exact-owner authenticated parameter legality via the native architecture buffer, under ifndef SYNTHESIS with deterministic native names. Hardware and width expressions remain outside the simulation-only guard. Emit dependency-ordered typed local parameters through the native localparams buffer after the parameterized backend prepares exact live uses.",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Emit authenticated typed constants and their exact expression references, including switch keys.",
           "baseline_span": {
             "start": 6231,
             "end": 6231,
@@ -3817,23 +3897,13 @@
           },
           "approved_span": {
             "start": 6867,
-            "end": 7053,
-            "sha256": "d067454e91feed1337f0284558c7f8302df57e6e602e0f8b82ed9bb6d42664eb"
+            "end": 7122,
+            "sha256": "3af920bdf9d3d5ab5ddd3310494cae18a0ca950b1a4278d85d8b979dc1fb0e4e"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "NativeSymbolicLegality.render(component,",
-              "count": 1
-            },
-            {
-              "side": "approved",
-              "text": "component.localNamingScope.allocateName(name)",
-              "count": 1
-            },
-            {
-              "side": "approved",
-              "text": "localparams ++= NativeLocalParameters.declarations(component)",
+              "text": "    localparams ++= NativeLocalParameters.declarations(component)\n    localparams ++= NativeParameterConstants.declarations(component)\n    endModule ++= NativeSymbolicLegality.render(component,\n      name => component.localNamingScope.allocateName(name))\n",
               "count": 1
             }
           ]
@@ -3849,8 +3919,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 7694,
-            "end": 7700,
+            "start": 7763,
+            "end": 7769,
             "sha256": "0cba10bc1f335de9d4e1eac6c4f7aa62e523aa54144b9482ffddc09d32a279cf"
           },
           "required_exact_text": [
@@ -3872,8 +3942,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 9503,
-            "end": 9509,
+            "start": 9572,
+            "end": 9578,
             "sha256": "0cba10bc1f335de9d4e1eac6c4f7aa62e523aa54144b9482ffddc09d32a279cf"
           },
           "required_exact_text": [
@@ -3895,8 +3965,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 9803,
-            "end": 10231,
+            "start": 9872,
+            "end": 10300,
             "sha256": "398a8dc79c8f69dd683f39d2bd115fa444d41e3a30ab3fdf466598a8b9006fde"
           },
           "required_exact_text": [
@@ -3918,8 +3988,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 10983,
-            "end": 10989,
+            "start": 11052,
+            "end": 11058,
             "sha256": "0cba10bc1f335de9d4e1eac6c4f7aa62e523aa54144b9482ffddc09d32a279cf"
           },
           "required_exact_text": [
@@ -3941,8 +4011,8 @@
             "sha256": "29d231558f0171ed060da9620c6788bf5b8ddf9fa20775bd371f873438e064f1"
           },
           "approved_span": {
-            "start": 15732,
-            "end": 15880,
+            "start": 15801,
+            "end": 15949,
             "sha256": "dadaf05930df780d6d3ad15fd00b211ada6c24b71dfcbb9aa8896fbe625a3aea"
           },
           "required_exact_text": [
@@ -3964,8 +4034,8 @@
             "sha256": "babd0f54dafdca237d42554abba41da3e8f98fd6e3c1efe917f2b3ef0f8ccf43"
           },
           "approved_span": {
-            "start": 16914,
-            "end": 16992,
+            "start": 16983,
+            "end": 17061,
             "sha256": "1480ec4ea2b028d5241bdd51446f63a9be4d334f0f2dd7264ad4e67771899508"
           },
           "required_exact_text": [
@@ -3987,8 +4057,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 17371,
-            "end": 17435,
+            "start": 17440,
+            "end": 17504,
             "sha256": "ee223ec5eaff331d0169f82c58f87679f869d488f766f4bd1507fba85b193ae9"
           },
           "required_exact_text": [
@@ -4010,8 +4080,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 18281,
-            "end": 18282,
+            "start": 18350,
+            "end": 18351,
             "sha256": "ba5ec51d07a4ac0e951608704431d59a02b21a4e951acc10505a8dc407c501ee"
           },
           "required_exact_text": [
@@ -4033,8 +4103,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 23001,
-            "end": 23032,
+            "start": 23070,
+            "end": 23101,
             "sha256": "239c3b4afacd578beef24497d246b98aaf8ca32d4bb781cfb4eb24d3980e265e"
           },
           "required_exact_text": [
@@ -4056,8 +4126,8 @@
             "sha256": "5579df40b3e71c89c90661260285a4e27916f94fdf743d4161c9055eeb3e4276"
           },
           "approved_span": {
-            "start": 26035,
-            "end": 26515,
+            "start": 26104,
+            "end": 26584,
             "sha256": "5355c5238d7abe770ca099003a75cf36fea17a1bf36ebff03c8636599ba38bde"
           },
           "required_exact_text": [
@@ -4079,8 +4149,8 @@
             "sha256": "4d4cf3f5aaa2b4ea09594cd03f3d8dbf96ca31278d3b488f96c26887e4fee6ca"
           },
           "approved_span": {
-            "start": 26522,
-            "end": 26781,
+            "start": 26591,
+            "end": 26850,
             "sha256": "455a87d88200aae4de7baafe712d9d08fb88a183bef555b4c62652f75eeccd1a"
           },
           "required_exact_text": [
@@ -4102,8 +4172,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 29660,
-            "end": 29839,
+            "start": 29729,
+            "end": 29908,
             "sha256": "67940cd0d7789d4a7fa7c53e0606be78a432bef73f39fd9a64b4469b427ca177"
           },
           "required_exact_text": [
@@ -4125,8 +4195,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 30206,
-            "end": 30237,
+            "start": 30275,
+            "end": 30306,
             "sha256": "239c3b4afacd578beef24497d246b98aaf8ca32d4bb781cfb4eb24d3980e265e"
           },
           "required_exact_text": [
@@ -4148,8 +4218,8 @@
             "sha256": "fed88ea4276bf9817be28a2ac942d9dcf75523f0f3a3ca427f4aa29c43079ef3"
           },
           "approved_span": {
-            "start": 30462,
-            "end": 30841,
+            "start": 30531,
+            "end": 30910,
             "sha256": "f1680bc6e7c2c8a686fa2eda84384de08ff564d2fed3a6532b7ae714f0ce8698"
           },
           "required_exact_text": [
@@ -4171,8 +4241,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 31081,
-            "end": 31174,
+            "start": 31150,
+            "end": 31243,
             "sha256": "95b57b5b6f86ce7df1179be9cbc7f26770f1ba724e202977bc8ecbb17405bafb"
           },
           "required_exact_text": [
@@ -4194,8 +4264,8 @@
             "sha256": "427fc1d018836ecb79319064cdfd846a47932f57f9b49526858c5a95631d78fe"
           },
           "approved_span": {
-            "start": 31270,
-            "end": 31413,
+            "start": 31339,
+            "end": 31482,
             "sha256": "3fb57b9a9ac37cc7841ce977b6d7dbcc4cfc14f8244fff484e42fb5e30a13afa"
           },
           "required_exact_text": [
@@ -4217,8 +4287,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 31804,
-            "end": 31812,
+            "start": 31873,
+            "end": 31881,
             "sha256": "c803710302d5769d8fcd51958c516ff27f2a3c5ad9373c348d1d180c04a74624"
           },
           "required_exact_text": [
@@ -4240,8 +4310,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 32773,
-            "end": 32781,
+            "start": 32842,
+            "end": 32850,
             "sha256": "c803710302d5769d8fcd51958c516ff27f2a3c5ad9373c348d1d180c04a74624"
           },
           "required_exact_text": [
@@ -4263,8 +4333,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 33690,
-            "end": 33733,
+            "start": 33759,
+            "end": 33802,
             "sha256": "1794ecaa1c3a1eef7b39e6b6f5be5733901984a97cb93f96ea7198c9f73d24ec"
           },
           "required_exact_text": [
@@ -4286,8 +4356,8 @@
             "sha256": "01a2089c40a92f3b297f39a78a68717b51f6cd7891d2ef73202b322264aa1546"
           },
           "approved_span": {
-            "start": 33826,
-            "end": 34052,
+            "start": 33895,
+            "end": 34121,
             "sha256": "88de62fb2343ad2e2fb539986b5e4b07cb80a375814ee0398366cefabd35c191"
           },
           "required_exact_text": [
@@ -4314,8 +4384,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 34766,
-            "end": 34798,
+            "start": 34835,
+            "end": 34867,
             "sha256": "5ed9c53493ff8a0cd206862b672b27ebe2812b9604fcf0163ccbcb7113198f03"
           },
           "required_exact_text": [
@@ -4337,8 +4407,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 35210,
-            "end": 35242,
+            "start": 35279,
+            "end": 35311,
             "sha256": "5ed9c53493ff8a0cd206862b672b27ebe2812b9604fcf0163ccbcb7113198f03"
           },
           "required_exact_text": [
@@ -4360,8 +4430,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 38416,
-            "end": 38797,
+            "start": 38485,
+            "end": 38866,
             "sha256": "dcf9157377ec34fda03e2dd9bfd8938003f9d11fe017123e073865e09378482c"
           },
           "required_exact_text": [
@@ -4388,8 +4458,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 38866,
-            "end": 39110,
+            "start": 38935,
+            "end": 39179,
             "sha256": "2882c877c3467137bda71d615172edbcd8a738871335f64221cdda2a57fd1fde"
           },
           "required_exact_text": [
@@ -4411,8 +4481,8 @@
             "sha256": "d75a074b03d426e310a7f1def1943ebcdc14835b161f8a472a237f374855decd"
           },
           "approved_span": {
-            "start": 39195,
-            "end": 39204,
+            "start": 39264,
+            "end": 39273,
             "sha256": "596d40a4ed24c02a31b19d6e633f46f64304a672b40f793d8c6deab868beb0e2"
           },
           "required_exact_text": [
@@ -4434,8 +4504,8 @@
             "sha256": "d75a074b03d426e310a7f1def1943ebcdc14835b161f8a472a237f374855decd"
           },
           "approved_span": {
-            "start": 39638,
-            "end": 39647,
+            "start": 39707,
+            "end": 39716,
             "sha256": "596d40a4ed24c02a31b19d6e633f46f64304a672b40f793d8c6deab868beb0e2"
           },
           "required_exact_text": [
@@ -4447,47 +4517,47 @@
           ]
         },
         {
-          "id": "increment66-componentemitterverilog-11",
+          "id": "lwr39-componentemitterverilog-33",
           "kind": "backend-isolation",
-          "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative.",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Emit authenticated typed constants and their exact expression references, including switch keys.",
           "baseline_span": {
             "start": 36829,
             "end": 36829,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 39978,
-            "end": 40033,
-            "sha256": "6042b1972c4d763f5fd04c89b6a83c71df291ea0e06c5bbb99ae3c12c3f886a1"
+            "start": 40047,
+            "end": 40167,
+            "sha256": "140f64740295105a532f3819b51ccd8a61c204c1fb1dd8458914245a820d9a5c"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "              case _: TypedLocalUInt.Reference => true\n",
+              "text": "              case _: TypedLocalUInt.Reference => true\n              case _: NativeParameterConstants.Reference => true\n",
               "count": 1
             }
           ]
         },
         {
-          "id": "increment66-componentemitterverilog-12",
+          "id": "lwr39-componentemitterverilog-34",
           "kind": "backend-isolation",
-          "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative.",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Emit authenticated typed constants and their exact expression references, including switch keys.",
           "baseline_span": {
             "start": 39955,
             "end": 39955,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 43159,
-            "end": 43235,
-            "sha256": "f671cdd69a92da60879a9557acffbcdb5e06944433bfdc67901dea138f375ea7"
+            "start": 43293,
+            "end": 43439,
+            "sha256": "8460abb864b32e214a80a0d6888a1cdfd114d11331873b4c7ccc536dbfcfb909"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "                    case e: TypedLocalUInt.Reference => e.render(component)\n",
+              "text": "                    case e: TypedLocalUInt.Reference => e.render(component)\n    case e: NativeParameterConstants.Reference => e.render(component)\n",
               "count": 1
             }
           ]
@@ -4503,8 +4573,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 46522,
-            "end": 46561,
+            "start": 46726,
+            "end": 46765,
             "sha256": "0197ec1f122bfde6c08bae644032794aef7080ee2d50aabc73de0077e7939912"
           },
           "required_exact_text": [
@@ -4526,8 +4596,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 47005,
-            "end": 47054,
+            "start": 47209,
+            "end": 47258,
             "sha256": "0b4b7b080f1784c7096c7df53a3807748655700db4664a0612abf4ab49a41042"
           },
           "required_exact_text": [
@@ -4549,8 +4619,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 48872,
-            "end": 48878,
+            "start": 49076,
+            "end": 49082,
             "sha256": "0cba10bc1f335de9d4e1eac6c4f7aa62e523aa54144b9482ffddc09d32a279cf"
           },
           "required_exact_text": [
@@ -4572,8 +4642,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 50770,
-            "end": 50776,
+            "start": 50974,
+            "end": 50980,
             "sha256": "0cba10bc1f335de9d4e1eac6c4f7aa62e523aa54144b9482ffddc09d32a279cf"
           },
           "required_exact_text": [
@@ -4595,8 +4665,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 51202,
-            "end": 51260,
+            "start": 51406,
+            "end": 51464,
             "sha256": "eba8edacc4c1d2dabaedc3bd41b2d03ae7f1397f6998e33d6d4fb45473394834"
           },
           "required_exact_text": [
@@ -4618,8 +4688,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 52022,
-            "end": 52052,
+            "start": 52226,
+            "end": 52256,
             "sha256": "2f76cb5530fec66aa067821b521e1d4220de0bba6c058aef734c5dd4dad22b48"
           },
           "required_exact_text": [
@@ -4641,8 +4711,8 @@
             "sha256": "bcc1ae295e0226637c244b5841cd5caa43896af4545f00b72ae5d9479a1554e3"
           },
           "approved_span": {
-            "start": 52371,
-            "end": 52497,
+            "start": 52575,
+            "end": 52701,
             "sha256": "85fec5dd172d5b13dfe77d34a4cf3f5cb9d50976039962296ca6425d2ec17b46"
           },
           "required_exact_text": [
@@ -4664,8 +4734,8 @@
             "sha256": "69af64d494ef07db908023094ede88292d99c677154c0e4e513476dd95abfcd5"
           },
           "approved_span": {
-            "start": 57933,
-            "end": 58359,
+            "start": 58137,
+            "end": 58563,
             "sha256": "922a4e40562347a20cb4bf09f0846c78f3140482556bf3791e72362c6de3df54"
           },
           "required_exact_text": [
@@ -4687,8 +4757,8 @@
             "sha256": "224f2e0625b2bc43531b17b127daf159ae9fd4063570519957dab3e45aca5a5e"
           },
           "approved_span": {
-            "start": 76729,
-            "end": 77463,
+            "start": 76933,
+            "end": 77667,
             "sha256": "5b1cb27397675b20ebaf1e0f2141d817f2f3820e520db1d789449eb793beed39"
           },
           "required_exact_text": [
@@ -4710,8 +4780,8 @@
             "sha256": "ca47fea6d8fe4bc58f1df50ee7561d0d009b5392895796780e725c8fe9027e70"
           },
           "approved_span": {
-            "start": 77565,
-            "end": 77643,
+            "start": 77769,
+            "end": 77847,
             "sha256": "2081c0d75cf652f45b4fe49b37a2b8d4063bafa35ee2fde26cbfb9129c5c19d5"
           },
           "required_exact_text": [
@@ -4733,8 +4803,8 @@
             "sha256": "5ab9cf83395528e05ec149d6439e8d00a22eb4da89d5e53c19ba9269c966e10b"
           },
           "approved_span": {
-            "start": 77749,
-            "end": 77784,
+            "start": 77953,
+            "end": 77988,
             "sha256": "326bf2045ad9d01e74b5f534adf9fd5b5029b0b8b8d14a0d4083c47e0229a7ad"
           },
           "required_exact_text": [
@@ -4756,8 +4826,8 @@
             "sha256": "89bc1fe93bb1cc8830095ff2a7a90cd0867955fef57f6b6d00f0afdc5de52bd1"
           },
           "approved_span": {
-            "start": 78312,
-            "end": 78347,
+            "start": 78516,
+            "end": 78551,
             "sha256": "e9ebbfd545de2822adbac4c549192adaca12ddcf7fb2e402b382df26c3cf81ca"
           },
           "required_exact_text": [
@@ -4779,8 +4849,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 78967,
-            "end": 79018,
+            "start": 79171,
+            "end": 79222,
             "sha256": "610b6a0d6cab0ce9fc13c6efcd9a54bd25c0b5c24be5f6d734715b0118fc9573"
           },
           "required_exact_text": [
@@ -4802,8 +4872,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 79420,
-            "end": 79475,
+            "start": 79624,
+            "end": 79679,
             "sha256": "af29fb703f43eb5753c8ab99b789e07fce193db9044e4004beacab8820d2da1a"
           },
           "required_exact_text": [
@@ -4825,8 +4895,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 80509,
-            "end": 80572,
+            "start": 80713,
+            "end": 80776,
             "sha256": "6883a57b205d14f99fda4bb6fb61a0b54cb6b2e1cc3bc38d6281dca30b10738f"
           },
           "required_exact_text": [
@@ -4848,8 +4918,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 80636,
-            "end": 80643,
+            "start": 80840,
+            "end": 80847,
             "sha256": "a7e394f7029082eb74696a89f0aa7eb78b10270ba0714adf19d82856a8636f04"
           },
           "required_exact_text": [
@@ -4871,8 +4941,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 80713,
-            "end": 80720,
+            "start": 80917,
+            "end": 80924,
             "sha256": "a7e394f7029082eb74696a89f0aa7eb78b10270ba0714adf19d82856a8636f04"
           },
           "required_exact_text": [
@@ -4884,24 +4954,24 @@
           ]
         },
         {
-          "id": "increment66-componentemitterverilog-27",
+          "id": "lwr39-componentemitterverilog-52",
           "kind": "backend-isolation",
-          "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative.",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+          "reason": "Emit authenticated typed constants and their exact expression references, including switch keys.",
           "baseline_span": {
             "start": 78684,
             "end": 78684,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 83277,
-            "end": 83337,
-            "sha256": "f020273bb7525f0220e1be119610447feaaafda59154e2ee21fb712d2f6992aa"
+            "start": 83481,
+            "end": 83611,
+            "sha256": "cc21d854058d1c84b5d75f673da45ef61486cf7d5a175b5b0c3ea03b20ca0ade"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "    case e: TypedLocalUInt.Reference => e.render(component)\n",
+              "text": "    case e: TypedLocalUInt.Reference => e.render(component)\n    case e: NativeParameterConstants.Reference => e.render(component)\n",
               "count": 1
             }
           ]
@@ -5100,9 +5170,10 @@
         "Increment 60g: scheduler-owned registration lifecycle",
         "Increment 66: native parameter and RTL readability extensions",
         "CA-003 exact native literal-clone lineage",
-        "LWR-26: ordinary affine range and host-topology compatibility"
+        "LWR-26: ordinary affine range and host-topology compatibility",
+        "LWR-39: parameter annotations"
       ],
-      "reason": "Preserve structured parameterized-Verilog diagnostics across the inherited Verilog elaboration retry boundary. Expose read-only per-context execution state before any phase runs without altering native phase order or behavior. Mechanically copy immutable named-constant reference tokens through ordinary anonymous carrier propagation and validate exact named-key disjointness before native parallel-case emission. Never fold a symbolic default witness or alter ordinary literal propagation and coverage checks. LWR-26: Consume exact disjoint intervals in native driver, latch and overlap checking rather than filling gaps with a bounding interval.",
+      "reason": "Preserve structured parameterized-Verilog diagnostics across the inherited Verilog elaboration retry boundary. Expose read-only per-context execution state before any phase runs without altering native phase order or behavior. Mechanically copy immutable named-constant reference tokens through ordinary anonymous carrier propagation and validate exact named-key disjointness before native parallel-case emission. Never fold a symbolic default witness or alter ordinary literal propagation and coverage checks. LWR-26: Consume exact disjoint intervals in native driver, latch and overlap checking rather than filling gaps with a bounding interval. LWR-39: Lower immutable owned constant carriers directly and preserve switch-domain overlap validation.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
         "mode": "100644",
@@ -5112,8 +5183,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
         "mode": "100644",
-        "blob": "ebe4aa4d7878ac386fa1e79ff43a9f75acb82da8",
-        "sha256": "884583fb765563c650a695a3c8ce405f7ec4c5b1da46d6f43072d91c0b245a3a"
+        "blob": "b9ddd4e46160a6fa31126dac44a8e8d305446380",
+        "sha256": "631165f43bc218f00e88fd4340eb54083850d579d49121b08eb99d68d734d209"
       },
       "edits": [
         {
@@ -5163,52 +5234,70 @@
           ]
         },
         {
-          "id": "increment66-phase-3",
-          "kind": "mechanical-propagation",
-          "owner": "spinal.core.internals.PhaseSimplifyNodes / PhaseCompletSwitchCases",
-          "reason": "Mechanically copy immutable named-constant reference tokens through ordinary anonymous carrier propagation and validate exact named-key disjointness before native parallel-case emission. Never fold a symbolic default witness or alter ordinary literal propagation and coverage checks. Record the exact cloned literal identity for captured static Vec writes without changing native literal propagation.",
+          "id": "lwr39-phase-3",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/Phase.scala",
+          "reason": "Lower immutable owned constant carriers directly and preserve switch-domain overlap validation.",
           "baseline_span": {
-            "start": 69188,
+            "start": 69036,
             "end": 69254,
-            "sha256": "2d297e3a20e518404e2541267662c4e43e72d56e45789578743eabf4c754402d"
+            "sha256": "b4aa507af891957e6276205ea5ebf61b3cc0aac11d99482c0ee9149e93b9c4f5"
           },
           "approved_span": {
-            "start": 69490,
-            "end": 69780,
-            "sha256": "7c17f0b9faa2a746c0fcc6692c745d599208da8e5b01097a9355bb8e14d1f115"
+            "start": 69338,
+            "end": 69923,
+            "sha256": "dc8b3b928d965b95984208236efdacefa23215db0cef10ec042a15688b9eb038"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "case DataAssignmentStatement(_, local: TypedLocalUInt.Reference)",
-              "count": 1
-            },
-            {
-              "side": "approved",
-              "text": "ParameterizedVec.recordStaticLiteralNormalization(s, e, lit, replacement)",
+              "text": "(!e.isNamed || NativeParameterConstants.isCarrier(e)) && e.isDirectionLess && Statement.isSomethingToFullStatement(e) => e.head match {\n          case DataAssignmentStatement(_, lit : Literal) =>\n            val replacement = lit.clone // An Expression can occur only once in the graph.\n            ParameterizedVec.recordStaticLiteralNormalization(s, e, lit, replacement)\n            replacement\n          case DataAssignmentStatement(_, local: TypedLocalUInt.Reference) => local.fresh\n          case DataAssignmentStatement(_, local: NativeParameterConstants.Reference) => local.fres",
               "count": 1
             }
           ]
         },
         {
-          "id": "increment66-phase-4",
-          "kind": "mechanical-propagation",
-          "owner": "spinal.core.internals.PhaseSimplifyNodes / PhaseCompletSwitchCases",
-          "reason": "Mechanically copy immutable named-constant reference tokens through ordinary anonymous carrier propagation and validate exact named-key disjointness before native parallel-case emission. Never fold a symbolic default witness or alter ordinary literal propagation and coverage checks.",
+          "id": "lwr39-phase-4",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/Phase.scala",
+          "reason": "Lower immutable owned constant carriers directly and preserve switch-domain overlap validation.",
+          "baseline_span": {
+            "start": 69322,
+            "end": 69322,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 69991,
+            "end": 70042,
+            "sha256": "28438293ddb3f366d775be639037d5e44b493d5856e727a6db409ffcdc0c5f36"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "    walkComponents(NativeParameterConstants.lower)\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "lwr39-phase-5",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/Phase.scala",
+          "reason": "Lower immutable owned constant carriers directly and preserve switch-domain overlap validation.",
           "baseline_span": {
             "start": 91788,
             "end": 91788,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 92314,
-            "end": 92355,
-            "sha256": "7334b71febdeb5b83547e284fe9042e6cd12046a1a82016baf11d06fac1c426e"
+            "start": 92508,
+            "end": 92600,
+            "sha256": "34855851fd3de007e062af1d638b280d598422ce5efd3dc74115e81cb4281083"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "        TypedLocalUInt.validateSwitch(s)\n",
+              "text": "        TypedLocalUInt.validateSwitch(s)\n        NativeParameterConstants.validateSwitch(s)\n",
               "count": 1
             }
           ]
@@ -5224,8 +5313,8 @@
             "sha256": "cbce589afefc9cb5f1cb45e67cda46396a5b4f4bfc856c57e9b5d5a88f78642f"
           },
           "approved_span": {
-            "start": 104378,
-            "end": 104425,
+            "start": 104623,
+            "end": 104670,
             "sha256": "a574450e952952beb7f9997e168c26be897c3220091d9549badcdd5c8b3f5b57"
           },
           "required_exact_text": [
@@ -5247,8 +5336,8 @@
             "sha256": "39919ce66a89317e2ca281f5870b7110f7b22975020fb082da08ae1757054977"
           },
           "approved_span": {
-            "start": 111191,
-            "end": 111191,
+            "start": 111436,
+            "end": 111436,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "required_exact_text": [
@@ -5270,8 +5359,8 @@
             "sha256": "bafbc59eecc52376fadb372f7904e53895aaffb0b532d7c3a6f620f81533893c"
           },
           "approved_span": {
-            "start": 111277,
-            "end": 111381,
+            "start": 111522,
+            "end": 111626,
             "sha256": "a4feb9b0b4ec3ca6405b745c0d842bd51605086c3ec4ce48686a53a7d89a7c74"
           },
           "required_exact_text": [
@@ -5293,8 +5382,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 137394,
-            "end": 137457,
+            "start": 137639,
+            "end": 137702,
             "sha256": "3ffd3c3e02b062888955ce16b876cff12d26e738bbd612c9988d71285271c8a1"
           },
           "required_exact_text": [
