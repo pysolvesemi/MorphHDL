@@ -566,6 +566,14 @@
       "mode": "100644",
       "sha256": "58d2193780edc5d96dcb1d109de182b4bba6095a1932768255c6644646c4b07f"
     },
+    "docs/morphhdl/lightweight-scala-rtl/whole-configuration-parameters.json": {
+      "mode": "100644",
+      "sha256": "125b2166bc3b91b10ed778a213b8c495f9669e7541b3c9d7865502ae1db285f4"
+    },
+    "docs/morphhdl/lightweight-scala-rtl/whole-configuration-parameters.md": {
+      "mode": "100644",
+      "sha256": "c9ce732dcd798a60de10eac032583781b1d874f2eae340aa8ad13c0bb3d4b799"
+    },
     "docs/morphhdl/morphhdl_compiler_issues.md": {
       "mode": "100644",
       "sha256": "c50223fbe918b43ff1304bd85bd471e778cbfc49d836d74ea72106fa671ce901"
@@ -1042,7 +1050,7 @@
     },
     "morphhdl/contracts/retained-parameterized-regressions.json": {
       "mode": "100644",
-      "sha256": "156f70ac5d8da64f466ecfc14f8c073bc1d3bb30733468c2920165006857919d"
+      "sha256": "6cb1ca96e43491d768020ea23d79ff91bdeffbddaad3c1fed18bbc09d8232293"
     },
     "morphhdl/examples/contracts/symbolic_data_shapes.v": {
       "mode": "100644",
@@ -1142,7 +1150,7 @@
     },
     "morphhdl/scripts/check-retained-parameterized-regressions.py": {
       "mode": "100644",
-      "sha256": "2b1096abf3d1c87a444e3fac61eafbe84b6f309514ff9d4736da71dd216e3676"
+      "sha256": "832f67ab684e4b58986f44a883dfe9835080a8d44b8d1a4778f90036f606d687"
     },
     "morphhdl/scripts/check-symbolic-recursive-width.py": {
       "mode": "100644",
@@ -1967,6 +1975,10 @@
       "mode": "100644",
       "sha256": "9f0dd3ed4801f1f72c593ad550b3812e7587c0100734134fb5dd1fc99ccf80b5"
     },
+    "morphhdl/src/test/scala/morphhdl/WholeConfigurationParameterTests.scala": {
+      "mode": "100644",
+      "sha256": "ad52c29eb25b00b643f67b00d0e3a25fe6b97942bb0dc041b2722bf81cf9035c"
+    },
     "morphhdl/src/test/scala/morphhdl/WidthCompositionTests.scala": {
       "mode": "100644",
       "sha256": "646049bc551801f1753a9ff6e4c9863cf607d34853f6abab349b7c36267cdeb7"
@@ -2279,7 +2291,7 @@
     },
     "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlParameterSyntaxComponent.scala": {
       "mode": "100644",
-      "sha256": "1632a5655bb83bcf897ec2b213b265c649e41f59f23359cad45965521afb02c9"
+      "sha256": "05c1e0a75cdf04e43727c4c16a6b9028b752d42414acf83bd115a99d2253947b"
     },
     "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala": {
       "mode": "100644",
@@ -2295,7 +2307,7 @@
     },
     "morphplugin/src/test/scala/morphhdl/compiler/ConfigurationParameterSyntaxTests.scala": {
       "mode": "100644",
-      "sha256": "0c02f0a49e28b2e249891af293c29a5a81a2ed93e5126ffd33f4d772ab9076f3"
+      "sha256": "9fb9a10a64fcde50477ff2e8a8ddb695d8251e5ec49d8e7a8aaf877af09890de"
     },
     "morphplugin/src/test/scala/morphhdl/compiler/ConstructorParameterSyntaxTests.scala": {
       "mode": "100644",
