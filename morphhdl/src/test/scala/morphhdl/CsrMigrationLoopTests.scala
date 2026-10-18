@@ -62,7 +62,9 @@ class CsrMigrationLoopTests extends AnyFunSuite {
       }
     }
     val rtl=new String(Files.readAllBytes(dir.resolve("TailLoop.v")),"UTF-8")
-    assert(rtl.contains("for (") == (upper>lower),rtl)
+    // Empty data ranges emit no generate loop; a procedural reset loop may
+    // independently initialize the retained array after LWR-38 compaction.
+    assert(rtl.split("\n").exists(line=>line.trim.startsWith("for (") && line.contains("begin :")) == (upper>lower),rtl)
     run(dir,"TailLoop",s"""module tb; reg clk=0,reset=1,en=0;reg[${depth*8-1}:0] x=0;wire[${depth*8-1}:0]y;reg[${depth*8-1}:0]expected=0;integer j;
 TailLoop dut(.clk(clk),.reset(reset),.en(en),.x(x),.y(y));
 initial begin #1;clk=1;#1;clk=0;reset=0;for(j=0;j<60;j=j+1)begin x={$$random,$$random,$$random,$$random,$$random};en=(j%3!=0);#1;clk=1;if(en)expected=x;#1;if(y!==expected)$$fatal;clk=0;end reset=1;#1;if(y!==0)$$fatal;$$finish;end endmodule""")

@@ -26,8 +26,10 @@ object MorphHdlEmitterParameterNames {
         emitter.bindAssignmentPublication(new VerilogBase.AssignmentPublicationPolicy {
           override def synchronous(printer: ComponentEmitterVerilog, clock: spinal.core.ClockDomain,
               scope: ScopeStatement, hasInit: Boolean, init: Vector[LeafStatement], data: Vector[LeafStatement],
-              render: (Vector[LeafStatement],Vector[LeafStatement])=>String): Option[String] =
+              render: (Vector[LeafStatement],Vector[LeafStatement])=>String): Option[String] = {
+            NativeArrayResetLoops.capture(printer.component,clock,init,data)
             NativeLateSequentialMerge.capture(printer,clock,scope,hasInit,init,data,render)
+          }
           override def constantShift(printer: ComponentEmitterVerilog,
               expression: Operator.BitVector.ShiftRightByInt): Option[String] =
             names.flatMap(_.constantShift(printer, expression))

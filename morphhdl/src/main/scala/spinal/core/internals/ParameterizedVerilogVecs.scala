@@ -2308,6 +2308,19 @@ private[internals] object ParameterizedVerilogVecs {
                 "constant signed read lost its exact native declaration evidence", plan.sourceLocation)
             // A residual write cannot drive a read reconstruction alias. All
             // aggregate writers must already have exact claimed lineage.
+            // Native reset edges are separate from data assignments. Redirect
+            // their exact whole-leaf targets before introducing a signed read
+            // alias, retaining the initializer identity for late publication.
+            NativeFiniteStatementLineage.survivingLineAssignments(component, lines).toVector.foreach {
+              case (at, init: InitAssignmentStatement) if (init.target eq leaf.value) &&
+                  lines(at).trim.startsWith(leaf.name + " ") =>
+                val parsed = findAssignment(Vector(lines(at)), leaf.name, None,
+                  "signed register reset", plan.sourceLocation)
+                lines = lines.updated(at, parsed.indentation +
+                  s"${plan.constantSlice(leaf.elementIndex, leaf.leafIndex)} ${parsed.operator} ${parsed.rhs};" +
+                  NativeFiniteStatementLineage.suffixOfLine(component, lines(at)))
+              case _ =>
+            }
             val drivers = liveAssignments.keySet().iterator()
             while (drivers.hasNext) {
               val driver = drivers.next()
@@ -2324,7 +2337,8 @@ private[internals] object ParameterizedVerilogVecs {
                     "static signed field write", plan.sourceLocation)
                   lines = lines.updated(parsed.lineIndex,
                     parsed.indentation + (if (parsed.continuous) "assign " else "") +
-                      s"${plan.constantSlice(leaf.elementIndex, leaf.leafIndex)} ${parsed.operator} ${parsed.rhs};")
+                      s"${plan.constantSlice(leaf.elementIndex, leaf.leafIndex)} ${parsed.operator} ${parsed.rhs};" +
+                      NativeFiniteStatementLineage.suffixOfLine(component, lines(parsed.lineIndex)))
                   claimedAssignments.put(driver, java.lang.Boolean.TRUE)
                 } else fail(
                     "SPINAL-PARAMETERIZED-VERILOG-VEC-SIGNED-STATIC-WRITE-UNSUPPORTED",
@@ -2744,6 +2758,12 @@ private[internals] object ParameterizedVerilogVecs {
           Vector(ParameterizedVerilogUnpacked.ArrayShape(plan.name, width, render(plan.shape.depth) +: dimensions))
       }
     }
+    // Only an exact flat unpacked array with fixed geometry authorizes scalar
+    // reset-edge compaction. Symbolic reset loops retain their existing lowering.
+    plans.filter(p => p.projection.isEmpty && p.layout.isEmpty && !p.hasNestedDimensions &&
+      p.shape.elementLeaves.size == 1 && p.shape.depth.parameters.isEmpty && p.shape.depth.generateIndex.isEmpty && arrays.exists(_.name == p.name))
+      .foreach(p => NativeArrayResetLoops.array(component,p.vector,p.name,
+        p.leaves.map(leaf => leaf.value -> leaf.elementIndex)))
     val (packedSource, destinations) = collapsePackedReadTransports(component, verilog, plans.filter(p => arrays.exists(_.name == p.name)))
     // The native packed-assignment pass has already authenticated these exact
     // source identities and their full aggregate widths. Other RHS values keep

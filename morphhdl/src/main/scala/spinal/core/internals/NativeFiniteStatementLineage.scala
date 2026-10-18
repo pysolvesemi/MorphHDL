@@ -52,6 +52,7 @@ private[internals] object NativeFiniteStatementLineage {
     .getOrElseUpdate(Key, ArrayBuffer.empty[Edge]).asInstanceOf[ArrayBuffer[Edge]]
 
   private def captured(component: Component, assignment: AssignmentStatement): Boolean =
+    NativeArrayResetLoops.tracks(component, assignment) ||
     NativeLateSequentialMerge.owns(component, assignment) ||
       TypedFinitePackedDefaults.owns(component, assignment) ||
       TypedFinitePackedAccess.writes(component).exists(_.assignment eq assignment) ||

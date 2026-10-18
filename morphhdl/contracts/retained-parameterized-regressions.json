@@ -577,6 +577,15 @@
         "symbolic Area collection retains branch and static export across count overrides unpacked=false",
         "symbolic Area collection retains branch and static export across count overrides unpacked=true"
       ],
+      "morphhdl.ArrayResetLoopTests": [
+        "CSR reset arrays compact with exact reset/update priority sync=false low=false",
+        "CSR reset arrays compact with exact reset/update priority sync=false low=true",
+        "CSR reset arrays compact with exact reset/update priority sync=true low=false",
+        "CSR reset arrays compact with exact reset/update priority sync=true low=true",
+        "packed arrays retain their existing reset assignments",
+        "separate process ownership leaves scalar resets explicit",
+        "runtime reset sources prevent reordering their array"
+      ],
       "morphhdl.BackendSyncMergeIsolationTests": [
         "exact noBackendSyncMerge registers retain clock and synchronous-reset semantics in distinct processes",
         "ordinary same-domain registers retain the default merged synchronous process"
@@ -4561,6 +4570,7 @@
     "morphhdl/src/test/java/spinal/core/internals/CertifiedCallbackMutableModuleFixture.java": "e669534b2db71d9beab8705cda1f29fd708b6cac5a82bb3bdbf16b5b4345a7a6",
     "morphhdl/src/test/scala/adversarial/vecfake/SInt.scala": "ed76ab7df5ae95a0f3eb7dd5ce05aca5dbf9f54ee72e067bfff004d79c02671d",
     "morphhdl/src/test/scala/morphhdl/AreaCollectionLoopTests.scala": "684cca83bb281dfb6865580131412b095b952642eb97b616ff5b7675446d5f3d",
+    "morphhdl/src/test/scala/morphhdl/ArrayResetLoopTests.scala": "b61674fb3271e72a0a40cff3cae0e068022304fb1404e11f37db06267f9665e5",
     "morphhdl/src/test/scala/morphhdl/AsynchronousEnabledRegisterContractFixture.scala": "bfe3aa719951fb82431a00211cbcdd7fbf58863016943dfa7910278221c2c9bb",
     "morphhdl/src/test/scala/morphhdl/AsynchronousRegisterContractFixture.scala": "679d2cb571a90115c1734c3b5744cd7f3b04f73ce6be2b7843c553aba1d9c816",
     "morphhdl/src/test/scala/morphhdl/BackendSyncMergeIsolationTests.scala": "335a4ecef2415c1940f08f21c39cdf45ae014f83d95cd8321b72885c8ca376b7",
@@ -4589,7 +4599,7 @@
     "morphhdl/src/test/scala/morphhdl/ConstructorParameterTests.scala": "5291cd053ea1a78f6817527426177a4990948560634df2ca2b1084bb413afd74",
     "morphhdl/src/test/scala/morphhdl/CorrelatedValueBoundsTests.scala": "318448847df6ddea2454b59a1fde491c13327e6c36a2daf66f6169301494da6b",
     "morphhdl/src/test/scala/morphhdl/CorrelatedVecPublicationTests.scala": "bf05989f87340b3adf5736aaa616f381f62ec1520eb3fce7b3593fd28edf4b91",
-    "morphhdl/src/test/scala/morphhdl/CsrMigrationLoopTests.scala": "cf585de7eda028d841373891d4c59ac1fe6b61249edf7a9b78447e3b2cad2c8d",
+    "morphhdl/src/test/scala/morphhdl/CsrMigrationLoopTests.scala": "be7129d8e9207e412d48c792566a39506ab62d71c172aff7bfbff832476e326a",
     "morphhdl/src/test/scala/morphhdl/DerivedConfigurationParameterTests.scala": "e59ef3ca9b8005f6c6503ea09f3dd9974e88ed22cee93b9fdfd5b210f4aeb549",
     "morphhdl/src/test/scala/morphhdl/DerivedWidthContractFixture.scala": "76d8cecf59436f684baac6dea2c09b6c5add58b721dc48daf37162fe882140d9",
     "morphhdl/src/test/scala/morphhdl/DescendingPriorityProcessTests.scala": "55610b85ccadb4ebf82e40d0784c69b61b70aa8b4fe863963e8d953dc9be7e83",
