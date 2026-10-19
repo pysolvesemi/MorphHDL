@@ -1834,6 +1834,14 @@
         "ordinary conditional bit loop preserves behavior width=16",
         "ordinary conditional bit loop preserves behavior width=32"
       ],
+      "morphhdl.PackedFieldTopologyTests": [
+        "partial fields preserve zero default and ordered overrides multiple=false terminal=false",
+        "partial fields preserve zero default and ordered overrides multiple=false terminal=true",
+        "partial fields preserve zero default and ordered overrides multiple=true terminal=false",
+        "partial fields preserve zero default and ordered overrides multiple=true terminal=true",
+        "explicit typed partial or competing loops retain default ownership rejection multiple=false",
+        "explicit typed partial or competing loops retain default ownership rejection multiple=true"
+      ],
       "morphhdl.PackedParameterTests": [
         "packed parameter types retain declared widths signedness and override values width=19",
         "packed parameter types retain declared widths signedness and override values width=64",
@@ -2321,6 +2329,19 @@
         "register Vec sharing preserves semantic differences polarity dynamic=true",
         "register Vec sharing preserves semantic differences reset dynamic=false",
         "register Vec sharing preserves semantic differences reset dynamic=true"
+      ],
+      "morphhdl.StaticRowCopyTests": [
+        "finite copies of static rows retain root coordinates packed=false named=false nested=false",
+        "finite copies of static rows retain root coordinates packed=false named=false nested=true",
+        "finite copies of static rows retain root coordinates packed=false named=true nested=false",
+        "finite copies of static rows retain root coordinates packed=false named=true nested=true",
+        "finite copies of static rows retain root coordinates packed=true named=false nested=false",
+        "finite copies of static rows retain root coordinates packed=true named=false nested=true",
+        "finite copies of static rows retain root coordinates packed=true named=true nested=false",
+        "finite copies of static rows retain root coordinates packed=true named=true nested=true",
+        "signed row reads preserve their exact lane bits",
+        "a row copy rejects a selector whose legal domain exceeds the source row",
+        "a finite row read cannot import a child's private storage"
       ],
       "morphhdl.StaticVecBitWriteTests": [
         "constant bit write retains word priority and lane resets packed=false",
@@ -4727,6 +4748,7 @@
     "morphhdl/src/test/scala/morphhdl/OrdinaryHostTopologyTests.scala": "3e36e9cb400183ce3a8aab4ab6c424028b7b4633278cfe1da83335252c32cb56",
     "morphhdl/src/test/scala/morphhdl/OrdinaryLoopCornerTests.scala": "bde1aaad3157ee8a3919a552b2d0ded4547d4358b08e4e72b53d471f0d050aad",
     "morphhdl/src/test/scala/morphhdl/OrdinaryStatementLoopTests.scala": "754278197a201967433ce23cfc6d0fda3d429933857854cf61b7ccdfd0323f5e",
+    "morphhdl/src/test/scala/morphhdl/PackedFieldTopologyTests.scala": "0fe5b794f51a13cdf672dfa5e7cf305890aef6b6633c6b0e66f5c4e642c614c2",
     "morphhdl/src/test/scala/morphhdl/PackedParameterTests.scala": "073e29b145a02d579611591c010ed7a72788268ea876fcc508bbb7e66a2783ce",
     "morphhdl/src/test/scala/morphhdl/ParameterAnnotationTests.scala": "319ce3fefc5c2b9e227899f24f669cb350eca76f9da72ae9ca389c51c96109c9",
     "morphhdl/src/test/scala/morphhdl/ParameterForwardingContractFixture.scala": "1d81e70b0761d2d5b24179af2b474cac96b66fbf67a913b1c56da0b153031110",
@@ -4761,6 +4783,7 @@
     "morphhdl/src/test/scala/morphhdl/SinglePortMemoryContractFixture.scala": "d277538de7473a94fc214badf2f8dc5e7509d28b87559e9e6c3d4b8e6f4307bc",
     "morphhdl/src/test/scala/morphhdl/SpinalEnumLocalParameterTests.scala": "9de4867f18f609f9281cadd3664901856d54466a9a2c12d012d645fa4452ccc1",
     "morphhdl/src/test/scala/morphhdl/StageDepthFormalSharingTests.scala": "0a51fcfe3224445d21c886de0980e47b0fd13aef859a9de0d921637d4e72f24c",
+    "morphhdl/src/test/scala/morphhdl/StaticRowCopyTests.scala": "8125a9a2a177a9de13e119d0fe821d3a4c3f308ca1f36f2e6198c7fad17e27a7",
     "morphhdl/src/test/scala/morphhdl/StaticVecBitWriteTests.scala": "35ae1c61aeaaa5b69c9abda72087402af79e767ca6b907969e7d595cefac7603",
     "morphhdl/src/test/scala/morphhdl/StreamFifoCompatibilityTests.scala": "8413127d7fc637d88ffdc36b9e86cc0a726885b5194b3891d951ee6c223896b4",
     "morphhdl/src/test/scala/morphhdl/StructuralGenerateControlTests.scala": "cda3720f0b52d64131552585bab76fd6233e3fbca7e8092db66ffa98dbb4646a",

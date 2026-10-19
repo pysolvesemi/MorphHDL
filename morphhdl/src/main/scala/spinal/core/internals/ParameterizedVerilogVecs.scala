@@ -623,6 +623,9 @@ private[internals] object ParameterizedVerilogVecs {
         case affineZero(coefficient) if selector.generateIndex.nonEmpty => s"($coefficient * $indexName)"
         case text => text
       })
+    structuralDescendantSlice(vector, selector, leafIndex, sourceLocation).foreach { slice =>
+      return if (readOnly && isSignedLeaf(shape.elementLeaves(leafIndex))) s"$$signed($slice)" else slice
+    }
     structuralNestedSlice(vector, selector, leafIndex, sourceLocation, readOnly).foreach { slice =>
       return if (readOnly && isSignedLeaf(shape.elementLeaves(leafIndex))) s"$$signed($slice)" else slice
     }
@@ -645,6 +648,72 @@ private[internals] object ParameterizedVerilogVecs {
     val slice = s"$name[${parenthesize(base)} +: ${render(shape.elementLeaves(leafIndex).width)}]"
     if (readOnly && isSignedLeaf(shape.elementLeaves(leafIndex))) s"$$signed($slice)"
     else slice
+  }
+
+  /** A statically selected row is storage within its published root, not a
+    * separately named declaration. Project finite accesses through its exact
+    * native descendant identity and verify every carrier coordinate. This is
+    * distinct from the fresh alias objects created by structural selections.
+    */
+  private def structuralDescendantSlice(
+      vector: Vec[_], selector: ElaborationIntegerExpression, leafIndex: Int,
+      sourceLocation: Option[String]
+  ): Option[String] = {
+    // A root or fresh structural alias has no enclosing native Vec. Avoid
+    // rebuilding the publication inventory on that common path. Parent links
+    // only discover candidates; exact descendant/leaf identity proves them.
+    val ancestors = mutable.ArrayBuffer.empty[Data]
+    var parent = vector.parent
+    while (parent != null) {
+      if (ancestors.exists(_ eq parent))
+        fail("SPINAL-PARAMETERIZED-VERILOG-VEC-NESTED-ALIAS-CYCLE",
+          "nested Vec parent identities contain a cycle", sourceLocation)
+      ancestors += parent
+      parent = parent.parent
+    }
+    if (!ancestors.exists(_.isInstanceOf[Vec[_]])) return None
+    val roots = publicationVectors(vector.component).filter(root => ancestors.exists(_ eq root)).flatMap { root =>
+      ParameterizedVec.nestedVectorProjection(root, vector).map(root -> _)
+    }
+    if (roots.isEmpty) return None
+    if (roots.size != 1)
+      fail("SPINAL-PARAMETERIZED-VERILOG-VEC-NESTED-OWNERSHIP-AMBIGUOUS",
+        "finite row selection has multiple exact published roots", sourceLocation)
+    val (root, origin) = roots.head
+    val shape = ParameterizedVec.shapeOf(vector).get
+    val rootShape = ParameterizedVec.shapeOf(root).get
+    val name = requiredVecName(root, sourceLocation)
+    val named = namedFieldLayout(root, rootShape, name)
+    val layout = named.getOrElse(ParameterizedVerilogFieldLayout.fromShape(rootShape, name, render _))
+    val childLayout = ParameterizedVerilogFieldLayout.fromShape(shape, "row", render _)
+    val childField = childLayout.fieldForLeaf(leafIndex)
+    val mappings = origin.leaves.filter(_.elementLeafIndex == leafIndex)
+    if (mappings.size != shape.carrierCapacity)
+      fail("SPINAL-PARAMETERIZED-VERILOG-VEC-NESTED-LEAF-MISSING",
+        "finite row selection lost exact native carrier coverage", sourceLocation)
+    val field = layout.fieldForLeaf(mappings.head.rootElementLeafIndex)
+    mappings.foreach { mapping =>
+      val rootField = layout.fieldForLeaf(mapping.rootElementLeafIndex)
+      val coordinates = mapping.rootElementIndex +: layout.leafCoordinates(mapping.rootElementLeafIndex)
+      val expected = origin.ancestorCoordinates ++
+        (mapping.elementIndex +: childLayout.leafCoordinates(leafIndex))
+      val rootAxes = rootShape.depth +: rootField.retained.dimensions.map(_.depth)
+      val childAxes = shape.depth +: childField.retained.dimensions.map(_.depth)
+      if ((vector.component ne root.component) ||
+          rootField.path != field.path || rootField.path != origin.fieldPath ++ childField.path ||
+          (rootField.typeObject ne childField.typeObject) ||
+          !ElabInt.equivalentExpression(rootField.retained.width, childField.retained.width) ||
+          rootAxes.size != origin.ancestorCoordinates.size + childAxes.size ||
+          !rootAxes.takeRight(childAxes.size).zip(childAxes).forall { case (left, right) =>
+            ElabInt.equivalentExpression(left, right)
+          } || coordinates != expected)
+        fail("SPINAL-PARAMETERIZED-VERILOG-VEC-NESTED-SHAPE-MISMATCH",
+          "finite row selection changed its owner's exact path, type, width or coordinate ordering", sourceLocation)
+    }
+    val coordinates = origin.ancestorCoordinates.map(_.toString) ++
+      (render(selector) +: childLayout.leafCoordinates(leafIndex).map(_.toString))
+    Some(if (named.nonEmpty) layout.slice(field, coordinates)
+      else layout.packedSlice(name, field, coordinates))
   }
 
   /** Compose nested finite selections by exact alias-leaf identity. Decode

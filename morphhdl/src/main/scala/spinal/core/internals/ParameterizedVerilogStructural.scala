@@ -3004,6 +3004,57 @@ private[internals] object ParameterizedVerilogStructural {
           exactReadOccurrences(consumer, reads).contains(countName(consumer.body, target))
       }) return true
 
+      // Nested exhaustive writers publish one enclosing array. Both row and
+      // column selections may be captured in the innermost body; their issued
+      // index tokens, not capture position, identify the respective loops.
+      // Require one exact chain covering every dimension and lexical loop body.
+      val availableWrites = containmentPathOf(owner, containmentPaths).flatMap(_.vecIndices).distinct
+      def completeRoot(selection: ParameterizedStructure.StructuralVecIndex,
+          visited: Vector[Vec[_]]): Option[(Vec[_], Vector[ParameterizedStructure.StructuralFor])] = {
+        val vector = selection.vector
+        val loops = selection.finiteIndexToken.toVector.flatMap(token =>
+          structuralFors.filter(_.finiteIndexToken.exists(_ eq token)))
+        if (visited.exists(_ eq vector) || loops.size != 1 ||
+            !exactSelectionDomain(loops.head.body, selection) || selection.affineRead.nonEmpty ||
+            !selection.unitRange.forall(r => r.matches && r.offset == 0 && r.coversTail)) None
+        else if (ParameterizedVerilogVecs.isExactStructuralAggregateName(vector, target))
+          Some(vector -> Vector(loops.head))
+        else {
+          val parents = availableWrites.filter(s => s.result.asInstanceOf[AnyRef] eq vector)
+          if (parents.size != 1) None
+          else completeRoot(parents.head, visited :+ vector).map { case (root, path) =>
+            root -> (path :+ loops.head)
+          }
+        }
+      }
+      val nestedWriters = owner.vecIndices.filter(selection =>
+        exactAliasUse(owner, selection, write = true)).flatMap { selection =>
+          completeRoot(selection, Vector.empty).filterNot(_._1 eq selection.vector).map {
+            case (root, loops) => (selection, root, loops)
+          }
+        }
+      if (nestedWriters.size == 1) {
+        val (write, root, loops) = nestedWriters.head
+        val enclosingPath = containmentPathOf(loops.head.body, containmentPaths).dropRight(1)
+        val writerPath = containmentPathOf(owner, containmentPaths).drop(enclosingPath.size)
+        val completePath = writerPath.size == loops.size &&
+          writerPath.zip(loops).forall { case (block, loop) => block eq loop.body }
+        def sameStorage(vector: Vec[_]): Boolean =
+          (vector eq root) || ParameterizedVec.nestedVectorProjection(root, vector).nonEmpty
+        if (completePath && countName(ownerPlan.head.body, target) == write.result.flatten.size &&
+            consumers.forall { consumer =>
+              val consumerPath = containmentPathOf(consumer.block, containmentPaths)
+              val available = consumerPath.flatMap(_.vecIndices).distinct
+              val relevant = available.filter(s => sameStorage(s.vector))
+              val reads = relevant.filter(selection =>
+                exactSelectionDomain(consumer.block, selection, readOnly = true) &&
+                  exactAliasUse(consumer.block, selection, write = false))
+              containmentPrefix(enclosingPath, consumerPath) &&
+                reads.nonEmpty && reads.size == relevant.size &&
+                exactReadOccurrences(consumer, reads).contains(countName(consumer.body, target))
+            }) return true
+      }
+
       val writes = owner.vecIndices.filter(selection =>
         ParameterizedVec.shapeOf(selection.vector).nonEmpty &&
           exactSelectionDomain(owner, selection) &&

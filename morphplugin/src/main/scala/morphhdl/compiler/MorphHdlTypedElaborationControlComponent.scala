@@ -816,11 +816,21 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global, ordinar
     }
 
     def markPatchedPackedTopology(values: List[Tree]): Unit = {
+      // Naming/retention decorators do not give a packed carrier a new
+      // assignment owner. Recognize the constructor underneath these calls so
+      // ordinary loops cannot move scalar patches into independent drivers.
+      // This is a conservative elaboration choice, not authorization to publish
+      // an explicit typed loop without the runtime whole-default proof.
+      def packedConstructor(tree: Tree): Boolean = tree match {
+        case Apply(Ident(n), _) => decoded(n) == "Bits"
+        case Apply(Select(receiver, method), _) if
+            Set("setName", "dontSimplifyIt", "addAttribute", "addTag")(decoded(method)) =>
+          packedConstructor(receiver)
+        case Typed(value, _) => packedConstructor(value)
+        case _ => false
+      }
       val packed = values.collect {
-        case v: ValDef if (v.rhs match {
-          case Apply(Ident(n), _) => decoded(n) == "Bits"
-          case _ => false
-        }) => v.name
+        case v: ValDef if packedConstructor(v.rhs) => v.name
       }.toSet
       object ScalarPatches extends Traverser {
         override def traverse(tree: Tree): Unit = tree match {
@@ -1041,7 +1051,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global, ordinar
 
         case block: Block =>
           withScope {
-            markPatchedPackedTopology(block.stats)
+            markPatchedPackedTopology(block.stats :+ block.expr)
             prebindTypes(block.stats)
             block.stats.foreach {
               case definition: ValDef =>
