@@ -1,0 +1,189 @@
+package spinal.idslplugin
+
+import java.nio.file.{Files, Path, Paths}
+import java.net.URLClassLoader
+import org.scalatest.funsuite.AnyFunSuite
+import scala.tools.nsc.{Global, Settings}
+import scala.tools.nsc.reporters.StoreReporter
+
+class DocumentationPluginTests extends AnyFunSuite {
+  private val core = """package spinal.core {
+    class doc(val text: String) extends scala.annotation.StaticAnnotation
+    class Data
+    class Component
+    object RtlDocumentation {
+      var notes = Vector.empty[String]
+      def attach[T](value: T, text: String, origin: String, location: String, definition: Boolean): T = {
+        notes :+= text; value
+      }
+    }
+  }
+  """
+  private def compile(source: String, directory: Path = Files.createTempDirectory("doc-plugin-"),
+      extra: String = "", ranges: Boolean = true): (Path, Vector[String]) = {
+    val settings = new Settings
+    settings.Yrangepos.value = ranges
+    settings.usejavacp.value = true
+    settings.classpath.value = System.getProperty("java.class.path") + java.io.File.pathSeparator + extra
+    settings.outputDirs.setSingleOutput(directory.toString)
+    val jar = Paths.get(sys.props.getOrElse("morphhdl.idslplugin.jar",
+      fail("The build must provide the packaged IDSL plugin via morphhdl.idslplugin.jar"))).toAbsolutePath
+    assert(Files.isRegularFile(jar), jar.toString)
+    settings.plugin.value = List(jar.toString)
+    assert(settings.processArgumentString("-Xplugin-require:idsl-plugin")._1)
+    val reporter = new StoreReporter
+    val compiler = new Global(settings, reporter)
+    val file = directory.resolve("Fixture.scala")
+    Files.write(file, source.getBytes("UTF-8"))
+    new compiler.Run().compile(List(file.toString))
+    directory -> reporter.infos.toVector.filter(_.severity == reporter.ERROR).map(_.msg)
+  }
+  test("annotation plugin rejects unsupported targets with explicit diagnostics") {
+    val (_, errors) = compile(core + """object Invalid {
+      @spinal.core.doc("number") val value = 1
+      @spinal.core.doc("method") def method = new spinal.core.Data
+    }
+    @spinal.core.doc("not hardware") class NotHardware
+    @spinal.core.doc("object") object NotSupported
+    """)
+    assert(errors.exists(_.contains("hardware-valued declaration")), errors)
+    assert(errors.exists(_.contains("methods is unsupported")), errors)
+    assert(errors.exists(_.contains("Component definition")), errors)
+    assert(errors.exists(_.contains("on objects is unsupported")), errors)
+  }
+  test("annotation plugin evaluates initializers once and supports precompiled class annotations") {
+    val (library, errors) = compile(core + """@spinal.core.doc("library module") class Library extends spinal.core.Component""")
+    assert(errors.isEmpty, errors)
+    val (client, clientErrors) = compile("""object Probe {
+      var calls = 0
+      def make = { calls += 1; new spinal.core.Data }
+      @spinal.core.doc("field") val value = make
+      val library = new Library
+      def result = calls.toString + ":" + spinal.core.RtlDocumentation.notes.mkString(",")
+    }""", extra = library.toString)
+    assert(clientErrors.isEmpty, clientErrors)
+    val loader = new URLClassLoader(Array(client.toUri.toURL, library.toUri.toURL), getClass.getClassLoader)
+    try {
+      val cls = loader.loadClass("Probe$")
+      val instance = cls.getField("MODULE$").get(null)
+      assert(cls.getMethod("result").invoke(instance) == "1:field,library module")
+    } finally loader.close()
+  }
+  test("source lexer distinguishes nested comments quoted literals and attachment boundaries") {
+    import spinal.idslplugin.components.SourceDocumentation
+    val source = "val a = \"// ignored\" // trailing\r\n/* outer /* nested */ text */\nval b = 1\n\n// detached\n\nval c = 2\n"
+    val comments = SourceDocumentation.scan(source)
+    assert(comments.map(_.text) == Vector("trailing", "outer /* nested */ text", "detached"))
+    assert(SourceDocumentation.trailing(source, comments, source.indexOf(" // trailing")).map(_.text) == Vector("trailing"))
+    assert(SourceDocumentation.preceding(source, comments, source.indexOf("val b")).map(_.text) == Vector("outer /* nested */ text"))
+    assert(SourceDocumentation.preceding(source, comments, source.indexOf("val c")).isEmpty)
+    val literals = "val x = \"\"\"// ignored /* ignored */\"\"\"; val c = '/' // real"
+    assert(SourceDocumentation.scan(literals).map(_.text) == Vector("real"))
+  }
+
+  test("RTL markers require a leading exact marker and preserve comment attachment boundaries") {
+    import spinal.idslplugin.components.SourceDocumentation
+    val source = "// RTL: First\r\n// ordinary\r\n/* RTL:\r\n * Second\r\n * line\r\n */\r\nval x = 1\n" +
+      "// rtl: wrong case\n// prose RTL: not a marker\n// RTL:\nval y = 2\n" +
+      "val text = \"// RTL: quoted\"\n/** ordinary doc */\n"
+    val comments = SourceDocumentation.scan(source)
+    assert(comments.filter(_.marked).map(_.text) == Vector("First", "Second\nline", ""))
+    assert(SourceDocumentation.preceding(source, comments, source.indexOf("val x"))
+      .filter(_.marked).map(_.text) == Vector("First", "Second\nline"))
+    assert(!comments.exists(_.text == "quoted"))
+    val adjacent = "val z = 0 /* implementation */ /* RTL: trailing contract */"
+    assert(SourceDocumentation.trailing(adjacent, SourceDocumentation.scan(adjacent), adjacent.indexOf(" /*"))
+      .filter(_.marked).map(_.text) == Vector("trailing contract"))
+  }
+
+  test("at-rtl markers retain block style and opening-line placement without accepting lookalikes") {
+    import spinal.idslplugin.components.SourceDocumentation
+    val source = "// @rtl line\r\n/* @rtl first\r\n * second\r\n *\r\n * fourth\r\n */\n" +
+      "/** @rtl\n * next-line\n */\n// @rtlExtra no\n// @RTL no\n// prose @rtl no\n// @rtl: no\n" +
+      "val s = \"// @rtl quoted\"\n/* RTL: legacy */\n// @rtl\n"
+    val notes = SourceDocumentation.scan(source).filter(_.marked)
+    assert(notes.map(_.text) == Vector("line", "first\nsecond\n\nfourth", "\nnext-line", "legacy", ""))
+    assert(notes.map(_.block) == Vector(false, true, true, false, false))
+    assert(notes(2).scaladoc)
+  }
+
+  test("comment-only recompilation updates embedded metadata and requires no runtime source") {
+    def source(note: String) = core + s"""object Probe {
+      val value = new spinal.core.Data // RTL: $note
+      def result = spinal.core.RtlDocumentation.notes.mkString(",")
+    }"""
+    val directory = Files.createTempDirectory("comment-recompile-")
+    for (note <- Seq("first note λ", "edited note λ")) {
+      val (_, errors) = compile(source(note).replace("\n", "\r\n"), directory)
+      assert(errors.isEmpty, errors)
+      Files.delete(directory.resolve("Fixture.scala"))
+      val loader = new URLClassLoader(Array(directory.toUri.toURL), getClass.getClassLoader)
+      try {
+        val cls = loader.loadClass("Probe$")
+        val instance = cls.getField("MODULE$").get(null)
+        assert(cls.getMethod("result").invoke(instance) == note)
+      } finally loader.close()
+    }
+  }
+
+  test("missing range positions embed a precise automatic capture diagnostic") {
+    val (directory, errors) = compile(core + """object Probe {
+      val value = new spinal.core.Data // RTL: source note
+      def result = spinal.core.RtlDocumentation.notes.mkString(",")
+    }""", ranges = false)
+    assert(errors.isEmpty, errors)
+    val loader = new URLClassLoader(Array(directory.toUri.toURL), getClass.getClassLoader)
+    try {
+      val cls = loader.loadClass("Probe$")
+      assert(cls.getMethod("result").invoke(cls.getField("MODULE$").get(null)).toString.contains("-Yrangepos"))
+    } finally loader.close()
+  }
+  test("precompiled class comments survive source deletion without inheriting to unrelated classes") {
+    val (library, errors) = compile(core + """class Library extends spinal.core.Component { // RTL: Library header λ
+    }
+    class Derived extends Library
+    """)
+    assert(errors.isEmpty, errors)
+    Files.delete(library.resolve("Fixture.scala"))
+    val (client, clientErrors) = compile("""object Probe {
+      val value = new Library
+      val derived = new Derived
+      def result = spinal.core.RtlDocumentation.notes.mkString(",")
+    }""", extra = library.toString)
+    assert(clientErrors.isEmpty, clientErrors)
+    val loader = new URLClassLoader(Array(client.toUri.toURL, library.toUri.toURL), getClass.getClassLoader)
+    try {
+      val cls = loader.loadClass("Probe$")
+      assert(cls.getMethod("result").invoke(cls.getField("MODULE$").get(null)) == "Library header λ")
+    } finally loader.close()
+  }
+
+  test("precompiled region markers capture comments without frontend package coupling") {
+    val runtime = core.replace("var notes = Vector.empty[String]", """var notes = Vector.empty[String]
+      def markedRegion[T](text: String, scaladoc: Boolean)(body: => T): T = {
+        notes :+= text; body
+      }""")
+    val (library, errors) = compile(runtime + """object IndependentRegions {
+      @spinal.idslplugin.RtlDocumentationRegion
+      def region(body: => Unit): Unit = body
+      def ordinary(body: => Unit): Unit = body
+    }""")
+    assert(errors.isEmpty, errors)
+    Files.delete(library.resolve("Fixture.scala"))
+    val (client, clientErrors) = compile("""object Probe {
+      var calls = 0
+      // RTL: Captured region
+      IndependentRegions.region { calls += 1 }
+      // RTL: Not a hardware region
+      IndependentRegions.ordinary { calls += 1 }
+      def result = calls.toString + ":" + spinal.core.RtlDocumentation.notes.mkString(",")
+    }""", extra = library.toString)
+    assert(clientErrors.isEmpty, clientErrors)
+    val loader = new URLClassLoader(Array(client.toUri.toURL, library.toUri.toURL), getClass.getClassLoader)
+    try {
+      val cls = loader.loadClass("Probe$")
+      assert(cls.getMethod("result").invoke(cls.getField("MODULE$").get(null)) == "2:Captured region")
+    } finally loader.close()
+  }
+
+}

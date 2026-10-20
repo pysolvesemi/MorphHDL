@@ -11,6 +11,7 @@ final class GenerateCaseBuilder private[frontend] (
   private[frontend] def this(token: GenerateCaseToken) = this(token, null)
   private[frontend] def this(token: NativeGenerateCaseToken) = this(null, token)
 
+  @spinal.idslplugin.RtlDocumentationRegion
   def choice(value: BigInt, label: String)(body: => Unit)(implicit
       file: sourcecode.File,
       line: sourcecode.Line
@@ -22,6 +23,7 @@ final class GenerateCaseBuilder private[frontend] (
     this
   }
 
+  @spinal.idslplugin.RtlDocumentationRegion
   def default(label: String)(body: => Unit)(implicit
       file: sourcecode.File,
       line: sourcecode.Line

@@ -19,7 +19,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set, 
 
 DEFAULT_MANIFEST = "morphhdl/contracts/increment-58-retirement.contract"
 EXPECTED_REPOSITORY = "pysolvesemi/MorphHDL"
-EXPECTED_CONTRACT_SHA256 = "c7d8df45dbd7096e1003606bc53e7586694b91de07bb9cee1c8e43c275ee3cd1"
+EXPECTED_CONTRACT_SHA256 = "e883b17c0969085ccf3f17f66b763ad8caf9508ef5e49ca1569b203d4a3ff826"
 EXPECTED_TOP_LEVEL_KEYS = {
     "schema_version",
     "repository",
@@ -105,15 +105,12 @@ EXPECTED_DEPRECATION_IDS = (
     "paramrtl-report-copy-view",
     "paramrtl-report-parameters-view",
     "paramrtl-report-unapply-view",
-    "pass-raw-design-binding",
-    "pass-validated-design-binding",
     "post-publication-canonical-transform",
     "post-publication-enum-rewrite",
     "post-publication-parameterized-rewrite",
     "post-publication-transform",
 )
 EXPECTED_REQUIRED_FILES = (
-    "morphhdl-passes/src/main/scala/morphhdl/passes/adapter/CanonicalIrPassAdapter.scala",
     "morphhdl/src/main/scala/morphhdl/MorphCanonicalIrReport.scala",
     "morphhdl/src/main/scala/morphhdl/MorphSingleSourceVerilogReport.scala",
     "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala",

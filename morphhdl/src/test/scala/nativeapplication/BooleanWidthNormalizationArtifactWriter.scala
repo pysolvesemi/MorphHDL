@@ -2,7 +2,7 @@ package nativeapplication
 
 import java.nio.file.{Files, Path, Paths}
 
-import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
+import morphhdl.{MorphVerilog}
 import morphhdl.frontend.{HdlBool, HdlInt}
 import spinal.core._
 
@@ -15,7 +15,7 @@ object BooleanWidthNormalizationArtifactWriter {
     dataOut := dataIn
   }
 
-  private def config(output: Path, passes: String): SpinalConfig = {
+  private def config(output: Path): SpinalConfig = {
     Files.createDirectories(output)
     val value = SpinalConfig(
       targetDirectory = output.toString,
@@ -24,8 +24,7 @@ object BooleanWidthNormalizationArtifactWriter {
       headerWithRepoHash = true
     )
     value.netlistFileName = "generated.v"
-    if (passes == "disabled") MorphWireAssignmentPasses(value, enabled = false)
-    else value
+    value
   }
 
   private def flag(default: Boolean = false): ElabBool =
@@ -35,9 +34,11 @@ object BooleanWidthNormalizationArtifactWriter {
     HdlInt.param("MODE", default = 0, min = 0, max = 3).asElabInt
 
   private def writeRound(output: Path): Unit = {
-    for (passes <- Vector("default", "disabled")) {
+    // Preserve historical artifact paths for the unchanged pre-WA-11 reference.
+    // Both paths now exercise independent runs of the parameterized generator.
+    for (replica <- Vector("default", "disabled")) {
       def write(name: String)(top: => Component): Unit =
-        MorphVerilog(config(output.resolve(passes).resolve(name), passes))(top)
+        MorphVerilog(config(output.resolve(replica).resolve(name)))(top)
 
       write("direct") { new PassThrough(flag().toElabInt * 3 + 1, "Wa11BooleanWidthDirect") }
       write("true-default") { new PassThrough(flag(true).toElabInt * 3 + 1, "Wa11BooleanWidthTrueDefault") }

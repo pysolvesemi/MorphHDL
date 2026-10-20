@@ -295,7 +295,7 @@ private object StructuralIdentityAdversarialFixture {
       val retainedName = retainedAlias.getName()
       require(
         retainedName != null && retainedName.startsWith(
-          "morphhdl_structural_vec_alias_"
+          "structural_vec_alias_"
         ),
         "stale finite Vec fixture retained no exact named alias"
       )
@@ -1125,7 +1125,7 @@ class StructuralIdentityAdversarialTests extends AnyFunSuite {
       }
       assert(
         failure.detail.contains(
-          "SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION"
+          "SPINAL-PARAMETERIZED-VERILOG-VEC-RESIDUAL-CARRIER-REFERENCE"
         ),
         failure.detail
       )
@@ -1146,7 +1146,7 @@ class StructuralIdentityAdversarialTests extends AnyFunSuite {
         firstIndex == secondIndex,
         s"reused finite Vec selection diverged across $firstIndex and $secondIndex"
       )
-      assert(!verilog.contains("morphhdl_structural_vec_alias"), verilog)
+      assert(!verilog.contains("structural_vec_alias"), verilog)
     }
   }
 
@@ -1186,7 +1186,7 @@ class StructuralIdentityAdversarialTests extends AnyFunSuite {
         verilog
       )
       generatedVecReadIndex(verilog, "internal_observed", "internal_values")
-      assert(!verilog.contains("morphhdl_structural_vec_alias"), verilog)
+      assert(!verilog.contains("structural_vec_alias"), verilog)
     }
   }
 
@@ -1227,7 +1227,7 @@ class StructuralIdentityAdversarialTests extends AnyFunSuite {
           .nonEmpty,
         verilog
       )
-      assert(!verilog.contains("morphhdl_structural_vec_alias"), verilog)
+      assert(!verilog.contains("structural_vec_alias"), verilog)
     }
   }
 
@@ -1239,7 +1239,7 @@ class StructuralIdentityAdversarialTests extends AnyFunSuite {
       }
       val verilog = readVerilog(directory, config)
       generatedVecWriteIndex(verilog, "values", "data")
-      assert(!verilog.contains("morphhdl_structural_vec_alias"), verilog)
+      assert(!verilog.contains("structural_vec_alias"), verilog)
     }
   }
 
@@ -1263,7 +1263,7 @@ class StructuralIdentityAdversarialTests extends AnyFunSuite {
           .nonEmpty,
         verilog
       )
-      assert(!verilog.contains("morphhdl_structural_vec_alias"), verilog)
+      assert(!verilog.contains("structural_vec_alias"), verilog)
     }
   }
 
@@ -1304,7 +1304,7 @@ class StructuralIdentityAdversarialTests extends AnyFunSuite {
         firstIndex == secondIndex,
         s"same structural index diverged across $firstIndex and $secondIndex"
       )
-      assert(!verilog.contains("morphhdl_structural_vec_alias"), verilog)
+      assert(!verilog.contains("structural_vec_alias"), verilog)
     }
   }
 
@@ -1318,7 +1318,7 @@ class StructuralIdentityAdversarialTests extends AnyFunSuite {
       }
       val verilog = readVerilog(directory, config)
       assert(verilog.contains("staged["), verilog)
-      assert(!verilog.contains("morphhdl_structural_vec_alias"), verilog)
+      assert(!verilog.contains("structural_vec_alias"), verilog)
     }
   }
 

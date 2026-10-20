@@ -1,6 +1,5 @@
 package spinal.core.internals
 
-import java.util.regex.Pattern
 import scala.collection.mutable.ArrayBuffer
 import spinal.core._
 
@@ -10,6 +9,170 @@ import spinal.core._
   */
 object ExternalParameterizedNativeResize {
   private object StorageKey
+  private object ChildSourceKey
+  private final case class ChildSource(
+      port: BitVector, child: Component, carrier: BitVector,
+      driver: DataAssignmentStatement, width: ElaborationIntegerExpression,
+      portWidth: ElaborationIntegerExpression, scope: NativePublicationScope)
+
+  private def childSources(component: Component): Vector[ChildSource] =
+    component.userCache.get(ChildSourceKey).map(_.asInstanceOf[Vector[ChildSource]]).getOrElse(Vector.empty)
+
+  private def childPortWidth(port: BitVector): Option[ElaborationIntegerExpression] =
+    ParameterizedWidth.expressionOf(port).orElse {
+      if (port.isFixedWidth) Some(ElabInt.literal(port.getBitsWidth).expression) else None
+    }
+
+  /** A child output's native connection net belongs to its parent, but its
+    * declaration/formals belong to the child. Materialize resize operands
+    * before native normalization can erase an equal-witness resize. Signed
+    * transports and derived-width expression reads also need a whole parent
+    * connection. Existing local publishers still own those operations.
+    */
+  private def materializeChildSources(component: Component): Unit = {
+    val operations = ArrayBuffer.empty[Expression]
+    val statements = ArrayBuffer.empty[Statement]
+    component.dslBody.walkStatements(statements += _)
+    val derivedReads = ArrayBuffer.empty[BitVector]
+    statements.foreach { statement =>
+      statement.walkDrivingExpressions {
+        case port: BitVector if ParameterizedWidth.parameterOf(port).isEmpty &&
+            ParameterizedWidth.expressionOf(port).exists(_.parameters.nonEmpty) &&
+            !(statement.isInstanceOf[DataAssignmentStatement] &&
+              (statement.asInstanceOf[DataAssignmentStatement].source eq port)) =>
+          derivedReads += port
+        case _ =>
+      }
+    }
+    statements.foreach {
+      case assignment: DataAssignmentStatement =>
+        assignment.walkExpression {
+          case resize: Resize if resize.input.isInstanceOf[BitVector] &&
+              Set[Class[_]](classOf[ResizeBits], classOf[ResizeUInt], classOf[ResizeSInt])(resize.getClass) =>
+            operations += resize
+          case cast: CastBitVectorToBitVector if cast.input.isInstanceOf[SInt] &&
+              Set[Class[_]](classOf[CastSIntToBits], classOf[CastSIntToUInt])(cast.getClass) =>
+            operations += cast
+          case _ =>
+        }
+      case _ =>
+    }
+    val byPort = new java.util.IdentityHashMap[BitVector, ChildSource]()
+    val ordered = ArrayBuffer.empty[ChildSource]
+    def materialize(port: BitVector): Option[ChildSource] = {
+      val child = port.component
+      if (child != null && (child.parent eq component) &&
+          (child.parentScope eq component.dslBody) && component.children.exists(_ eq child) &&
+          port.isOutput && !port.isInOut && (port.parentScope eq child.dslBody) &&
+          child.getOrdredNodeIo.exists(_ eq port)) {
+        childPortWidth(port).map { declared =>
+          NativePublicationWidth.validate(declared, child, port, "child resize source")
+          val width = NativeFormalWidthProjection.inScope(component, port, declared)
+          if (width.minimum < 1 || width.default != BigInt(port.getBitsWidth))
+            fail("child resize source has no positive witness-consistent parent width")
+          var entry = byPort.get(port)
+          if (entry == null) {
+            entry = component.rework { component.dslBody.onHead {
+              val carrier: BitVector = port match {
+                case _: Bits => Bits(port.getBitsWidth bits)
+                case _: UInt => UInt(port.getBitsWidth bits)
+                case _: SInt => SInt(port.getBitsWidth bits)
+              }
+              ParameterizedWidth.retainNativeWidth(carrier, width)
+              carrier.dontSimplifyIt().addTag(noBackendCombMerge)
+              carrier.assignFrom(port)
+              NativePublicationWidth.validate(width, component, carrier, "child resize parent carrier")
+              ChildSource(port, child, carrier, carrier.head.asInstanceOf[DataAssignmentStatement],
+                width, declared, NativePublicationScope.capture(component, carrier.parentScope))
+            }}
+            byPort.put(port, entry)
+            ordered += entry
+          }
+          entry
+        }
+      } else None
+    }
+    operations.distinct.foreach { operation =>
+      val port = (operation match {
+        case resize: Resize => resize.input
+        case cast: CastBitVectorToBitVector => cast.input
+      }).asInstanceOf[BitVector]
+      if (operation.isInstanceOf[CastBitVectorToBitVector] || operation.getTypeObject == port.getTypeObject)
+        materialize(port).foreach { entry => operation match {
+          case resize: Resize => resize.input = entry.carrier
+          case cast: CastBitVectorToBitVector => cast.input = entry.carrier.asInstanceOf[cast.T]
+        }}
+    }
+    // A derived output consumed by slices/predicates still needs one complete
+    // parent connection carrying its substituted geometry. Preserve that exact
+    // edge before native normalization; never infer its width from a consumer.
+    val derivedCarriers = new java.util.IdentityHashMap[BitVector, BitVector]()
+    derivedReads.distinct.foreach(port => materialize(port).foreach(entry =>
+      derivedCarriers.put(port, entry.carrier)))
+    val highBits = statements.collect {
+      case assignment: DataAssignmentStatement if
+          (assignment.target eq assignment.finalTarget) &&
+          assignment.target.isInstanceOf[Bool] &&
+          assignment.source.isInstanceOf[BitVectorBitAccessFixed] =>
+        (assignment.target.asInstanceOf[Bool],
+          assignment.source.asInstanceOf[BitVectorBitAccessFixed])
+    }.filter { case (_, access) =>
+      derivedCarriers.containsKey(access.source) && NativeWidthProvenance.isHighBit(access)
+    }.map { case (target, access) => (target, derivedCarriers.get(access.source)) }
+    if (!derivedCarriers.isEmpty) statements.foreach(_.walkRemapDrivingExpressions {
+      case port: BitVector if derivedCarriers.containsKey(port) => derivedCarriers.get(port)
+      case expression => expression
+    })
+    // Transfer only an already-authenticated msb request across this exact
+    // whole-value edge. A fixed Int index has no such receipt and stays fixed.
+    highBits.foreach { case (target, carrier) => NativeWidthProvenance.retainHighBit(carrier, target) }
+    if (ordered.nonEmpty) component.userCache.put(ChildSourceKey, ordered.toVector)
+  }
+
+  private def validateChildSources(component: Component): Unit = childSources(component).foreach { entry =>
+    val carrier = entry.carrier
+    if ((entry.child.parent ne component) || !component.children.exists(_ eq entry.child) ||
+        (entry.child.parentScope ne component.dslBody) || (entry.port.component ne entry.child) ||
+        (entry.port.parentScope ne entry.child.dslBody) || !entry.port.isOutput || entry.port.isInOut ||
+        !entry.child.getOrdredNodeIo.exists(_ eq entry.port) ||
+        (carrier.component ne component) || !carrier.isComb || !carrier.isDirectionLess ||
+        !carrier.dontSimplify || !carrier.hasTag(noBackendCombMerge) ||
+        !entry.scope.matches(carrier.parentScope) || !entry.scope.matches(entry.driver.parentScope) ||
+        !carrier.hasOnlyOneStatement || (carrier.head ne entry.driver) ||
+        (entry.driver.target ne carrier) || (entry.driver.finalTarget ne carrier) ||
+        (entry.driver.source ne entry.port) || carrier.getTypeObject != entry.port.getTypeObject ||
+        carrier.getBitsWidth != entry.width.default ||
+        !childPortWidth(carrier).exists(width =>
+          NativePublicationWidth.equivalentAtOwner(width, entry.width, component, carrier)) ||
+        !childPortWidth(entry.port).exists(width =>
+          NativePublicationWidth.equivalentAtOwner(width, entry.portWidth, entry.child, entry.port) &&
+          NativePublicationWidth.equivalentAtOwner(
+            NativeFormalWidthProjection.inScope(component, entry.port, width), entry.width, component, carrier)))
+      fail("child resize connection carrier changed its port, binding, owner or driver")
+  }
+
+  private def validateDerivedReads(component: Component): Unit = {
+    val widths = new java.util.IdentityHashMap[BitVector, ElaborationIntegerExpression]()
+    childSources(component).filter(entry => entry.portWidth.parameters.nonEmpty &&
+      ParameterizedWidth.parameterOf(entry.port).isEmpty).foreach(entry =>
+      widths.put(entry.carrier, entry.width))
+    def check(source: Expression, low: Int, high: Int): Unit = {
+      val width = widths.get(source)
+      if (width != null && (low < 0 || high < low || BigInt(high) >= width.minimum))
+        ParameterizedVerilogException.fail("SPINAL-PARAMETERIZED-VERILOG-SLICE-DOMAIN-UNSUPPORTED",
+          s"child output read $high:$low does not fit the complete parent width '${width.verilog}' " +
+            s"in [${width.minimum}, ${width.maximum}]", width.sourceLocation)
+    }
+    if (!widths.isEmpty) component.dslBody.walkStatements { statement =>
+      statement.walkDrivingExpressions {
+        case access: BitVectorBitAccessFixed if
+            !ExternalParameterizedHighBit.proves(component, access) =>
+          check(access.source, access.bitId, access.bitId)
+        case access: BitVectorRangedAccessFixed => check(access.source, access.lo, access.hi)
+        case _ =>
+      }
+    }
+  }
   private final case class Record(
       assignment: DataAssignmentStatement,
       target: BitVector,
@@ -28,6 +191,7 @@ object ExternalParameterizedNativeResize {
     "SPINAL-PARAMETERIZED-VERILOG-NATIVE-RESIZE-LINEAGE-MISMATCH", detail)
 
   private final class Storage(val records: Vector[Record]) {
+    val emitted = new java.util.IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
     val byResize = new java.util.IdentityHashMap[Resize, Record]()
     val byTarget = new java.util.IdentityHashMap[BaseType, Record]()
     val byAssignment = new java.util.IdentityHashMap[DataAssignmentStatement, Record]()
@@ -54,9 +218,13 @@ object ExternalParameterizedNativeResize {
     */
   private[internals] def withPublicationValidation[A](component: Component)(body: => A): A = {
     val capturedStorage = storage(component)
+    val capturedChildSources = component.userCache.get(ChildSourceKey)
     val captured = capturedStorage.map(_.records).getOrElse(Vector.empty)
     def revalidate(): Unit = {
-      if (storage(component).orNull ne capturedStorage.orNull)
+      validateChildSources(component)
+      validateDerivedReads(component)
+      if ((storage(component).orNull ne capturedStorage.orNull) ||
+          component.userCache.get(ChildSourceKey) != capturedChildSources)
         fail("native resize capture ownership changed during publication")
       captured.foreach { record =>
         if (!validFresh(component, record)) fail("retained native resize assignment changed during publication")
@@ -77,11 +245,23 @@ object ExternalParameterizedNativeResize {
     }
   }
 
+  // Packing owns a logical width distinct from the full-capacity audit graph.
+  // Use the same exact result identity during capture and every revalidation.
+  private def sourceWidthOf(source: BitVector): Option[ElaborationIntegerExpression] = {
+    val packed = source match {
+      case bits: Bits => ParameterizedVec.packedWidthExpressionOf(bits)
+        .filter(NativeWidthFormalSchema.ownsExpression(source.component, _))
+      case _ => None
+    }
+    packed.orElse(NativeWidthProvenance.widthOf(source))
+  }
+
   def install(phases: ArrayBuffer[Phase]): Unit = {
     val boundary = phases.indexWhere(_.isInstanceOf[PhaseRemoveIntermediateUnnameds])
     require(boundary >= 0, "native resize capture requires the unnamed-intermediate boundary")
     phases.insert(boundary, new PhaseMisc {
       override def impl(pc: PhaseContext): Unit = pc.walkComponents { component =>
+        materializeChildSources(component)
         val captured = ArrayBuffer.empty[Record]
         // Vec.asBits owns the exact witness wrapper around its finite-capacity
         // carrier. Its publisher revalidates both identities and restores the
@@ -91,6 +271,10 @@ object ExternalParameterizedNativeResize {
         // unrelated resizes, including same-width carriers, remain scalar edges.
         val packedReadWrappers = new java.util.IdentityHashMap[
           DataAssignmentStatement, java.lang.Boolean]()
+        ElabPackedPartition.entries(component).foreach { entry =>
+          ElabPackedPartition.of(component, entry.assignment)
+          packedReadWrappers.put(entry.assignment, java.lang.Boolean.TRUE)
+        }
         ParameterizedVec.retainedVectorsOf(component).foreach { vector =>
           ParameterizedVec.operationsOf(vector).foreach {
             case read: ParameterizedVecPackedRead if read.result ne read.carrier =>
@@ -129,14 +313,15 @@ object ExternalParameterizedNativeResize {
                 resize.input match {
                   case source: BitVector if source.component eq component =>
                     val typedTargetWidth = ParameterizedWidth.resizeExpressionOf(resize)
+                    val childSource = childSources(component).exists(_.carrier eq source)
                     val fixedConsumerReservation = target match {
-                      case uint: UInt => fixedUIntConsumers.containsKey(uint) &&
+                      case uint: UInt => !childSource && fixedUIntConsumers.containsKey(uint) &&
                         typedTargetWidth.exists(_.parameters.nonEmpty)
                       case _ => false
                     }
                     val targetWidth = typedTargetWidth
                       .getOrElse(ElabInt.literal(resize.size).expression)
-                    NativeWidthProvenance.widthOf(source).filter(sourceWidth =>
+                    sourceWidthOf(source).filter(sourceWidth =>
                       !fixedConsumerReservation &&
                         (sourceWidth.parameters.nonEmpty || targetWidth.parameters.nonEmpty)).foreach { sourceWidth =>
                       NativePublicationWidth.validate(sourceWidth, component, source,
@@ -167,6 +352,13 @@ object ExternalParameterizedNativeResize {
                           s"and source '${source.getName()}' width ${source.getBitsWidth} " +
                           s"(${sourceWidth.verilog}; default=${sourceWidth.default}, min=${sourceWidth.minimum}) " +
                           "must retain positive, witness-consistent widths")
+                      // An Int resize explicitly owns a fixed result width.
+                      // Preserve that operator fact on its exact whole result
+                      // before the operator can normalize away. In particular,
+                      // a later SInt-to-Bits transport must not mistake this
+                      // result for an unproved inferred-width declaration.
+                      if (childSource && typedTargetWidth.isEmpty && !target.isFixedWidth)
+                        target.setWidth(resize.size)
                       // Native identity elimination and a fixed narrowing slice
                       // already have the same meaning across the complete owner
                       // domain. Keep those original native graphs and their
@@ -236,7 +428,7 @@ object ExternalParameterizedNativeResize {
       (record.target.component eq component) && (record.source.component eq component) &&
       record.target.isComb && record.target.dontSimplify && record.source.dontSimplify &&
       record.target.hasTag(noBackendCombMerge) && record.source.hasTag(noBackendCombMerge) &&
-      NativeWidthProvenance.widthOf(record.source)
+      sourceWidthOf(record.source)
         .exists(NativePublicationWidth.equivalentAtOwner(_, record.sourceWidth, component, record.source)) &&
       (if (record.targetWidth.parameters.isEmpty)
          ParameterizedWidth.expressionOf(record.target).isEmpty
@@ -278,54 +470,52 @@ object ExternalParameterizedNativeResize {
     }
   }
 
-  private[internals] def rewrite(component: Component, verilog: String): String = {
-    var lines = verilog.split("\n", -1).toVector
-    val claimed = scala.collection.mutable.HashSet.empty[String]
-    records(component).foreach { record =>
-      if (!valid(component, record)) fail("retained native resize assignment changed after capture")
-      val targetName = Option(record.target.getName()).filter(_.nonEmpty)
-        .getOrElse(fail("retained native resize target has no emitted name"))
-      val sourceName = Option(record.source.getName()).filter(_.nonEmpty)
-        .getOrElse(fail("retained native resize source has no emitted name"))
-      if (!claimed.add(targetName)) fail(s"multiple resize targets share emitted name '$targetName'")
-      val targetWidth = record.witnessTargetWidth
-      val sourceWidth = record.witnessSourceWidth
-      val signed = record.source.isInstanceOf[SInt]
-      val expected = if (targetWidth < sourceWidth) s"$sourceName[${targetWidth - 1}:0]"
-        else if (targetWidth == sourceWidth) sourceName
-        else if (signed) s"{{${targetWidth - sourceWidth}{$sourceName[${sourceWidth - 1}]}}, $sourceName}"
-        else s"{${targetWidth - sourceWidth}'d0, $sourceName}"
-      val assignment = ("^(\\s*assign\\s+" + Pattern.quote(targetName) +
-        "\\s*=\\s*)(.*?)(;\\s*)$").r
-      var targets = 0
-      var matches = 0
-      lines = lines.map {
-        case assignment(prefix, rhs, suffix) =>
-          targets += 1
-          if (rhs.trim == expected) {
-            matches += 1
-            val to = s"(${record.targetWidth.verilog})"
-            val from = s"(${record.sourceWidth.verilog})"
-            // Keep every part select positive/in range and every replication
-            // non-negative, including domains crossing narrowing and widening.
-            // The complete concat has exactly the native target width, so no
-            // assignment-context extension or truncation is left implicit.
-            val resized = if (record.targetWidth.maximum <= record.sourceWidth.minimum)
-              s"$sourceName[$to-1:0]"
-            else {
-              val selected = if (record.targetWidth.minimum >= record.sourceWidth.maximum) from
-                else s"(($to < $from) ? $to : $from)"
-              val extra = s"(($to > $from) ? ($to - $from) : 0)"
-              val extension = if (signed) s"$sourceName[$from-1]" else "1'b0"
-              s"{{$extra{$extension}}, $sourceName[$selected-1:0]}"
-            }
-            prefix + resized + suffix
-          } else prefix + rhs + suffix
-        case line => line
+  /** Render the exact captured assignment in the native emitter. The result
+    * remains a target-sized carrier, preserving nested expression sizing.
+    */
+  private[internals] def emitNative(printer: ComponentEmitterVerilog,
+      assignment: AssignmentStatement): Option[String] = assignment match {
+    case data: DataAssignmentStatement => storage(printer.component).flatMap { retained =>
+      Option(retained.byAssignment.get(data)).map { record =>
+        if (!valid(printer.component, record)) fail("native resize assignment changed before emission")
+        val input = printer.emitExpression(record.source)
+        val to = s"(${record.targetWidth.verilog})"
+        val from = s"(${record.sourceWidth.verilog})"
+        def optionalProof[T](body: => T): Option[T] = try Some(body) catch {
+          case error: ParameterizedVerilogException if error.code == "SPINAL-ELAB-DOMAIN-PRODUCT-CORRELATION-UNSUPPORTED" => None
+        }
+        val same = optionalProof(NativePublicationWidth.equivalentAtOwners(record.targetWidth, record.target,
+          record.sourceWidth, record.source, printer.component)).contains(true)
+        val widening = optionalProof(NativePublicationWidth.nonNegativeDifferenceAtOwners(record.targetWidth,
+          record.target, record.sourceWidth, record.source, printer.component)).flatten
+        val narrowing = optionalProof(NativePublicationWidth.nonNegativeDifferenceAtOwners(record.sourceWidth,
+          record.source, record.targetWidth, record.target, printer.component)).flatten
+        val signed = record.source.isInstanceOf[SInt]
+        val extension = if (signed) s"$input[$from-1]" else "1'b0"
+        val result = if (same) input
+          else if (widening.nonEmpty) s"{{${widening.get}{$extension}}, $input}"
+          else if (narrowing.nonEmpty) s"$input[$to-1:0]"
+          else {
+            val selected = s"(($to < $from) ? $to : $from)"
+            val extra = s"(($to > $from) ? ($to - $from) : 0)"
+            s"{{$extra{$extension}}, $input[$selected-1:0]}"
+          }
+        retained.emitted.put(data, java.lang.Boolean.TRUE)
+        result
       }
-      if (targets != 1 || matches != 1)
-        fail(s"resize target '$targetName' maps to $targets native assignments and $matches exact witness edges")
     }
-    lines.mkString("\n")
+    case _ => None
+  }
+
+  /** Keep final freshness validation, without reconstructing assignments from
+    * emitted names or replacing witness-sized Verilog text.
+    */
+  private[internals] def rewrite(component: Component, verilog: String): String = {
+    storage(component).foreach { retained => retained.records.foreach { record =>
+      if (!valid(component, record)) fail("retained native resize assignment changed after capture")
+      if (!retained.emitted.containsKey(record.assignment))
+        fail("retained native resize did not pass through its exact native emission site")
+    }}
+    verilog
   }
 }

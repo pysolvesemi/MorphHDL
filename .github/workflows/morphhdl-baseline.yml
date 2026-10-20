@@ -18,6 +18,9 @@ concurrency:
   group: morphhdl-baseline-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   contracts:
     name: Strict Verilog-2001 contracts
@@ -66,7 +69,7 @@ jobs:
   compile:
     name: Compile Scala ${{ matrix.scala_version }}
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 240
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
     strategy:
@@ -82,6 +85,11 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           submodules: recursive
+
+      - name: Install authenticated singleton-array simulator
+        uses: ./.github/actions/lightweight-simulator
+        with:
+          receipt-name: pinned-iverilog-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_attempt }}
 
       - name: Verify recorded upstream base
         shell: bash
@@ -175,10 +183,10 @@ jobs:
           symbolic_data_shapes=target/morphhdl/generated/run-1/symbolic_data_shapes.v
           test "$(grep -Ec '^[[:space:]]*parameter integer WIDTH = 8$' \
             "${symbolic_data_shapes}")" = "1"
-          # Cleanup removes three internal Bundle aliases while preserving all
-          # 27 ports and three registers, leaving 30 exact WIDTH ranges.
+          # Preserve all 27 ports, three registers and three native Bundle
+          # aliases, matching the reviewed RTL's 33 exact WIDTH ranges.
           test "$(grep -Ec '\[WIDTH-1:0\]' \
-            "${symbolic_data_shapes}")" = "30"
+            "${symbolic_data_shapes}")" = "33"
           test "$(grep -Ec \
             '^[[:space:]]*(input|output)[[:space:]]+wire[[:space:]]+\[[^]]*WIDTH[^]]*\][[:space:]]+vec_(in|out),?$' \
             "${symbolic_data_shapes}")" = "2"

@@ -1,0 +1,86 @@
+name: Increment 59i exact candidate evidence inspection
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths: ['.github/workflows/increment-59i-inspect-candidate-evidence.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify and inspect the failed candidate artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import io
+          import json
+          import os
+          import re
+          import urllib.error
+          import urllib.request
+          import zipfile
+
+          repo = 'pysolvesemi/MorphHDL'
+          run = 34674812293
+          expected_head = 'f6ae68867f476d2d80d032cef5fa1280d4474d48'
+          base = 'https://api.github.com/repos/' + repo
+          headers = {'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                     'Accept': 'application/vnd.github+json'}
+          def get_json(path):
+              with urllib.request.urlopen(urllib.request.Request(base + path, headers=headers), timeout=60) as response:
+                  return json.load(response)
+          info = get_json('/actions/runs/' + str(run))
+          assert info['head_sha'] == expected_head, info['head_sha']
+          artifacts = get_json('/actions/runs/' + str(run) + '/artifacts')['artifacts']
+          matches = [a for a in artifacts if a['name'] == 'increment-59i-widening-captures-' + expected_head]
+          assert len(matches) == 1 and not matches[0]['expired'], matches
+          artifact = matches[0]
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, hdrs, newurl):
+                  return None
+          opener = urllib.request.build_opener(NoRedirect())
+          try:
+              opener.open(urllib.request.Request(artifact['archive_download_url'], headers=headers), timeout=60)
+              raise RuntimeError('Expected an authenticated archive redirect')
+          except urllib.error.HTTPError as response:
+              assert response.code == 302, response.code
+              location = response.headers['Location']
+              assert location.startswith('https://')
+          # Do not forward the GitHub token to artifact storage.
+          with urllib.request.urlopen(location, timeout=120) as response:
+              raw = response.read()
+          digest = 'sha256:' + hashlib.sha256(raw).hexdigest()
+          assert digest == artifact['digest'], (digest, artifact['digest'])
+          print('VERIFIED ARTIFACT:', artifact['id'], expected_head, digest, flush=True)
+          with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+              names = archive.namelist()
+              print('FILES:', json.dumps(names), flush=True)
+              for name in names:
+                  if name.endswith('.log') and 'tests-' in name:
+                      lines = archive.read(name).decode('utf-8', errors='replace').splitlines()
+                      print('\nTEST LOG:', name, flush=True)
+                      for index, line in enumerate(lines):
+                          if '*** FAILED ***' in line or '*** ABORTED ***' in line:
+                              print('\nFAILURE AT LOG LINE', index + 1)
+                              print('\n'.join(lines[max(0, index - 2):min(len(lines), index + 45)]))
+                      print('\nTERMINAL REPORT:\n' + '\n'.join(lines[-35:]), flush=True)
+              patch_name = next(n for n in names if n.endswith('candidate.diff'))
+              patch = archive.read(patch_name).decode('utf-8')
+              for block in re.split(r'(?=^diff --git )', patch, flags=re.M):
+                  if any(name in block.split('\n', 1)[0] for name in (
+                      'CompositeWideningConstructionPolicyTests.scala',
+                      'CompositeWideningTests.scala', 'CompositeSaturationTests.scala',
+                      'TypedBalancedReductionCertifiedCallbackPolicy.scala')):
+                      print('\nEXACT CANDIDATE PATCH:\n' + block, flush=True)
+          PY

@@ -191,6 +191,10 @@ object is {
     }
 
     values.foreach {
+      case value: TypedLocalUInt => switchValue match {
+        case selector: UInt => switchElement.keys += value.reference(selector.getWidth)
+        case _ => SpinalError("typed unsigned local requires an UInt switch selector")
+      }
       case value: BaseType => onBaseType(value)
       case key : Boolean   =>
         switchValue match {

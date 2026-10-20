@@ -16,7 +16,7 @@ import scala.util.control.NonFatal
   * syntax lowering only; it never discovers or reconstructs symbolism from a
   * plain Scala `Int` or `Boolean`.
   */
-final class MorphHdlTypedElaborationControlComponent(val global: Global)
+final class MorphHdlTypedElaborationControlComponent(val global: Global, ordinaryLoops: () => Boolean = () => true)
     extends PluginComponent {
   import global._
 
@@ -28,14 +28,30 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
   private sealed trait BindingKind
   private case object TypedIntegerBinding extends BindingKind
   private case object TypedBooleanBinding extends BindingKind
+  private case object ScopedIndexBinding extends BindingKind
+  private case object ScopedBooleanBinding extends BindingKind
   private case object ScalaIntegerBinding extends BindingKind
+  private case object HostCollectionBinding extends BindingKind
+  private case object HostPatchedBitsBinding extends BindingKind
   private case object OrdinaryBinding extends BindingKind
+
+  private val coreCarrierKinds: Map[String, BindingKind] = Map(
+    "ElabInt" -> TypedIntegerBinding, "ElabBool" -> TypedBooleanBinding,
+    "ElabScopedIndex" -> ScopedIndexBinding, "ElabFiniteIndex" -> ScopedIndexBinding,
+    "ElabScopedCondition" -> ScopedBooleanBinding)
+
 
   private final case class ClassifiedTrees(
       typedIfs: IdentityHashMap[Tree, java.lang.Boolean],
+      typedMatches: IdentityHashMap[Tree, java.lang.Boolean],
       typedGenerates: IdentityHashMap[Tree, java.lang.Boolean],
       typedRequires: IdentityHashMap[Tree, java.lang.Boolean],
-      typedEqualities: IdentityHashMap[Tree, java.lang.Boolean]
+      canonicalPredefControls: IdentityHashMap[Tree, java.lang.Boolean],
+      typedEqualities: IdentityHashMap[Tree, java.lang.Boolean],
+      typedRanges: IdentityHashMap[Tree, java.lang.Boolean],
+      scopedIfs: IdentityHashMap[Tree, java.lang.Boolean],
+      hostMutations: IdentityHashMap[Tree, java.lang.Boolean],
+      helperEffects: IdentityHashMap[Tree, java.lang.Boolean]
   )
 
   private final case class WildcardMembers(
@@ -181,12 +197,26 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     */
   private def classify(tree: Tree): ClassifiedTrees = {
     val typedIfs = new IdentityHashMap[Tree, java.lang.Boolean]()
+    val typedMatches = new IdentityHashMap[Tree, java.lang.Boolean]()
     val typedGenerates = new IdentityHashMap[Tree, java.lang.Boolean]()
     val typedRequires = new IdentityHashMap[Tree, java.lang.Boolean]()
+    val canonicalPredefControls = new IdentityHashMap[Tree, java.lang.Boolean]()
     val typedEqualities = new IdentityHashMap[Tree, java.lang.Boolean]()
+    val typedRanges = new IdentityHashMap[Tree, java.lang.Boolean]()
+    val scopedIfs = new IdentityHashMap[Tree, java.lang.Boolean]()
+    val hostMutations = new IdentityHashMap[Tree, java.lang.Boolean]()
+
+    val helperReferences = new IdentityHashMap[Tree, DefDef]()
+    val helperEffects = new IdentityHashMap[Tree, java.lang.Boolean]()
+    val methods = mutable.ArrayBuffer.empty[DefDef]
 
     final class LexicalScope {
       val terms = mutable.LinkedHashMap.empty[TermName, BindingKind]
+      val methods = mutable.LinkedHashMap.empty[TermName, DefDef]
+      val mutableTerms = mutable.LinkedHashSet.empty[TermName]
+      val hostCoupledTerms = mutable.LinkedHashSet.empty[TermName]
+      val hostPatchedTerms = mutable.LinkedHashSet.empty[TermName]
+      val callResults = mutable.LinkedHashMap.empty[TermName, BindingKind]
       val localTypes = mutable.LinkedHashMap.empty[TypeName, BindingKind]
       val explicitTypes =
         mutable.LinkedHashMap.empty[TypeName, mutable.LinkedHashSet[BindingKind]]
@@ -198,6 +228,18 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     }
 
     var scopes = List(new LexicalScope)
+    var templates = List.empty[(TypeName, LexicalScope)]
+    var templateOwner = typeNames.EMPTY
+
+    def thisScope(owner: TypeName): Option[LexicalScope] =
+      if (owner == typeNames.EMPTY) templates.headOption.map(_._2)
+      else templates.collectFirst { case (`owner`, scope) => scope }
+
+    def withTemplateOwner[A](owner: TypeName)(body: => A): A = {
+      val previous = templateOwner
+      templateOwner = owner
+      try body finally templateOwner = previous
+    }
     var currentPackage = Vector.empty[String]
     val sourceWildcardProviders = currentRunWildcardProviders
     val sourceWildcardStableTerms = currentRunWildcardStableTerms
@@ -207,6 +249,16 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       scopes.collectFirst {
         case scope if scope.terms.contains(name) => scope.terms(name)
       }
+
+    def callResult(method: Tree): BindingKind = method match {
+      case Ident(name: TermName) => scopes.collectFirst {
+        case scope if scope.terms.contains(name) =>
+          scope.callResults.getOrElse(name, OrdinaryBinding)
+      }.getOrElse(OrdinaryBinding)
+      case Select(This(owner), name: TermName) =>
+        thisScope(owner).flatMap(_.callResults.get(name)).getOrElse(OrdinaryBinding)
+      case _ => OrdinaryBinding
+    }
 
     def hasVisibleTerm(name: TermName): Boolean =
       scopes.exists(scope => scope.terms.contains(name) || scope.importedTerms(name))
@@ -239,10 +291,8 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       }
       decoded(name) match {
         case "Int" | "Byte" | "Short" | "Char" => ScalaIntegerBinding
-        case "ElabInt" if currentPackage == Vector("spinal", "core") =>
-          TypedIntegerBinding
-        case "ElabBool" if currentPackage == Vector("spinal", "core") =>
-          TypedBooleanBinding
+        case name if currentPackage == Vector("spinal", "core") =>
+          coreCarrierKinds.getOrElse(name, OrdinaryBinding)
         case _                                      => OrdinaryBinding
       }
     }
@@ -306,12 +356,9 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
 
     def qualifiedTypeKind(tree: Tree): BindingKind =
       normalizedPath(tree) match {
-        case Some(Vector("spinal", "core", "ElabInt"))
+        case Some(Vector("spinal", "core", name))
             if unshadowedRoot("spinal", tree) =>
-          TypedIntegerBinding
-        case Some(Vector("spinal", "core", "ElabBool"))
-            if unshadowedRoot("spinal", tree) =>
-          TypedBooleanBinding
+          coreCarrierKinds.getOrElse(name, OrdinaryBinding)
         case Some(Vector("scala", "Int" | "Byte" | "Short" | "Char"))
             if unshadowedRoot("scala", tree) =>
           ScalaIntegerBinding
@@ -338,7 +385,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
         .getOrElseUpdate(name, mutable.LinkedHashSet.empty) += canonicalPredef
 
     val predefControlNames = Set("require", "assert")
-    val trackedWildcardTypes = Set("ElabInt", "ElabBool")
+    val trackedWildcardTypes = coreCarrierKinds.keySet
     val trackedWildcardTerms =
       predefControlNames ++ Set("spinal", "scala", "Predef")
 
@@ -428,18 +475,9 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
             else resolvedExternalWildcardMembers(value.expr)
 
           if (canonicalCorePrefix) {
-            if (!excluded("ElabInt"))
-              addCandidate(
-                scopes.head.wildcardTypes,
-                TypeName("ElabInt"),
-                TypedIntegerBinding
-              )
-            if (!excluded("ElabBool"))
-              addCandidate(
-                scopes.head.wildcardTypes,
-                TypeName("ElabBool"),
-                TypedBooleanBinding
-              )
+            coreCarrierKinds.foreach { case (name, kind) =>
+              if (!excluded(name)) addCandidate(scopes.head.wildcardTypes, TypeName(name), kind)
+            }
           } else if (!canonicalPredefPrefix) {
             // Known external providers contribute only members that they
             // actually export. Unknown and current-run providers remain
@@ -451,18 +489,10 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
             val possibleTerms = resolvedMembers
               .map(_.termNames)
               .getOrElse(trackedWildcardTerms)
-            if (possibleTypes("ElabInt") && !excluded("ElabInt"))
-              addCandidate(
-                scopes.head.wildcardTypes,
-                TypeName("ElabInt"),
-                OrdinaryBinding
-              )
-            if (possibleTypes("ElabBool") && !excluded("ElabBool"))
-              addCandidate(
-                scopes.head.wildcardTypes,
-                TypeName("ElabBool"),
-                OrdinaryBinding
-              )
+            coreCarrierKinds.keys.foreach { name =>
+              if (possibleTypes(name) && !excluded(name))
+                addCandidate(scopes.head.wildcardTypes, TypeName(name), OrdinaryBinding)
+            }
             Vector("spinal", "scala", "Predef").foreach { name =>
               if (possibleTerms(name) && !excluded(name))
                 scopes.head.importedTerms += TermName(name)
@@ -489,11 +519,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
           scopes.head.importedTerms += TermName(exposed)
           val importedKind =
             if (canonicalCorePrefix)
-              imported match {
-                case "ElabInt"  => TypedIntegerBinding
-                case "ElabBool" => TypedBooleanBinding
-                case _          => OrdinaryBinding
-              }
+              coreCarrierKinds.getOrElse(imported, OrdinaryBinding)
             else OrdinaryBinding
           addCandidate(
             scopes.head.explicitTypes,
@@ -519,14 +545,85 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       * `width.parameters.nonEmpty` and `Seq(width).nonEmpty` are ordinary
       * Scala values.
       */
+    // This classification only opts OUT of automatic capture. It never grants
+    // symbolic authority or changes the collection's ordinary Scala semantics.
+    def collectionFactory(tree: Tree): Boolean = tree match {
+      case Ident(name) => Set("Array", "Seq", "Vector", "List")(decoded(name))
+      case Select(owner, name) if Set("fill", "tabulate", "apply")(decoded(name)) => collectionFactory(owner)
+      case Apply(fun, _) => collectionFactory(fun)
+      case TypeApply(fun, _) => collectionFactory(fun)
+      case _ => false
+    }
+
+    def uninitializedRegisterCollection(tree: Tree, requireUninitialized: Boolean = true): Boolean = {
+      def factory(t: Tree): Boolean = t match {
+        case Ident(n) => decoded(n) == "Vec"
+        case Select(owner, _) => factory(owner)
+        case Apply(fun, _) => factory(fun)
+        case TypeApply(fun, _) => factory(fun)
+        case If(_, yes, no) => factory(yes) || factory(no)
+        case Block(_, result) => factory(result)
+        case _ => false
+      }
+      if (!factory(tree)) return false
+      var vector = false; var register = false; var initialized = false
+      object Scan extends Traverser {
+        override def traverse(t: Tree): Unit = {
+          t match {
+            case Ident(name) if decoded(name) == "Vec" => vector = true
+            case Ident(name) if decoded(name) == "Reg" => register = true
+            case Select(_, name) if decoded(name) == "init" => initialized = true
+            case _ =>
+          }
+          super.traverse(t)
+        }
+      }
+      Scan.traverse(tree)
+      vector && register && (!requireUninitialized || !initialized)
+    }
+
     def expressionKind(current: Tree): BindingKind = current match {
+      // Vec(existing scalars...) is a view of independently owned signals,
+      // not an authored aggregate interface. Keep ordinary traversal in Scala;
+      // automatic capture must not turn child scalar ports into a Vec port.
+      case Apply(Ident(name), arguments) if decoded(name) == "Vec" && arguments.size >= 2 &&
+          arguments.forall { case _: Ident | _: Select => true; case _ => false } &&
+          !isTypedInteger(arguments.last) && expressionKind(arguments.last) != ScalaIntegerBinding => HostCollectionBinding
+      case tree if uninitializedRegisterCollection(tree) => HostCollectionBinding
+      case Apply(fun, _) if collectionFactory(fun) => HostCollectionBinding
+      case Apply(Select(receiver, op), _) if expressionKind(receiver) == HostCollectionBinding &&
+          Set("map", "flatMap", "filter", "take", "drop", "zip", "zipWithIndex")(decoded(op)) => HostCollectionBinding
+      case Select(receiver, op) if expressionKind(receiver) == HostCollectionBinding &&
+          Set("zipWithIndex", "toSeq", "toVector", "toArray")(decoded(op)) => HostCollectionBinding
+      case Block(statements, result) if statements.forall {
+          case value: ValDef => !value.mods.hasFlag(Flag.MUTABLE)
+          case _: Import | _: TypeDef => true
+          case _ => false
+        } => withScope {
+          // A local block is sequential, unlike a template. Hide all local
+          // terms first, then infer immutable values in their authored order.
+          // Do not borrow an outer same-named value for a forward reference.
+          prebindTypes(statements)
+          statements.foreach {
+            case value: ValDef => bindOrdinary(value.name)
+            case _ =>
+          }
+          statements.foreach {
+            case imported: Import => recordImport(imported)
+            case value: ValDef => bind(value)
+            case _ =>
+          }
+          expressionKind(result)
+        }
       case Ident(name: TermName) => lookup(name).getOrElse(OrdinaryBinding)
-      case Select(This(_), name: TermName) =>
-        lookup(name).getOrElse(OrdinaryBinding)
+      case Select(This(owner), name: TermName) =>
+        thisScope(owner).flatMap(_.terms.get(name)).getOrElse(OrdinaryBinding)
       case Literal(Constant(_: Byte))  => ScalaIntegerBinding
       case Literal(Constant(_: Short)) => ScalaIntegerBinding
       case Literal(Constant(_: Char))  => ScalaIntegerBinding
       case Literal(Constant(_: Int))   => ScalaIntegerBinding
+
+      case Apply(method, _) if callResult(method) != OrdinaryBinding => callResult(method)
 
       case Apply(Select(receiver, operator), List(argument)) =>
         val receiverKind = expressionKind(receiver)
@@ -536,7 +633,19 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
         val argumentIsInteger =
           argumentKind == TypedIntegerBinding || argumentKind == ScalaIntegerBinding
         decoded(operator) match {
-          case "+" | "-" | "*" | "/" | "%"
+          case "+" | "*" if
+              (receiverKind == ScopedIndexBinding && argumentKind == ScalaIntegerBinding) ||
+              (receiverKind == ScalaIntegerBinding && argumentKind == ScopedIndexBinding) =>
+            ScopedIndexBinding
+          case "<" if receiverKind == ScopedIndexBinding && argumentIsInteger =>
+            ScopedBooleanBinding
+          case "elabEq" | "elabNe" if receiverKind == ScopedIndexBinding && argumentKind == ScalaIntegerBinding =>
+            ScopedBooleanBinding
+          case "==" | "!=" if
+              (receiverKind == ScopedIndexBinding && argumentKind == ScalaIntegerBinding) ||
+              (receiverKind == ScalaIntegerBinding && argumentKind == ScopedIndexBinding) =>
+            ScopedBooleanBinding
+          case "+" | "-" | "*" | "/" | "%" | ">>" | "&"
               if receiverKind == TypedIntegerBinding && argumentIsInteger =>
             TypedIntegerBinding
           case "+" | "-" | "*" | "/" | "%"
@@ -559,6 +668,20 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
           case _ => OrdinaryBinding
         }
 
+      case Select(receiver, method)
+          if expressionKind(receiver) == TypedIntegerBinding &&
+            Set("log2Up", "addressWidth", "pow2")(decoded(method)) => TypedIntegerBinding
+      case Select(receiver, method)
+          if expressionKind(receiver) == TypedIntegerBinding && decoded(method) == "isPow2" => TypedBooleanBinding
+      case Select(receiver, method)
+          if expressionKind(receiver) == TypedBooleanBinding && decoded(method) == "toElabInt" => TypedIntegerBinding
+
+      case Select(receiver, operator)
+          if decoded(operator) == "unary_!" && expressionKind(receiver) == ScopedBooleanBinding =>
+        ScopedBooleanBinding
+      case Apply(Select(receiver, operator), Nil)
+          if decoded(operator) == "unary_!" && expressionKind(receiver) == ScopedBooleanBinding =>
+        ScopedBooleanBinding
       case Select(receiver, operator)
           if decoded(operator) == "unary_!" &&
             expressionKind(receiver) == TypedBooleanBinding =>
@@ -579,14 +702,23 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     }
 
     def bindingKind(value: ValDef): BindingKind =
-      if (value.tpt == null || value.tpt.isEmpty) expressionKind(value.rhs)
+      if (scopes.head.hostPatchedTerms(value.name)) HostPatchedBitsBinding
+      else if (scopes.head.hostCoupledTerms(value.name) || expressionKind(value.rhs) == HostCollectionBinding) HostCollectionBinding
+      else if (value.tpt == null || value.tpt.isEmpty) expressionKind(value.rhs)
       else typeKind(value.tpt)
 
-    def bind(value: ValDef): Unit =
+    def bind(value: ValDef): Unit = {
+      scopes.head.methods -= value.name
       scopes.head.terms.update(value.name, bindingKind(value))
+      if (value.mods.hasFlag(Flag.MUTABLE)) scopes.head.mutableTerms += value.name
+      else scopes.head.mutableTerms -= value.name
+    }
 
-    def bindOrdinary(name: TermName): Unit =
+    def bindOrdinary(name: TermName): Unit = {
+      scopes.head.methods -= name
       scopes.head.terms.update(name, OrdinaryBinding)
+      scopes.head.mutableTerms -= name
+    }
 
     def bindTypeOrdinary(name: TypeName): Unit =
       scopes.head.localTypes.update(name, OrdinaryBinding)
@@ -618,14 +750,51 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       }
     }
 
+    def bindMethods(values: List[Tree]): Unit = {
+      val unique = values.collect { case method: DefDef => method }.groupBy(_.name)
+        .collect { case (_, List(method)) => method }.toVector
+      unique.foreach(method => scopes.head.methods(method.name) = method)
+      // Only exact lexical bindings and recognized carrier expressions participate.
+      // A bounded fixed point permits forward helpers without guessing recursive,
+      // overloaded, qualified or metadata-returning method semantics.
+      var changed = true
+      var remaining = unique.size + 1
+      while(changed && remaining > 0) {
+        changed = false
+        unique.foreach { method =>
+          val result = withScope {
+            method.tparams.foreach(parameter => bindTypeOrdinary(parameter.name))
+            method.vparamss.flatten.foreach(bind)
+            if(method.tpt == null || method.tpt.isEmpty) expressionKind(method.rhs)
+            else typeKind(method.tpt)
+          }
+          if(result != OrdinaryBinding && scopes.head.callResults.get(method.name) != Some(result)) {
+            scopes.head.callResults(method.name) = result
+            changed = true
+          }
+          // prepareScope resolves imports in two passes. Reinstall the value
+          // binding even when the independently retained call result is stable.
+          if(result != OrdinaryBinding && method.vparamss.isEmpty &&
+              scopes.head.terms.get(method.name) != Some(result)) {
+            scopes.head.terms(method.name) = result
+            changed = true
+          }
+        }
+        remaining -= 1
+      }
+    }
+
     def prebindTerms(values: List[Tree]): Unit = {
       values.foreach {
-        case definition: ValDef    => bindOrdinary(definition.name)
+        case definition: ValDef =>
+          bindOrdinary(definition.name)
+          if (definition.mods.hasFlag(Flag.MUTABLE)) scopes.head.mutableTerms += definition.name
         case definition: DefDef    => bindOrdinary(definition.name)
         case definition: ModuleDef => bindOrdinary(definition.name)
         case _                     =>
       }
 
+      bindMethods(values)
       var changed = true
       var remaining = values.size + 1
       while (changed && remaining > 0) {
@@ -646,7 +815,37 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       }
     }
 
+    def markPatchedPackedTopology(values: List[Tree]): Unit = {
+      // Naming/retention decorators do not give a packed carrier a new
+      // assignment owner. Recognize the constructor underneath these calls so
+      // ordinary loops cannot move scalar patches into independent drivers.
+      // This is a conservative elaboration choice, not authorization to publish
+      // an explicit typed loop without the runtime whole-default proof.
+      def packedConstructor(tree: Tree): Boolean = tree match {
+        case Apply(Ident(n), _) => decoded(n) == "Bits"
+        case Apply(Select(receiver, method), _) if
+            Set("setName", "dontSimplifyIt", "addAttribute", "addTag")(decoded(method)) =>
+          packedConstructor(receiver)
+        case Typed(value, _) => packedConstructor(value)
+        case _ => false
+      }
+      val packed = values.collect {
+        case v: ValDef if packedConstructor(v.rhs) => v.name
+      }.toSet
+      object ScalarPatches extends Traverser {
+        override def traverse(tree: Tree): Unit = tree match {
+          case Apply(Select(_, op), _) if decoded(op) == "foreach" =>
+          case Apply(Select(Apply(Ident(name: TermName), _), op), _) if decoded(op) == ":=" && packed(name) =>
+            scopes.head.hostPatchedTerms += name
+          case _: DefDef | _: ClassDef | _: ModuleDef =>
+          case _ => super.traverse(tree)
+        }
+      }
+      values.foreach(ScalarPatches.traverse)
+    }
+
     def prepareScope(values: List[Tree]): Unit = {
+      markPatchedPackedTopology(values)
       prebindTypes(values)
       // Package/object qualifiers and Predef names can themselves be
       // shadowed by members visible throughout this scope. Record those names
@@ -724,6 +923,21 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
         value: Tree
     ): Unit = values.put(value, java.lang.Boolean.TRUE)
 
+    def unsupportedRangeTraversal(range: Tree): Boolean = {
+      def symbolicBase(tree: Tree): Boolean = tree match {
+        case Apply(Select(_, operator), List(end)) if Set("until", "to")(decoded(operator)) =>
+          isTypedInteger(end)
+        case Select(inner, method) if decoded(method) == "reverse" => symbolicBase(inner)
+        case Apply(Select(inner, method), _) if Set("by", "reverse")(decoded(method)) => symbolicBase(inner)
+        case _ => false
+      }
+      range match {
+        case Select(inner, method) if decoded(method) == "reverse" => symbolicBase(inner)
+        case Apply(Select(inner, method), _) if Set("by", "reverse")(decoded(method)) => symbolicBase(inner)
+        case _ => false
+      }
+    }
+
     object Classifier extends Traverser {
       override def traverse(current: Tree): Unit = current match {
         case definition: PackageDef =>
@@ -739,10 +953,8 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
               prepareScope(definition.stats)
               if (currentPackage == Vector("spinal", "core")) {
                 definition.stats.foreach {
-                  case declared: ClassDef if decoded(declared.name) == "ElabInt" =>
-                    scopes.head.localTypes.update(declared.name, TypedIntegerBinding)
-                  case declared: ClassDef if decoded(declared.name) == "ElabBool" =>
-                    scopes.head.localTypes.update(declared.name, TypedBooleanBinding)
+                  case declared: ClassDef if coreCarrierKinds.contains(decoded(declared.name)) =>
+                    scopes.head.localTypes.update(declared.name, coreCarrierKinds(decoded(declared.name)))
                   case _ =>
                 }
               }
@@ -753,21 +965,68 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
         case definition: ClassDef =>
           withScope {
             definition.tparams.foreach(parameter => bindTypeOrdinary(parameter.name))
-            traverse(definition.impl)
+            withTemplateOwner(definition.name) { traverse(definition.impl) }
           }
+
+        case definition: ModuleDef =>
+          withTemplateOwner(definition.name.toTypeName) { traverse(definition.impl) }
 
         case template: Template =>
           withScope {
             // Class/object members are visible throughout their template.
             // Recording every member also lets ordinary members shadow typed
             // constructor parameters or enclosing values deterministically.
-            prepareScope(template.body)
-            template.parents.foreach(traverse)
-            traverse(template.self)
-            template.body.foreach(traverse)
+            templates = (templateOwner -> scopes.head) :: templates
+            try {
+              prepareScope(template.body)
+              // A register array shared with a host collection loop must keep
+              // all its ordinary writers in the same host topology. Capturing
+              // only its reset loop would relocate storage away from the other
+              // writers and destroy their native priority.
+              val registerArrays = template.body.collect {
+                case v: ValDef if uninitializedRegisterCollection(v.rhs, false) => v.name
+              }.toSet
+              object CoupledLoops extends Traverser {
+                override def traverse(tree: Tree): Unit = tree match {
+                  case Apply(Select(_, op), List(body: Function)) if decoded(op) == "foreach" =>
+                    var host = false
+                    val targets = mutable.LinkedHashSet.empty[TermName]
+                    object Uses extends Traverser {
+                      override def traverse(t: Tree): Unit = {
+                        t match {
+                          case Apply(receiver, _) if expressionKind(receiver) == HostCollectionBinding => host = true
+                          case Apply(Select(target, assign), _) if decoded(assign) == ":=" =>
+                            def root(t: Tree): Option[TermName] = t match {
+                              case Ident(n: TermName) => Some(n)
+                              case Apply(f, _) => root(f)
+                              case Select(f, _) => root(f)
+                              case _ => None
+                            }
+                            root(target).filter(registerArrays).foreach(targets += _)
+                          case _ =>
+                        }
+                        super.traverse(t)
+                      }
+                    }
+                    Uses.traverse(body.body)
+                    if (host) targets.foreach { n =>
+                      scopes.head.hostCoupledTerms += n
+                      scopes.head.terms.update(n, HostCollectionBinding)
+                    }
+                    super.traverse(tree)
+                  case _: ClassDef | _: ModuleDef | _: DefDef =>
+                  case _ => super.traverse(tree)
+                }
+              }
+              template.body.foreach(CoupledLoops.traverse)
+              template.parents.foreach(traverse)
+              traverse(template.self)
+              template.body.foreach(traverse)
+            } finally templates = templates.tail
           }
 
         case definition: DefDef =>
+          methods += definition
           withScope {
             definition.tparams.foreach(parameter => bindTypeOrdinary(parameter.name))
             definition.vparamss.flatten.foreach(bind)
@@ -792,9 +1051,12 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
 
         case block: Block =>
           withScope {
+            markPatchedPackedTopology(block.stats :+ block.expr)
             prebindTypes(block.stats)
             block.stats.foreach {
-              case definition: ValDef => bindOrdinary(definition.name)
+              case definition: ValDef =>
+                bindOrdinary(definition.name)
+                if (definition.mods.hasFlag(Flag.MUTABLE)) scopes.head.mutableTerms += definition.name
               case definition: DefDef => bindOrdinary(definition.name)
               case definition: ModuleDef => bindOrdinary(definition.name)
               case _ =>
@@ -803,6 +1065,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
               case imported: Import => recordImport(imported)
               case _                =>
             }
+            bindMethods(block.stats)
             block.stats.foreach { statement =>
               traverse(statement)
               statement match {
@@ -828,7 +1091,137 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
             traverse(branch.body)
           }
 
+        case original @ Apply(Select(range, each), List(_: Function))
+            if decoded(each) == "foreach" && unsupportedRangeTraversal(range) =>
+          reporter.error(original.pos,
+            "MORPHDL-TYPED-RANGE-TRAVERSAL-UNSUPPORTED: symbolic ranges require forward unit traversal; reverse and by are unsupported")
+
+        case original @ Apply(Select(Apply(Select(start, operator), List(end)), each), List(body: Function))
+            if decoded(each) == "foreach" && Set("until", "to")(decoded(operator)) =>
+          def hardwareBody(tree: Tree): Boolean = {
+            var found = false
+            object Scan extends Traverser {
+              override def traverse(t: Tree): Unit = t match {
+                case Apply(Select(_, op), _) if decoded(op) == ":=" => found = true
+                case _: DefDef | _: ClassDef | _: ModuleDef =>
+                case _ => super.traverse(t)
+              }
+            }
+            Scan.traverse(tree); found
+          }
+          def constantBoundShape(t: Tree): Boolean = expressionKind(t) == ScalaIntegerBinding || (t match {
+            case Ident(_) => true // symbol/type and immutability are checked after typer
+            case Select(_, _) if syntaxPath(t).exists(_.size >= 2) => true
+            case Apply(Select(left, op), List(right)) if Set("+", "-", "*", "/", "%")(decoded(op)) =>
+              constantBoundShape(left) && constantBoundShape(right)
+            case _ => false
+          })
+          val localNames = mutable.LinkedHashSet.empty[TermName]
+          object Locals extends Traverser {
+            override def traverse(t: Tree): Unit = t match {
+              case v: ValDef => localNames += v.name; super.traverse(t)
+              case _: DefDef | _: ClassDef | _: ModuleDef =>
+              case _ => super.traverse(t)
+            }
+          }
+          Locals.traverse(body.body)
+          var sharedScalarWriter = false
+          val shiftedWriters = mutable.Map.empty[TermName, Int]
+          var hostTopology = false
+          object HostTopology extends Traverser {
+            override def traverse(t: Tree): Unit = t match {
+              case Apply(Select(target, op), _) if decoded(op) == ":=" =>
+                // Multiple writes to a shifted carrier form an ordered
+                // lookahead recurrence. Preserve host topology until its
+                // aliases can share one authenticated conditional writer.
+                target match {
+                  case Apply(Ident(array: TermName), List(Apply(Select(Ident(index), arithmetic), List(Literal(Constant(offset: Int))))))
+                      if body.vparams.exists(_.name == index) && Set("+", "-")(decoded(arithmetic)) && offset != 0 =>
+                    val writes = shiftedWriters.getOrElse(array, 0) + 1
+                    shiftedWriters.update(array, writes)
+                    if (writes > 1) sharedScalarWriter = true
+                  case _ =>
+                }
+                var local = false
+                object TargetUses extends Traverser {
+                  override def traverse(t: Tree): Unit = t match {
+                    case Ident(n: TermName) if localNames(n) || body.vparams.exists(_.name == n) => local = true
+                    case _ => super.traverse(t)
+                  }
+                }
+                TargetUses.traverse(target)
+                if (!local) sharedScalarWriter = true
+                super.traverse(t)
+              case Apply(receiver, _) if expressionKind(receiver) == HostCollectionBinding => hostTopology = true
+              case Apply(receiver, _) if expressionKind(receiver) == HostPatchedBitsBinding => sharedScalarWriter = true
+              case Apply(Select(_, op), _) if decoded(op) == "withFilter" => hostTopology = true
+              case Apply(Select(_, op), arguments) if decoded(op) == "setName" && arguments.exists { argument =>
+                var dependent = false
+                object IndexUse extends Traverser {
+                  override def traverse(t: Tree): Unit = t match {
+                    case Ident(name) if body.vparams.exists(_.name == name) => dependent = true
+                    case _ => super.traverse(t)
+                  }
+                }
+                IndexUse.traverse(argument); dependent
+              } => hostTopology = true
+              case _ => super.traverse(t)
+            }
+          }
+          HostTopology.traverse(body.body)
+          if (isTypedInteger(end) && hostTopology)
+            reporter.error(original.pos,"MORPHDL-TYPED-RANGE-HOST-TOPOLOGY: explicitly retained loops cannot index host collections or use filtered host traversal; use a native Vec or a separate host loop")
+          val ordinaryHardware = constantBoundShape(start)
+          if (isTypedInteger(end) || (ordinaryLoops() && ordinaryHardware && !hostTopology && !sharedScalarWriter && hardwareBody(body.body) &&
+              constantBoundShape(end))) {
+            typedRanges.put(original, java.lang.Boolean.valueOf(isTypedInteger(end)))
+            traverse(end)
+            withScope {
+              body.vparams.foreach { parameter =>
+                bind(parameter)
+                if (parameter.tpt.isEmpty) scopes.head.terms.update(parameter.name, ScopedIndexBinding)
+              }
+              traverse(body.body)
+            }
+          } else if (expressionKind(start) == ScalaIntegerBinding && expressionKind(end) == ScalaIntegerBinding) {
+            traverse(start)
+            traverse(end)
+            withScope {
+              body.vparams.foreach { parameter =>
+                bind(parameter)
+                if (parameter.tpt.isEmpty) scopes.head.terms.update(parameter.name, ScalaIntegerBinding)
+              }
+              traverse(body.body)
+            }
+          } else super.traverse(original)
+
+        case original @ Apply(Select(Ident(name: TermName), operator), _)
+            if decoded(operator).endsWith("=") &&
+              !Set("==", "!=", "<=", ">=", ":=")(decoded(operator)) &&
+              scopes.collectFirst { case scope if scope.terms.contains(name) =>
+                scope.mutableTerms(name)
+              }.contains(true) =>
+          mark(hostMutations, original)
+          super.traverse(original)
+
+        case original @ Apply(Select(Select(This(owner), name: TermName), operator), _)
+            if decoded(operator).endsWith("=") &&
+              !Set("==", "!=", "<=", ">=", ":=")(decoded(operator)) &&
+              thisScope(owner).exists(_.mutableTerms(name)) =>
+          mark(hostMutations, original)
+          super.traverse(original)
+
+        case reference @ Select(This(owner), name: TermName) =>
+          thisScope(owner).flatMap(_.methods.get(name))
+            .foreach(method => helperReferences.put(reference, method))
+          super.traverse(reference)
+
+        case original: Match =>
+          if (isTypedBoolean(original.selector)) mark(typedMatches, original)
+          super.traverse(original)
+
         case original: If =>
+          if (expressionKind(original.cond) == ScopedBooleanBinding) mark(scopedIfs, original)
           if (isTypedBoolean(original.cond)) mark(typedIfs, original)
           super.traverse(original)
 
@@ -838,16 +1231,22 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
           super.traverse(original)
 
         case original @ Apply(fun, predicate :: _) if isPredefControl(fun) =>
+          mark(canonicalPredefControls, original)
           if (isTypedBoolean(predicate)) mark(typedRequires, original)
           super.traverse(original)
 
         case original @ Apply(Select(left, operator), List(right))
             if decoded(operator) == "==" || decoded(operator) == "!=" =>
-          val leftTyped = isTypedInteger(left)
-          val rightTyped = isTypedInteger(right)
+          val leftTyped = isTypedInteger(left) || expressionKind(left) == ScopedIndexBinding
+          val rightTyped = isTypedInteger(right) || expressionKind(right) == ScopedIndexBinding
+          if ((expressionKind(left) == ScopedIndexBinding || expressionKind(right) == ScopedIndexBinding) &&
+              expressionKind(original) != ScopedBooleanBinding &&
+              !List(left, right).exists { case Literal(Constant(null)) => true; case _ => false })
+            global.reporter.error(original.pos,
+              "MORPHDL-SCOPED-EQUALITY-UNSUPPORTED: a scoped index currently supports equality with a Scala integer specialization only")
           if (
             (leftTyped || rightTyped) &&
-            expressionKind(original) == TypedBooleanBinding
+            Set[BindingKind](TypedBooleanBinding, ScopedBooleanBinding)(expressionKind(original))
           )
             typedEqualities.put(
               original,
@@ -855,18 +1254,77 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
             )
           super.traverse(original)
 
+        case reference @ Ident(name: TermName) =>
+          scopes.collectFirst { case scope if scope.terms.contains(name) => scope.methods.get(name) }
+            .flatten.foreach(method => helperReferences.put(reference, method))
+          super.traverse(current)
+
         case _ => super.traverse(current)
       }
     }
 
     Classifier.traverse(tree)
+    // Exact lexical method identities only: no spelling-based purity guesses for
+    // qualified, overloaded or external methods. Nested definitions contribute
+    // only when referenced, while forward calls participate in the fixed point.
+    val unsafe = new IdentityHashMap[DefDef, java.lang.Boolean]()
+    val dependencies = new IdentityHashMap[DefDef, Vector[DefDef]]()
+    methods.foreach { method =>
+      val calls = mutable.ArrayBuffer.empty[DefDef]
+      object Effects extends Traverser {
+        override def traverse(current: Tree): Unit = current match {
+          case _: DefDef =>
+          case _: ClassDef =>
+          case _: ModuleDef =>
+          case _: Assign | _: Return | _: Throw =>
+            unsafe.put(method, java.lang.Boolean.TRUE)
+            super.traverse(current)
+          case value: ValDef if value.mods.hasFlag(Flag.MUTABLE) =>
+            unsafe.put(method, java.lang.Boolean.TRUE)
+            super.traverse(current)
+          case other =>
+            if (hostMutations.containsKey(other)) unsafe.put(method, java.lang.Boolean.TRUE)
+            Option(helperReferences.get(other)).foreach(calls += _)
+            super.traverse(current)
+        }
+      }
+      Effects.traverse(method.rhs)
+      dependencies.put(method, calls.toVector)
+    }
+    var changed = true
+    while (changed) {
+      changed = false
+      methods.foreach { method =>
+        if (!unsafe.containsKey(method) && dependencies.get(method).exists(unsafe.containsKey)) {
+          unsafe.put(method, java.lang.Boolean.TRUE)
+          changed = true
+        }
+      }
+    }
+    val references = helperReferences.entrySet().iterator()
+    while (references.hasNext) {
+      val entry = references.next()
+      if (unsafe.containsKey(entry.getValue)) helperEffects.put(entry.getKey, java.lang.Boolean.TRUE)
+    }
     ClassifiedTrees(
       typedIfs,
+      typedMatches,
       typedGenerates,
       typedRequires,
-      typedEqualities
+      canonicalPredefControls,
+      typedEqualities,
+      typedRanges,
+      scopedIfs,
+      hostMutations,
+      helperEffects
     )
   }
+
+  /** Reuse the established lexical/import resolver for parameter constraints.
+    * Source spelling alone cannot authenticate an unqualified require call.
+    */
+  private[compiler] def canonicalPredefCalls(tree: Tree): IdentityHashMap[Tree, java.lang.Boolean] =
+    classify(tree).canonicalPredefControls
 
   private def helperMethod(name: String): Tree = {
     val root = Ident(termNames.ROOTPKG)
@@ -894,6 +1352,16 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       unit: CompilationUnit,
       classified: ClassifiedTrees
   ) extends Transformer {
+    private var stagedDepth = 0
+    private var checkedEffectDepth = 0
+    private def staged(tree: Tree, checkEffects: Boolean = true): Tree = {
+      stagedDepth += 1
+      if (checkEffects) checkedEffectDepth += 1
+      try transform(tree) finally {
+        stagedDepth -= 1
+        if (checkEffects) checkedEffectDepth -= 1
+      }
+    }
     private def sourceFile: String =
       Option(unit.source)
         .flatMap(source => Option(source.file))
@@ -1021,13 +1489,13 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       var otherwise: Tree = tree.elsep
       var done = false
       while (!done) {
-        alternatives += ((condition(current.cond), transform(current.thenp), sourceLine(current)))
+        alternatives += ((condition(current.cond), staged(current.thenp), sourceLine(current)))
         current.elsep match {
           case next: If
               if classified.typedIfs.containsKey(next) && directElseIf(current, next) =>
             current = next
           case other =>
-            otherwise = transform(other)
+            otherwise = staged(other)
             done = true
         }
       }
@@ -1036,10 +1504,49 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
 
     private def function0(body: Tree): Tree = Function(Nil, body)
 
+    private def rewriteBooleanMatch(original: Match): Tree = {
+      def literal(tree: Tree): Option[Boolean] = tree match {
+        case Literal(Constant(value: Boolean)) => Some(value)
+        case _ => None
+      }
+      val branches = original.cases
+      val supported = branches.size == 2 && branches.forall(_.guard.isEmpty) &&
+        literal(branches.head.pat).nonEmpty &&
+        (literal(branches(1).pat).exists(_ != literal(branches.head.pat).get) ||
+          (branches(1).pat match {
+            case Ident(name) if name == termNames.WILDCARD => true
+            case _ => false
+          }))
+      if (!supported) {
+        reporter.error(original.pos,
+          "[MORPHDL-TYPED-BOOLEAN-MATCH-UNSUPPORTED] typed Boolean match requires two exhaustive unguarded true/false alternatives")
+        original
+      } else {
+        val firstTrue = literal(branches.head.pat).get
+        val whenTrue = if (firstTrue) branches.head.body else branches(1).body
+        val whenFalse = if (firstTrue) branches(1).body else branches.head.body
+        val result = Apply(Apply(Apply(helperMethod("selectSymbolic"), List(
+          condition(original.selector), Literal(Constant(sourceFile)), Literal(Constant(sourceLine(original))))),
+          List(staged(whenTrue))), List(staged(whenFalse)))
+        result.setPos(original.pos)
+      }
+    }
+
     private def rewriteIf(original: If): Tree = {
       val (alternatives, otherwise) = collectChain(original)
+      def emptyUnit(tree: Tree): Boolean = tree match {
+        case Literal(Constant(())) => true
+        case Block(Nil, value) => emptyUnit(value)
+        case _ => false
+      }
+      val absentElse = emptyUnit(otherwise)
       val rewritten =
-        if (alternatives.size == 1) {
+        if (alternatives.size == 1 && absentElse) {
+          val (predicate, body, line) = alternatives.head
+          val unitType = Select(Select(Ident(termNames.ROOTPKG), TermName("scala")), TypeName("Unit"))
+          Apply(Apply(TypeApply(helperMethod("generateSymbolic"), List(unitType)),
+            List(predicate, Literal(Constant(sourceFile)), Literal(Constant(line)))), List(body))
+        } else if (alternatives.size == 1) {
           val (predicate, body, line) = alternatives.head
           Apply(
             Apply(
@@ -1063,14 +1570,16 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
                 tuple4Apply,
                 List(
                   predicate,
-                  function0(body),
+                  function0(if (absentElse) Block(List(body), Literal(Constant(()))) else body),
                   Literal(Constant(sourceFile)),
                   Literal(Constant(line))
                 )
               )
             }.toList
           )
-          Apply(
+          if (absentElse) Apply(helperMethod("generateSymbolicChain"), List(
+            sequence, Literal(Constant(sourceFile)), Literal(Constant(sourceLine(original)))))
+          else Apply(
             helperMethod("selectSymbolicChain"),
             List(
               sequence,
@@ -1097,7 +1606,10 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
             Literal(Constant(sourceLine(original)))
           )
         ),
-        List(transform(body))
+        // Preserve the established explicit generate API used by native
+        // metadata-owning libraries. An enclosing ordinary staged body still
+        // supplies its checked depth; this call cannot erase that boundary.
+        List(staged(body, checkEffects = false))
       )
       rewritten.setPos(original.pos)
     }
@@ -1125,7 +1637,69 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       rewritten.setPos(original.pos)
     }
 
+    private def rewriteRange(original: Tree, start: Tree, operator: Name,
+        end: Tree, body: Tree): Tree = {
+      val constant = !classified.typedRanges.get(original).booleanValue
+      val zeroStart = start match { case Literal(Constant(0)) => true; case _ => false }
+      if (!constant && !zeroStart) global.reporter.error(start.pos,
+        "MORPHDL-TYPED-RANGE-START-UNSUPPORTED: symbolic finite ranges currently require a literal zero start")
+      val count = if (decoded(operator) == "to")
+        Apply(Select(transform(end), TermName("$plus")), List(Literal(Constant(1))))
+      else transform(end)
+      val core = Select(Select(Ident(termNames.ROOTPKG), TermName("spinal")), TermName("core"))
+      val inclusive = Literal(Constant(decoded(operator) == "to"))
+      val (name, arguments) = if (!constant) ("foreachDefault", List(count))
+      else end match {
+        case Select(vector, length) if decoded(length) == "length" =>
+          ("foreachVecLength", List(transform(vector), transform(start), inclusive))
+        case _ if zeroStart => ("foreachConstant", List(transform(end), inclusive))
+        case _ => ("foreachConstantFrom", List(transform(start), transform(end), inclusive))
+      }
+      val method = Select(Select(core, TermName("ElabFiniteRange")), TermName(name))
+      Apply(Apply(method, arguments), List(staged(body))).setPos(original.pos)
+    }
+
+    private def rejectStagedEffect(tree: Tree, effect: String): Tree = {
+      reporter.error(tree.pos,
+        s"MORPHDL-STAGED-HOST-EFFECT-UNSUPPORTED: $effect is not supported in a symbolic branch or finite loop; use immutable elaboration values and hardware assignments")
+      tree
+    }
+
     override def transform(tree: Tree): Tree = tree match {
+      case original: Assign if checkedEffectDepth > 0 => rejectStagedEffect(original, "host assignment")
+      case original: Return if checkedEffectDepth > 0 => rejectStagedEffect(original, "early return")
+      case original: Throw if checkedEffectDepth > 0 => rejectStagedEffect(original, "throw")
+      case original: ValDef if checkedEffectDepth > 0 && original.mods.hasFlag(Flag.MUTABLE) =>
+        rejectStagedEffect(original, "mutable host declaration")
+      case original if checkedEffectDepth > 0 && classified.hostMutations.containsKey(original) =>
+        rejectStagedEffect(original, "compound host assignment")
+      case original if checkedEffectDepth > 0 && classified.helperEffects.containsKey(original) =>
+        rejectStagedEffect(original, "lexical helper with a host effect")
+      case original: Block if stagedDepth > 0 =>
+        val statements = original.stats.map {
+          case value: ValDef if !value.mods.hasFlag(Flag.MUTABLE) &&
+              !value.mods.hasFlag(Flag.SYNTHETIC) && value.mods.annotations.isEmpty &&
+              !value.name.decodedName.toString.contains("$") && value.rhs.nonEmpty =>
+            val rhs = Apply(helperMethod("localValue"), List(transform(value.rhs),
+              Literal(Constant(value.name.decodedName.toString)))).setPos(value.rhs.pos)
+            treeCopy.ValDef(value, value.mods, value.name, value.tpt, rhs)
+          case other => transform(other)
+        }
+        treeCopy.Block(original, statements, transform(original.expr))
+      case original @ Apply(Select(Apply(Select(start, operator), List(end)), _), List(body))
+          if classified.typedRanges.containsKey(original) =>
+        rewriteRange(original, start, operator, end, body)
+      case original: Match if classified.typedMatches.containsKey(original) =>
+        rewriteBooleanMatch(original)
+      case original: If if classified.scopedIfs.containsKey(original) =>
+        val arguments = List(transform(original.cond), Literal(Constant(sourceFile)), Literal(Constant(sourceLine(original))))
+        original.elsep match {
+          case Literal(Constant(())) =>
+            Apply(Apply(helperMethod("generateScoped"), arguments), List(staged(original.thenp))).setPos(original.pos)
+          case _ =>
+            Apply(Apply(Apply(helperMethod("selectScoped"), arguments),
+              List(staged(original.thenp))), List(staged(original.elsep))).setPos(original.pos)
+        }
       case original: If if classified.typedIfs.containsKey(original) =>
         rewriteIf(original)
       case original @ Apply(Select(predicate, _), List(body))
@@ -1147,9 +1721,12 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       val classified = classify(unit.body)
       if (
         !classified.typedIfs.isEmpty ||
+        !classified.typedMatches.isEmpty ||
         !classified.typedGenerates.isEmpty ||
         !classified.typedRequires.isEmpty ||
-        !classified.typedEqualities.isEmpty
+        !classified.typedEqualities.isEmpty ||
+        !classified.typedRanges.isEmpty ||
+        !classified.scopedIfs.isEmpty
       )
         unit.body =
           new TypedControlTransformer(unit, classified).transform(unit.body)

@@ -40,10 +40,10 @@ class FiniteAffineVecReadTests extends AnyFunSuite {
     val count = parameter("COUNT", 3, 2, 9)
     val rtl = emit(directory, new PairMinimum(width, count))
     val compact = rtl.replaceAll("\\s+", "")
-    assert(compact.contains("(2*pairs_index_") && compact.contains("+1)"), rtl)
+    assert(compact.contains("(2*i+") && compact.contains("+1)"), rtl)
     assert(compact.contains("$signed(source["), rtl)
     assert(compact.contains("parameterintegerWIDTH=5") && compact.contains("parameterintegerCOUNT=3"), rtl)
-    assert("(?<![A-Za-z0-9_$])morphhdl_structural_vec_alias_[0-9]+".r.findFirstIn(rtl).isEmpty, rtl)
+    assert("(?<![A-Za-z0-9_$])structural_vec_alias_[0-9]+".r.findFirstIn(rtl).isEmpty, rtl)
     if (available("iverilog") && available("vvp")) {
       for (w <- Vector(1, 5, 8); n <- Vector(2, 3, 5, 8, 9)) {
         simulatePairs(directory, w, n)
@@ -76,9 +76,9 @@ class FiniteAffineVecReadTests extends AnyFunSuite {
     reject(new Selection((depth + 1) / 2, depth, 2, 1), "SPINAL-ELAB-FINITE-AFFINE-DOMAIN-OUT-OF-RANGE")
   }
 
-  test("affine Vec selectors reject writes even when the pair count is safe") {
+  test("affine Vec selectors reject writes to input carriers even when the pair count is safe") {
     val depth = parameter("DEPTH", 4, 2, 8)
-    reject(new Selection(depth / 2, depth, 2, 0, write = true), "SPINAL-ELAB-FINITE-AFFINE-WRITE-UNSUPPORTED")
+    reject(new Selection(depth / 2, depth, 2, 0, write = true), "SPINAL-TYPED-LOOP-AFFINE-WRITE-COVERAGE")
   }
 
   test("affine Vec selectors reject zero or negative coefficients and offsets") {

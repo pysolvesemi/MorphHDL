@@ -1,6 +1,6 @@
 package spinal.lib.bus.tilelink.sim
 
-import spinal.core._
+import spinal.core.{Param => _, _}
 import spinal.core.sim._
 import spinal.lib.bus.misc.{AddressMapping, AddressTransformer, OffsetTransformer, SizeMapping}
 import spinal.lib.bus.tilelink._

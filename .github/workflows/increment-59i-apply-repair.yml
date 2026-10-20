@@ -1,0 +1,141 @@
+name: Increment 59i apply reviewed source repair
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - '.github/workflows/increment-59i-apply-repair.yml'
+      - 'morphhdl/repair-59i/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-59i-reviewed-source-application
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.repository == 'pysolvesemi/MorphHDL' && github.ref == 'refs/heads/agent/increment-59i-combined-reduction-closure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Apply only exact reviewed before/after bytes to the expected source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, json, lzma, os, subprocess
+          from pathlib import Path, PurePosixPath
+          root = Path.cwd()
+          bundle = root / 'morphhdl/repair-59i'
+          output = root / 'target/increment-59i-source-application'
+          output.mkdir(parents=True, exist_ok=True)
+          def git(*args):
+              return subprocess.check_output(['git', *args], text=True).strip()
+          metadata = json.loads((bundle / 'metadata.json').read_text())
+          assert set(metadata) == {'schema', 'source_parent', 'patch_sha256', 'files'}
+          assert metadata['schema'] == 1
+          assert metadata['source_parent'] == '5f6e6c8bfde03ee7cd30a716b4b452331a661b08'
+          assert metadata['patch_sha256'] == '697ba14530c67e0794256d39b44243c75c34c04b5844bdcb96dabd7e0e64f9f1'
+          assert git('rev-parse', 'HEAD') == os.environ['GITHUB_SHA']
+          subprocess.run(['git', 'merge-base', '--is-ancestor', metadata['source_parent'], 'HEAD'], check=True)
+          bootstrap = {'.github/workflows/increment-59i-apply-repair.yml',
+                       'morphhdl/repair-59i/metadata.json',
+                       *('morphhdl/repair-59i/chunk-' + str(i) + '.txt' for i in range(5))}
+          assert set(git('diff', '--no-renames', '--name-only', metadata['source_parent'], 'HEAD').splitlines()) == bootstrap
+          assert not git('status', '--porcelain', '--untracked-files=all')
+          paths = [entry['path'] for entry in metadata['files']]
+          assert len(paths) == 14 and paths == sorted(set(paths))
+          for entry in metadata['files']:
+              assert set(entry) == {'path', 'before', 'after'}
+              p = PurePosixPath(entry['path'])
+              assert not p.is_absolute() and '..' not in p.parts and '\\' not in entry['path']
+              assert entry['path'].startswith(('core/src/main/scala/spinal/core/', 'morphhdl/', 'docs/morphhdl/'))
+              assert not entry['path'].startswith('morphhdl/repair-59i/')
+              source = root / entry['path']
+              if entry['before'] is None:
+                  assert not source.exists() and not source.is_symlink()
+              else:
+                  assert source.is_file() and not source.is_symlink()
+                  assert hashlib.sha256(source.read_bytes()).hexdigest() == entry['before'], entry['path']
+          encoded = ''.join((bundle / ('chunk-' + str(i) + '.txt')).read_text() for i in range(5))
+          compressed = base64.b64decode(encoded, validate=True)
+          assert len(compressed) == 25548
+          patch = lzma.decompress(compressed)
+          assert len(patch) == 156421 and hashlib.sha256(patch).hexdigest() == metadata['patch_sha256']
+          patch_file = output / 'reviewed.patch'
+          patch_file.write_bytes(patch)
+          subprocess.run(['git', 'apply', '--check', '--index', str(patch_file)], check=True)
+          subprocess.run(['git', 'apply', '--index', '--whitespace=error', str(patch_file)], check=True)
+          assert set(git('diff', '--cached', '--name-only').splitlines()) == set(paths)
+          for entry in metadata['files']:
+              source = root / entry['path']
+              assert source.is_file() and not source.is_symlink() and not source.stat().st_mode & 0o111
+              assert hashlib.sha256(source.read_bytes()).hexdigest() == entry['after'], entry['path']
+              indexed = subprocess.check_output(['git', 'show', ':' + entry['path']])
+              assert indexed == source.read_bytes()
+          subprocess.run(['git', 'diff', '--cached', '--check'], check=True)
+          subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
+          subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
+          subprocess.run(['git', 'commit', '-m', '59i: repair exact composite read identity and signed structural publication',
+                          '-m', 'Changed-source local compilation and 30 focused tests passed on both Scala lanes. Preserve exact native seam review and all safety checks. This is an in-progress scoped composite slice; full 59i remains incomplete and unchecked.'], check=True)
+          (output / 'head.txt').write_text(git('rev-parse', 'HEAD') + '\n')
+          (output / 'base.txt').write_text(os.environ['GITHUB_SHA'] + '\n')
+          (output / 'files.json').write_text(json.dumps(metadata['files'], indent=2) + '\n')
+          PY
+      - name: Validate canonical native review and exact successor source composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=target/increment-59i-source-application
+          python3 morphhdl/scripts/check-native-source-preservation.py > "$output/native-review.log" 2>&1 || { tail -n 100 "$output/native-review.log"; exit 1; }
+          for layer in 59i 59g 59h; do
+            python3 "morphhdl/scripts/check-increment-$layer-source-review.py" --self-test > "$output/$layer-self-test.log" 2>&1 || { tail -n 100 "$output/$layer-self-test.log"; exit 1; }
+            python3 "morphhdl/scripts/check-increment-$layer-source-review.py" > "$output/$layer-review.log" 2>&1 || { tail -n 100 "$output/$layer-review.log"; exit 1; }
+          done
+          python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py > "$output/inherited-source-controls.log" 2>&1 || { tail -n 140 "$output/inherited-source-controls.log"; exit 1; }
+          python3 morphhdl/scripts/test-increment-59i-combined.py > "$output/checker-regressions.log" 2>&1 || { tail -n 100 "$output/checker-regressions.log"; exit 1; }
+          python3 morphhdl/scripts/check-increment-59i-combined.py --self-test > "$output/checker-self-test.log" 2>&1 || { tail -n 100 "$output/checker-self-test.log"; exit 1; }
+          git diff --exit-code
+          git diff --cached --exit-code
+      - name: Publish the tested source only while the task branch still has the expected head
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          askpass=$(mktemp)
+          trap 'rm -f "$askpass"' EXIT
+          cat > "$askpass" <<'SH'
+          #!/bin/sh
+          case "$1" in
+            *Username*) printf '%s\n' 'x-access-token' ;;
+            *Password*) printf '%s\n' "$GH_TOKEN" ;;
+            *) exit 1 ;;
+          esac
+          SH
+          chmod 700 "$askpass"
+          export GIT_ASKPASS="$askpass" GIT_TERMINAL_PROMPT=0
+          branch=agent/increment-59i-combined-reduction-closure
+          remote=$(git ls-remote origin "refs/heads/$branch" | cut -f1)
+          test "$remote" = "$GITHUB_SHA"
+          git push origin "HEAD:refs/heads/$branch"
+          git rev-parse HEAD > target/increment-59i-source-application/published-head.txt
+          printf '%s\n' 'Reviewed source repair published to the existing 59i branch. Full compilation, RTL/formal qualification and complete Increment 59i scope remain separate requirements; no merge or checkbox completion performed.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve source-bound application and review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-source-application
+          path: target/increment-59i-source-application
+          if-no-files-found: error
+          retention-days: 14

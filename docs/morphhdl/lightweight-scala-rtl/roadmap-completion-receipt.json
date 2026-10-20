@@ -1,0 +1,74 @@
+{
+  "schema": 1,
+  "status": "compiler implementation and focused local checks passed; final application pin recorded separately",
+  "policy": "User 2026-10-16: proportional local tests; no CI or full qualification",
+  "branch": "work/remaining-parameterized-increments",
+  "tested_base_commit": "83aad2dd8df9927902f0c12bb4ec35e5cbb0cce3",
+  "source_overlay_sha256": {
+    "core/src/main/scala/spinal/core/ElabInt.scala": "41a513cee9d03f65f2e45dc7247a537e4d12d9ad0809ac246c9a7e08e3c0c6d8",
+    "core/src/main/scala/spinal/core/ElaborationProductDomain.scala": "3c56417e9d521f9dbb4445aa49226259e038bffaaa672cd74fa2c13c1d8ee081",
+    "core/src/main/scala/spinal/core/NativeSymbolicLegality.scala": "dba40b172a325451a461de9c88a13d964dd96d3e55ce999bd6f922f562150394",
+    "morphhdl/src/test/scala/morphhdl/OptionalReductionPolicyTests.scala": "3864806ba5799794a3e29abdf30b0885650394c1fd8a675453d54eb1f5456819",
+    "morphhdl/src/test/scala/morphhdl/ParameterMaskTests.scala": "df7c6f00dc335445d2c44e768f7d98266f826075f6982594f8844936f4db9ddf",
+    "morphruntime/src/main/scala/spinal/core/RtlParam.scala": "928fced8760855fa994b9362bd5e47ed4ece619c3432c583ba3642879c7ca0ff",
+    "morphhdl/src/test/scala/morphhdl/CompactReductionExampleTests.scala": "15e5999a710469e78e23a7c6d9823edd5e97b383810cc748e6db904c7bb28463"
+  },
+  "results": {
+    "scala_212_mask_optional": 11,
+    "scala_212_compact_example": 6,
+    "scala_212_domain_safety": 47,
+    "scala_213_mask_optional_example_domain_safety": 64,
+    "application_width_variants": 8,
+    "application_width_checks_per_native_or_cleaned_candidate": 190400,
+    "application_cdc_profiles": 21,
+    "earlier_api_checkpoint": "parameter-api-receipt.json"
+  },
+  "tools": {
+    "iverilog -V": [
+      "Icarus Verilog version 14.0 (devel) (af348e2)",
+      "",
+      "Copyright (c) 2000-2026 Stephen Williams (steve@icarus.com)"
+    ],
+    "verilator --version": [
+      "Verilator 5.020 2024-01-01 rev (Debian 5.020-1)"
+    ],
+    "yosys -V": [
+      "Yosys 0.41 (git sha1 c1ad37779, g++ 13.3.0-6ubuntu2~24.04.1 -fPIC -Os)"
+    ],
+    "java -version": [
+      "openjdk version \"21.0.5\" 2024-10-15",
+      "OpenJDK Runtime Environment (build 21.0.5+11-Ubuntu-1ubuntu122.04)",
+      "OpenJDK 64-Bit Server VM (build 21.0.5+11-Ubuntu-1ubuntu122.04, mixed mode, sharing)"
+    ]
+  },
+  "evidence_sha256": {
+    "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-roadmap-closure/guarded-mask-212.log": "b91f1aebf85c2b538a8e23b9e6bdd77f9c41719d1352f87c2bbac889bbbe4344",
+    "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-roadmap-closure/roadmap-domain-passed-example-bench-failure.log": "db0c768e76ad700bc5b4588f92cd8ce4a1e34fc7d027dcba58a8052520da9c67",
+    "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-roadmap-closure/roadmap-final-domain-example.log": "ace608647ba2a930c73c7500a1b3a17d7a21866aa196aecd04bc6d8d1fab4bed",
+    "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-roadmap-closure/application-library-width.log": "3406c11cb05bfc25ae5cc2081c84014041c8acfd086580a94737687b60b87ec0",
+    "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-roadmap-closure/tree-width-392z77nh/results.json": "9085973d073d997d3538ecf1198c8a8f4f986b3b3dccc0c76a46fd296dfdc1ec",
+    "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-roadmap-closure/param-cdc-c87_l22e/results.json": "d55d6b080b47f61b03f22c8b423d0328e9d48da2a0094b2caff65ec4c5d81669",
+    "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-roadmap-closure/balanced-tree-vc7kluu9/results.json": "a4a970fe2db425e0b6fa7728c82bb37f213310b0c50e6d4f0f72f26c0cb05a1e",
+    "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-roadmap-closure/balanced-tree-9qes2ooh/results.json": "c2d0ac6b5bce8e316824b73afda7448f715db6e9220a35ae92fff94590106c15",
+    "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-roadmap-closure/compact-example/CompactReduction.v": "8b90948d1456e55762f280bb011fe210e88c187b8243e69171f5223132a59349",
+    "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-roadmap-closure/compact-example/tb.v": "458d4e2d9685d949b68a764c8975a833b25054fc5aad518d0e6625bcbf8c1530",
+    "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-roadmap-closure/correlated-mask/CorrelatedMask.v": "97539dc676ed4f0b034952d429735dc7fee2359b091e3ee552077fe8f5d0235d",
+    "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/20261016-roadmap-closure/correlated-mask/tb.v": "a7fcc439f92f3e1a6ce936bfdffd3526a4ab1e942ab82286bbc661ce3792402d"
+  },
+  "commands": [
+    "sbt '++2.12.18' 'morph/testOnly morphhdl.ParameterMaskTests morphhdl.OptionalReductionPolicyTests'",
+    "sbt '++2.12.18' 'morph/testOnly morphhdl.CompactReductionExampleTests spinal.core.IndependentParameterDomainTests spinal.core.NativeScopedLegalityTests spinal.core.TypedExactDomainSafetyTests'",
+    "sbt '++2.12.18' 'morph/testOnly morphhdl.CompactReductionExampleTests' '++2.13.12' 'morph/testOnly morphhdl.ParameterMaskTests morphhdl.OptionalReductionPolicyTests morphhdl.CompactReductionExampleTests spinal.core.IndependentParameterDomainTests spinal.core.NativeScopedLegalityTests spinal.core.TypedExactDomainSafetyTests'",
+    "python3 display-controller-morphhdl/toolchain/tests/balanced_tree/check_width.py --compiler-root /home/kartik/projects/MorphHDL --build-log /home/kartik/projects/MorphHDL/morphhdl/target/streams/test/fullClasspath/_global/streams/export"
+  ],
+  "failures_and_repairs": "Initial compact example testbench declared reference registers after use and used a lazy Seq reference with a mutable stage counter. Corrected declaration order and eager Vector evaluation; all six examples then passed both versions. The 47 domain tests passed in the retained earlier run. No compiler check was weakened.",
+  "limitations": [
+    "Finite declaration domains and existing joint proof enumeration limits remain.",
+    "Param[Int] retains nonnegative geometry semantics; Param[SInt] supports signed values.",
+    "HardType inference covers exact native Bits/UInt/SInt widths, not arbitrary symbolic Bundle reconstruction.",
+    "Reduction callbacks preserve geometry and adjacent-pair order; concrete Int bridge levels remain.",
+    "Guarded shift uses actual generate predicates, never deferred require obligations.",
+    "Questa unavailable; focused Icarus/Verilator checks used. No remote CI or full qualification launched.",
+    "Delivery RTL and spinalCleanupR unchanged."
+  ]
+}

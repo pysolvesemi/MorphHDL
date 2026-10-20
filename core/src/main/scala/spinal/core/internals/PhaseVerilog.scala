@@ -54,7 +54,7 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
       }
 
       val componentsText = ArrayBuffer[() => String]()
-      for (c <- sortedComponents) {
+      for (c <- sortedComponents if !referenceOnlyPublication(c)) {
         if (!c.isInBlackBoxTree) {
           componentsText += compile(c)
         }
@@ -106,7 +106,7 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
       }
 
       val bbImplStrings = mutable.HashSet[String]()
-      for (c <- sortedComponents) {
+      for (c <- sortedComponents if !referenceOnlyPublication(c)) {
         val moduleContent = compile(c)()
         val targetFilePath = pc.config.targetDirectory + "/" +  (if(pc.config.netlistFileName == null)(c.definitionName + (if(pc.config.isSystemVerilog) ".sv" else ".v")) else pc.config.netlistFileName)
         report.generatedSourcesPaths += targetFilePath
@@ -155,6 +155,22 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
   val allocateAlgoIncrementalBase = globalData.allocateAlgoIncremental()
   val usedDefinitionNames = mutable.HashSet[String]()
 
+  // Optional publication policy runs only for a new native trace, after native
+  // deduplication. Concrete generation keeps its original naming behavior.
+  private var definitionNamePublication: Component => Unit = (_: Component) => ()
+  def bindDefinitionNamePublication(policy: Component => Unit): Unit = {
+    require(policy != null, "definition naming policy must not be null")
+    definitionNamePublication = policy
+  }
+
+
+  // An optional backend policy may omit exact external reference identities
+  // from per-component definition publication. Ordinary generation is unchanged.
+  private var referenceOnlyPublication: Component => Boolean = (_: Component) => false
+  def bindReferenceOnlyPublication(policy: Component => Boolean): Unit = {
+    require(policy != null, "reference publication policy must not be null")
+    referenceOnlyPublication = policy
+  }
 
   val romCache = mutable.HashMap[String, String]()
   def compile(component: Component): () => String = {
@@ -190,6 +206,7 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
     val oldComponent = emitedComponent.getOrElse(trace, null)
 
     if (oldComponent == null || component.definitionNameNoMerge && component.definitionName != oldComponent.definitionName) {
+      definitionNamePublication(component)
       assert(!usedDefinitionNames.contains(component.definitionName) || component.isInBlackBoxTree, s"Component '${component}' with definition name '${component.definitionName}' was already used once for a different layout\n${component.getScalaLocationLong}")
       usedDefinitionNames += component.definitionName
       emitedComponent += (trace -> component)

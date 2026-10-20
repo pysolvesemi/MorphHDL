@@ -1,0 +1,3 @@
+REJECTED
+MorphVerilog single-source-generation failed: [SPINAL-PARAMETERIZED-VERILOG-PORT-DIRECTIONS-UNSUPPORTED] component 'ExistingSymbolicValue' must expose at least one native input and one native output, or one exact output-only finite structural typed-Vec surface
+[SPINAL-PARAMETERIZED-VERILOG-PORT-DIRECTIONS-UNSUPPORTED] component 'ExistingSymbolicValue' must expose at least one native input and one native output, or one exact output-only finite structural typed-Vec surface

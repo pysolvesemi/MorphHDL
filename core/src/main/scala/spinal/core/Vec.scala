@@ -32,6 +32,8 @@ import scala.collection.Seq
   */
 trait VecFactory {
 
+  protected def postVecFactory[T <: Data](vector: Vec[T]): Vec[T] = vector
+
   def Vec[T <: Data](elements: TraversableOnce[T], dataType : HardType[T] = null): Vec[T] = {
     val vector = elements.toVector
 
@@ -59,7 +61,12 @@ trait VecFactory {
       Vec((0 until size).map(_ => dataType), HardType(dataType)).setElementsParents()
 
     def tabulate[T <: Data](size: Int)(gen: (Int) => T): Vec[T] = {
-      Vec((0 until size).map(gen(_))).setElementsParents()
+      val vector = Vec((0 until size).map(gen(_))).setElementsParents()
+      if (VerilogAggregateOptions.current.preserveConstantVecs) {
+        ParameterizedVec.attachConcreteDepthIfSymbolicElement(vector, size)
+        ParameterizedVec.retainConstructionAliases(vector)
+      }
+      vector
     }
 
     def tabulate[T <: Data](n1: Int, n2: Int)(f: (Int, Int) => T): Vec[Vec[T]] =
@@ -83,7 +90,7 @@ trait VecFactory {
       * branch retains the exact symbolic size.
       */
     def fill[T <: Data](size: ElabInt)(dataType: => T): Vec[T] = {
-      ParameterizedVec.create(size, "typed Vec size")(dataType)
+      postVecFactory(ParameterizedVec.create(size, "typed Vec size")(dataType))
     }
     def fill[T <: Data](n1: Int, n2: Int)(elem: => T): Vec[Vec[T]] =
       tabulate(n1)(_ => fill(n2)(elem))
@@ -187,8 +194,8 @@ private[core] final class ParameterizedVecStaticAccessAssign(
     val vector: Vec[_],
     val elementIndex: Int,
     val elementLeafIndex: Int,
-    leaf: BaseType,
-    previous: Assignable
+    private val leaf: BaseType,
+    private val previous: Assignable
 ) extends Assignable {
   private[core] def captures(owner: Vec[_], index: Int, leafIndex: Int): Boolean =
     ((vector eq owner) && elementIndex == index && elementLeafIndex == leafIndex) || (previous match {
@@ -211,6 +218,32 @@ private[core] final class ParameterizedVecStaticAccessAssign(
         case wrapped: ParameterizedVecStaticAccessAssign => wrapped.isCertifiedReadOf(expected)
         case _ => false
       })
+
+  /** Composite-read counterpart. The caller supplies exact containment leaves
+    * only AFTER auditing the runtime Data classes. This wrapper never invokes
+    * flatten, a clone/assignment hook, or an application callback to establish
+    * identity. Every previous link must independently resolve in that snapshot.
+    */
+  private[core] def isCertifiedReadOf(expected: BaseType,
+      auditedLeaves: java.util.IdentityHashMap[Data, Vector[BaseType]]): Boolean = {
+    def inspect(wrapped: ParameterizedVecStaticAccessAssign, remaining: Int): Boolean = {
+      if (remaining == 0 || (wrapped.leaf ne expected) || wrapped.vector == null ||
+          wrapped.vector.getClass != classOf[Vec[_]] || wrapped.elementIndex < 0 ||
+          wrapped.elementIndex >= wrapped.vector.vec.size) return false
+      val element = wrapped.vector.vec(wrapped.elementIndex).asInstanceOf[Data]
+      val leaves = auditedLeaves.get(element)
+      leaves != null && wrapped.elementLeafIndex >= 0 && wrapped.elementLeafIndex < leaves.size &&
+        (leaves(wrapped.elementLeafIndex) eq expected) &&
+        ParameterizedVec.shapeOf(wrapped.vector).exists(shape =>
+          shape.carrierCapacity == wrapped.vector.vec.size && shape.elementLeaves.size == leaves.size) &&
+        (wrapped.previous match {
+          case null => true
+          case previous: ParameterizedVecStaticAccessAssign => inspect(previous, remaining - 1)
+          case _ => false
+        })
+    }
+    auditedLeaves != null && inspect(this, 64)
+  }
 
   override def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)(implicit loc: Location): Unit = {
     val active = leaf.compositeAssign
@@ -304,7 +337,10 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
   private[core] def vecTransposed: ArrayBuffer[ArrayBuffer[BaseType]] = {
     if (vecTransposedCache == null) {
       vecTransposedCache = new ArrayBuffer[ArrayBuffer[BaseType]]()
-      val size = dataType().flatten.size
+      // Transpose the exact existing native carriers. Constructing another
+      // dataType merely to count leaves allocates unused nested Vec declarations
+      // with retained formal identities when the element itself is an aggregate.
+      val size = vec.head.flatten.size
 
       for (i <- 0 until size)
         vecTransposedCache += ArrayBuffer[BaseType]()
@@ -333,6 +369,9 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
   /** Access an element of the vector by an `UInt` index */
   def apply(address: UInt): T = access(address)
 
+  /** Generate-time access with the index's authenticated lexical ownership. */
+  def apply(index: ElabScopedIndex): T = index.select(this)
+
   private def readEmu(address : UInt): T = {
     if(elements.size == 0){
       throw new Exception("Can't mux a Vec of size zero")
@@ -352,7 +391,7 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
           // Publication consumes the operation record and original typed
           // address, never this witness implementation detail.
           finalAddress = address.resize(carrierWidth)
-            .setName("morphhdl_typed_vec_read_address", weak = true)
+            .setName("typed_vec_read_address", weak = true)
             .dontSimplifyIt()
             .setAsVital()
         }
@@ -505,6 +544,7 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
 
   protected override def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)(implicit loc: Location): Unit = {
     that match {
+      case that: Vec[T] if ParameterizedVecHierarchy.assign(this,that,kind) => ()
       case that: Vec[T] =>
         val parameterized = ParameterizedVec.requireCompatible(this, that)
         if (that.vec.size != this.vec.size) throw new Exception("Can't assign Vec with a different size")
@@ -514,14 +554,7 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
           }
         }
         if (parameterized) {
-          val (_, assignments) =
-            ParameterizedVec.captureAssignments(this)(assignNative())
-          ParameterizedVec.recordWholeAssignment(
-            this,
-            that,
-            assignments,
-            kind
-          )
+          ParameterizedVec.captureWholeAssignment(this, that, kind)(assignNative())
         } else {
           assignNative()
         }
@@ -565,8 +598,13 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
     if (ParameterizedVec.shapeOf(this).nonEmpty && !ParameterizedVec.usesNativeCarrierGeometry) {
       ParameterizedVec.validatePackedAssignment(this, bits)
       val physicalWidth = carrierBitsWidth
+      // A symbolic packed value needs the same audit wrapper at every
+      // witness, including the maximum. Native definition identity must not
+      // depend on whether this particular default needs zero extension.
       val carrier =
-        if (bits.getBitsWidth == physicalWidth) bits
+        if (bits.getBitsWidth == physicalWidth && ParameterizedVec.shapeOf(this).exists(shape =>
+          shape.packedWidthExpression.isEmpty ||
+            (shape.depth.parameters.isEmpty && shape.elementLeaves.forall(_.width.parameters.isEmpty)))) bits
         else bits.resize(physicalWidth).dontSimplifyIt()
       val (_, assignments) =
         ParameterizedVec.captureAssignments(this)(
@@ -609,8 +647,7 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
   }
 
   override def getZero: this.type = {
-    ParameterizedVec.rejectUnsupported(this, "Vec zero construction")
-    super.getZero
+    NativeVecZeroConstruction.construct(this)(super.getZero).asInstanceOf[this.type]
   }
 
   override def toString() = {

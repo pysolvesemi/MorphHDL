@@ -185,7 +185,7 @@ class NaturalSymbolicConditionalTests extends AnyFunSuite {
     }
     assert(compact.contains("endelseif(((WIDTH)>(8)))begin:g_width_medium"))
     assert(compact.contains("endelsebegin:g_feature_disabled"))
-    assert(!verilog.contains("morphhdl_else_if_"))
+    assert(!verilog.contains("else_if_"))
     assert(generateCount(verilog) == 1)
     assert(instanceCount(verilog, "NaturalConditionalSink") == 5)
   }

@@ -33,6 +33,40 @@ specific-job or failed-job rerun only for an unchanged-source transient failure.
 After any source, test, workflow, manifest, registry or review-contract repair,
 publish the corrected source and dispatch a fresh run on the new head.
 
+## Current-head qualification and historical evidence
+
+Policy revision authorized by the user on 6 October 2026: qualify the complete
+current candidate commit and tree. Previous qualification results are retained
+for traceability, not reused as passing evidence for a changed candidate.
+
+- Run all applicable current-source regression, lint, synthesis, simulation,
+  formal, mutation and source-integrity gates. Targeted CI must still precede
+  full CI, and every applicable lane must pass on the exact final candidate.
+- Validate required ancestry and source integrity once per candidate
+  qualification. Check the current source against its reviewed manifest and
+  hashes, and authenticate required historical certificate commits, trees,
+  manifest hashes and ancestry links. Visit each distinct certificate once;
+  do not recursively execute predecessor audit programs or recreate historical
+  checkouts to rerun their qualification suites.
+- Retain immutable historical certificates, manifests, logs and qualification
+  records unchanged. Historical results establish provenance only; they do not
+  qualify current compiler behavior. Missing or inconsistent required evidence
+  must fail the integrity gate.
+- Record the integrity result with the exact candidate commit/tree, policy and
+  checker identities, checked certificate identities and evidence hashes.
+  Downstream jobs may consume that authenticated result for the same candidate;
+  they must reject missing, failed, altered or mismatched results. Source,
+  manifest, policy or checker changes require a fresh integrity result.
+- This policy supersedes earlier review-contract requirements to recursively
+  replay historical audits. Update the current audit implementation, workflow
+  enrollment and affected contract tests explicitly; do not rewrite frozen
+  historical certificates or silently bypass a failing gate. Retain rejection
+  coverage for tampered source/evidence, incorrect ancestry, and stale results.
+- Removing recursive historical replay is an authorized policy change, not
+  permission to remove current-source coverage, raise timeouts, reduce workflow
+  matrices or report unexecuted checks as passing. Until the updated audit path
+  passes targeted CI, report its migration and timeout resolution as pending.
+
 ## Browserless targeted dispatch
 
 Do not require the user to run GitHub CLI commands. Do not depend on browser UI,

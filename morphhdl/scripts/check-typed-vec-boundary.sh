@@ -72,12 +72,23 @@ for token in \
   'ParameterizedVec.validateDynamicAddress(this, address)' \
   'ParameterizedVec.recordDynamicAccess' \
   'ParameterizedVec.recordDynamicWrite' \
-  'ParameterizedVec.recordWholeAssignment' \
+  'ParameterizedVec.captureWholeAssignment(this, that, kind)(assignNative())' \
   'ParameterizedVec.recordPackedRead' \
   'ParameterizedVec.recordPackedAssignment' \
   'ParameterizedVec.recordAutoConnect' \
   'ParameterizedVec.copyShape(this, cloned)'; do
   grep -Fq "$token" "$native_vec"
+done
+# Whole assignments now capture native forwarding invocations as well as direct
+# terminal assignments; require both identities at the authoritative hook.
+for token in \
+  'private[core] def captureWholeAssignment' \
+  'captureWriteInvocations {' \
+  'captureAssignments(target)(body)' \
+  'val operation = ParameterizedVecWholeAssignment(source, assignments, kindName(kind),' \
+  'shape.sourceLocation, forwarded)' \
+  'append(target, operation)'; do
+  grep -Fq "$token" "$typed_vec"
 done
 grep -Fq 'ParameterizedVec.vectorsOf(component)' "$lowerer"
 grep -Fq 'ParameterizedVec.retainedVectorsOf(component)' "$lowerer"

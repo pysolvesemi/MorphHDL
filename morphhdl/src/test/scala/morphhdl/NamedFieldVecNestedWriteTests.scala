@@ -295,7 +295,9 @@ class NamedFieldVecNestedWriteTests extends AnyFunSuite {
 
   for (named <- Vector(true, false)) {
     test(s"normalized unnamed nested literals cannot replace captured source identity named=$named") {
-      reject("STATIC-WRITE-EVIDENCE-MISMATCH", named) {
+      // Static literal propagation is certified, but nested forwarding still
+      // requires its own exact terminal source identity and remains rejected.
+      reject("NESTED-WRITE-EVIDENCE-MISMATCH", named) {
         new Writes(outerDynamic = true, innerDynamic = true, ordered = true, literals = true)
       }
     }

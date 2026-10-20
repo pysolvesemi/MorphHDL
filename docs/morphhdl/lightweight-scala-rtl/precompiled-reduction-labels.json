@@ -1,0 +1,43 @@
+{
+  "base_commit": "5802b85154cd9f4b12d00ffe08d6168306d2316e",
+  "diagnosis": "Existing source preserves automatic identities; stale/mixed dependency runtime classes reproduce old labels with the same consumer. No production naming rewrite needed.",
+  "focused_tests": 44,
+  "limitations": [
+    "Questa unavailable. No full application simulation or synthesis. Application Scala and delivery RTL unchanged."
+  ],
+  "lwr34-app-final": {
+    "archive": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr34-20261018/lwr34-app-final",
+    "report_sha256": "115778c8af6975f2ecb7306a69f356964c57e4028a67fdbfb161983549d9c939"
+  },
+  "lwr34-classpath-control": {
+    "archive": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr34-20261018/lwr34-classpath-control",
+    "report_sha256": "2ea704336e7423add9c15d3cac20f193c80cb00b416917b821e420e21a7036c6"
+  },
+  "lwr34-production": {
+    "archive": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr34-20261018/lwr34-production",
+    "report_sha256": "f11c6eef7373152634c1aef9216ec68196ed142fc2328b091a4a49f01029df70"
+  },
+  "runs": {
+    "lwr34-final4-212": {
+      "archive": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr34-20261018/lwr34-final4-212",
+      "report_sha256": "bd33ef7a9e1763b733180aacb240720e110a60ce2dcfe7d03e27c245e2b19176",
+      "suites": {
+        "morphhdl.BranchWiringSafetyTests": 5,
+        "morphhdl.CompactGenerateLabelTests": 2,
+        "morphhdl.PrecompiledReductionLabelTests": 9,
+        "morphhdl.ReductionWiringTests": 6
+      }
+    },
+    "lwr34-final4-213": {
+      "archive": "/home/kartik/.local/state/morphhdl/lightweight-scala-rtl/lwr34-20261018/lwr34-final4-213",
+      "report_sha256": "7fbc80d7d39b3a35889945548e3d67d741dfa31c2b92437e6e36c3ba70cebdcd",
+      "suites": {
+        "morphhdl.BranchWiringSafetyTests": 5,
+        "morphhdl.CompactGenerateLabelTests": 2,
+        "morphhdl.PrecompiledReductionLabelTests": 9,
+        "morphhdl.ReductionWiringTests": 6
+      }
+    }
+  },
+  "scope": "LWR-34 targeted local checks; no CI/full qualification"
+}

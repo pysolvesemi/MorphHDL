@@ -334,7 +334,7 @@ final class FiniteMemIdentityAdversarialTests extends AnyFunSuite {
           .map(_.group(1))
           .toVector
       assert(accesses.size == 1, verilog)
-      assert(accesses.head.contains("normalized_finite_Mem_address_index_"), verilog)
+      assert(accesses.head == "i", verilog)
     }
   }
 
@@ -353,7 +353,7 @@ final class FiniteMemIdentityAdversarialTests extends AnyFunSuite {
       val compact = verilog.replaceAll("\\s+", "")
       assert(compact.contains("mixed_mem[0:DEPTH-1]"), verilog)
       assert(verilog.contains("always @(posedge clk) begin : p_mixed_mem"), verilog)
-      assert(compact.contains("mixed_mem[mixed_finite_Mem_read_index_"), verilog)
+      assert(compact.contains("mixed_mem[i]"), verilog)
     }
   }
 

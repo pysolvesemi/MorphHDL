@@ -64,8 +64,18 @@ private[spinal] object ElaborationProductDomain {
     def evaluate(environment: Environment): BigInt = environment(root)
   }
   private final case class Leaf(root: Root, values: Map[BigInt, BigInt]) extends Atom {
+    // Immutable exact tables participate in normalized form keys repeatedly.
+    // Cache their structural hash; equality still compares the complete table.
+    private lazy val tableHash = scala.util.hashing.MurmurHash3.productHash(this)
+    override def hashCode(): Int = tableHash
     val roots: Set[Root] = Set(root)
     def evaluate(environment: Environment): BigInt = values(environment(root))
+  }
+  // Imported only from the private finite-width registry after its authority
+  // and active scope have been validated. No public table constructor exists.
+  private final case class FiniteWidth(orderedRoots: Vector[Root], values: Map[Vector[BigInt], BigInt]) extends Atom {
+    val roots: Set[Root] = orderedRoots.toSet
+    def evaluate(environment: Environment): BigInt = values(orderedRoots.map(environment))
   }
   private final case class Operation(operator: String, operands: Vector[Form]) extends Atom {
     lazy val roots: Set[Root] = operands.flatMap(_.roots).toSet
@@ -75,6 +85,7 @@ private[spinal] object ElaborationProductDomain {
         case "*" => at(0) * at(1)
         case "/" => at(0) / at(1)
         case "%" => at(0) % at(1)
+        case ">>" => if (at(1) < 0 || at(1) > 30) BigInt(0) else at(0) >> at(1).toInt
         case "min" => at(0).min(at(1))
         case "max" => at(0).max(at(1))
         case "<" => boolean(at(0) < at(1))
@@ -172,12 +183,26 @@ private[spinal] object ElaborationProductDomain {
   private def fail(code: String, detail: String, location: Option[String]): Nothing =
     ParameterizedVerilogException.fail(code, s"$Role $detail", location)
 
-  /** The only compact ingress: a one-use permit for a bare frontend
+  /** External compact ingress: a one-use permit for a bare frontend
     * declaration AST, not a public expression summary or sampled table.
     */
   private[core] def compactDeclaration(value: ElaborationIntegerExpression,
       sourceIdentity: AnyRef, permit: ExternalCompilerPermit): ElaborationIntegerExpression = {
     ExternalCompilerPermit.requireAnalyzedCompactDeclaration(permit, value, sourceIdentity)
+    retainCompactDeclaration(value)
+  }
+
+  /** Native formals own the declaration object; callers cannot supply an
+    * expression summary or inherit authority by copying one. */
+  private[core] def nativeCompactDeclaration(parameter: ElaborationIntegerParameter,
+      location: Option[String]): ElaborationIntegerExpression = {
+    val value = ElaborationIntegerExpression(parameter.name, parameter.default,
+      parameter.minimum, parameter.maximum, Vector(parameter), sourceLocation = location,
+      parameterRoots = Vector(parameter.declarationRoot))
+    retainCompactDeclaration(value)
+  }
+
+  private def retainCompactDeclaration(value: ElaborationIntegerExpression): ElaborationIntegerExpression = {
     ElabInt.validateExpression(value, "compact parameter declaration")
     if (ElaborationDomainContext.hasActiveRestrictions)
       fail("SPINAL-ELAB-DOMAIN-COMPACT-SCOPE-UNSUPPORTED",
@@ -190,13 +215,13 @@ private[spinal] object ElaborationProductDomain {
       case Vector(declaration) => declaration
       case _ => fail(Missing, "compact ingress lost its exact root", value.sourceLocation)
     }
-    if (schema.minimum < 1 || !schema.maximum.isValidInt ||
+    if (schema.minimum < 0 || !schema.maximum.isValidInt ||
         schema.maximum - schema.minimum + 1 <= MaximumJointValues ||
         value.default != schema.default || value.minimum != schema.minimum || value.maximum != schema.maximum ||
         value.verilog != schema.name || root.name != schema.name ||
         value.generateIndex.nonEmpty || value.exactDomain.nonEmpty || value.projectionProvenance.nonEmpty)
       fail("SPINAL-ELAB-DOMAIN-COMPACT-DECLARATION-INVALID",
-        "compact ingress requires an unchanged positive Int-sized direct declaration", value.sourceLocation)
+        "compact ingress requires an unchanged nonnegative Int-sized direct declaration", value.sourceLocation)
     root.bindAuthoritativeSchema(schema, "compact parameter declaration", value.sourceLocation)
     retain(value, TrustedExpressionEvidence(atom(CompactLeaf(root)), Vector(Axis.compact(root, schema))))
     value
@@ -226,8 +251,9 @@ private[spinal] object ElaborationProductDomain {
   private def active(proof: TrustedExpressionEvidence, role: String, location: Option[String]): TrustedExpressionEvidence = {
     val axes = proof.axes.map { axis =>
       if (axis.compact) {
-        // This first compact ingress deliberately grants no branch projection.
-        if (ElaborationDomainContext.hasActiveRestrictions)
+        // An unrelated finite branch does not restrict this declaration's
+        // interval. Never project a compact axis using enumerated evidence.
+        if (ElaborationDomainContext.constrains(axis.root))
           fail("SPINAL-ELAB-DOMAIN-COMPACT-SCOPE-UNSUPPORTED",
             s"$role cannot use a compact declaration under structural restrictions", location)
         axis
@@ -268,6 +294,11 @@ private[spinal] object ElaborationProductDomain {
     case Some(proof) =>
       requireInteger(value, Role)
       active(proof, Role, value.sourceLocation)
+    case None if ElaborationWidthAuthority.isRetained(value) =>
+      val (domains, values) = ElaborationWidthAuthority.finiteProductEvidence(value).getOrElse(
+        fail(Missing, "finite width lost its private registry certificate", value.sourceLocation))
+      val axes = domains.map { case (domain, admitted) => Axis(domain, admitted) }
+      TrustedExpressionEvidence(atom(FiniteWidth(axes.map(_.root), values)), axes)
     case None =>
       val exact = ElabInt.requireAuthoritativeIntegerDomain(value, Role, Missing, requireExactExtrema = false)
       exact match {
@@ -353,6 +384,7 @@ private[spinal] object ElaborationProductDomain {
     case leaf: Leaf =>
       val values = axes.find(_.root eq leaf.root).get.values.map(leaf.values)
       Extrema(values.min, values.max)
+    case table: FiniteWidth => enumerate(atom(table), axes, location)
     case current @ Operation(operator, operands) =>
       def b(index: Int): Extrema = bounds(operands(index), axes, location)
       def fallback: Extrema = enumerate(atom(current), axes, location)
@@ -365,6 +397,12 @@ private[spinal] object ElaborationProductDomain {
               l.maximum * r.minimum, l.maximum * r.maximum)
             Extrema(corners.min, corners.max)
           } else fallback
+        case ">>" =>
+          val l = b(0); val r = b(1)
+          if (l.minimum < 0) fail("SPINAL-ELAB-INT-SHIFT-DOMAIN-UNSUPPORTED", "right shift requires a non-negative operand", location)
+          if (independent && r.minimum >= 0 && r.maximum <= 30)
+            Extrema(l.minimum >> r.maximum.toInt, l.maximum >> r.minimum.toInt)
+          else fallback
         case "/" =>
           val l = b(0); val r = b(1)
           if (l.minimum < 0 || r.minimum <= 0)
@@ -473,6 +511,9 @@ private[spinal] object ElaborationProductDomain {
       case leaf: Leaf =>
         val values = proof.axes.find(_.root eq leaf.root).get.values.map(leaf.values)
         Enclosure(values.min, values.max)
+      case table: FiniteWidth =>
+        val limits = enumerate(atom(table), proof.axes, location)
+        Enclosure(limits.minimum, limits.maximum)
       case Operation(operator, operands) =>
         def b(i: Int): Enclosure = visit(operands(i))
         operator match {
@@ -481,6 +522,12 @@ private[spinal] object ElaborationProductDomain {
             val corners = Vector(l.minimum * r.minimum, l.minimum * r.maximum,
               l.maximum * r.minimum, l.maximum * r.maximum)
             Enclosure(corners.min, corners.max)
+          case ">>" =>
+            val l = b(0); val r = b(1)
+            if (l.minimum < 0) fail("SPINAL-ELAB-INT-SHIFT-DOMAIN-UNSUPPORTED", "right shift requires a non-negative operand", location)
+            if (r.minimum >= 0 && r.maximum <= 30)
+              Enclosure(l.minimum >> r.maximum.toInt, l.maximum >> r.minimum.toInt)
+            else Enclosure(0, l.maximum)
           case "/" | "%" =>
             val l = b(0); val r = b(1)
             if (l.minimum < 0 || r.minimum <= 0)
@@ -688,10 +735,106 @@ private[spinal] object ElaborationProductDomain {
         val current = source(value)
         if (current.axes == original.axes) value else publishBoolean(value.verilog, current, value.sourceLocation).expression
     }
+  /** Exhaustive structural evidence is distinct from publication authority.
+    * Tuple indices are local proof coordinates, never synthetic HDL roots.
+    */
+  private[core] final class StructuralPredicate private[ElaborationProductDomain] (
+      val condition: ElaborationBooleanExpression,
+      private val proof: TrustedExpressionEvidence,
+      val tuples: Vector[Vector[BigInt]],
+      val results: Vector[Boolean]
+  ) {
+    val axes: Vector[(Root, Vector[BigInt])] = proof.axes.map(axis => axis.root -> axis.values)
+    val parameters: Vector[ElaborationIntegerParameter] = proof.axes.map(_.schema)
+    val defaultIndex: Int = tuples.indexOf(proof.axes.map(_.representative))
+    require(defaultIndex >= 0 && tuples.nonEmpty && tuples.size == results.size)
+    def requireCondition(value: ElaborationBooleanExpression): Unit = {
+      if (value ne condition)
+        fail(Missing, "structural predicate lost its exact typed condition identity", value.sourceLocation)
+      validateInventory(value.parameters, value.completedParameterRoots, proof, Role, value.sourceLocation)
+    }
+    def indices(branch: Int): Set[BigInt] = {
+      require(branch == 0 || branch == 1, "invalid structural alternative")
+      results.indices.filter(index => results(index) == (branch == 0)).map(BigInt(_)).toSet
+    }
+    def admitted(root: Root, universe: Set[BigInt], branch: Int): Set[BigInt] = {
+      val axis = proof.axes.indexWhere(_.root eq root)
+      if (axis < 0) universe
+      else {
+        if (proof.axes(axis).domain.get.universe != universe)
+          fail(Missing, "structural predicate root universe changed", condition.sourceLocation)
+        val selected = indices(branch)
+        tuples.indices.filter(index => selected(BigInt(index))).map(index => tuples(index)(axis)).toSet
+      }
+    }
+  }
+
+  private[core] def structuralPredicate(value: ElaborationBooleanExpression): StructuralPredicate = {
+    val original = source(value)
+    val proof = original.copy(axes = original.axes.sortBy(_.root.name))
+    if (proof.axes.size < 2 || proof.axes.exists(_.compact))
+      fail(Unsupported, "structural product capture needs at least two bounded exact roots", value.sourceLocation)
+    val tuples = Vector.newBuilder[Vector[BigInt]]
+    val results = Vector.newBuilder[Boolean]
+    foreachTuple(proof.axes, value.sourceLocation) { environment =>
+      tuples += proof.axes.map(axis => environment(axis.root))
+      results += (proof.form.evaluate(environment) != 0)
+    }
+    new StructuralPredicate(value, proof, tuples.result(), results.result())
+  }
+
+  /** This query may omit a diagnostic, but grants no integer/width authority.
+    * Large or compact products keep the conservative deferred result.
+    */
+  private[core] def truthUnderStructuralPredicates(value: ElaborationBooleanExpression,
+      constraints: Vector[(StructuralPredicate, Int)]): ElabBool.Truth = {
+    if (constraints.isEmpty) return publicationTruth(value)
+    val predicate = source(value)
+    val guards = constraints.map { case (guard, branch) =>
+      require(branch == 0 || branch == 1)
+      source(guard.condition) -> (branch == 0)
+    }
+    if (guards.exists { case (guard, selected) => selected && guard.form == predicate.form })
+      return ElabBool.AlwaysTrue
+    val axes = merge(predicate +: guards.map(_._1), value.sourceLocation)
+    if (axes.exists(_.compact) || domainSize(axes) > MaximumJointValues) return ElabBool.Unknown
+    var yes = false
+    var no = false
+    foreachTuple(axes, value.sourceLocation) { environment =>
+      if (guards.forall { case (guard, selected) => (guard.form.evaluate(environment) != 0) == selected }) {
+        if (predicate.form.evaluate(environment) != 0) yes = true else no = true
+      }
+    }
+    if (!no) ElabBool.AlwaysTrue else if (!yes) ElabBool.AlwaysFalse else ElabBool.Unknown
+  }
+
   private[core] def hasCompleteDomain(value: ElaborationIntegerExpression): Boolean =
     certificate(value).exists(_.axes.forall(axis => axis.compact || axis.values.toSet == axis.domain.get.universe))
   private[core] def equivalent(left: ElaborationIntegerExpression, right: ElaborationIntegerExpression): Boolean = {
     val l = source(left); val r = source(right)
+    if (!sameAxes(l.axes, r.axes)) false
+    else {
+      val limits = bounds(l.form - r.form, l.axes, left.sourceLocation.orElse(right.sourceLocation))
+      limits.minimum == 0 && limits.maximum == 0
+    }
+  }
+  /** Compare already authenticated width certificates without treating replay as
+    * a new use in the current elaboration scope. This supplies equality only:
+    * callers must still validate the exact native declaration/assignment owner.
+    * Both certificates must retain identical declaration and admitted domains.
+    */
+  private[core] def equivalentRetained(left: ElaborationIntegerExpression,
+                                      right: ElaborationIntegerExpression): Boolean = {
+    def retained(value: ElaborationIntegerExpression): TrustedExpressionEvidence = {
+      ElabInt.validateExpression(value, Role)
+      val proof = certificate(value).getOrElse(
+        fail(Missing, "retained width comparison lost its private certificate", value.sourceLocation))
+      if (value.generateIndex.nonEmpty)
+        fail(Missing, "retained width comparison includes a generate index", value.sourceLocation)
+      validateInventory(value.parameters, value.completedParameterRoots, proof, Role, value.sourceLocation)
+      proof
+    }
+    val l = retained(left); val r = retained(right)
     if (!sameAxes(l.axes, r.axes)) false
     else {
       val limits = bounds(l.form - r.form, l.axes, left.sourceLocation.orElse(right.sourceLocation))
@@ -707,9 +850,34 @@ private[spinal] object ElaborationProductDomain {
     val l = source(left); val r = source(right)
     val location = left.sourceLocation.orElse(right.sourceLocation)
     val axes = merge(Vector(l, r), location)
-    bounds(l.form, axes, location).minimum > 0 &&
-      bounds(r.form, axes, location).minimum > 0 &&
-      bounds(operation(operator, l.form, r.form), axes, location).minimum == 1
+    def limits(form: Form): Enclosure = enclosure(TrustedExpressionEvidence(form, axes), location)
+    // Native width inference builds max/min nodes for literal operands and
+    // alternative drivers. Remove a dominated arm only over the authenticated
+    // complete domain; never infer equivalence from the construction default.
+    def simplify(form: Form): Form = form.terms.foldLeft(literal(form.constant)) {
+      case (result, (Operation(op, operands), coefficient)) =>
+        val args = operands.map(simplify)
+        val reduced = op match {
+          case "max" | "min" =>
+            val a = limits(args(0)); val b = limits(args(1))
+            if (args(0) == args(1)) args(0)
+            else if (a.minimum >= b.maximum) if (op == "max") args(0) else args(1)
+            else if (b.minimum >= a.maximum) if (op == "max") args(1) else args(0)
+            else atom(Operation(op, args))
+          case _ => atom(Operation(op, args))
+        }
+        result + reduced.scale(coefficient)
+      case (result, (value, coefficient)) => result + atom(value).scale(coefficient)
+    }
+    val a = simplify(l.form); val b = simplify(r.form)
+    if (limits(a).minimum <= 0 || limits(b).minimum <= 0) return false
+    val comparison = operation(operator, a, b)
+    val enclosed = limits(comparison)
+    val participating = relevant(comparison.roots, axes)
+    if (enclosed.minimum == 1) true
+    else if (enclosed.maximum == 0) false
+    else if (participating.exists(_.compact) || domainSize(participating) > MaximumJointValues) false
+    else bounds(comparison, axes, location).minimum == 1
   }
   private[core] def provesRelation(left: ElaborationIntegerExpression,
       right: ElaborationIntegerExpression)(relation: (BigInt, BigInt) => Boolean): Boolean = {
@@ -758,6 +926,112 @@ private[spinal] object ElaborationProductDomain {
     val proof = source(value)
     evaluate(proof, bindings)
   }
+
+  /** Enclose a value over an explicitly constrained legal domain. This query
+    * does not change the expression certificate or grant structural authority.
+    * Only normalized, identity-authenticated comparisons are used; unsupported
+    * predicates (notably disjunctions) contribute no facts.
+    */
+  private[core] def legalValueRange(value: ElaborationIntegerExpression,
+      conditions: Vector[ElaborationBooleanExpression]): (BigInt, BigInt) = {
+    // The caller authenticates construction or completed declaration ownership.
+    // Do not reopen a construction scope during post-capture publication.
+    val target = certificate(value).getOrElse(fail(Missing, "legal value range lacks its private certificate", value.sourceLocation))
+    ElabInt.validateExpression(value, "legal value range")
+    validateInventory(value.parameters, value.completedParameterRoots, target, "legal value range", value.sourceLocation)
+    val guards = conditions.map(source)
+    constrainedRange(target, guards, value.sourceLocation)
+  }
+
+  private def constrainedRange(target: TrustedExpressionEvidence,
+      guards: Vector[TrustedExpressionEvidence], location: Option[String]): (BigInt, BigInt) = {
+    val limits = checkedEnclosure(target, location)
+    var minimum = limits.minimum
+    var maximum = limits.maximum
+    def lowerBound(form: Form, bound: BigInt, axes: Vector[Axis]): Unit = {
+      val remainder = enclosure(TrustedExpressionEvidence(target.form - form, axes), location)
+      val complement = enclosure(TrustedExpressionEvidence(target.form + form, axes), location)
+      minimum = minimum.max(bound + remainder.minimum)
+      maximum = maximum.min(complement.maximum - bound)
+    }
+    def assume(form: Form, axes: Vector[Axis]): Unit = form.terms.toVector match {
+      case Vector((Operation("&&", Vector(left, right)), coefficient))
+          if form.constant == 0 && coefficient == 1 =>
+        assume(left, axes); assume(right, axes)
+      case Vector((Operation("<", Vector(left, right)), coefficient))
+          if form.constant == 0 && coefficient == 1 => lowerBound(right - left, 1, axes)
+      case Vector((Operation("<", Vector(left, right)), coefficient))
+          if form.constant == 1 && coefficient == -1 => lowerBound(left - right, 0, axes)
+      case _ => ()
+    }
+    guards.foreach { guard =>
+      if (guard.axes.forall(axis => target.axes.find(_.root eq axis.root).forall(_.sameScope(axis)))) {
+        val axes = merge(Vector(target, guard), location)
+        assume(guard.form, axes)
+      }
+    }
+    // Contradictory contracts never authorize an otherwise invalid carrier.
+    if (minimum > maximum) limits.minimum -> limits.maximum else minimum -> maximum
+  }
+
+  /** Partition only finite carrier-width axes, retaining interval enclosures for
+    * all other parameters. Each partition must prove representability under the
+    * same unconditional contracts. These temporary proof axes never escape as
+    * expression certificates or structural domain restrictions.
+    */
+  private[core] def fitsUnsignedCarrier(value: ElaborationIntegerExpression,
+      width: ElaborationIntegerExpression,
+      conditions: Vector[ElaborationBooleanExpression]): Boolean = {
+    // Publication has already checked the exact declaration owner. Do not
+    // reopen a construction scope for its retained product certificate.
+    def sizingSource(expression: ElaborationIntegerExpression): TrustedExpressionEvidence =
+      certificate(expression) match {
+        case Some(proof) =>
+          ElabInt.validateExpression(expression, "correlated unsigned sizing")
+          validateInventory(expression.parameters, expression.completedParameterRoots, proof,
+            "correlated unsigned sizing", expression.sourceLocation)
+          proof
+        case None => source(expression)
+      }
+    val v = sizingSource(value); val w = sizingSource(width)
+    val guards = conditions.map(source)
+    val location = value.sourceLocation.orElse(width.sourceLocation)
+    val axes = merge(Vector(v, w) ++ guards, location)
+    val widthAxes = relevant(w.form.roots, axes)
+    if (widthAxes.exists(_.compact) || domainSize(widthAxes) > MaximumJointValues) return false
+    var fits = true
+    foreachTuple(widthAxes, location) { tuple =>
+      val narrowed = axes.map(axis => tuple.get(axis.root).map(n => axis.copy(values = Vector(n))).getOrElse(axis))
+      def restrict(p: TrustedExpressionEvidence): TrustedExpressionEvidence =
+        p.copy(axes = narrowed.filter(a => p.axes.exists(_.root eq a.root)))
+      val range = constrainedRange(restrict(v), guards.map(restrict), location)
+      val bits = w.form.evaluate(tuple)
+      if (bits < 1 || range._1 < 0 || BigInt(range._2.bitLength) > bits) fits = false
+    }
+    fits
+  }
+
+  /** For nonnegative values, v < n implies v fits ceil(log2(n)) bits.
+    * This is an AST proof, not enumeration or a comparison of witness widths.
+    * The caller separately validates positivity, carrier width and ownership.
+    */
+  private[spinal] def fitsUnsignedLogWidth(value: ElaborationIntegerExpression,
+      width: ElaborationIntegerExpression): Boolean = {
+    val proofs = for (v <- certificate(value); w <- certificate(width)) yield (v, w)
+    proofs.exists { case (v, w) =>
+      ElabInt.validateExpression(value, "unsigned value sizing")
+      ElabInt.validateExpression(width, "unsigned carrier sizing")
+      validateInventory(value.parameters, value.completedParameterRoots, v, "unsigned value sizing", value.sourceLocation)
+      validateInventory(width.parameters, width.completedParameterRoots, w, "unsigned carrier sizing", width.sourceLocation)
+      w.form.terms.toVector match {
+        case Vector((Operation("log2Up", Vector(bound)), coefficient))
+            if w.form.constant == 0 && coefficient == 1 =>
+          val axes = merge(Vector(v, w), value.sourceLocation)
+          enclosure(TrustedExpressionEvidence(bound - v.form, axes), value.sourceLocation).minimum >= 1
+        case _ => false
+      }
+    }
+  }
   private def evaluate(proof: TrustedExpressionEvidence, bindings: Vector[(Root, BigInt)]): Option[BigInt] = {
     if (bindings.map(_._1).distinct.size != bindings.size) return None
     if (proof.axes.exists(axis => !bindings.find(_._1 eq axis.root).exists(entry => axis.containsValue(entry._2)))) None
@@ -781,8 +1055,16 @@ private[spinal] object ElaborationProductDomain {
     def evaluate(bindings: Vector[(Root, BigInt)]): Option[BigInt] = ElaborationProductDomain.evaluate(proof, bindings)
     def sameDomain(that: OwnerProof): Boolean = sameAxes(proof.axes, that.proof.axes)
     def equivalent(that: OwnerProof): Boolean = sameDomain(that) && {
-      val difference = bounds(proof.form - that.proof.form, proof.axes, sourceLocation)
-      difference.minimum == 0 && difference.maximum == 0
+      val form = proof.form - that.proof.form
+      val enclosed = enclosure(TrustedExpressionEvidence(form, proof.axes), sourceLocation)
+      val participating = relevant(form.roots, proof.axes)
+      if (enclosed.minimum == 0 && enclosed.maximum == 0) true
+      else if (enclosed.minimum > 0 || enclosed.maximum < 0) false
+      else if (participating.exists(_.compact) || domainSize(participating) > MaximumJointValues) false
+      else {
+        val difference = bounds(form, proof.axes, sourceLocation)
+        difference.minimum == 0 && difference.maximum == 0
+      }
     }
     def nonNegativeDifference(that: OwnerProof): Boolean = {
       val axes = merge(Vector(proof, that.proof), sourceLocation)

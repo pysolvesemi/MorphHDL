@@ -150,6 +150,44 @@ trait BusSlaveFactory extends Area{
     )
   }
 
+  private def validatedNamedAddress(address: TypedLocalUInt, busAddress: UInt): TypedLocalSingleMapping = {
+    require(address != null, "named bus address must not be null")
+    require(address.bitWidth == widthOf(busAddress), "named bus address width must match the bus address width")
+    new TypedLocalSingleMapping(address, validatedTypedAddress(address.elab, busAddress))
+  }
+
+  def read[T <: Data](that: T, address: TypedLocalUInt): T = read(that, address, 0, null)
+  def read[T <: Data](that: T, address: TypedLocalUInt, bitOffset: Int): T = read(that, address, bitOffset, null)
+  def read[T <: Data](that: T, address: TypedLocalUInt, documentation: String): T = read(that, address, 0, documentation)
+  def read[T <: Data](that: T, address: TypedLocalUInt, bitOffset: Int, documentation: String): T = {
+    readPrimitive(that, validatedNamedAddress(address, readAddress()), bitOffset, documentation)
+    that
+  }
+
+  def write[T <: Data](that: T, address: TypedLocalUInt): T = write(that, address, 0, null)
+  def write[T <: Data](that: T, address: TypedLocalUInt, bitOffset: Int): T = write(that, address, bitOffset, null)
+  def write[T <: Data](that: T, address: TypedLocalUInt, documentation: String): T = write(that, address, 0, documentation)
+  def write[T <: Data](that: T, address: TypedLocalUInt, bitOffset: Int, documentation: String): T = {
+    writePrimitive(that, validatedNamedAddress(address, writeAddress()), bitOffset, documentation)
+    that
+  }
+
+  def onRead(address: TypedLocalUInt)(body: => Unit): Unit = onRead(address, null)(body)
+  def onRead(address: TypedLocalUInt, documentation: String)(body: => Unit): Unit =
+    onReadPrimitive(validatedNamedAddress(address, readAddress()), true, documentation)(body)
+
+  def onWrite(address: TypedLocalUInt)(body: => Unit): Unit = onWrite(address, null)(body)
+  def onWrite(address: TypedLocalUInt, documentation: String)(body: => Unit): Unit =
+    onWritePrimitive(validatedNamedAddress(address, writeAddress()), true, documentation)(body)
+
+  def readAndWrite(that: Data, address: TypedLocalUInt): Unit = readAndWrite(that, address, 0, null)
+  def readAndWrite(that: Data, address: TypedLocalUInt, bitOffset: Int): Unit = readAndWrite(that, address, bitOffset, null)
+  def readAndWrite(that: Data, address: TypedLocalUInt, documentation: String): Unit = readAndWrite(that, address, 0, documentation)
+  def readAndWrite(that: Data, address: TypedLocalUInt, bitOffset: Int, documentation: String): Unit = {
+    write(that, address, bitOffset, documentation)
+    read(that, address, bitOffset, documentation)
+  }
+
   /**
     * Permanently assign that by the bus write data from bitOffset
     */
@@ -1055,6 +1093,26 @@ trait BusSlaveFactoryDelayed extends BusSlaveFactory {
   /** Contains all elements related to an address */
   val elementsPerAddress = mutable.LinkedHashMap[AddressMapping, ArrayBuffer[BusSlaveFactoryElement]]()
   val elementsOk = mutable.HashSet[BusSlaveFactoryElement]()
+
+  /** Only exact single-address mappings enter the native case. Generic ranges
+    * and masks keep their established independent matching/priority path.
+    */
+  protected def validateNamedAddressCases(): Unit = {
+    if (!elementsPerAddress.keys.exists(_.isInstanceOf[TypedLocalSingleMapping])) return
+    val singles = elementsPerAddress.keys.toVector.collect {
+      case named: TypedLocalSingleMapping => (named: AddressMapping, named.local.elab)
+      // Typed elaboration values are Int-bounded; larger fixed addresses
+      // cannot overlap a named address and retain their historical path.
+      case fixed: SingleMapping if fixed.address.isValidInt => (fixed: AddressMapping, ElabInt.fromBigInt(fixed.address))
+    }
+    for (i <- singles.indices; j <- 0 until i
+        if singles(i)._1.isInstanceOf[TypedLocalSingleMapping] || singles(j)._1.isInstanceOf[TypedLocalSingleMapping]) {
+      if (!singles(i)._2.elabEq(singles(j)._2).isAlwaysFalse)
+        throw new ParameterizedVerilogException("SPINAL-LOCALPARAM-BUS-ADDRESS-OVERLAP",
+          "named case addresses must be disjoint over their complete admitted domains", None)
+    }
+  }
+
 
 
   component.addPrePopTask(() => {

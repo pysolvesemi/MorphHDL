@@ -33,6 +33,12 @@ import spinal.idslplugin.Location
 
 
 package object core extends BaseTypeFactory with BaseTypeCast {
+  /** Semantic declaration annotations resolved by the MorphHDL frontend. */
+  @scala.annotation.compileTimeOnly("@param requires the MorphHDL compiler plugin")
+  type param = HdlParameterAnnotation
+  @scala.annotation.compileTimeOnly("@localparam requires the MorphHDL compiler plugin")
+  type localparam = HdlLocalParameterAnnotation
+
 
   import languageFeature.implicitConversions
 
@@ -41,6 +47,15 @@ package object core extends BaseTypeFactory with BaseTypeCast {
 
   /** Parameter-preserving counterpart of [[widthOf]] for typed native APIs. */
   def widthOfExpr[T <: Data](that: T): ElabInt = ElabInt.packedWidthOf(that)
+
+  /** Parameter-constant scalar Vec reads, available with spinal.core._.
+    * Keep this an extension: a native member would take precedence over the
+    * frontend's structural index extension after its HdlInt-to-ElabInt conversion.
+    */
+  implicit final class ElabVecOps[T <: BaseType](private val vector: Vec[T]) {
+    def apply(index: ElabInt): T = TypedVecStaticSelect(vector, index)
+  }
+
 
   /**
     * Scala implicit
@@ -80,6 +95,10 @@ package object core extends BaseTypeFactory with BaseTypeCast {
     * Integer Builder
     */
   class IntBuilder(val i: Int) extends AnyVal {
+
+    /** Keep literal-left affine arithmetic in the scoped index domain. */
+    def *(index: ElabScopedIndex): ElabScopedIndex = index * i
+    def +(index: ElabScopedIndex): ElabScopedIndex = index + i
 
     def downto(start: Int): Range.Inclusive = Range.inclusive(i, start, -1)
 

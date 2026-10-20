@@ -279,11 +279,15 @@ private[spinal] object ElaborationDomainContext {
     }
   }
 
-  def admitted[A](domain: ElaborationExactDomain[A]): Set[BigInt] = {
+  def admitted[A](domain: ElaborationExactDomain[A]): Set[BigInt] =
+    admitted(domain.root, domain.universe)
+
+  private[core] def admitted(root: ElaborationIntegerParameterRoot,
+      universe: Set[BigInt]): Set[BigInt] = {
     val current = Option(active.get()).getOrElse(Nil).collect {
-      case constraint if constraint.root eq domain.root => constraint.admitted
+      case constraint if constraint.root eq root => constraint.admitted
     }
-    current.foldLeft(domain.universe)(_ intersect _)
+    current.foldLeft(universe)(_ intersect _)
   }
 
   /** Require every root value admitted at the observation site to have an

@@ -89,8 +89,8 @@ object ExternalParameterizedHighBit {
                         "native high-bit capture")
                       target.dontSimplifyIt().addTag(noBackendCombMerge)
                       source.dontSimplifyIt().addTag(noBackendCombMerge)
-                      if (!target.isNamed) target.setWeakName("morphhdl_high_bit")
-                      if (!source.isNamed) source.setWeakName("morphhdl_high_bit_source")
+                      if (!target.isNamed) target.setWeakName("high_bit")
+                      if (!source.isNamed) source.setWeakName("high_bit_source")
                       captured += Record(assignment, target, access, source, width,
                         NativePublicationScope.capture(component, assignment.parentScope),
                         NativePublicationScope.capture(component, target.parentScope),

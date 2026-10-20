@@ -160,11 +160,11 @@ object CapturedDomainWidthEquivalenceSmoke {
     val observed = out UInt (1 bits)
 
     var escaped: UInt = null
-    if (width == 1) {
+    ElabControl.selectSymbolic(width.elabEq(1), "CapturedDomainWidthEquivalenceTests.scala", 163) {
       val branchMarker = new TypedResizeChild
       branchMarker.incoming := source
       escaped = source.resize(width)
-    } else {
+    } {
       val branchMarker = new TypedResizeChild
       branchMarker.incoming := source
     }
@@ -182,7 +182,13 @@ object CapturedDomainWidthEquivalenceSmoke {
 
     val source = in UInt (3 bits)
     val observed = out UInt (3 bits)
-    val child = new TypedResizeChild
+    val child = new Component {
+      val incoming = in UInt(3 bits)
+      // A real internal declaration remains foreign to its parent. Direct
+      // child output ports now have authenticated parent resize carriers.
+      val outgoing = UInt(3 bits).dontSimplifyIt()
+      outgoing := incoming
+    }
 
     child.incoming := source
     observed := child.outgoing.resize(width)
@@ -488,8 +494,7 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
 
   test("a normalized typed resize rejects an internal source without width provenance") {
     for (cleanup <- Vector(false, true)) withTemporaryDirectory { directory =>
-      val config = MorphWireAssignmentPasses(
-        SpinalConfig(targetDirectory = directory.toString), enabled = cleanup)
+      val config = SpinalConfig(targetDirectory = directory.toString)
       val fileName = "typed_resize_unproven_internal_source.v"
       config.netlistFileName = fileName
       val width =
@@ -551,7 +556,7 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
         case Left(failure) =>
           assert(
             failure.detail.contains(
-              "SPINAL-PARAMETERIZED-VERILOG-NORMALIZED-TYPED-RESIZE-SOURCE-OWNER-UNSUPPORTED"
+              "HIERARCHY VIOLATION (read access)"
             ),
             failure.detail
           )

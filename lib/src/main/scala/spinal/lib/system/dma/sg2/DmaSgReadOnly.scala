@@ -1,6 +1,6 @@
 package spinal.lib.system.dma.sg2
 
-import spinal.core._
+import spinal.core.{Param => _, _}
 import spinal.core.sim.SimConfig
 import spinal.lib._
 import spinal.lib.bus.bsb.{Bsb, BsbParameter}

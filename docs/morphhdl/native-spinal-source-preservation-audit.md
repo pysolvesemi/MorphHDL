@@ -228,3 +228,23 @@ applicable contracts from Increments 29–37, including:
 
 The controlling sequence is recorded in
 [`parameterized-verilog-todo.md`](parameterized-verilog-todo.md).
+## User-authorized comments API extension
+
+The comments roadmap adds optional typed documentation metadata, a fluent API,
+compiler annotation/source capture, and generic native rendering hooks. Native
+Statement/ScopeStatement construction snapshots region metadata; it does not
+change expressions, parent scopes or retention rules. Renderer hooks emit comments
+and preserve their exact identities across the external Morph handoff. Comment
+metadata permits simplification and cannot keep otherwise removed signals alive.
+
+The reviewed inventory now covers 66 native paths and 275 byte-span edits against
+the unchanged upstream baseline. Existing symbolic-geometry review obligations
+remain in the policy; the new source files are explicitly reviewed support files.
+The generic APIs/renderer hooks could be upstreamed independently; Morph-specific
+relocation and aggregate projection remain in the external publication layer.
+
+The user explicitly scoped this extension to Scala compilation and generated
+comments. Both supported Scala versions passed the focused compiler/output matrix,
+including token preservation. No historical synthesis/simulation/formal evidence
+is replaced, and no such tools or remote CI ran for this extension. See
+[the comments validation receipt](comments-api-validation.md).

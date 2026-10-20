@@ -53,6 +53,36 @@ private object ScalarStructuralIdentityAdversarialFixture {
     observed := escaped
   }
 
+  final class SiblingCapturedScalarOperator(mode: HdlInt, localOperand: Boolean) extends Component {
+    setDefinitionName("SiblingCapturedScalarOperator")
+    val left = in(Bool()).setName("left")
+    val right = in(Bool()).setName("right")
+    val ready = out(Bool()).setName("ready")
+    val observed = out(Bool()).setName("observed")
+    var escaped: Bool = null
+    if ((mode > 0).named("g_first", "g_first_else")) {
+      ready := left
+      val operand = if (localOperand) {
+        val local = Bool().setName("local_operand").dontSimplifyIt()
+        local := left
+        local
+      } else ready
+      escaped = (operand && right).setName("sibling_scalar_and").dontSimplifyIt()
+      val sink = new ScalarSink
+      sink.din := escaped
+    } else {
+      ready := right
+    }
+    if ((mode > 0).named("g_second", "g_second_else")) {
+      val sink = new ScalarSink
+      sink.din := escaped
+    } else {
+      val sink = new ScalarSink
+      sink.din := escaped
+    }
+    observed := left
+  }
+
   final class RemovedCapturedScalarOperatorIdentity(mode: HdlInt) extends Component {
     setDefinitionName("RemovedCapturedScalarOperatorIdentityMustFailClosed")
 
@@ -211,6 +241,34 @@ final class ScalarStructuralIdentityAdversarialTests extends AnyFunSuite {
         generated.contains("assignbranch_only_scalar_xor=(left^right);"),
         module
       )
+    }
+  }
+
+  test("exact sibling scalar uses promote module-port operands including branch-driven outputs") {
+    withTemporaryDirectory { directory =>
+      val config = morphConfig(directory, "sibling_scalar_operator.v")
+      MorphVerilog(config) { new SiblingCapturedScalarOperator(mode(), false) }
+      val module = moduleBody(read(directory.resolve(config.netlistFileName)), "SiblingCapturedScalarOperator")
+      val generate = module.indexOf("generate")
+      assert(generate >= 0, module)
+      val prefix = module.substring(0, generate).replaceAll("\\s+", "")
+      val generated = module.substring(generate).replaceAll("\\s+", "")
+      assert(prefix.contains("wiresibling_scalar_and;"), module)
+      assert(prefix.contains("assignsibling_scalar_and=(ready&&right);"), module)
+      assert(!generated.contains("wiresibling_scalar_and;"), module)
+      assert(!generated.contains("assignsibling_scalar_and="), module)
+    }
+  }
+
+  test("sibling scalar uses do not authorize promotion of an exact branch-local operand") {
+    withTemporaryDirectory { directory =>
+      val config = morphConfig(directory, "local_sibling_scalar_operator.v")
+      MorphVerilog.tryGenerate(config) { new SiblingCapturedScalarOperator(mode(), true) } match {
+        case Left(failure) => assert(failure.detail.contains(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SCALAR-OPERATOR-PROMOTION-UNPROVEN"), failure.detail)
+        case Right(report) => fail(s"Expected branch-local operand rejection, received $report")
+      }
+      assert(!Files.exists(directory.resolve(config.netlistFileName)))
     }
   }
 

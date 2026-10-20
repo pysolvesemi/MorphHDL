@@ -24,7 +24,6 @@ EXPECTED_SOURCE_ROOTS = (
     "idslpayload/src/main",
     "idslplugin/src/main",
     "lib/src/main",
-    "morphhdl-passes/src/main",
     "morphhdl/src/main",
     "morphir/src/main",
     "morphplugin/src/main",
@@ -62,12 +61,18 @@ EXPECTED_RULE_IDS = (
     "emitted-name-recognition",
 )
 EXPECTED_RULES_SHA256 = (
-    "6f4456f583684b4fbac29a4e620233225d802cb7abe498171ec33649bd308966"
+    "0e16f1be25d033a0e90c36fc7f43544de89ac13a568c4f99b0e0abe0935cbe4b"
 )
 EXPECTED_PLUGIN_COMPONENTS = (
+    "MorphHdlParameterSyntaxComponent",
+    "MorphHdlParameterConstantEffects",
+    "MorphHdlCallbackEffectComponent",
+    "MorphHdlDirectRecursiveComponent",
+    "MorphHdlAreaCollectionComponent",
     "MorphHdlTypedElaborationControlComponent",
     "MorphHdlNaturalSymbolicConditionalComponent",
     "MorphHdlFrontendSymbolicEqualitySafetyComponent",
+    "MorphHdlConstantLoopBoundsComponent",
 )
 EXPECTED_JAR_PREFIXES = (
     "morphhdl/compiler/MorphHdlNativeAxi4SlaveFactoryParameterizationComponent",
@@ -276,7 +281,7 @@ def compile_contract(manifest: Mapping[str, Any]) -> Dict[str, Any]:
 
     components = manifest.get("expected_plugin_components")
     if components != list(EXPECTED_PLUGIN_COMPONENTS):
-        raise RetirementError("expected_plugin_components must be the three ordered typed phases")
+        raise RetirementError("expected_plugin_components must be the seven ordered reviewed components")
     descriptor = clean_path(manifest.get("plugin_descriptor"), "plugin_descriptor")
 
     jar_prefixes = string_list(
@@ -357,6 +362,12 @@ def plugin_components(source: str) -> List[str]:
     if end < 0:
         raise RetirementError("MorphHdlPlugin components List is unterminated")
     body = source[list_start:end + 1]
+    # The ordinary-loop option is passed by this exact reviewed callback.
+    # Do not admit arbitrary constructor expressions or phase registrations.
+    body = re.sub(
+        r"\bnew\s+MorphHdlTypedElaborationControlComponent\s*\(\s*global\s*,\s*\(\s*\)\s*=>\s*ordinaryLoopCapture\s*\)",
+        "new MorphHdlTypedElaborationControlComponent(global)", body,
+    )
     components = re.findall(r"\bnew\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*global\s*\)", body)
     residue = re.sub(
         r"\bnew\s+[A-Za-z_][A-Za-z0-9_]*\s*\(\s*global\s*\)\s*,?",
@@ -405,8 +416,7 @@ def validate_sources(root: Path, contract: Mapping[str, Any]) -> int:
     actual_components = plugin_components(descriptor_source)
     if actual_components != list(EXPECTED_PLUGIN_COMPONENTS):
         raise RetirementError(
-            "default plugin phases must be exactly typed-control, natural-symbolic, "
-            "then frontend symbolic-equality safety; "
+            "registered Morph plugin components must match the reviewed lightweight and typed component inventory; "
             f"found {actual_components}"
         )
     return len(files)
@@ -504,6 +514,16 @@ def self_test(manifest: Mapping[str, Any]) -> None:
         )
         write_plugin(root, EXPECTED_PLUGIN_COMPONENTS)
         validate_sources(root, contract)
+        descriptor = root / contract["descriptor"]
+        canonical = descriptor.read_text(encoding="utf-8")
+        callback = canonical.replace("MorphHdlTypedElaborationControlComponent(global)",
+            "MorphHdlTypedElaborationControlComponent(global, () => ordinaryLoopCapture)")
+        descriptor.write_text(callback, encoding="utf-8")
+        validate_sources(root, contract)
+        for wrong in ("true", "unreviewedOption", "ordinaryLoopCapture; sideEffect()"):
+            descriptor.write_text(callback.replace("=> ordinaryLoopCapture", "=> " + wrong), encoding="utf-8")
+            expect_source_failure(root, contract, "unreviewed loop-option callback: " + wrong)
+        descriptor.write_text(canonical, encoding="utf-8")
 
         for relative in contract["removed"]:
             removed = root / relative
@@ -525,6 +545,10 @@ def self_test(manifest: Mapping[str, Any]) -> None:
 
         write_plugin(root, list(EXPECTED_PLUGIN_COMPONENTS) + ["UnexpectedLegacyPhase"])
         expect_source_failure(root, contract, "extra default plugin phase")
+        write_plugin(root, list(EXPECTED_PLUGIN_COMPONENTS)[1:])
+        expect_source_failure(root, contract, "missing Area capture phase")
+        write_plugin(root, list(reversed(EXPECTED_PLUGIN_COMPONENTS)))
+        expect_source_failure(root, contract, "reordered default plugin phases")
         write_plugin(root, EXPECTED_PLUGIN_COMPONENTS)
         validate_sources(root, contract)
 

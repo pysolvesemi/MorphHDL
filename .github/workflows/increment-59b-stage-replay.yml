@@ -30,6 +30,9 @@ concurrency:
   group: increment-59b-stages-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   validate:
     if: >-
@@ -39,6 +42,7 @@ jobs:
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59b-') ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') ||
       (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59d'))
+      || (github.event_name == 'pull_request' && github.base_ref == 'parameterized-verilog' && github.head_ref == 'agent/increment-59i-combined-reduction-closure')
     name: Whole-stage replay Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest
     # Observed generation reached 57m30s; the required 96-shape proof phase
@@ -110,11 +114,15 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
-          for name, count in [('TypedBalancedReductionStageReplayTests',23), ('TypedBalancedReductionClosedGraphTests',20), ('TypedBalancedReductionOperatorReplayTests',24), ('TypedBalancedReductionCaptureTests',10), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8), ('ReduceBalancedTreeNativeContractTests',8)]:
+          for name, count in [('TypedBalancedReductionStageReplayTests',23), ('TypedBalancedReductionClosedGraphTests',27), ('TypedBalancedReductionOperatorReplayTests',24), ('TypedBalancedReductionCaptureTests',10), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8), ('ReduceBalancedTreeNativeContractTests',8)]:
               files = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
               assert len(files) == 1, (name, files)
               suite = ET.parse(files[0]).getroot()
               assert int(suite.get('tests','0')) == count, (name, suite.attrib)
+              cases = list(suite.iter('testcase'))
+              assert len(cases) == count, (name, 'testcase inventory differs')
+              assert len({case.get('name') for case in cases}) == count, (name, 'duplicate test names')
+              assert all(not any(node.tag in ('failure', 'error', 'skipped') for node in case) for case in cases), (name, 'non-passing testcase element')
               assert all(int(suite.get(key,'0')) == 0 for key in ('failures','errors','skipped')), (name,suite.attrib)
               print(name, suite.attrib)
           PY

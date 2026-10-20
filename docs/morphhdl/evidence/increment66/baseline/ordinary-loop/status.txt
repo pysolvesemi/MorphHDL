@@ -1,0 +1,3 @@
+REJECTED
+MorphVerilog single-source-generation failed: [SPINAL-PARAMETERIZED-VERILOG-UNTAGGED-PORT] component 'ConditionalLaneLoop' contains no retained MorphHDL parameter metadata
+[SPINAL-PARAMETERIZED-VERILOG-UNTAGGED-PORT] component 'ConditionalLaneLoop' contains no retained MorphHDL parameter metadata

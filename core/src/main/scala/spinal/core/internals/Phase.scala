@@ -1617,8 +1617,35 @@ class PhaseDeviceDefault extends PhaseDeviceHandler{
   }
 
   override def onCrossClockBuffer(config : SpinalConfig, bt: BaseType) = {
-    if(config.device.isVendorDefault || config.device.vendor == Device.XILINX.vendor || config.device.vendor == Device.EFINIX.vendor) {
-      bt.addAttribute("async_reg", "true")
+    val vivado = config.device.isVendorDefault || config.device.vendor == Device.XILINX.vendor
+    val efinix = config.device.vendor == Device.EFINIX.vendor
+    if(vivado || efinix) {
+      // This is a target-specific synchronizer rule, not case folding for arbitrary
+      // attributes. Efinity documents the lowercase spelling only.
+      val existing = bt.getTags().collect {
+        case a: Attribute if a.attributeKind() == DEFAULT_ATTRIBUTE &&
+          (a.getName == "async_reg" || (vivado && a.getName == "ASYNC_REG")) => a
+      }.toVector
+      existing.foreach {
+        case a: AttributeString if a.value == "true" || (vivado && a.value == "TRUE") =>
+        case a =>
+          val value = a match {
+            case s: AttributeString => "\"" + s.value + "\""
+            case i: AttributeInteger => i.value.toString
+            case _ => "<flag>"
+          }
+          SpinalError(s"SPINAL-SYNCHRONIZER-ATTRIBUTE-CONFLICT: ${bt.getName()} " +
+            s"has ${a.getName}=$value on a synchronizer for target '${config.device.vendor}'; " +
+            "an enabled string synchronizer annotation is required\n" + bt.getScalaLocationLong)
+      }
+      if(existing.isEmpty) bt.addAttribute("async_reg", "true")
+      else {
+        // Retain the authored object, including its spelling. Prefer the documented
+        // Vivado uppercase form when both equivalent spellings were supplied.
+        val retained = if(vivado) existing.find(_.getName == "ASYNC_REG").getOrElse(existing.head)
+          else existing.head
+        existing.filterNot(_ eq retained).foreach(a => bt.removeTag(a))
+      }
     }
   }
 
@@ -1822,13 +1849,19 @@ class PhaseSimplifyNodes(pc: PhaseContext) extends PhaseNetlist{
     //propagate literals over one basetype
     walkStatements{s =>
       s.remapDrivingExpressions{
-        case e : BaseType if e.isComb && !e.isNamed && e.isDirectionLess && Statement.isSomethingToFullStatement(e) => e.head match {
-          case DataAssignmentStatement(_, lit : Literal) => lit.clone //clone because Expression can only be once in the graph
+        case e : BaseType if e.isComb && (!e.isNamed || NativeParameterConstants.isCarrier(e)) && e.isDirectionLess && Statement.isSomethingToFullStatement(e) => e.head match {
+          case DataAssignmentStatement(_, lit : Literal) =>
+            val replacement = lit.clone // An Expression can occur only once in the graph.
+            ParameterizedVec.recordStaticLiteralNormalization(s, e, lit, replacement)
+            replacement
+          case DataAssignmentStatement(_, local: TypedLocalUInt.Reference) => local.fresh
+          case DataAssignmentStatement(_, local: NativeParameterConstants.Reference) => local.fresh
           case _ => e
         }
         case e => e
       }
     }
+    walkComponents(NativeParameterConstants.lower)
   }
 }
 
@@ -2396,6 +2429,8 @@ class PhaseCompletSwitchCases extends PhaseNetlist{
 
     walkStatements{
       case s: SwitchStatement =>
+        TypedLocalUInt.validateSwitch(s)
+        NativeParameterConstants.validateSwitch(s)
         var failed = false
         s.elements.foreach{element =>
           if(element.keys.size > 1){
@@ -2643,7 +2678,7 @@ class PhaseCheck_noRegisterAsLatch() extends PhaseCheck{
           case s : DataAssignmentStatement =>
             s.target match {
               case bt: BaseType => assignedBits.add(bt.getBitsWidth - 1, 0)
-              case e: BitVectorAssignmentExpression =>  assignedBits.add(e.getMaxAssignedBits)
+              case e: BitVectorAssignmentExpression =>  e.getMaxAssignedRanges.foreach(assignedBits.add)
             }
           case _ =>
         }
@@ -2784,10 +2819,9 @@ class PhaseCheck_noLatchNoOverride(pc: PhaseContext) extends PhaseCheck {
 
                 case e: BitVectorAssignmentExpression =>
                   val bt = e.finalTarget
-                  val assignedRange = e.getMinAssignedBits
                   val rangeBits = new AssignedBits(bt.getBitsWidth)
-                  rangeBits.add(assignedRange)
-                  val isEffectivelyFull = (assignedRange.hi == bt.getBitsWidth - 1) && (assignedRange.lo == 0)
+                  e.getMinAssignedRanges.foreach(rangeBits.add)
+                  val isEffectivelyFull = rangeBits.isFull
                   // Process, noting if it's effectively a full assignment, but crucially,
                   // the *origin* is still a full assignment if isEffectivelyFull is true.
                   processAssignment(bt, rangeBits, isEffectivelyFull, location)

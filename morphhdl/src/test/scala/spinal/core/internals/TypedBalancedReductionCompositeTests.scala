@@ -424,7 +424,7 @@ class TypedBalancedReductionCompositeTests extends AnyFunSuite {
     }
     val text = new String(Files.readAllBytes(rtl), java.nio.charset.StandardCharsets.UTF_8)
     for (ordinal <- 1 to 3)
-      assert(text.contains(s"morphhdl_balanced_${ordinal}_stage_0"), text)
+      assert(text.contains(s"balanced_${ordinal}_stage_0"), text)
     for (name <- Vector("product", "sum")) {
       val port = text.linesIterator.find(line => line.contains("output") &&
         ("\\b" + name + "\\b").r.findFirstIn(line).nonEmpty).getOrElse(fail(text))

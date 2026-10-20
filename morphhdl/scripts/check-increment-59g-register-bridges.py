@@ -558,7 +558,7 @@ def mutate_removed_stage(rtl: str) -> str:
     # manufacturing a parse failure or a combinational arithmetic mutation.
     pattern = re.compile(r'(?m)^\s*([A-Za-z_][A-Za-z0-9_]*)\s*<=\s*([A-Za-z_][A-Za-z0-9_]*)\s*;')
     candidates = [match for match in pattern.finditer(rtl)
-                  if 'morphhdl_balanced_5_' in match.group(1) and 'l0_' in match.group(1)]
+                  if 'balanced_5_' in match.group(1) and 'l0_' in match.group(1)]
     if not candidates:
         raise RuntimeError('missing initialized bridge register removal anchor')
     match = candidates[0]
@@ -748,7 +748,7 @@ def self_test() -> None:
     assert boolean.evaluate((0, 0))[0] == 1
     boolean.tick((1, 1), True, False, False)
     assert boolean.evaluate((0, 0))[0] == 0
-    sample = "reg [4:0] morphhdl_balanced_5_l0_register;\nassign result = morphhdl_balanced_5_l0_register;\n  morphhdl_balanced_5_l0_register <= incoming;\n  morphhdl_balanced_5_l0_register <= 5'h01;\n"
+    sample = "reg [4:0] balanced_5_l0_register;\nassign result = balanced_5_l0_register;\n  balanced_5_l0_register <= incoming;\n  balanced_5_l0_register <= 5'h01;\n"
     assert 'assign result = incoming;' in mutate_removed_stage(sample)
     assert "<= 5'h0;" in mutate_initializer(sample)
     assert "<= {{(WIDTH - 1){1'b0}}, 1'b0};" in mutate_initializer("result <= {{(WIDTH - 1){1'b0}}, 1'b1};")

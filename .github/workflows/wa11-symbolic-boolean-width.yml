@@ -65,7 +65,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 morphhdl-passes/scripts/check-wa11-boolean-width.py target/wa11/candidate \
+          python3 morphhdl/scripts/check-wa11-boolean-width.py target/wa11/candidate \
             --reference-artifacts target/wa11/reference \
             --reproduction target/wa11/repro/BooleanWidthExample.v \
             --reference-reproduction target/wa11/before-repro/BooleanWidthExample.v \

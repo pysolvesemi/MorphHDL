@@ -431,15 +431,42 @@ class PackedVecIdentityAdversarialTests extends AnyFunSuite {
       new IndependentScalarConcat)
   }
 
-  test("a factorized packed read cannot confer witness width authority on a scalar cast") {
-    // A full carrier is checked by native scalar width retention; a smaller
-    // witness wrapper is checked by publication of its factorized source.
-    // Neither path may turn the packed width into a scalar witness constant.
-    for ((defaultCount, code) <- Vector(
-        2 -> "SPINAL-ELAB-WIDTH-DOMAIN-TOO-LARGE",
-        1 -> "SPINAL-ELAB-DOMAIN-PROJECTION-ROOT-IDENTITY-MISMATCH"))
-      expectFailure(s"independent_packed_scalar_cast_$defaultCount.v", code,
-        new IndependentPackedRead(defaultCount, 2, scalarConsumer = true))
+  test("a factorized packed read retains complete symbolic width authority through a scalar cast") {
+    // Both full and smaller construction witnesses must keep all five exact
+    // dimensions. Ordinary unretained scalar concatenation remains rejected.
+    for(defaultCount <- Vector(1,2)) withTemporaryDirectory { directory =>
+      val config=SpinalConfig(targetDirectory=directory.toString)
+      config.netlistFileName="cast.v"
+      MorphVerilog(config)(new IndependentPackedRead(defaultCount,2,scalarConsumer=true))
+      val rtl=new String(Files.readAllBytes(directory.resolve("cast.v")),StandardCharsets.UTF_8)
+      for(name <- Vector("values","copied","scalar")) {
+        val port=rtl.linesIterator.find(line => (line.contains("input") || line.contains("output")) &&
+          ("\\b"+name+"\\b").r.findFirstIn(line).nonEmpty).getOrElse(fail(rtl))
+        Vector("A_W","B_W","C_W","D_W","COUNT").foreach(root => assert(port.contains(root),port))
+      }
+      val profiles=for(n <- Seq(1,2); widths <- Seq(Seq(1,2,3,4),Seq(32,8,17,1))) yield (n,widths)
+      val instances=profiles.zipWithIndex.map { case ((n,ws),i) =>
+        val size=n*ws.sum
+        s"""wire [${size-1}:0] r$i,p$i;
+IndependentPackedRead #(.COUNT($n),.A_W(${ws(0)}),.B_W(${ws(1)}),.C_W(${ws(2)}),.D_W(${ws(3)}))
+d$i(.values(data[${size-1}:0]),.copied(p$i),.scalar(r$i));"""
+      }.mkString("\n")
+      val checks=profiles.zipWithIndex.map { case ((n,ws),i) =>
+        s"if(r$i !== data[${n*ws.sum-1}:0] || p$i !== r$i) $$fatal;"
+      }.mkString("\n")
+      Files.write(directory.resolve("tb.v"),s"""module tb; reg [127:0] data; integer k;
+$instances
+initial begin for(k=0;k<32;k=k+1) begin
+data={$$random,$$random,$$random,$$random};
+if(k==0) data=0; if(k==1) data=~128'd0; if(k==2) data='bx; if(k==3) data='bz;
+#1; $checks
+end $$display("PASS"); $$finish; end endmodule
+""".getBytes(StandardCharsets.UTF_8))
+      Seq(Seq("iverilog","-g2001","-s","tb","-o","sim","cast.v","tb.v"),Seq("vvp","sim")).foreach { command =>
+        val (code,log)=morphhdl.Increment66ToolEvidence.run(directory,command)
+        assert(code==0,s"$command\n$log")
+      }
+    }
   }
 
   test("private composite packing still rejects reordered leaves and stateful support") {
@@ -539,7 +566,7 @@ class PackedVecIdentityAdversarialTests extends AnyFunSuite {
   }
 
   private val FormalRamCheckAggregate =
-    """(?<![A-Za-z0-9_$])(formal_ram_check(?:_[0-9]+_morphhdl_vec)?)(?![A-Za-z0-9_$])""".r
+    """(?<![A-Za-z0-9_$])(formal_ram_check(?:_[0-9]+_vec)?)(?![A-Za-z0-9_$])""".r
 
   private def assertProjectedAggregateDominance(rtl: Path): Unit = {
     val verilog = new String(Files.readAllBytes(rtl), StandardCharsets.UTF_8)
@@ -582,8 +609,8 @@ class PackedVecIdentityAdversarialTests extends AnyFunSuite {
         slices.size == 2 &&
           slices.count(_ == "(0)+:1") == 1 &&
           slices.count(value =>
-            value.contains("stream_fifo_formal_ram_mask_index") &&
-              value.endsWith("+:1")
+            value == "((i)*1)+:1" &&
+              "for\\s*\\(i\\s*=\\s*0;\\s*i\\s*<\\s*DEPTH;\\s*i\\s*=\\s*i\\s*\\+\\s*1\\)".r.findFirstIn(streamFifo).nonEmpty
           ) == 1,
         s"projected Vec aggregate '$name' lost one exact branch slice driver: ${slices.mkString(", ")}\n$streamFifo"
       )

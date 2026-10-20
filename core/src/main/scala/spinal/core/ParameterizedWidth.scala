@@ -17,12 +17,30 @@ final case class ElaborationIntegerParameter(
     name: String,
     default: BigInt,
     minimum: BigInt,
-    maximum: BigInt
+    maximum: BigInt,
+    representation: Option[ElaborationPackedParameter] = None
 ) {
+
+  private[spinal] def declaration: String = representation match {
+    case None => s"parameter integer $name = $default"
+    case Some(packed) =>
+      val signed = if (packed.signed) "signed " else ""
+      val number = s"${packed.width}'${if (packed.signed) "s" else ""}d${default.abs}"
+      s"parameter $signed[${packed.width - 1}:0] $name = ${if (default < 0) "-" else ""}$number"
+  }
 
   /** Stable identity for callers which retain this exact direct declaration. */
   private[spinal] lazy val declarationRoot: ElaborationIntegerParameterRoot =
     ElaborationIntegerParameterRoot.fresh(name)
+}
+
+/** Declared HDL representation, independent of the parameter's legal domain. */
+final case class ElaborationPackedParameter(kind: String, width: Int) {
+  require(Set("UInt", "Bits", "SInt")(kind) && width >= 1 && width <= 4096,
+    "SPINAL-PARAM-REPRESENTATION-INVALID: expected Bits/UInt/SInt with width 1..4096")
+  def signed: Boolean = kind == "SInt"
+  def minimum: BigInt = if (signed) -(BigInt(1) << (width - 1)) else BigInt(0)
+  def maximum: BigInt = (BigInt(1) << (width - (if (signed) 1 else 0))) - 1
 }
 
 /** Identity-bearing provenance for one declaration of an elaboration-time
@@ -116,6 +134,9 @@ final case class ElaborationIntegerExpression(
       ElaborationExactDomain[BigInt]
     ] = None
 ) {
+  @transient private[core] var localCalculation: Option[NativeLocalParameters.Calculation] = None
+  @transient private[core] var typedLocalOwner: Component = null
+  @transient private[core] var localCalculationOrigin: Option[ElaborationIntegerExpression] = None
   @transient private[this] var _projectionProvenance: ElaborationProjectionProvenance = null
   @transient private[this] var _exactAuthorityDomain: ElaborationExactDomain[BigInt] = null
 
@@ -872,7 +893,14 @@ object ParameterizedWidth {
     if (from == null || to == null)
       throw new IllegalArgumentException("symbolic-width copy requires non-null leaves")
     metadataOf(from) match {
-      case Some(metadata) => retain(to, metadata)
+      case Some(metadata) =>
+        val projected = metadata.expression.map(NativeFormalWidthProjection.inScope(to.component, from, _))
+        if (metadata.expression.nonEmpty && (projected.get ne metadata.expression.get)) {
+          // A parent-owned native clone is an instance connection carrier.
+          // Copy the authenticated actual geometry, never its child's formal.
+          // Literal actuals need no symbolic registry entry.
+          retainNativeWidth(to, projected.get)
+        } else retain(to, metadata)
       case None => NativeWidthProvenance.widthOf(from).foreach(retainNativeWidth(to, _))
     }
   }
@@ -964,6 +992,30 @@ object ParameterizedWidth {
     reap()
     retained.remove(new RetainedWidthIdentityRef(data, null))
     validated.foreach(retain(data, _))
+  }
+
+  /** Begin a certified shape substitution on an unused native clone. Native
+    * Vec cloning may already have inspected its inherited concrete width;
+    * only this fresh value may clear that construction observation. The
+    * rollback restores exact metadata without projecting it to a live branch.
+    */
+  private[core] def beginFreshCloneWidthChange(data: BitVector): () => Unit = synchronized {
+    require(data != null && data.isDirectionLess && !data.isReg && !data.isAnalog &&
+      data.head == null && !data.globalData.nodeAreInferringWidth,
+      "SPINAL-NATIVE-FRESH-CLONE-WIDTH: only unused construction-time native clones may change shape")
+    val metadata = metadataOf(data)
+    val fixed = data.fixedWidth
+    val observed = data.widthWhenNotInferred
+    val inferred = data.inferredWidth
+    data.widthWhenNotInferred = -1
+    data.inferredWidth = -1
+    () => synchronized {
+      data.fixedWidth = fixed
+      data.widthWhenNotInferred = observed
+      data.inferredWidth = inferred
+      retained.remove(new RetainedWidthIdentityRef(data, null))
+      metadata.foreach(value => retained.update(new RetainedWidthIdentityRef(data, queue), value))
+    }
   }
 
   /** Copy concrete and symbolic leaf geometry in deterministic data-model order.

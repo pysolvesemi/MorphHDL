@@ -200,6 +200,19 @@ abstract class BitVector extends BaseType with Widthable {
     */
   def resize(width: Int): BitVector
   def resize(width: BitCount): BitVector
+  /** A whole-width typed slice is the original assignable carrier. Authenticate
+    * both geometries before returning it; a witness-sized partial slice is not
+    * a valid substitute for a parameter-dependent selection.
+    */
+  def apply(offset: Int, bitCount: ParameterizedBitCount): this.type = {
+    val expected = ParameterizedWidth.validatedWidthExpression(bitCount)
+    val actual = NativeWidthProvenance.widthOf(this)
+    require(offset == 0 && expected.nonEmpty && actual.nonEmpty &&
+      ElabInt.fromExpression(expected.get).elabEq(ElabInt.fromExpression(actual.get)).isAlwaysTrue,
+      "SPINAL-TYPED-SLICE-GEOMETRY-UNPROVEN: typed constant-offset slices currently require offset zero and the exact complete source width")
+    this
+  }
+
   def resize(width: ElabInt): BitVector = {
     if(width == null) throw new IllegalArgumentException("typed resize width must not be null")
     if(!width.isConcrete){
@@ -230,11 +243,16 @@ abstract class BitVector extends BaseType with Widthable {
   /** Cast the `BitVector` into a vector of `Bool`
     */
   def asBools: Vec[Bool] = signalCache(this, "asBools") {
-    val vec = ArrayBuffer[Bool]()
     val bitCount = getWidth
     if (bitCount == -1) SpinalError("Can't convert to bools a Bit that has unspecified width value")
-    for (i <- 0 until bitCount) vec += this (i)
-    Vec(vec)
+    val vec = ArrayBuffer[Bool]()
+    for (i <- 0 until bitCount) vec += this(i)
+    val result = Vec(vec)
+    if (bitCount > 0 &&
+        (VerilogAggregateOptions.current.preserveConstantVecs || VerilogAggregateOptions.current.preserveConstantLoops) &&
+        ParameterizedWidth.expressionOf(this).forall(_.parameters.isEmpty))
+      ParameterizedVec.recordNativeBitViews(result)
+    result
   }
 
   /** Return `this.lsb` */

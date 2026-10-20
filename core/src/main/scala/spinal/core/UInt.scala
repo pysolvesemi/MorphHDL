@@ -92,6 +92,12 @@ class UInt extends BitVector with Num[UInt] with MinMaxProvider with DataPrimiti
   override def > (right: UInt): Bool = right < this
   override def <=(right: UInt): Bool = wrapLogicalOperator(right, new Operator.UInt.SmallerOrEqual)
   override def >=(right: UInt): Bool = right <= this
+  def < (right: ElabScopedIndex): Bool = this < right.runtimeUInt
+  def > (right: ElabScopedIndex): Bool = this > right.runtimeUInt
+  def <=(right: ElabScopedIndex): Bool = this <= right.runtimeUInt
+  def >=(right: ElabScopedIndex): Bool = this >= right.runtimeUInt
+  def ===(right: ElabScopedIndex): Bool = this === right.runtimeUInt
+  def =/=(right: ElabScopedIndex): Bool = this =/= right.runtimeUInt
   override def >>(that: Int): UInt   = wrapConstantOperator(new Operator.UInt.ShiftRightByInt(that))
   override def <<(that: Int): UInt   = wrapConstantOperator(new Operator.UInt.ShiftLeftByInt(that))
   override def +^(right: UInt): UInt = this.expand + right.expand
@@ -121,11 +127,13 @@ class UInt extends BitVector with Num[UInt] with MinMaxProvider with DataPrimiti
     }
   }
   private def _sat(m: Int): UInt = {
-    val ret = UInt(getWidth-m bit)
-    when(this(getWidth-1 downto getWidth-m).asBits.orR) {
+    val ret = NativeWidthProvenance.retainRelativeWidth(this, UInt(getWidth-m bit), -m)
+    when(NativeWidthProvenance.retainRelativeRange(this,
+      this(getWidth-1 downto getWidth-m), -1, true, -m).asBits.orR) {
       ret.setAll()
     }.otherwise {
-      ret := this(getWidth-m-1 downto 0)
+      ret := NativeWidthProvenance.retainRelativeRange(this,
+        this(getWidth-m-1 downto 0), -m-1, false, 0)
     }
     ret
   }
@@ -496,7 +504,7 @@ class UInt extends BitVector with Num[UInt] with MinMaxProvider with DataPrimiti
   override def getZeroUnconstrained: this.type = U(0).asInstanceOf[this.type]
   override def getAllTrue: this.type = U(maxValue, this.getWidth bits).asInstanceOf[this.type]
   override def setAll(): this.type = {
-    this := maxValue
+    this := NativeWidthProvenance.retainAllOnes(this, U(maxValue))
     this
   }
 

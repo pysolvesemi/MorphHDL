@@ -1,6 +1,6 @@
 package spinal.lib.graphic.vga
 
-import spinal.core.{Reg, _}
+import spinal.core.{Param => _, Reg, _}
 import spinal.core.fiber._
 import spinal.lib.bus.amba3.apb.{Apb3, Apb3SlaveFactory}
 import spinal.lib.bus.amba4.axi.Axi4ReadOnly

@@ -199,9 +199,10 @@ def main():
     with tempfile.TemporaryDirectory(prefix='pr190-pr189-mutations-') as td:
         work=Path(td)/'source'
         review.git(ROOT,'worktree','add','--quiet','--detach',str(work),result['head'])
+        originals={path:(work/path).read_bytes() for path in paths}
         try:
             for path in paths:
-                file=work/path;raw=file.read_bytes()
+                file=work/path;raw=originals[path]
                 try:
                     file.write_bytes(raw+b'\n# deliberate combined-source tampering\n')
                     try:review.verify(work)
@@ -212,7 +213,7 @@ def main():
             # the common ancestor must fail even when all other files remain.
             for path in ('core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala',
                          'core/src/main/scala/spinal/core/ElaborationProductDomain.scala'):
-                file=work/path;raw=file.read_bytes()
+                file=work/path;raw=originals[path]
                 try:
                     file.write_bytes(review.git(work,'show',review.BASE+':'+path))
                     try:review.verify(work)
@@ -226,7 +227,9 @@ def main():
                 except RuntimeError:rejected+=1
                 else:raise AssertionError('Accepted unreviewed root')
             finally:extra.unlink()
-            review.verify(work)
+            assert review.git(work,'rev-parse','HEAD').decode().strip()==result['head']
+            assert not review.git(work,'status','--porcelain','--untracked-files=all')
+            assert all((work/path).read_bytes()==raw for path,raw in originals.items())
         finally:review.git(ROOT,'worktree','remove','--force',str(work))
     assert rejected==len(paths)+3
     print('PR190_PR189_SYNC_MUTATIONS_PASS rejected='+str(rejected))

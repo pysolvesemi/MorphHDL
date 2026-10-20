@@ -859,8 +859,7 @@ class CapturedAssignmentNormalizationTests extends AnyFunSuite {
     for (cleanup <- Vector(false, true)) withTemporaryDirectory { directory =>
       val mode = HdlInt.param("MODE", default = 1, min = 0, max = 1)
       val lanes = HdlInt.param("LANES", default = 1, min = 1, max = 1)
-      val config = MorphWireAssignmentPasses(
-        SpinalConfig(targetDirectory = directory.toString), enabled = cleanup)
+      val config = SpinalConfig(targetDirectory = directory.toString)
       val fileName = "captured_vec_scoped_promoted_driver.v"
       config.netlistFileName = fileName
 

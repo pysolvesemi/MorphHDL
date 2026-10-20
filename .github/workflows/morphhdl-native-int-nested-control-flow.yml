@@ -15,6 +15,9 @@ concurrency:
   group: morphhdl-native-int-nested-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   source-boundary:
     name: Native Int nested-control source boundary
@@ -22,6 +25,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Prove nested replay retirement
         run: |
           python3 morphhdl/scripts/check-production-retirement.py --self-test
@@ -41,6 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
       - name: Exercise typed nested control flow
         run: >-
