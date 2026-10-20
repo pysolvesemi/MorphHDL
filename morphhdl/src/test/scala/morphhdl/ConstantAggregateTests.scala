@@ -415,7 +415,7 @@ class ConstantAggregateTests extends AnyFunSuite {
   }
   test("CA-003 synchronizer arrays retain common and native CDC attributes") {
     val rtl = emit(true, unpacked = true)(new SyncAttributes)
-    assert(rtl.contains("ASYNC_REG = \"TRUE\"") && rtl.contains("async_reg = \"true\""), rtl)
+    assert(rtl.contains("ASYNC_REG = \"TRUE\"") && !rtl.contains("async_reg = \"true\""), rtl)
     simulate(rtl, """module tb;
       reg clk=0,reset=1,x=0; wire y;
       Top dut(.clk(clk),.reset(reset),.x(x),.y(y));

@@ -1617,8 +1617,35 @@ class PhaseDeviceDefault extends PhaseDeviceHandler{
   }
 
   override def onCrossClockBuffer(config : SpinalConfig, bt: BaseType) = {
-    if(config.device.isVendorDefault || config.device.vendor == Device.XILINX.vendor || config.device.vendor == Device.EFINIX.vendor) {
-      bt.addAttribute("async_reg", "true")
+    val vivado = config.device.isVendorDefault || config.device.vendor == Device.XILINX.vendor
+    val efinix = config.device.vendor == Device.EFINIX.vendor
+    if(vivado || efinix) {
+      // This is a target-specific synchronizer rule, not case folding for arbitrary
+      // attributes. Efinity documents the lowercase spelling only.
+      val existing = bt.getTags().collect {
+        case a: Attribute if a.attributeKind() == DEFAULT_ATTRIBUTE &&
+          (a.getName == "async_reg" || (vivado && a.getName == "ASYNC_REG")) => a
+      }.toVector
+      existing.foreach {
+        case a: AttributeString if a.value == "true" || (vivado && a.value == "TRUE") =>
+        case a =>
+          val value = a match {
+            case s: AttributeString => "\"" + s.value + "\""
+            case i: AttributeInteger => i.value.toString
+            case _ => "<flag>"
+          }
+          SpinalError(s"SPINAL-SYNCHRONIZER-ATTRIBUTE-CONFLICT: ${bt.getName()} " +
+            s"has ${a.getName}=$value on a synchronizer for target '${config.device.vendor}'; " +
+            "an enabled string synchronizer annotation is required\n" + bt.getScalaLocationLong)
+      }
+      if(existing.isEmpty) bt.addAttribute("async_reg", "true")
+      else {
+        // Retain the authored object, including its spelling. Prefer the documented
+        // Vivado uppercase form when both equivalent spellings were supplied.
+        val retained = if(vivado) existing.find(_.getName == "ASYNC_REG").getOrElse(existing.head)
+          else existing.head
+        existing.filterNot(_ eq retained).foreach(a => bt.removeTag(a))
+      }
     }
   }
 
