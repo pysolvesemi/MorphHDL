@@ -40,3 +40,18 @@ width. The domain proof establishes that no value is lost. Focused lint records
 this warning using the existing nonfatal-warning invocation; no suppression
 pragma is emitted. Existing fixed-width constant forms keep their sized helpers
 and their strict-lint regression remains enabled.
+
+Focused validation passes 71 tests on each of Scala 2.12.18 and 2.13.12,
+40 cleaned HDL profiles, both reported threshold reproducers and the deadline
+reproducer. Two complete CDC generations produce nine byte-identical files.
+Strict Verilog-2001 compilation, recorded nonfatal Verilator lint and Yosys
+synthesis pass. Three four-state whole-CDC comparisons pass against frozen
+previous-compiler RTL. Threshold-only four-state tests include depth 16.
+
+Optional whole-CDC comparisons with 65536-word memories are not qualified:
+Icarus compilation reached its existing 240-second cap, and a Verilator 5.020
+testbench executable crashed after successful compilation. Increasing its host
+stack limit did not resolve that crash. Questa is unavailable. These attempts
+are retained separately from passing evidence; no timeout or test was weakened.
+Exact commands, source and artifact hashes are recorded in the adjacent JSON
+receipt and its local evidence archive.

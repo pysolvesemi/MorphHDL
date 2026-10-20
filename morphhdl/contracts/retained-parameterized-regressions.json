@@ -786,6 +786,16 @@
         "literal constructor width 1 retains the complete override domain",
         "literal constructor width 64 retains the complete override domain"
       ],
+      "morphhdl.CorrelatedCarrierWidthTests": [
+        "correlated full thresholds retain native count width",
+        "correlated empty thresholds retain native count width",
+        "large exact threshold tables remain bounded, empty=false",
+        "large exact threshold tables remain bounded, empty=true",
+        "correlation does not authorize overflowing or unproven threshold carriers",
+        "whole typed deadline initializer uses assignment sizing without value helpers",
+        "direct initializer still rejects genuine overflow",
+        "nested modular operations and signed constants preserve their representations"
+      ],
       "morphhdl.CorrelatedValueBoundsTests": [
         "child-owned relational contracts authorize symbolic unsigned subtraction and reject invalid overrides",
         "parent bindings preserve child contract and non-default values",
@@ -4642,6 +4652,7 @@
     "morphhdl/src/test/scala/morphhdl/ConfigurationDomainInferenceTests.scala": "33bdf3f841f3d49b98b0b72a34768ad10a7ee7a8364f1f772bc077fa386a9347",
     "morphhdl/src/test/scala/morphhdl/ConstantAggregateTests.scala": "3857dfc8a220a698f16a8e96da68503c945786599e1c15c75d7d5516e02b2818",
     "morphhdl/src/test/scala/morphhdl/ConstructorParameterTests.scala": "5291cd053ea1a78f6817527426177a4990948560634df2ca2b1084bb413afd74",
+    "morphhdl/src/test/scala/morphhdl/CorrelatedCarrierWidthTests.scala": "bd66f00e08b0d4c47ac4d712954941c19e06b073e497e86863c63c5b464f63d9",
     "morphhdl/src/test/scala/morphhdl/CorrelatedValueBoundsTests.scala": "318448847df6ddea2454b59a1fde491c13327e6c36a2daf66f6169301494da6b",
     "morphhdl/src/test/scala/morphhdl/CorrelatedVecPublicationTests.scala": "bf05989f87340b3adf5736aaa616f381f62ec1520eb3fce7b3593fd28edf4b91",
     "morphhdl/src/test/scala/morphhdl/CsrMigrationLoopTests.scala": "be7129d8e9207e412d48c792566a39506ab62d71c172aff7bfbff832476e326a",
@@ -4888,7 +4899,7 @@
     "morphhdl/src/test/scala/spinal/core/SymbolicPublicationEvidenceTests.scala": "0f64ff42bcadd769e04babb22ace81567d03d14fe358b452e88032bae8cf2a32",
     "morphhdl/src/test/scala/spinal/core/TypedElaborationPrimitiveTests.scala": "967e9c0e39eb3a0b9f8cc203c24b81feb27bf635bdb605401e36e672ca321386",
     "morphhdl/src/test/scala/spinal/core/TypedExactDomainControlTests.scala": "127bb913665c7eb57e159716cac38f85bba067210836784d2314582b1eb0a28a",
-    "morphhdl/src/test/scala/spinal/core/TypedExactDomainSafetyTests.scala": "48eb7f1a1bc60b63deb987f80ec2c07db83064f43f78522ee1954afd65262550",
+    "morphhdl/src/test/scala/spinal/core/TypedExactDomainSafetyTests.scala": "ae6651f9a06e8fe7c99d86254a7245962d4bf308f73796b4a4caef76e6b462b5",
     "morphhdl/src/test/scala/spinal/core/TypedFormalCompoundPortTests.scala": "4a69fec2ce2c982b6b3f195357dd39b0fbddff96c11603a60224b65c140147f8",
     "morphhdl/src/test/scala/spinal/core/TypedFormalInventoryTests.scala": "e92b7c0143f40e528b3d59197cbf4d8268555f18e7a5d4d89db57b4cd3ec1513",
     "morphhdl/src/test/scala/spinal/core/TypedLoopRegisterOwnershipTests.scala": "a591302fd40d2f2a2a3dc34ba0793153a1f49a63012b702155c531e6f29f97f7",
