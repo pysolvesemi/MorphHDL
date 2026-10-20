@@ -12,7 +12,7 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 ROOT=Path(__file__).resolve().parents[2]
 CONTRACT='morphhdl/contracts/retained-parameterized-regressions.json'
-CONTRACT_SHA256 = 'f3d62d27c6e5ffcb4a07137402564ae20355274f82e21aa87f995bfa716ba72c'
+CONTRACT_SHA256 = '0b797b1c3f42ea6b20a8f9529ffad9e8d8c0532fced1e9682dc64102b617cb6d'
 def require(ok,detail):
  if not ok:raise RuntimeError('Retained parameterized regressions: '+detail)
 def check_sources(root,sources):
