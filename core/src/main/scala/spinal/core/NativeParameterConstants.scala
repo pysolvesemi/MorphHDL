@@ -213,10 +213,19 @@ object NativeParameterConstants {
               ElaborationWidthAuthority.requireAuthoritative(record.expression,"constant value","SPINAL-PARAM-CONSTANT-AUTHORITY")
               state(owner).adapters += vector
               dependencies += record.expression
-              val valueSource=new ValueSource(record.expression,name,ParameterizedWidth.expressionOf(vector),vector.getBitsWidth,vector.isInstanceOf[SInt])
-              state(owner).sources += valueSource
-              helpers += (() => if(valueSource.declared) s"  localparam [31:0] ${valueSource.name} = ${valueSource.expression.verilog};\n" else "")
-              () => valueSource.render
+              // Only the declaration's whole unsigned initializer can use
+              // assignment sizing. Nested hardware operations still need their
+              // explicit operand widths to preserve modular arithmetic.
+              if ((vector eq value) && !vector.isInstanceOf[SInt] && formalValue.isEmpty &&
+                  width.exists(_.parameters.nonEmpty)) {
+                ExternalParameterizedValueRegistry.validateCarrierDomain(vector, record.expression, None)
+                () => record.expression.verilog
+              } else {
+                val valueSource=new ValueSource(record.expression,name,ParameterizedWidth.expressionOf(vector),vector.getBitsWidth,vector.isInstanceOf[SInt])
+                state(owner).sources += valueSource
+                helpers += (() => if(valueSource.declared) s"  localparam [31:0] ${valueSource.name} = ${valueSource.expression.verilog};\n" else "")
+                () => valueSource.render
+              }
             case _=>
               val targetWidth = NativeWidthProvenance.widthOf(b).getOrElse(fail("constant target width is unauthenticated"))
               val sourceWidth = NativeWidthProvenance.widthOf(source).getOrElse(fail("constant source width is unauthenticated"))

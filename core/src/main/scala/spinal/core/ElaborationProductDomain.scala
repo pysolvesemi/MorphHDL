@@ -64,6 +64,10 @@ private[spinal] object ElaborationProductDomain {
     def evaluate(environment: Environment): BigInt = environment(root)
   }
   private final case class Leaf(root: Root, values: Map[BigInt, BigInt]) extends Atom {
+    // Immutable exact tables participate in normalized form keys repeatedly.
+    // Cache their structural hash; equality still compares the complete table.
+    private lazy val tableHash = scala.util.hashing.MurmurHash3.productHash(this)
+    override def hashCode(): Int = tableHash
     val roots: Set[Root] = Set(root)
     def evaluate(environment: Environment): BigInt = values(environment(root))
   }
@@ -935,14 +939,18 @@ private[spinal] object ElaborationProductDomain {
     val target = certificate(value).getOrElse(fail(Missing, "legal value range lacks its private certificate", value.sourceLocation))
     ElabInt.validateExpression(value, "legal value range")
     validateInventory(value.parameters, value.completedParameterRoots, target, "legal value range", value.sourceLocation)
-    val limits = checkedEnclosure(target, value.sourceLocation)
+    val guards = conditions.map(source)
+    constrainedRange(target, guards, value.sourceLocation)
+  }
+
+  private def constrainedRange(target: TrustedExpressionEvidence,
+      guards: Vector[TrustedExpressionEvidence], location: Option[String]): (BigInt, BigInt) = {
+    val limits = checkedEnclosure(target, location)
     var minimum = limits.minimum
     var maximum = limits.maximum
     def lowerBound(form: Form, bound: BigInt, axes: Vector[Axis]): Unit = {
-      // target = form + (target-form), or -form + (target+form).
-      // Normalization cancels only atoms with the same authenticated roots.
-      val remainder = enclosure(TrustedExpressionEvidence(target.form - form, axes), value.sourceLocation)
-      val complement = enclosure(TrustedExpressionEvidence(target.form + form, axes), value.sourceLocation)
+      val remainder = enclosure(TrustedExpressionEvidence(target.form - form, axes), location)
+      val complement = enclosure(TrustedExpressionEvidence(target.form + form, axes), location)
       minimum = minimum.max(bound + remainder.minimum)
       maximum = maximum.min(complement.maximum - bound)
     }
@@ -956,17 +964,51 @@ private[spinal] object ElaborationProductDomain {
           if form.constant == 1 && coefficient == -1 => lowerBound(left - right, 0, axes)
       case _ => ()
     }
-    conditions.foreach { condition =>
-      val guard = source(condition)
-      // A full-domain contract is not a new projection certificate for a
-      // scoped value. Leave such proofs to the existing scoped validators.
+    guards.foreach { guard =>
       if (guard.axes.forall(axis => target.axes.find(_.root eq axis.root).forall(_.sameScope(axis)))) {
-        val axes = merge(Vector(target, guard), value.sourceLocation)
+        val axes = merge(Vector(target, guard), location)
         assume(guard.form, axes)
       }
     }
     // Contradictory contracts never authorize an otherwise invalid carrier.
     if (minimum > maximum) limits.minimum -> limits.maximum else minimum -> maximum
+  }
+
+  /** Partition only finite carrier-width axes, retaining interval enclosures for
+    * all other parameters. Each partition must prove representability under the
+    * same unconditional contracts. These temporary proof axes never escape as
+    * expression certificates or structural domain restrictions.
+    */
+  private[core] def fitsUnsignedCarrier(value: ElaborationIntegerExpression,
+      width: ElaborationIntegerExpression,
+      conditions: Vector[ElaborationBooleanExpression]): Boolean = {
+    // Publication has already checked the exact declaration owner. Do not
+    // reopen a construction scope for its retained product certificate.
+    def sizingSource(expression: ElaborationIntegerExpression): TrustedExpressionEvidence =
+      certificate(expression) match {
+        case Some(proof) =>
+          ElabInt.validateExpression(expression, "correlated unsigned sizing")
+          validateInventory(expression.parameters, expression.completedParameterRoots, proof,
+            "correlated unsigned sizing", expression.sourceLocation)
+          proof
+        case None => source(expression)
+      }
+    val v = sizingSource(value); val w = sizingSource(width)
+    val guards = conditions.map(source)
+    val location = value.sourceLocation.orElse(width.sourceLocation)
+    val axes = merge(Vector(v, w) ++ guards, location)
+    val widthAxes = relevant(w.form.roots, axes)
+    if (widthAxes.exists(_.compact) || domainSize(widthAxes) > MaximumJointValues) return false
+    var fits = true
+    foreachTuple(widthAxes, location) { tuple =>
+      val narrowed = axes.map(axis => tuple.get(axis.root).map(n => axis.copy(values = Vector(n))).getOrElse(axis))
+      def restrict(p: TrustedExpressionEvidence): TrustedExpressionEvidence =
+        p.copy(axes = narrowed.filter(a => p.axes.exists(_.root eq a.root)))
+      val range = constrainedRange(restrict(v), guards.map(restrict), location)
+      val bits = w.form.evaluate(tuple)
+      if (bits < 1 || range._1 < 0 || BigInt(range._2.bitLength) > bits) fits = false
+    }
+    fits
   }
 
   /** For nonnegative values, v < n implies v fits ceil(log2(n)) bits.

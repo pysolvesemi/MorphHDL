@@ -14,8 +14,13 @@ class TypedExactDomainSafetyTests extends AnyFunSuite {
       maximum = BigInt(Int.MaxValue)
     )
 
+    // Large direct declarations now carry compact interval authority. They
+    // must not materialize an exhaustive table or lift its enumeration cap.
+    val value = ElabInt.directParameter(parameter, sourceLocation = None)
+    assert(value.expression.exactDomain.isEmpty)
+    assert(ElaborationProductDomain.isRetained(value.expression))
     val error = intercept[ParameterizedVerilogException] {
-      ElabInt.directParameter(parameter, sourceLocation = None)
+      ElaborationExactDomain.boundedValues(parameter.minimum, parameter.maximum)
     }
 
     assert(error.code == "SPINAL-ELAB-DOMAIN-SIZE-UNSUPPORTED")

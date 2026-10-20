@@ -149,6 +149,9 @@ object ExternalParameterizedValueRegistry {
     if (!signed && legalMinimum >= 0 && retainedWidth.exists(width =>
         ElaborationProductDomain.fitsUnsignedLogWidth(expression, width))) return
 
+    if (!signed && BigInt(legalMaximum.bitLength) > minimumWidth && retainedWidth.exists(width =>
+        NativeSymbolicLegality.fitsUnsignedCarrier(value.component, expression, width))) return
+
     val pointwise = for {
       values <- valueDomain
       width <- retainedWidth

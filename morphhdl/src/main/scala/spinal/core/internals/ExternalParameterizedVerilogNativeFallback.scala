@@ -1377,7 +1377,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       if (!signed && minimum < 0) fail("SPINAL-PARAMETERIZED-VERILOG-VALUE-DOMAIN-UNSUPPORTED",
         s"$role reaches negative value $minimum in its live owner", source)
       val correlatedWidth = !signed && ParameterizedWidth.expressionOf(value).exists(width =>
-        ElaborationProductDomain.fitsUnsignedLogWidth(record.expression, width))
+        ElaborationProductDomain.fitsUnsignedLogWidth(record.expression, width) ||
+          (BigInt(maximum.bitLength) > minimumWidth &&
+            NativeSymbolicLegality.fitsUnsignedCarrier(component, record.expression, width)))
       if (minimumWidth < 1 || (!correlatedWidth && BigInt(maximum.bitLength.max(minimum.bitLength) + (if(signed) 1 else 0)) > minimumWidth))
         fail("SPINAL-PARAMETERIZED-VERILOG-VALUE-WIDTH-INSUFFICIENT",
           s"$role reaches $maximum outside its live carrier minimum width $minimumWidth", source)
@@ -1425,6 +1427,14 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         case _ => false
       }
     }
+    // Different declaration roots can still be related by retained local
+    // contracts. Validate both live owners before consulting that proof; keep
+    // the existing exact projection checks for a shared-root carrier.
+    if (!value.isInstanceOf[SInt] && pointwiseWidth.isEmpty && retainedWidth.exists { width =>
+      NativePublicationWidth.validate(width, component, value, role + " carrier width")
+      NativeSymbolicLegality.fitsUnsignedCarrier(component, record.expression, width)
+    }) return
+
     val widthsByRoot = pointwiseWidth match {
       case Some(width) =>
         val widthEvaluation = ParameterizedStructure

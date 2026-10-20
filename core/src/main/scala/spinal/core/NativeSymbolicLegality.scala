@@ -22,6 +22,14 @@ object NativeSymbolicLegality {
     obligations.foreach(record => validate(record))
     ElaborationProductDomain.legalValueRange(expression, obligations.map(_.condition))
   }
+  private[spinal] def fitsUnsignedCarrier(component: Component,
+      value: ElaborationIntegerExpression, width: ElaborationIntegerExpression): Boolean = {
+    val roots = value.completedParameterRoots ++ width.completedParameterRoots
+    val obligations = records(component).filter(record => record.scope.isEmpty &&
+      record.encoded.completedParameterRoots.exists(root => roots.exists(_ eq root)))
+    obligations.foreach(record => validate(record))
+    ElaborationProductDomain.fitsUnsignedCarrier(value, width, obligations.map(_.condition))
+  }
   private object Enabled
   /** Backend mode setup; this flag alone grants no expression or proof authority. */
   def configure(config: SpinalConfig, enabled: Boolean): SpinalConfig = {
