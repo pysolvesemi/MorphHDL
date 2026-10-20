@@ -42,7 +42,8 @@ private[spinal] object MorphHdlSignedWidth {
     render(fact.width) match {
       case Some(range) if fact.rule != Unsupported && range.minimum > 0 && range.default == fact.nativeBits => range
       case _ => throw new MorphHdlSignednessException("MORPH-SIGNEDNESS-WIDTH-UNSUPPORTED",
-        "boundary requires exact positive logical geometry over its complete parameter domain")
+        s"boundary requires exact positive logical geometry over its complete parameter domain: " +
+          s"${expression.getClass.getSimpleName}, width=${fact.width}, nativeBits=${fact.nativeBits}, rule=${fact.rule}")
     }
   }
 }

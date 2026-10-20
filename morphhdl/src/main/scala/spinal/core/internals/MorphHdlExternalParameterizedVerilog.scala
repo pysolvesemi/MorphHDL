@@ -161,24 +161,30 @@ object MorphHdlExternalParameterizedVerilog {
       }
     }
 
-    val canonicalByName = exactGroups.toVector.map { case (canonical, candidateBuffer) =>
-      val candidates = candidateBuffer.toVector
-      val name = componentName(canonical)
-      validateFormalCanonicalGroup(name, candidates)
-      NativeScalarFormalSchema.validateGroup(candidates)
-      val candidateSchemas = candidates.map(componentSchema)
-      val schemas = candidateSchemas.distinct
-      if (schemas.size != 1) {
-        val other = candidateSchemas.indexWhere(_ != candidateSchemas.head)
-        val difference = schemaDifference(candidateSchemas.head, candidateSchemas(other))
-        NativePublicationReport.rejected("SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT", difference, Vector(candidates.head,candidates(other)))
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
-          s"native module identity '$name' maps to ${schemas.size} distinct graph schemas; " +
-            s"instances '${candidates.head.getPath()}' and '${candidates(other).getPath()}': $difference"
-        )
+    // Canonical schema comparison is read-only. Reuse exact-instance formal
+    // proofs inside this transaction, then discard them before publication can
+    // perform any graph preparation. Large port domains must not be replayed
+    // once per parameter, port and candidate pairing.
+    val canonicalByName = NativeWidthFormalSchema.withBindingSnapshot {
+      exactGroups.toVector.map { case (canonical, candidateBuffer) =>
+        val candidates = candidateBuffer.toVector
+        val name = componentName(canonical)
+        validateFormalCanonicalGroup(name, candidates)
+        NativeScalarFormalSchema.validateGroup(candidates)
+        val candidateSchemas = candidates.map(componentSchema)
+        val schemas = candidateSchemas.distinct
+        if (schemas.size != 1) {
+          val other = candidateSchemas.indexWhere(_ != candidateSchemas.head)
+          val difference = schemaDifference(candidateSchemas.head, candidateSchemas(other))
+          NativePublicationReport.rejected("SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT", difference, Vector(candidates.head,candidates(other)))
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
+            s"native module identity '$name' maps to ${schemas.size} distinct graph schemas; " +
+              s"instances '${candidates.head.getPath()}' and '${candidates(other).getPath()}': $difference"
+          )
+        }
+        name -> canonical
       }
-      name -> canonical
     }
     canonicalByName
       .groupBy(_._1)
@@ -240,10 +246,12 @@ object MorphHdlExternalParameterizedVerilog {
       )
     }
 
-    val sharedWidthDefaults = exactGroups.map { case (canonical, candidates) =>
-      componentName(canonical) -> (NativeWidthFormalSchema.sharedDefaults(candidates.toVector) ++
-        NativeScalarFormalSchema.sharedDefaults(candidates.toVector))
-    }.toMap
+    val sharedWidthDefaults = NativeWidthFormalSchema.withBindingSnapshot {
+      exactGroups.map { case (canonical, candidates) =>
+        componentName(canonical) -> (NativeWidthFormalSchema.sharedDefaults(candidates.toVector) ++
+          NativeScalarFormalSchema.sharedDefaults(candidates.toVector))
+      }.toMap
+    }
     val rewrittenByName = expectedModules.toVector.sorted.flatMap { name =>
       val component = canonicalPublicationByName(name)
       if (requiresPublicationRewrite(component)) {

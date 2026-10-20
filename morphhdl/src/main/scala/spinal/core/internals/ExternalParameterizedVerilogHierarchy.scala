@@ -146,7 +146,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     }
     def rewrite(verilog: String): (String, Vector[(String, String)]) = {
       var current = verilog
-      val declarationRanges = ArrayBuffer.empty[(String, String)]
+      val declarationWidths = ArrayBuffer.empty[(String, BindingExpr)]
 
       instances.filter(instance => instance.bindings.nonEmpty || instance.ports.nonEmpty).foreach { instance =>
         val lines = current.split("\\n", -1).toVector
@@ -257,7 +257,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
               Matcher.quoteReplacement(replacement)
             )
           )
-          declarationRanges += signalName -> publishedRange
+          declarationWidths += signalName -> port.width
         }
 
         val rewrittenBlock =
@@ -305,10 +305,11 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         current = (lines.take(start) ++ rewrittenBlock ++ lines.drop(end + 1)).mkString("\n")
       }
 
-      val grouped = declarationRanges.groupBy(_._1)
+      val grouped = declarationWidths.groupBy(_._1)
       grouped
         .collectFirst {
-          case (name, values) if values.map(_._2).distinct.size != 1 => name
+          case (name, values) if values.exists(value =>
+              !sameFormalActualConnection(values.head._2, value._2)) => name
         }
         .foreach { name =>
           fail(
@@ -318,7 +319,12 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         }
       (
         current,
-        grouped.toVector.map { case (name, values) => name -> values.head._2 }
+        grouped.toVector.sortBy(_._1).map { case (name, values) =>
+          // Keep authenticated width evidence until after shared-carrier
+          // agreement. Equivalent formal substitutions need not print with
+          // identical parentheses; equal witnesses alone are insufficient.
+          name -> s"[${renderActual(values.head._2)}-1:0]"
+        }
       )
     }
   }
@@ -2321,7 +2327,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     * Every operand must remain in the parent, and width evidence comes from the
     * native operator transfer rules. Fixed extracts additionally prove their
     * complete bounds against the source domain; a default width is not proof.
-    * Unauthenticated resize boundaries remain outside this path.
+    * Resizes retain their explicit target geometry and require positive source
+    * geometry. Their native operators continue to own extension and signedness.
     */
   private def parentScalarExpressionWidth(parent: Component, expression: Expression, allowFixedTransforms: Boolean = false): Option[ElaborationIntegerExpression] = {
     val seen = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()
@@ -2331,22 +2338,49 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         case _ => expression
       }}
     def knownOperator(value: Expression): Boolean = value match {
-      case resize: Resize if allowFixedTransforms && resize.size > 0 => true
+      case resize: Resize if Set[Class[_]](classOf[ResizeBits], classOf[ResizeUInt],
+          classOf[ResizeSInt])(resize.getClass) =>
+        resize.input != null && resize.input.getTypeObject == resize.getTypeObject &&
+          sourceWidth(resize.input).exists(_.minimum > 0) &&
+          NativeWidthProvenance.widthOf(resize).exists(width =>
+            width.minimum > 0 && width.default == BigInt(resize.size))
       case _: Operator.BitVector.ShiftLeftByIntFixedWidth if allowFixedTransforms => true
       case slice: BitVectorRangedAccessFixed =>
         slice.lo >= 0 && slice.hi >= slice.lo && sourceWidth(slice.source).exists(_.minimum > slice.hi)
       case bit: BitVectorBitAccessFixed =>
         bit.bitId >= 0 && sourceWidth(bit.source).exists(_.minimum > bit.bitId)
+      case reduce: Operator.BitVector.orR => sourceWidth(reduce.source).exists(_.minimum > 0)
+      case reduce: Operator.BitVector.andR => sourceWidth(reduce.source).exists(_.minimum > 0)
+      case reduce: Operator.BitVector.xorR => sourceWidth(reduce.source).exists(_.minimum > 0)
       case _: Operator.Bits.Cat | _: Operator.BitVector.Add | _: Operator.BitVector.Sub |
            _: Operator.BitVector.And | _: Operator.BitVector.Or | _: Operator.BitVector.Xor |
            _: Operator.Bits.Not | _: Operator.UInt.Not | _: Operator.SInt.Not |
-           _: BinaryMultiplexerWidthable |
+           _: BinaryMultiplexerWidthable | _: BinaryMultiplexerBool |
            _: Operator.Bool.And | _: Operator.Bool.Or | _: Operator.Bool.Xor |
            _: Operator.Bool.Not | _: Operator.Bool.Equal | _: Operator.Bool.NotEqual |
            _: Operator.BitVector.Equal | _: Operator.BitVector.NotEqual |
            _: Operator.UInt.Smaller | _: Operator.UInt.SmallerOrEqual |
            _: Operator.SInt.Smaller | _: Operator.SInt.SmallerOrEqual => true
       case _ => false
+    }
+    def packedComparison(value: Expression): Boolean = value match {
+      case _: Operator.BitVector.Equal | _: Operator.BitVector.NotEqual |
+           _: Operator.UInt.Smaller | _: Operator.UInt.SmallerOrEqual |
+           _: Operator.SInt.Smaller | _: Operator.SInt.SmallerOrEqual => true
+      case _ => false
+    }
+    def comparisonOperand(value: Expression, other: Expression): Boolean = value match {
+      case literal: BitVectorLiteral if !literal.hasSpecifiedBitCount =>
+        val native = Set[Class[_]](classOf[BitsLiteral], classOf[UIntLiteral], classOf[SIntLiteral])
+        val signed = literal.getTypeObject == TypeSInt
+        val needed = if (signed) literal.value.bitLength + 1 else literal.value.bitLength.max(1)
+        // Native comparison normalization sizes ordinary constants from their
+        // opposite operand. Admit only exact non-poison constants that fit its
+        // complete logical domain, with the same packed kind and owner proof.
+        native(literal.getClass) && !literal.hasPoison && (signed || literal.value >= 0) &&
+          literal.getTypeObject == other.getTypeObject && owned(other) &&
+          sourceWidth(other).exists(width => width.minimum > 0 && needed <= width.minimum)
+      case _ => owned(value)
     }
     def owned(value: Expression): Boolean = {
       if (value == null || seen.containsKey(value)) return false
@@ -2357,6 +2391,9 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         case literal: BitVectorLiteral => literal.hasSpecifiedBitCount
         case _: BoolLiteral => true
         case cast if directPackedCarrier(cast) ne cast => owned(directPackedCarrier(cast))
+        case comparison: BinaryOperatorWidthableInputs if packedComparison(comparison) =>
+          comparisonOperand(comparison.left, comparison.right) &&
+            comparisonOperand(comparison.right, comparison.left)
         case operator if knownOperator(operator) =>
           var valid = true
           operator.foreachExpression(child => if (!owned(child)) valid = false)
@@ -2398,9 +2435,24 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     case value: BitVector if value.isOutput && (value.component.parent eq parent) &&
         NativeWidthFormalSchema.portBinding(value).nonEmpty =>
       ExpressionBinding(NativeWidthFormalSchema.portBinding(value).get.binding.actual)
-    case value: BitVector if allowConcreteInternal && value.isOutput && !value.isInOut &&
+    case value: BitVector if value.isOutput && !value.isInOut && value.component != null &&
+        (value.component.parent eq parent) && parent.children.exists(_ eq value.component) &&
+        value.component.getOrdredNodeIo.exists(_ eq value) &&
+        ParameterizedWidth.expressionOf(value).nonEmpty =>
+      // A derived packed port is not a single formal slot. Authenticate its
+      // declaration first, then substitute the exact child's actual bindings;
+      // a same-width witness or similarly named parent parameter is no proof.
+      val declared = ParameterizedWidth.expressionOf(value).get
+      NativePublicationWidth.validate(declared, value.component, value, "direct child output binding")
+      val actual = NativeFormalWidthProjection.inScope(parent, value, declared)
+      if (actual.minimum < 1 || actual.default != BigInt(value.getBitsWidth))
+        fail("SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED",
+          s"$context lost its positive, witness-consistent child output geometry")
+      ExpressionBinding(actual)
+    case value: BitVector if value.isOutput && !value.isInOut &&
         value.component != null && (value.component.parent eq parent) &&
-        ParameterizedWidth.expressionOf(value).forall(_.parameters.isEmpty) && value.isFixedWidth =>
+        ParameterizedWidth.expressionOf(value).forall(_.parameters.isEmpty) && value.isFixedWidth &&
+        (allowConcreteInternal || fixedFormalActual.contains(BigInt(value.getBitsWidth))) =>
       LiteralBinding(value.getBitsWidth)
     case value: BitVector if value.component == parent =>
       ExternalParameterizedHierarchyResizeWidth.expressionOf(parent, value) match {
@@ -2433,6 +2485,12 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         (signature.render, signature.minimum, signature.maximum, signature.default)
       }
       .map(_._2.head)
+      .foldLeft(Vector.empty[BindingExpr]) { (known, value) =>
+        // Distinct native ports can express the same exact parent width with
+        // different authored parentheses after formal substitution. Use the
+        // existing full-domain/root proof, never printed-expression rewriting.
+        if (known.exists(sameFormalActualConnection(_, value))) known else known :+ value
+      }
 
   private def bindingSignature(value: BindingExpr): BindingSignature =
     BindingSignature(

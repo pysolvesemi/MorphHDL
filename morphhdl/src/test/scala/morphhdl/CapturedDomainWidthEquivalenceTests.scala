@@ -182,7 +182,13 @@ object CapturedDomainWidthEquivalenceSmoke {
 
     val source = in UInt (3 bits)
     val observed = out UInt (3 bits)
-    val child = new TypedResizeChild
+    val child = new Component {
+      val incoming = in UInt(3 bits)
+      // A real internal declaration remains foreign to its parent. Direct
+      // child output ports now have authenticated parent resize carriers.
+      val outgoing = UInt(3 bits).dontSimplifyIt()
+      outgoing := incoming
+    }
 
     child.incoming := source
     observed := child.outgoing.resize(width)
@@ -550,7 +556,7 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
         case Left(failure) =>
           assert(
             failure.detail.contains(
-              "SPINAL-PARAMETERIZED-VERILOG-NORMALIZED-TYPED-RESIZE-SOURCE-OWNER-UNSUPPORTED"
+              "HIERARCHY VIOLATION (read access)"
             ),
             failure.detail
           )

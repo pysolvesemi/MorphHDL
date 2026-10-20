@@ -7,7 +7,7 @@ import spinal.core._
   * legacy widths retain their existing rules. This is never a source-ref lookup.
   */
 private[internals] object NativeWidthFormalSchema {
-  // Only the read-only hierarchy analysis transaction may reuse these proofs.
+  // Only read-only hierarchy/schema analysis transactions may reuse these proofs.
   // Identity keys deliberately distinguish equal-schema components. The entire
   // snapshot is discarded on exit (including failure), before any later phase
   // can move a declaration, change a captured scope, or replace width metadata.
