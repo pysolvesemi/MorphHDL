@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "810561594b89eaa92e103e16b4c0e06b215c8c44"
+      "approved_tree": "b013acc969aa855f90266f237f1e2a63d95710ce"
     },
     {
       "path": "idslpayload/src/main",
@@ -852,15 +852,16 @@
         "LWR-29: correlated scalar value bounds",
         "LWR-30: scalable native assignment widths",
         "LWR-33: authenticated compound child-output aliases",
-        "LWR-35: compact optional domain scope"
+        "LWR-35: compact optional domain scope",
+        "LWR-41\u201342: correlated carrier sizing"
       ],
-      "reason": "Private identity-bound compositional value-function proofs over authenticated declaration roots and schemas. Preserve all dependency axes including canceled and branch-restricted roots, join partially overlapping dependencies, compose attainable extrema for independent groups, and fail closed beyond bounded exact joint evaluation. Bind publication evidence to exact native owners without fabricating a single-root domain or enumerating large Cartesian products. Retain private expression-identity AST certificates and authentic root/schema/scope inventories independently of exact proof. Derive checked compositional publication enclosures without Cartesian calls; keep the existing stronger exact evaluator on demand and authenticate safe physical width as its own AST. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. Retain private, exact-condition-bound finite structural tuple evidence under the unchanged 65,536 tuple cap. Classify diagnostics under authenticated activation without granting integer or width authority; compact and oversized structural products remain rejected. CA-051: replay equality of two private retained packed-width certificates with exact roots, schemas and identical admitted domains. Equality grants no scope-use authority; native owner validation remains separate. Certify a total nonnegative logical right shift, including zero for invalid distances in the original product domain. Exact evaluation and conservative enclosure agree with Verilog integer shift semantics; no guard narrows exported geometry. LWR-28: Add private native declaration ingress using exact schema/root identity and support nonnegative compact intervals; retain external permits, copied-expression rejection and structural-proof limits. LWR-29: Prove scalar carrier representability from authenticated normalized inequalities without changing independent domains or granting structural authority. LWR-30: Use authenticated conservative enclosure and bounded exact fallback for optional width equality, preserving exact-domain APIs and rejecting unproved large-domain relations. LWR-33: Consume only authenticated private finite-width certificates for product-domain comparison; retain exact roots and active domains. LWR-35: Permit reuse of authenticated compact interval evidence under restrictions on unrelated parameter roots; continue rejecting projection of the compact root itself and preserve declaration-minting, schema and ownership checks.",
+      "reason": "Private identity-bound compositional value-function proofs over authenticated declaration roots and schemas. Preserve all dependency axes including canceled and branch-restricted roots, join partially overlapping dependencies, compose attainable extrema for independent groups, and fail closed beyond bounded exact joint evaluation. Bind publication evidence to exact native owners without fabricating a single-root domain or enumerating large Cartesian products. Retain private expression-identity AST certificates and authentic root/schema/scope inventories independently of exact proof. Derive checked compositional publication enclosures without Cartesian calls; keep the existing stronger exact evaluator on demand and authenticate safe physical width as its own AST. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. Retain private, exact-condition-bound finite structural tuple evidence under the unchanged 65,536 tuple cap. Classify diagnostics under authenticated activation without granting integer or width authority; compact and oversized structural products remain rejected. CA-051: replay equality of two private retained packed-width certificates with exact roots, schemas and identical admitted domains. Equality grants no scope-use authority; native owner validation remains separate. Certify a total nonnegative logical right shift, including zero for invalid distances in the original product domain. Exact evaluation and conservative enclosure agree with Verilog integer shift semantics; no guard narrows exported geometry. LWR-28: Add private native declaration ingress using exact schema/root identity and support nonnegative compact intervals; retain external permits, copied-expression rejection and structural-proof limits. LWR-29: Prove scalar carrier representability from authenticated normalized inequalities without changing independent domains or granting structural authority. LWR-30: Use authenticated conservative enclosure and bounded exact fallback for optional width equality, preserving exact-domain APIs and rejecting unproved large-domain relations. LWR-33: Consume only authenticated private finite-width certificates for product-domain comparison; retain exact roots and active domains. LWR-35: Permit reuse of authenticated compact interval evidence under restrictions on unrelated parameter roots; continue rejecting projection of the compact root itself and preserve declaration-minting, schema and ownership checks. LWR-41\u201342: Prove correlated scalar representability by bounded width-axis partitioning under authenticated local contracts; cache immutable exact-table hashes without changing equality or domain evidence.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElaborationProductDomain.scala",
         "mode": "100644",
-        "blob": "88f428acdbe9a183a987d3dde5c39965c62fe39d",
-        "sha256": "22567d3a2dc33f5e33f50e94c8bb0374b36001f9c3d309a39a46bad95d11af27"
+        "blob": "f20b78ebb370c0164a3b9a458ba0faa3ba4d9518",
+        "sha256": "dbedd1591ef804f218cc6081fa6c1a769c3ad28e30e65969c6df27ea649dc92d"
       },
       "edits": []
     },
@@ -943,15 +944,16 @@
       "classification": "typed-support-file",
       "introduced_by": [
         "Increment 66: native parameter and RTL readability extensions",
-        "LWR-29: correlated scalar value bounds"
+        "LWR-29: correlated scalar value bounds",
+        "LWR-41\u201342: correlated carrier sizing"
       ],
-      "reason": "Relocate the existing exact value/leaf/assignment registry unchanged into core alongside its adapter. Preserve all freshness, owner and authority validation; this is not a new copyable proof mechanism. LWR-29: Validate signed/unsigned scalar carrier ranges using local relational obligations while preserving exact-domain, width and identity checks.",
+      "reason": "Relocate the existing exact value/leaf/assignment registry unchanged into core alongside its adapter. Preserve all freshness, owner and authority validation; this is not a new copyable proof mechanism. LWR-29: Validate signed/unsigned scalar carrier ranges using local relational obligations while preserving exact-domain, width and identity checks. LWR-41\u201342: Use the correlated scalar proof in addition to existing exact and conservative carrier checks.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ExternalParameterizedValueRegistry.scala",
         "mode": "100644",
-        "blob": "3b7c85f73d525ea9bf1218bafaf408b64e1505a2",
-        "sha256": "ccedbd935ccda6c6ee517cd7c81fb7fa001cd0b26a17903d2c399f28e03ac26f"
+        "blob": "0e0f385f82ea2c966e885069e150be117977b873",
+        "sha256": "994b9dd2d5429d34185ef48d87cca9df38c1dd277c92f6fc70c5ea0d42c0c570"
       },
       "edits": []
     },
@@ -1895,15 +1897,16 @@
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
-        "LWR-39: parameter annotations"
+        "LWR-39: parameter annotations",
+        "LWR-41\u201342: correlated carrier sizing"
       ],
-      "reason": "Capture immutable typed constant graphs using exact native owners, assignments, domains and geometry; emit localparams with sized intermediate semantics and reject runtime sources, mutation and unsafe switch keys.",
+      "reason": "Capture immutable typed constant graphs using exact native owners, assignments, domains and geometry; emit localparams with sized intermediate semantics and reject runtime sources, mutation and unsafe switch keys. LWR-41\u201342: Inline only whole unsigned symbolic-width local initializers after existing authority, representability and assignment-lineage checks; preserve sized intermediate and fixed-width forms.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/NativeParameterConstants.scala",
         "mode": "100644",
-        "blob": "cb28e661d66c5cb20126e21af593d6067d29fc78",
-        "sha256": "dd1046c513e543bcca9eaab0acd9e2f3c8e0f10f09367149394ef101d954301a"
+        "blob": "b1575a59ab5d2034c8072f82dec72197644563c8",
+        "sha256": "3703e8a8ef17d8593598103f5b2dca1462afbdb816efadc8a14cf0e3ccb0049d"
       },
       "edits": []
     },
@@ -1937,15 +1940,16 @@
         "Increment 66: native parameter and RTL readability extensions",
         "Recursive unsigned reduction: strict Verilog-2001 domain termination",
         "Lightweight roadmap: guarded correlated mask shifts",
-        "LWR-29: correlated scalar value bounds"
+        "LWR-29: correlated scalar value bounds",
+        "LWR-41\u201342: correlated carrier sizing"
       ],
-      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Originally reject mixed structural-scope obligations; now reject them without an exact activation owner, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. CDC-LEG-01 changes only native diagnostic presentation: allocate G_PARAMETER_LEGALITY_<index> in the existing component name scope and pass the escaped original message directly to $fatal(1, \"%s\", message). Domain classification, record ownership, ordering, fatal termination and synthesis guards are unchanged. Increment 65 replaces the structural-scope rejection only for exact runtime-issued owners: component-local records carry full activation, root inventories and transactional rollback. Scope classification can omit implied diagnostics; active false requirements stay deferred, while unconditionally false top-level requirements still reject. Validate finished owner identity before native synthesis-guarded fatal publication. Retain validated declaration-domain guards for the explicit native formal API so downstream overrides cannot silently leave the proved domain. Existing user requirements retain their prior classification, scope, escaping and fatal semantics. Explicit portable domain termination uses standard display/finish tasks for the authenticated recursive packed-partition client; all pre-existing fatal guards and proof obligations retain their behavior. Runners require exact completion markers as well as process status. Expose only active authenticated structural predicate classification for operation preconditions. Deferred simulation obligations are never consulted or promoted into domain proof. LWR-29: Expose same-component unconditional retained legality to scalar-carrier proof while preserving emitted guards, lexical ownership and scope restrictions.",
+      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Originally reject mixed structural-scope obligations; now reject them without an exact activation owner, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. CDC-LEG-01 changes only native diagnostic presentation: allocate G_PARAMETER_LEGALITY_<index> in the existing component name scope and pass the escaped original message directly to $fatal(1, \"%s\", message). Domain classification, record ownership, ordering, fatal termination and synthesis guards are unchanged. Increment 65 replaces the structural-scope rejection only for exact runtime-issued owners: component-local records carry full activation, root inventories and transactional rollback. Scope classification can omit implied diagnostics; active false requirements stay deferred, while unconditionally false top-level requirements still reject. Validate finished owner identity before native synthesis-guarded fatal publication. Retain validated declaration-domain guards for the explicit native formal API so downstream overrides cannot silently leave the proved domain. Existing user requirements retain their prior classification, scope, escaping and fatal semantics. Explicit portable domain termination uses standard display/finish tasks for the authenticated recursive packed-partition client; all pre-existing fatal guards and proof obligations retain their behavior. Runners require exact completion markers as well as process status. Expose only active authenticated structural predicate classification for operation preconditions. Deferred simulation obligations are never consulted or promoted into domain proof. LWR-29: Expose same-component unconditional retained legality to scalar-carrier proof while preserving emitted guards, lexical ownership and scope restrictions. LWR-41\u201342: Expose only unconditional, relevant component-owned contracts to scalar carrier proof.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/NativeSymbolicLegality.scala",
         "mode": "100644",
-        "blob": "81787cf1d081255ba6b9ff941feabf8a1f79e327",
-        "sha256": "a0771859a0e964ee46f4936d73476d1e800438a91a435a0cc60c98709c2e2998"
+        "blob": "6d7eaac32eafdf583a37d242de76e5479033a0dc",
+        "sha256": "e13e7ba00e849e779eb4016422e94a254c1a4513432c1849ccbd149042fae5a6"
       },
       "edits": []
     },
